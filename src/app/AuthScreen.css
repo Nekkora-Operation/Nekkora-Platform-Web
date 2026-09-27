@@ -1,8 +1,8 @@
 .pw-brand { display: flex; flex-direction: column; gap: var(--nk-space-5); }
 .pw-brand__eyebrow { margin: 0; color: var(--nk-color-accent); }
-.pw-brand__headline { margin: 0; max-width: 19ch; line-height: 1.15; text-wrap: balance; }
+.pw-brand__headline { margin: 0; max-width: 20ch; line-height: 1.15; text-wrap: balance; }
 .pw-brand__accent { color: var(--nk-color-accent); }
-.pw-brand__description { margin: 0; max-width: 48ch; line-height: 1.6; }
+.pw-brand__description { margin: 0; max-width: 52ch; line-height: 1.6; }
 .pw-brand__pillars {
   list-style: none; margin: var(--nk-space-2) 0 0; padding: var(--nk-space-5) 0 0;
   display: flex; flex-wrap: wrap; gap: var(--nk-space-2) var(--nk-space-4);
