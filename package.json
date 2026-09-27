@@ -11,7 +11,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "e2e": "playwright test",
-    "check": "npm run typecheck && npm test && npm run build"
+    "check": "npm run typecheck && npm test && npm run build",
+    "predev": "node scripts/check-lib.mjs",
+    "prebuild": "node scripts/check-lib.mjs",
+    "pretest": "node scripts/check-lib.mjs"
   },
   "dependencies": {
     "nekkora-lib": "file:../Nekkora-lib",

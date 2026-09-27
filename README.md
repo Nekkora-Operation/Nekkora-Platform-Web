@@ -25,7 +25,12 @@ nem "manter conectado".
 
 ## Rodando
 
-Pré-requisitos: Node 22+ e o repositório `Nekkora-lib` ao lado deste. **Não precisa da API nem de Docker.**
+Pré-requisitos: Node 22+ e o repositório `Nekkora-lib` ao lado deste, **no branch que acompanha este
+frontend** (hoje `claude/compassionate-knuth-7isa9u`, até ser mesclado). Não precisa da API nem de Docker.
+
+`dev`, `build` e `test` começam por `scripts/check-lib.mjs`: se a lib não exportar algum componente que o
+frontend usa, ela é recompilada; se ainda faltar (branch errado), o comando para com a instrução — em vez de a
+página abrir em branco.
 
 ```bash
 npm install
