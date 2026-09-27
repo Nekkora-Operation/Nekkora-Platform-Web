@@ -11,7 +11,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "e2e": "playwright test",
-    "check": "npm run typecheck && npm test && npm run build"
+    "check": "npm run typecheck && npm test && npm run build",
+    "stack:up": "WEB_ORIGEM=http://localhost:4173 e2e/stack/up.sh",
+    "stack:dev": "e2e/stack/up.sh",
+    "stack:down": "e2e/stack/down.sh"
   },
   "dependencies": {
     "nekkora-lib": "file:../Nekkora-lib",

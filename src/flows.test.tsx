@@ -1,5 +1,5 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { csrfStore } from './api/csrf';
 import { sessionMemory } from './app/notices';
 import { ENROLL_OK, TOTP_OK } from './test/fakeApi';
@@ -339,6 +339,27 @@ describe('Sessão', () => {
     expect(await screen.findByText('Sua sessão expirou. Entre novamente para continuar.')).toBeInTheDocument();
     expect(location()).toBe(LOGIN);
     expect(csrfStore.session(ORG)).toBeUndefined();
+  });
+
+  it('inatividade: passado o prazo do contrato sem chamadas, confirma com a API e aplica a expiração', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      renderApp(LOGIN);
+      await fillLogin('ana@empresa.com', 'senha-muito-segura');
+      await user().type(await screen.findByLabelText(lbl('Código de autenticação')), TOTP_OK);
+      await screen.findByRole('heading', { name: 'Olá, Ana Souza' });
+
+      // sessão ainda válida no servidor: a verificação só reagenda, sem sair da área autenticada
+      await act(() => vi.advanceTimersByTimeAsync(30 * 60_000 + 5_000));
+      expect(location()).toBe(`/o/${ORG}`);
+
+      fake.api().expireSession(); // a API encerrou a sessão por inatividade
+      await act(() => vi.advanceTimersByTimeAsync(30 * 60_000 + 5_000));
+      expect(await screen.findByText('Sua sessão expirou. Entre novamente para continuar.')).toBeInTheDocument();
+      expect(location()).toBe(LOGIN);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('sem sessão e sem histórico nesta aba: vai ao login sem aviso', async () => {

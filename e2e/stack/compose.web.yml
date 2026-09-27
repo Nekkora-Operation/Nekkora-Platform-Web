@@ -1,0 +1,7 @@
+# Sobreposicao da stack E2E da API (nekkora-platform-api/api/e2e/compose.e2e.yml) para o FRONTEND.
+# Unica diferenca: a origem publica passa a ser a do servidor Vite (dev 5173 ou preview 4173), que repassa
+# /api ao nginx da stack. O Origin do navegador chega intacto; nenhuma regra da API e relaxada.
+services:
+  platform:
+    environment:
+      NEKKORA_ORIGEM_PUBLICA: ${WEB_ORIGEM:?defina WEB_ORIGEM}

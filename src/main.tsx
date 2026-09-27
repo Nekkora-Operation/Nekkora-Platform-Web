@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router';
 import 'nekkora-lib/styles.css';
+import './app/global.css';
 import { AppRoutes } from './app/AppRoutes';
 import { captureInitialLinkToken } from './auth/linkToken';
 

@@ -13,6 +13,15 @@ import './HomePage.css';
 type State = { kind: 'loading' } | { kind: 'ready'; me: Me } | { kind: 'error'; message: UserMessage };
 
 /**
+ * Inatividade do contrato (8.7): a API encerra a sessão após 30 min (conta interna) ou 15 min (portal) sem
+ * requisição autenticada. O timer abaixo é SÓ de experiência: passado esse prazo desde a última chamada, pergunta
+ * à API (a autoridade) e, se ela responder 401, aplica o fluxo de sessão expirada. Nunca renova nem reautentica.
+ */
+const INACTIVITY_MS: Record<Me['accountType'], number> = { internal: 30 * 60_000, external: 15 * 60_000 };
+const CHECK_MARGIN_MS = 5_000;
+const RETRY_MS = 60_000;
+
+/**
  * /o/{org} — área autenticada (V1: ponto de chegada do login). Quem decide se há sessão é a API (/me); estado
  * local nunca libera acesso. 401 = sessão expirada/revogada: limpa a memória e volta ao login da organização.
  */
@@ -23,6 +32,7 @@ export function HomePage() {
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [signingOut, setSigningOut] = useState(false);
   const started = useRef(false);
+  const watch = useRef<number | undefined>(undefined);
 
   const expired = useCallback(() => {
     const hadSession = sessionMemory.hadSession();
@@ -32,17 +42,36 @@ export function HomePage() {
     navigate(orgPath.login(org), { replace: true, state: nav });
   }, [navigate, org]);
 
+  const arm = useCallback(
+    (delay: number, check: () => void) => {
+      window.clearTimeout(watch.current);
+      watch.current = window.setTimeout(check, delay);
+    },
+    [],
+  );
+
+  const check = useCallback(async () => {
+    try {
+      const data = await me(org);
+      arm(INACTIVITY_MS[data.accountType] + CHECK_MARGIN_MS, () => void check());
+    } catch (e) {
+      if (isApiError(e, 'unauthenticated')) expired();
+      else arm(RETRY_MS, () => void check()); // falha temporária: a tela segue; a próxima chamada decide
+    }
+  }, [org, expired, arm]);
+
   const load = useCallback(async () => {
     setState({ kind: 'loading' });
     try {
       const data = await me(org);
       sessionMemory.markActive();
       setState({ kind: 'ready', me: data });
+      arm(INACTIVITY_MS[data.accountType] + CHECK_MARGIN_MS, () => void check());
     } catch (e) {
       if (isApiError(e, 'unauthenticated')) expired();
       else setState({ kind: 'error', message: commonMessage(e) });
     }
-  }, [org, expired]);
+  }, [org, expired, arm, check]);
 
   useEffect(() => {
     if (started.current) return;
@@ -50,7 +79,10 @@ export function HomePage() {
     void load();
   }, [load]);
 
+  useEffect(() => () => window.clearTimeout(watch.current), []);
+
   const signOut = async () => {
+    window.clearTimeout(watch.current);
     setSigningOut(true);
     try {
       await logout(org);
@@ -106,7 +138,7 @@ export function HomePage() {
           <Heading level={1}>Olá, {displayName}</Heading>
           <Card variant="surface" padding="lg">
             <div className="pw-home__card">
-              <Text color="secondary">Você está autenticada no Nekkora Platform.</Text>
+              <Text color="secondary">Sua sessão no Nekkora Platform está ativa.</Text>
               <dl className="pw-home__facts">
                 <dt>E-mail</dt>
                 <dd>{email}</dd>
