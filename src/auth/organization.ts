@@ -28,3 +28,12 @@ export const orgPath = {
   verifyEmail: (org: string) => `/o/${org}/verify-email`,
   home: (org: string) => `/o/${org}`,
 };
+
+/**
+ * Nome humano da organização, quando o contrato o fornecer. A API v1 não expõe o nome antes do login nem em
+ * /me (identificador público = UUID, decisão 8.1 — divergências D1/D7): hoje devolve sempre undefined e a
+ * interface mostra o identificador abreviado. Quando houver resolução pública, ela entra aqui.
+ */
+export function organizationName(_org: string): string | undefined {
+  return undefined;
+}
