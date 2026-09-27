@@ -59,10 +59,21 @@ if (existsSync(join(lib, 'src'))) {
   if (missing.length === 0) process.exit(0);
 }
 
-const branch = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: lib, encoding: 'utf8' }).stdout?.trim();
+const git = (...args) => spawnSync('git', args, { cwd: lib, encoding: 'utf8' }).stdout?.trim();
+const branch = git('rev-parse', '--abbrev-ref', 'HEAD') || '?';
+const head = git('log', '-1', '--format=%h %s') || '?';
+const behind = git('rev-list', '--count', 'HEAD..@{upstream}');
 fail([
   `Faltam na lib: ${missing.join(', ')}.`,
-  `A lib em ${lib} está no branch "${branch || '?'}", que não tem esses componentes.`,
-  'Use o branch da lib que acompanha este frontend e recompile:',
-  '  cd ../Nekkora-lib && git checkout claude/compassionate-knuth-7isa9u && npm install && npm run build',
+  `A lib em ${lib} está no branch "${branch}", no commit ${head}.`,
+  behind && behind !== '0'
+    ? `Esse branch está ${behind} commit(s) atrás do GitHub (conforme o último git fetch).`
+    : 'A cópia local do branch não tem esses componentes — provavelmente falta baixar as atualizações.',
+  'Atualize a lib e recompile:',
+  '  cd ../Nekkora-lib',
+  '  git fetch origin',
+  '  git checkout claude/compassionate-knuth-7isa9u',
+  '  git pull origin claude/compassionate-knuth-7isa9u',
+  '  npm install',
+  '  npm run build',
 ]);
