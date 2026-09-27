@@ -26,7 +26,9 @@ nem "manter conectado".
 ## Rodando
 
 Pré-requisitos: Node 22+, os repositórios `Nekkora-lib` e `nekkora-platform-api` ao lado deste, Docker e JDK 21
-(para a API real).
+(para a API real). **Windows:** Docker Desktop em execução e Git for Windows instalado — os scripts `stack:*`
+rodam pelo Git Bash (localizado automaticamente por `e2e/stack/run.mjs`, nunca o bash do WSL); para o E2E,
+instale o navegador uma vez com `npx playwright install chromium`.
 
 ```bash
 npm install

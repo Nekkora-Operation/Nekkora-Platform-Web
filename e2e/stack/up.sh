@@ -6,9 +6,10 @@
 # processo; a chave TLS e apagada depois que o nginx a carrega. Nada vai para arquivo. As fixtures do E2E falam
 # com o PostgreSQL por "docker exec" (socket local do container), sem precisar da senha.
 #
-# Uso:  e2e/stack/up.sh                         (origem http://localhost:5173, para npm run dev)
-#       WEB_ORIGEM=http://localhost:4173 e2e/stack/up.sh   (preview, usado por npm run e2e)
-# Remocao: e2e/stack/down.sh
+# Uso (qualquer sistema): npm run stack:dev   (origem http://localhost:5173, para npm run dev)
+#                        npm run stack:up    (origem http://localhost:4173, preview usado por npm run e2e)
+#                        npm run stack:down
+# No Windows os scripts rodam pelo Git Bash (e2e/stack/run.mjs o localiza).
 set -euo pipefail
 
 AQUI="$(cd "$(dirname "$0")" && pwd)"
@@ -38,18 +39,21 @@ for n in $(seq -w 1 15); do
     [ -f "${f[0]}" ] && [ ${#f[@]} -eq 1 ] || falha "migration 0$n ausente ou ambigua"
     cp "${f[0]}" "$SAIDA/migracoes/"
 done
-export E2E_MIGRACOES="$SAIDA/migracoes" E2E_TLS="$SAIDA/tls"
+# Git Bash (Windows): caminhos /c/... viram C:/... para o Docker Desktop; no Linux/macOS nada muda.
+nativo() { cygpath -m "$1" 2>/dev/null || echo "$1"; }
+export E2E_MIGRACOES="$(nativo "$SAIDA/migracoes")" E2E_TLS="$(nativo "$SAIDA/tls")"
 
 aleatorio() { head -c "$1" /dev/urandom | base64 | tr -d '\n'; }
 senha() { head -c 24 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n'; }
 export E2E_PG_SUPER_SENHA="$(senha)" E2E_PLATFORM_SENHA="$(senha)" E2E_PORTAL_SENHA="$(senha)"
 export E2E_MFA_CHAVES="k1:$(aleatorio 32)" E2E_HMAC_CHAVE="$(aleatorio 32)"
 
-(cd "$SAIDA/tls" && openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=localhost" \
+# MSYS2_ARG_CONV_EXCL: impede o Git Bash de converter o "/CN=localhost" em caminho do Windows
+(cd "$SAIDA/tls" && MSYS2_ARG_CONV_EXCL='*' openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=localhost" \
     -addext "subjectAltName=DNS:localhost" -keyout key.pem -out cert.pem 2>/dev/null) || falha "certificado TLS descartavel"
 chmod 644 "$SAIDA/tls/key.pem"   # lido pelo nginx no container; apagado logo apos a subida
 
-compose() { docker compose -f "$API/e2e/compose.e2e.yml" -f "$AQUI/compose.web.yml" "$@"; }
+compose() { docker compose -f "$(nativo "$API/e2e/compose.e2e.yml")" -f "$(nativo "$AQUI/compose.web.yml")" "$@"; }
 
 if [ ! -f "$API/nekkora-platform/target/nekkora-platform-0.1.0-SNAPSHOT.jar" ] || [ "${REBUILD:-0}" = 1 ]; then
     echo "== build dos jars da API (sem testes)"

@@ -12,9 +12,9 @@
     "test": "vitest run",
     "e2e": "playwright test",
     "check": "npm run typecheck && npm test && npm run build",
-    "stack:up": "WEB_ORIGEM=http://localhost:4173 e2e/stack/up.sh",
-    "stack:dev": "e2e/stack/up.sh",
-    "stack:down": "e2e/stack/down.sh"
+    "stack:up": "node e2e/stack/run.mjs up http://localhost:4173",
+    "stack:dev": "node e2e/stack/run.mjs up http://localhost:5173",
+    "stack:down": "node e2e/stack/run.mjs down"
   },
   "dependencies": {
     "nekkora-lib": "file:../Nekkora-lib",
