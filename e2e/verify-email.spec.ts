@@ -1,15 +1,15 @@
 import { expect, test } from '@playwright/test';
-import { createAccount, createOrganization, issueEmailVerificationToken } from './support/db';
+import { createAccount, createOrganization, issueEmailVerificationToken } from './support/mock';
 import { INVALID_CREDENTIALS, leakGuard, path, signIn } from './support/app';
 
 test('DoD 3 — link de verificação → e-mail confirmado → login', async ({ page }) => {
   const guard = leakGuard(page);
-  const account = createAccount(createOrganization(), { verified: false });
+  const account = await createAccount(undefined, { verified: false });
 
   await signIn(page, account); // antes de confirmar: conta não elegível, resposta genérica
   await expect(page.getByRole('alert').filter({ hasText: INVALID_CREDENTIALS })).toBeVisible();
 
-  const token = issueEmailVerificationToken(account);
+  const token = await issueEmailVerificationToken(account);
   await page.goto(path.verify(account.org, token));
   await expect(page.getByText('E-mail confirmado', { exact: true })).toBeVisible();
   await expect(page).toHaveURL(`/o/${account.org}/verify-email`);
@@ -24,11 +24,11 @@ test('DoD 3 — link de verificação → e-mail confirmado → login', async ({
 
 for (const kind of ['inválido', 'expirado', 'já usado'] as const) {
   test(`link de verificação ${kind}`, async ({ page }) => {
-    const account = createAccount(createOrganization(), { verified: false });
+    const account = await createAccount(undefined, { verified: false });
     let token = 'y'.repeat(43);
-    if (kind === 'expirado') token = issueEmailVerificationToken(account, { expired: true });
+    if (kind === 'expirado') token = await issueEmailVerificationToken(account, { expired: true });
     if (kind === 'já usado') {
-      token = issueEmailVerificationToken(account);
+      token = await issueEmailVerificationToken(account);
       await page.goto(path.verify(account.org, token));
       await expect(page.getByText('E-mail confirmado', { exact: true })).toBeVisible();
       await page.goto('about:blank'); // o link do e-mail abre uma carga nova, não uma troca de fragmento
@@ -39,7 +39,7 @@ for (const kind of ['inválido', 'expirado', 'já usado'] as const) {
 }
 
 test('reenviar verificação: fora do ar até a API expor o endpoint (divergência D2)', async ({ page }) => {
-  const org = createOrganization();
+  const org = await createOrganization();
   await page.goto(path.login(org));
   await expect(page.getByRole('link', { name: /Reenviar verificação/ })).toHaveCount(0);
   await page.goto(`/o/${org}/resend-verification`);

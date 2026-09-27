@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test';
-import { createAccount, createOrganization, PASSWORD } from './support/db';
+import { createAccount, createOrganization, PASSWORD } from './support/mock';
 import { enrolledAccount, enrollMfa, INVALID_CREDENTIALS, leakGuard, path, signIn } from './support/app';
 
 test('DoD 1 — primeiro acesso: login → MFA obrigatório → códigos → área autenticada; depois login com TOTP', async ({ page }) => {
   const guard = leakGuard(page);
-  const account = createAccount(createOrganization());
+  const account = await createAccount();
 
   await signIn(page, account);
   const { auth, codes } = await enrollMfa(page, account);
@@ -55,9 +55,9 @@ test('login com código de recuperação: aceito uma vez, com aviso; o mesmo có
 });
 
 test('credenciais inválidas: a mesma mensagem genérica para senha errada, e-mail inexistente e conta não elegível', async ({ page }) => {
-  const org = createOrganization();
-  const ok = createAccount(org);
-  const unverified = createAccount(org, { verified: false });
+  const org = await createOrganization();
+  const ok = await createAccount(org);
+  const unverified = await createAccount(org, { verified: false });
   const cases = [
     { ...ok, password: 'senha-errada-123' },
     { ...ok, email: 'ninguem@e2e.test', password: PASSWORD },

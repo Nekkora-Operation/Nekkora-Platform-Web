@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
-import { createAccount, createOrganization } from './support/db';
+import { createAccount, createOrganization } from './support/mock';
 import { INVALID_CREDENTIALS, path, signIn } from './support/app';
 
 test('sem organização na URL: estado controlado, sem seletor nem campo de empresa', async ({ page }) => {
@@ -20,21 +20,21 @@ test('identificador de organização inválido: "Organização não encontrada",
 });
 
 test('organização inexistente com formato válido: a API não revela nada — resposta genérica de credencial', async ({ page }) => {
-  const other = createAccount(createOrganization());
+  const other = await createAccount();
   await signIn(page, { ...other, org: randomUUID() });
   await expect(page.getByRole('alert').filter({ hasText: INVALID_CREDENTIALS })).toBeVisible();
 });
 
 test('conta de outra organização não entra por esta (isolamento, sem redirecionar)', async ({ page }) => {
-  const a = createOrganization();
-  const fromB = createAccount(createOrganization());
+  const a = await createOrganization();
+  const fromB = await createAccount();
   await signIn(page, { ...fromB, org: a });
   await expect(page.getByRole('alert').filter({ hasText: INVALID_CREDENTIALS })).toBeVisible();
   await expect(page).toHaveURL(path.login(a));
 });
 
 test('a organização é preservada em toda a navegação pública', async ({ page }) => {
-  const org = createOrganization();
+  const org = await createOrganization();
   await page.goto(path.login(org));
   await expect(page.getByText(org.slice(0, 8))).toBeVisible();
   await page.getByRole('link', { name: 'Esqueci minha senha' }).click();
@@ -47,7 +47,7 @@ test('a organização é preservada em toda a navegação pública', async ({ pa
 });
 
 test('login sem opções fora de escopo: cadastro, Microsoft, manter conectado, escolher organização', async ({ page }) => {
-  await page.goto(path.login(createOrganization()));
+  await page.goto(path.login(await createOrganization()));
   await expect(page.getByRole('heading', { name: 'Bem-vinda de volta' })).toBeVisible();
   await expect(page.getByText(/criar conta|cadastre-se|microsoft|manter conectad|lembrar|escolher organiza/i)).toHaveCount(0);
 });

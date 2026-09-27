@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { revokeSessions } from './support/db';
+import { revokeSessions } from './support/mock';
 import { enrolledAccount, path, SESSION_EXPIRED, signIn } from './support/app';
 
 test('sessão encerrada pela API (inatividade): o aviso aparece e o login da organização volta', async ({ page }) => {
@@ -9,7 +9,7 @@ test('sessão encerrada pela API (inatividade): o aviso aparece e o login da org
   await page.getByLabel(/Código de autenticação/).fill(await auth.next());
   await expect(page.getByRole('heading', { name: 'Olá, Pessoa E2E' })).toBeVisible();
 
-  revokeSessions(account.userId); // o servidor encerrou a sessão (30 min sem requisição, conta interna)
+  await revokeSessions(account.userId); // o servidor encerrou a sessão (30 min sem requisição, conta interna)
   await page.clock.fastForward('30:10');
   await expect(page.getByText(SESSION_EXPIRED)).toBeVisible();
   await expect(page).toHaveURL(path.login(account.org));

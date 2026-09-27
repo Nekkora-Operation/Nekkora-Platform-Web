@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { expect, test, type Page } from '@playwright/test';
-import { createAccount, createOrganization } from './support/db';
+import { createAccount, createOrganization } from './support/mock';
 import { enrollMfa, path, signIn } from './support/app';
 
 const axeSource = readFileSync(createRequire(import.meta.url).resolve('axe-core/axe.min.js'), 'utf8');
@@ -20,7 +20,7 @@ async function audit(page: Page, name: string) {
 }
 
 test('telas públicas: acessibilidade (axe, com contraste) e sem rolagem horizontal', async ({ page }) => {
-  const org = createOrganization();
+  const org = await createOrganization();
   await page.goto(path.login(org));
   await expect(page.getByRole('heading', { name: 'Bem-vinda de volta' })).toBeVisible();
   await audit(page, 'login');
@@ -44,7 +44,7 @@ test('telas públicas: acessibilidade (axe, com contraste) e sem rolagem horizon
 });
 
 test('primeiro acesso e MFA: acessibilidade e layout', async ({ page }) => {
-  const account = createAccount(createOrganization());
+  const account = await createAccount();
   await signIn(page, account);
   await expect(page.getByRole('heading', { name: 'Proteja sua conta' })).toBeVisible();
   await audit(page, 'mfa-intro');
@@ -57,7 +57,7 @@ test('primeiro acesso e MFA: acessibilidade e layout', async ({ page }) => {
 });
 
 test('códigos de recuperação, área autenticada e verificação MFA: acessibilidade e layout', async ({ page }) => {
-  const account = createAccount(createOrganization());
+  const account = await createAccount();
   await signIn(page, account);
   const { auth } = await enrollMfa(page, account, (step) => audit(page, step === 'codes' ? 'mfa-codigos' : 'area-autenticada'));
   await page.getByRole('button', { name: 'Sair' }).click();
@@ -73,7 +73,7 @@ test('códigos de recuperação, área autenticada e verificação MFA: acessibi
 });
 
 test('teclado: Tab percorre o login com foco visível e Enter envia', async ({ page }) => {
-  const org = createOrganization();
+  const org = await createOrganization();
   await page.goto(path.login(org));
   await expect(page.getByRole('textbox', { name: /E-mail/ })).toBeFocused();
   await page.keyboard.type('ninguem@e2e.test');

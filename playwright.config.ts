@@ -2,8 +2,8 @@ import { existsSync } from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * E2E contra a API REAL (e2e/stack/up.sh com WEB_ORIGEM=http://localhost:4173). O build de produção é servido
- * pelo `vite preview`, que repassa /api ao gateway TLS da stack — mesma origem, cookies __Host- e CSRF reais.
+ * E2E do build de produção servido pelo `vite preview`, com /api atendido pela API simulada do contrato 8.7
+ * (mock/: mesma origem, cookies __Host- HttpOnly, CSRF, TOTP real). Não precisa de backend nem de Docker.
  */
 const chromium = process.env.PW_CHROMIUM ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const launchOptions = existsSync(chromium) ? { executablePath: chromium } : {};
@@ -38,6 +38,7 @@ export default defineConfig({
     command: 'npm run build && npx vite preview',
     url: 'http://localhost:4173',
     reuseExistingServer: false,
+    env: { NEKKORA_MOCK_DELAY: '60' }, // latência curta da API simulada (o padrão de 350 ms é para uso manual)
     timeout: 120_000,
   },
 });

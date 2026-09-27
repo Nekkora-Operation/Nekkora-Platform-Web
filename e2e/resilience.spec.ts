@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
-import { createAccount, createOrganization } from './support/db';
+import { createAccount } from './support/mock';
 import { signIn } from './support/app';
 
 test('API indisponível: mensagem temporária, sem detalhes internos, e o formulário continua utilizável', async ({ page }) => {
-  const account = createAccount(createOrganization());
+  const account = await createAccount();
   await page.route('**/api/v1/**', (route) => route.abort('connectionrefused'));
   await signIn(page, account);
   await expect(page.getByRole('alert')).toContainText('Não foi possível conectar.');
@@ -12,7 +12,7 @@ test('API indisponível: mensagem temporária, sem detalhes internos, e o formul
 });
 
 test('503 do serviço: "temporariamente indisponível" com código de referência seguro', async ({ page }) => {
-  const account = createAccount(createOrganization());
+  const account = await createAccount();
   await page.route('**/auth/login', (route) =>
     route.fulfill({
       status: 503,
@@ -29,7 +29,7 @@ test('503 do serviço: "temporariamente indisponível" com código de referênci
 });
 
 test('submit duplicado: um único POST de login, botão em "Entrando…"', async ({ page }) => {
-  const account = createAccount(createOrganization());
+  const account = await createAccount();
   let posts = 0;
   await page.route('**/auth/login', async (route) => {
     posts++;

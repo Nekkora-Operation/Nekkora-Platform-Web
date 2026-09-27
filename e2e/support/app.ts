@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test';
-import { createAccount, createOrganization, PASSWORD, type Account } from './db';
-import { Authenticator } from './totp';
+import { createAccount, PASSWORD, type Account } from './mock';
+import { Authenticator } from '../../mock/totp';
 
 export const path = {
   login: (org: string) => `/o/${org}/login`,
@@ -56,7 +56,7 @@ export async function enrollMfa(page: Page, account: Account, onStep?: (step: 'c
 
 /** Conta nova já com MFA configurado e sem sessão (saiu ao final). */
 export async function enrolledAccount(page: Page) {
-  const account = createAccount(createOrganization());
+  const account = await createAccount();
   await signIn(page, account);
   const mfa = await enrollMfa(page, account);
   await page.getByRole('button', { name: 'Sair' }).click();

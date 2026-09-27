@@ -25,41 +25,51 @@ nem "manter conectado".
 
 ## Rodando
 
-Pré-requisitos: Node 22+, os repositórios `Nekkora-lib` e `nekkora-platform-api` ao lado deste, Docker e JDK 21
-(para a API real). **Windows:** Docker Desktop em execução e Git for Windows instalado — os scripts `stack:*`
-rodam pelo Git Bash (localizado automaticamente por `e2e/stack/run.mjs`, nunca o bash do WSL); para o E2E,
-instale o navegador uma vez com `npx playwright install chromium`.
+Pré-requisitos: Node 22+ e o repositório `Nekkora-lib` ao lado deste. **Não precisa da API nem de Docker.**
 
 ```bash
 npm install
-npm run check            # typecheck + testes unitários/integração (API simulada) + build
+npm run dev              # http://localhost:5173 — com a API simulada
+npm run check            # typecheck + testes unitários/integração + build
 ```
 
-### Com a API real
+### API simulada (`mock/`)
+
+Nesta fase o frontend trabalha contra uma **simulação em memória do contrato 8.7**, servida pelo próprio Vite
+(`npm run dev` e `npm run preview`). Ela reproduz o que a interface enxerga da API real: rotas, erros
+`{"error": ...}`, `X-Request-Id`, cookies `__Host-` HttpOnly, CSRF com checagem de Origin, TOTP real com
+anti-replay, 5 tentativas por desafio, códigos de recuperação e links de uso único, expiração de sessão e
+respostas genéricas. Nada disso entra no build de produção.
+
+Painel em **http://localhost:5173/__mock/**:
+
+- contas de exemplo (senha `Nekkora-Dev-2026`, organização `b7e1c3a0-5d2f-4e8b-9a61-0c3d5e7f9a12`):
+  - `ana@nekkora.dev` — MFA configurado (código TOTP do momento no painel);
+  - `novo@nekkora.dev` — primeiro acesso (configuração do autenticador);
+  - `pendente@nekkora.dev` — e-mail não confirmado (link de confirmação na caixa de e-mails);
+  - `portal@nekkora.dev` — conta do portal (inatividade de 15 min);
+- **caixa de e-mails simulada** com os links de redefinição de senha e de confirmação;
+- expirar sessões, simular falhas (queda de conexão, 429, 503, 500) e restaurar os dados.
+
+Como na API real, um código TOTP só vale uma vez: para entrar de novo na mesma conta, espere o próximo código.
+Latência simulada: `NEKKORA_MOCK_DELAY` (ms, padrão 350).
+
+### E2E (Playwright)
 
 ```bash
-npm run stack:dev        # sobe nginx TLS + Platform + Portal + PostgreSQL + Redis (origem http://localhost:5173)
-npm run dev              # Vite em :5173, repassando /api ao gateway https://localhost:55443
-npm run stack:down
+npx playwright install chromium   # uma vez
+npm run e2e                       # build de produção + API simulada; desktop, tablet e mobile
 ```
 
-A stack reaproveita `nekkora-platform-api/api/e2e/compose.e2e.yml` sem alterá-lo; só a origem pública da
-Platform aponta para o Vite (`e2e/stack/compose.web.yml`). Segredos são aleatórios por execução e ficam apenas
-no ambiente do script. Não há contas: crie-as com as funções de `e2e/support/db.ts`.
+Cobre os três fluxos da definição de pronto (login → MFA → área autenticada; esqueci → e-mail simulado → nova
+senha → login; link de verificação → confirmação → login), códigos de recuperação, sessão expirada/encerrada,
+cookies, organização, API indisponível, submit duplicado, vazamentos (console, URL, storage) e acessibilidade
+com axe (incluindo contraste).
 
-### E2E (Playwright, API real)
+### Integração com a API real (fase futura)
 
-```bash
-npm run stack:up         # mesma stack, origem http://localhost:4173 (vite preview do build de produção)
-npm run e2e              # desktop + tablet + mobile
-npm run stack:down
-```
-
-Cobre os três fluxos da definição de pronto (login → MFA → área autenticada; esqueci → link → nova senha →
-login; link de verificação → confirmação → login), códigos de recuperação, sessão expirada/encerrada, cookies,
-organização, API indisponível, submit duplicado, vazamentos (console, URL, storage) e acessibilidade com axe
-(incluindo contraste) em três tamanhos de tela. Os limitadores da API valem: rodar a suíte muitas vezes na
-mesma hora pode esbarrar no limite de pedidos de recuperação por IP (10/h) — `stack:down` + `stack:up` zera.
+Com `NEKKORA_API_URL` definido (ex.: `https://localhost:55443`), o Vite deixa de simular e repassa `/api` para
+essa API. A origem pública configurada na API precisa ser a do Vite (`http://localhost:5173`).
 
 ## Segurança no cliente
 

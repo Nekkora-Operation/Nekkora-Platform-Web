@@ -20,7 +20,8 @@ de produto/API; até lá vale o comportamento descrito em "Frontend hoje".
 
 ## Ambiente de desenvolvimento/E2E
 
-- Sem sender real de e-mail (D4), o "e-mail" do E2E é simulado: a fixture grava no banco o SHA-256 de um token
-  conhecido (exatamente como a API grava) e o teste abre o link no formato D4. O pedido real
-  (`password-reset/request`) é feito pela interface e o teste confirma que a API emitiu um token.
-- Contas são provisionadas por fixture (não há cadastro público — fora do escopo).
+- Nesta fase o frontend roda contra a API simulada (`mock/`), que implementa o contrato **como ele é**, incluindo
+  as divergências acima: sem rota de reenvio (404), 400 único para links, 401 genérico no login, MFA obrigatório.
+- O e-mail transacional (D4) é simulado por uma caixa de entrada em memória (`/__mock/`), com links no formato
+  proposto. Contas são provisionadas pelo simulador (não há cadastro público — fora do escopo).
+- Ao integrar com a API real, rodar de novo a suíte E2E contra ela para confirmar que a simulação não divergiu.
