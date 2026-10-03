@@ -25,18 +25,41 @@ nem "manter conectado".
 
 ## Rodando
 
-Pré-requisitos: Node 22+ e o repositório `Nekkora-lib` ao lado deste, **no branch que acompanha este
-frontend** e atualizado com `git pull` (hoje `claude/compassionate-knuth-7isa9u`, até ser mesclado). Não precisa da API nem de Docker.
+Pré-requisitos: Node 22+ e o repositório `Nekkora-lib` ao lado deste, no `main` e atualizado com `git pull`.
+Não precisa da API nem de Docker.
 
 `dev`, `build` e `test` começam por `scripts/check-lib.mjs`: se a lib não exportar algum componente que o
 frontend usa, ela é recompilada; se ainda faltar (branch errado), o comando para com a instrução — em vez de a
 página abrir em branco.
+
+Com npm 11, `npm ci`/`npm install` aqui **não** executa o `prepare` (build) da lib (aviso "allow-scripts"), e o
+`check-lib` só recompila quando falta um export. Depois de atualizar a lib, gere o `dist` nela
+(`npm ci && npm run build` em `../Nekkora-lib`). Ao registrar uma verificação, anote o **par de commits**
+web + lib: o lockfile e o comportamento dependem da lib em disco.
 
 ```bash
 npm install
 npm run dev              # http://localhost:5173 — com a API simulada
 npm run check            # typecheck + testes unitários/integração + build
 ```
+
+### Contrato tipado da API v1 (`contract/`, `src/api/generated/`)
+
+A fonte do contrato é o OpenAPI definitivo do backend (`Nekkora-Platform-API`: `api/openapi/nekkora-api-v1.yaml`).
+O frontend guarda uma **cópia versionada** em `contract/` e gera os tipos TypeScript em
+`src/api/generated/nekkora-api-v1.ts` (só tipos, nenhum código em runtime). Os clientes por domínio ficam em
+`src/api/` (`permissions.ts`, `product.ts`, `admin.ts`, `portal.ts`), e a paginação por cursor em
+`src/hooks/useCursorList.ts`.
+
+```bash
+npm run contract:gen     # regenera os tipos a partir da cópia
+npm run contract:check   # falha se os tipos não forem os gerados ou se a cópia divergir do backend (../nekkora-platform)
+npm run contract:sync    # copia o OpenAPI do backend para contract/ (depois: contract:gen)
+```
+
+O gerador (`openapi-typescript`) exige TypeScript 5, e o app usa TypeScript 7. Por isso ele roda numa ferramenta
+**isolada** em `tools/contract/` (dependências e lockfile próprios, instalados sob demanda pelo script).
+`npm run check` inclui o `contract:check`.
 
 ### API simulada (`mock/`)
 

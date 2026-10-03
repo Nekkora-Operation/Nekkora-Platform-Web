@@ -103,13 +103,22 @@ export async function me(org: string): Promise<Me> {
   return data;
 }
 
-async function sessionCsrf(org: string): Promise<string> {
+/** CSRF da sessão atual (memória; recuperado de GET …/auth/csrf depois de recarregar a página). */
+export async function sessionCsrf(org: string): Promise<string> {
   const cached = csrfStore.session(org);
   if (cached) return cached;
   const { data } = await request<{ csrfToken?: string }>(`${base(org)}/auth/csrf`);
   if (!data?.csrfToken) throw new ApiError('unexpected', 200);
   csrfStore.setSession(org, data.csrfToken);
   return data.csrfToken;
+}
+
+/**
+ * Step-up com TOTP na sessão atual (exigido pelo reset administrativo de MFA). Só `code`: o código de recuperação
+ * não é alternativa aqui (a API o ignora). Código errado → 403.
+ */
+export async function stepUp(org: string, code: string): Promise<void> {
+  await request(`${base(org)}/auth/mfa/step-up`, { method: 'POST', body: { code }, csrf: await sessionCsrf(org) });
 }
 
 /** Logout idempotente; o estado local é limpo mesmo se a sessão já não existir. */
