@@ -11,10 +11,13 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "e2e": "playwright test",
-    "check": "npm run typecheck && npm test && npm run build",
+    "check": "npm run typecheck && npm test && npm run contract:check && npm run build",
     "predev": "node scripts/check-lib.mjs",
     "prebuild": "node scripts/check-lib.mjs",
-    "pretest": "node scripts/check-lib.mjs"
+    "pretest": "node scripts/check-lib.mjs",
+    "contract:gen": "node scripts/contract.mjs gen",
+    "contract:check": "node scripts/contract.mjs check",
+    "contract:sync": "node scripts/contract.mjs sync"
   },
   "dependencies": {
     "nekkora-lib": "file:../Nekkora-lib",
