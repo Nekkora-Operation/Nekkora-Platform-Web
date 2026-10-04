@@ -48,7 +48,7 @@ const executionsRequests = (urls: string[]) => urls.filter((u) => u.includes('/e
 
 async function openExecutions(page: Page) {
   await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Execuções' }).click();
-  await expect(page).toHaveURL(/\/execucoes$/);
+  await expect(page).toHaveURL(/\/execucoes(\?.*)?$/);
   await expect(rows(page).first()).toBeVisible();
 }
 
@@ -238,7 +238,7 @@ test.describe('celular', () => {
     const execLink = dialog.getByRole('link', { name: 'Execuções' });
     await execLink.focus();
     await page.keyboard.press('Enter');
-    await expect(page).toHaveURL(/\/execucoes$/);
+    await expect(page).toHaveURL(/\/execucoes(\?.*)?$/);
     await expect(dialog).toHaveCount(0);
     await expect(page.getByRole('main')).toBeFocused();
     await expect(rows(page).first()).toBeVisible();

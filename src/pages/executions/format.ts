@@ -130,6 +130,18 @@ export function presetFrom(preset: PeriodPreset, now: number): string | undefine
   return ms === undefined ? undefined : new Date(now - ms).toISOString();
 }
 
+/**
+ * Inverso de `presetFrom`: o momento de aplicação que gera exatamente `fromIso` (para reabrir a lista pela URL com o
+ * MESMO início, sem recalcular). Undefined se o período não for relativo ou a data for inválida.
+ */
+export function presetAppliedAt(preset: PeriodPreset, fromIso: string): number | undefined {
+  const ms = PRESET_MS[preset];
+  const t = Date.parse(fromIso);
+  return ms === undefined || Number.isNaN(t) ? undefined : t + ms;
+}
+
+export const PERIOD_PRESETS = Object.keys(PERIOD_LABEL) as PeriodPreset[];
+
 /** Valor de <input type="datetime-local"> (hora local do navegador) → instante ISO em UTC. */
 export function localInputToIso(value: string): string | undefined {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(value)) return undefined;

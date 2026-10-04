@@ -29,9 +29,26 @@ export function useInternalArea(): InternalArea {
   return v;
 }
 
+const MAIN_ID = 'conteudo';
+
+/** Seção da área interna a que o endereço pertence (menu ativo e título do topo). */
+function sectionOf(pathname: string, org: string): 'inicio' | 'execucoes' | 'workspaces' | null {
+  if (pathname === orgPath.home(org)) return 'inicio';
+  const rest = pathname.slice(orgPath.home(org).length);
+  if (rest === '/execucoes' || rest.startsWith('/execucoes/')) return 'execucoes';
+  if (rest === '/workspaces' || rest.startsWith('/workspaces/') || rest.startsWith('/automacoes/')) return 'workspaces';
+  return null;
+}
+
 /** Título da página atual, para o topo do shell. */
 function titleFor(pathname: string, org: string): string {
-  return pathname === orgPath.executions(org) ? 'Execuções' : 'Início';
+  const rest = pathname.slice(orgPath.home(org).length);
+  if (rest.startsWith('/execucoes/')) return 'Execução';
+  if (rest === '/execucoes') return 'Execuções';
+  if (rest.startsWith('/workspaces/')) return 'Workspace';
+  if (rest === '/workspaces') return 'Workspaces';
+  if (rest.startsWith('/automacoes/')) return 'Automação';
+  return 'Início';
 }
 
 /**
@@ -40,7 +57,7 @@ function titleFor(pathname: string, org: string): string {
  * - A P01 orienta a navegação organizacional e o resumo de acesso; ela só APRESENTA (cada rota autoriza no backend).
  *   Falha da P01 não bloqueia a área: as telas consultam a API, que decide.
  * - Workspaces visíveis vêm de `listWorkspaces` (paginada), nunca da P02.
- * - O menu mostra só telas implementadas (Início e Execuções). Esconder itens não substitui a autorização do backend.
+ * - O menu mostra só telas implementadas (Início, Workspaces e Execuções). Esconder itens não substitui a autorização do backend.
  * - Conta externa nunca chega aqui (o portão da área a mantém no encaminhamento próprio, sem P01/P02).
  */
 export function InternalShell() {
@@ -49,6 +66,18 @@ export function InternalShell() {
   const [permissions, setPermissions] = useState<PermissionsState>({ status: 'loading' });
   const generation = useRef(0);
   const { workspaces, reloadWorkspaces, loadMoreWorkspaces, restartWorkspaces } = useVisibleWorkspaces(org, expired);
+  const section = sectionOf(pathname, org);
+
+  // Navegação entre páginas (não a primeira carga, nem só a troca de filtros na query): o foco vai ao conteúdo
+  // principal, para o leitor de tela e o teclado começarem pela nova página.
+  const firstPath = useRef(true);
+  useEffect(() => {
+    if (firstPath.current) {
+      firstPath.current = false;
+      return;
+    }
+    document.getElementById(MAIN_ID)?.focus({ preventScroll: false });
+  }, [pathname]);
 
   const loadPermissions = useCallback(async () => {
     const gen = ++generation.current;
@@ -73,12 +102,15 @@ export function InternalShell() {
   const nav: AppNavGroup[] = [
     {
       id: 'geral',
-      items: [{ id: 'inicio', label: 'Início', href: orgPath.home(org), icon: 'home', active: pathname === orgPath.home(org) }],
+      items: [{ id: 'inicio', label: 'Início', href: orgPath.home(org), icon: 'home', active: section === 'inicio' }],
     },
     {
       id: 'produto',
       label: 'Produto',
-      items: [{ id: 'execucoes', label: 'Execuções', href: orgPath.executions(org), icon: 'executions', active: pathname === orgPath.executions(org) }],
+      items: [
+        { id: 'workspaces', label: 'Workspaces', href: orgPath.workspaces(org), icon: 'workspace', active: section === 'workspaces' },
+        { id: 'execucoes', label: 'Execuções', href: orgPath.executions(org), icon: 'executions', active: section === 'execucoes' },
+      ],
     },
   ];
 
@@ -98,6 +130,7 @@ export function InternalShell() {
         brand={<Logo variant="full" size={24} />}
         brandHref={orgPath.home(org)}
         linkAs={RouterLink}
+        mainId={MAIN_ID}
         nav={nav}
         header={
           <Text variant="h4" as="p" className="pw-shell__title">

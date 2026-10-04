@@ -1,13 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { Alert, Badge, Button, Card, Checkbox, Fieldset, Grid, Input, LoadMore, Select, Stack, StateView, Table, Text, type TableColumn } from 'nekkora-lib';
 import { isApiError } from '../api/http';
-import { listExecutions } from '../api/product';
+import { getAutomation, listExecutions } from '../api/product';
 import type { Execution, ExecutionStatus } from '../api/v1';
 import { ContractViolation } from '../api/validate';
 import { commonMessage } from '../auth/messages';
 import { useInternalArea } from '../area/InternalShell';
 import { useSession } from '../area/session';
 import { useCursorList } from '../hooks/useCursorList';
+import { useResource } from '../hooks/useResource';
+import { orgPath } from '../auth/organization';
+import { DateTimeText, errorOf, RouteLink, useExpiresOn } from './product/shared';
 import {
   customRangeError,
   DEFAULT_PERIOD,
@@ -18,6 +22,8 @@ import {
   offsetLabel,
   ORIGIN_LABEL,
   PERIOD_LABEL,
+  PERIOD_PRESETS,
+  presetAppliedAt,
   presetFrom,
   REASON_LABEL,
   STATUS_LABEL,
@@ -34,6 +40,8 @@ const ALL_WORKSPACES = 'todos';
 
 interface Filters {
   workspaceId: string; // ALL_WORKSPACES = todos os visíveis
+  /** Filtro por automação (vem do detalhe da automação); '' = nenhum. */
+  automationId: string;
   statuses: ExecutionStatus[];
   period: PeriodPreset;
   /** Momento em que o período pronto foi aplicado (base do `from`); "Atualizar" o renova. */
@@ -44,7 +52,48 @@ interface Filters {
   refresh: number;
 }
 
-const defaultFilters = (): Filters => ({ workspaceId: ALL_WORKSPACES, statuses: [], period: DEFAULT_PERIOD, appliedAt: Date.now(), customFrom: '', customTo: '', refresh: 0 });
+const defaultFilters = (): Filters => ({ workspaceId: ALL_WORKSPACES, automationId: '', statuses: [], period: DEFAULT_PERIOD, appliedAt: Date.now(), customFrom: '', customTo: '', refresh: 0 });
+
+/**
+ * Filtros na URL (F5): voltar do detalhe ou recarregar reabre a lista com os MESMOS filtros e os MESMOS limites de período
+ * (nos relativos vai o instante de início já calculado, `desde`; no personalizado, `de`/`ate` em ISO UTC). Parâmetros:
+ * workspace, automacao, estado (repetido), periodo, desde, de, ate. Valores desconhecidos são ignorados.
+ */
+function filtersFromUrl(sp: URLSearchParams): Filters {
+  const f = defaultFilters();
+  const period = sp.get('periodo');
+  if (period && (PERIOD_PRESETS as string[]).includes(period)) f.period = period as PeriodPreset;
+  const desde = sp.get('desde');
+  const applied = desde ? presetAppliedAt(f.period, desde) : undefined;
+  if (applied !== undefined) f.appliedAt = applied;
+  const ws = sp.get('workspace');
+  if (ws) f.workspaceId = ws;
+  const auto = sp.get('automacao');
+  if (auto) f.automationId = auto;
+  f.statuses = STATUS_ORDER.filter((x) => sp.getAll('estado').includes(x));
+  const de = sp.get('de');
+  const ate = sp.get('ate');
+  if (de && !Number.isNaN(Date.parse(de))) f.customFrom = isoToLocalInput(de);
+  if (ate && !Number.isNaN(Date.parse(ate))) f.customTo = isoToLocalInput(ate);
+  return f;
+}
+
+function filtersToUrl(f: Filters): URLSearchParams {
+  const sp = new URLSearchParams();
+  if (f.workspaceId !== ALL_WORKSPACES) sp.set('workspace', f.workspaceId);
+  if (f.automationId) sp.set('automacao', f.automationId);
+  for (const st of f.statuses) sp.append('estado', st);
+  sp.set('periodo', f.period);
+  const from = presetFrom(f.period, f.appliedAt);
+  if (from) sp.set('desde', from);
+  if (f.period === 'custom') {
+    const de = f.customFrom ? localInputToIso(f.customFrom) : undefined;
+    const ate = f.customTo ? localInputToIso(f.customTo) : undefined;
+    if (de) sp.set('de', de);
+    if (ate) sp.set('ate', ate);
+  }
+  return sp;
+}
 
 /** Limites enviados (ISO em UTC) e o erro de validação local, se houver. */
 function queryRange(f: Filters): { from?: string; to?: string; error: string | null } {
@@ -54,20 +103,9 @@ function queryRange(f: Filters): { from?: string; to?: string; error: string | n
   return { from, to, error: customRangeError(from, to) };
 }
 
-function DateCell({ iso, offset }: { iso: string | null; offset: string }) {
-  if (!iso) return <span aria-label="não informado">—</span>;
-  const d = formatDateTime(iso);
-  return (
-    <time dateTime={iso} title={d.asReceived ? `${iso} (horário como recebido, sem conversão de fuso)` : iso}>
-      {d.text}
-      {(d.asReceived || d.offset !== offset) && d.offset && <span className="pw-exec__offset"> {d.offset}</span>}
-    </time>
-  );
-}
-
 /**
  * Lista de execuções (L06) da área interna. Só consulta e acompanha: sem executar, cancelar ou reagendar (fora da v1
- * desta etapa) e sem detalhe (próxima etapa).
+ * desta etapa). Cada linha leva ao detalhe da execução por um link real (teclado, nova aba).
  *
  * - Filtros: workspace (entre os visíveis), estado (vários) e período. Padrão PROPOSTO: últimos 30 dias, indicado e
  *   editável. Limites enviados em ISO UTC; `from` inclusivo, `to` exclusivo.
@@ -77,21 +115,46 @@ function DateCell({ iso, offset }: { iso: string | null; offset: string }) {
  * - 401 = sessão expirada (leitura de sessão) → fluxo de sessão expirada.
  */
 export function ExecutionsPage() {
-  const { org, expired } = useSession();
+  const { org } = useSession();
   const { workspaces, loadMoreWorkspaces, restartWorkspaces } = useInternalArea();
-  const [filters, setFilters] = useState<Filters>(defaultFilters);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [filters, setFilters] = useState<Filters>(() => filtersFromUrl(searchParams));
+  /** Último endereço escrito por esta tela: mudança externa da URL (ex.: menu) reabre os filtros a partir dela. */
+  const written = useRef<string | null>(null);
   const range = queryRange(filters);
+  /** Estado de volta dos links: o endereço com os filtros EM VIGOR (não o da barra, que é gravado logo depois). */
+  const backState = { back: `${orgPath.executions(org)}?${filtersToUrl(filters).toString()}` };
+
+  // A ordem importa: a detecção de mudança externa roda antes da escrita, para nunca comparar a URL antiga com a
+  // que acabou de ser pedida no mesmo ciclo.
+  useEffect(() => {
+    const current = searchParams.toString();
+    if (written.current !== null && current !== written.current) setFilters(filtersFromUrl(searchParams));
+  }, [searchParams]);
+
+  useEffect(() => {
+    const next = filtersToUrl(filters).toString();
+    written.current = next;
+    if (next !== searchParams.toString()) setSearchParams(new URLSearchParams(next), { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
+
+  const automation = useResource(
+    () => (filters.automationId ? getAutomation(org, filters.automationId) : Promise.resolve(null)),
+    [org, filters.automationId],
+  );
   const tzOffset = offsetLabel(new Date());
   const tzName = timeZoneName();
 
   const query = useMemo(
     () => ({
       workspaceId: filters.workspaceId === ALL_WORKSPACES ? undefined : filters.workspaceId,
+      automationId: filters.automationId || undefined,
       status: filters.statuses.length ? [...filters.statuses] : undefined,
       from: range.from,
       to: range.to,
     }),
-    [filters.workspaceId, filters.statuses, range.from, range.to],
+    [filters.workspaceId, filters.automationId, filters.statuses, range.from, range.to],
   );
   // o contador de "Atualizar" faz parte da chave: uma única mudança de chave por clique (o início recalculado dos
   // períodos relativos e o contador mudam na MESMA atualização de estado → uma requisição só)
@@ -106,9 +169,8 @@ export function ExecutionsPage() {
     [org, queryKey],
   );
 
-  useEffect(() => {
-    if (list.error && isApiError(list.error, 'unauthenticated')) expired();
-  }, [list.error, expired]);
+  // 401 da lista OU da leitura auxiliar da automação (filtro) encerra a sessão
+  useExpiresOn(list.error, errorOf(automation));
 
   const workspaceName = useMemo(() => new Map(workspaces.items.map((w) => [w.workspaceId, w.name])), [workspaces.items]);
   const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
@@ -121,7 +183,13 @@ export function ExecutionsPage() {
       header: 'Automação',
       render: (e) => (
         <span className="pw-exec__automation">
-          <span>{e.automation.name}</span>
+          <RouteLink
+            to={orgPath.execution(org, e.executionId)}
+            state={backState}
+            aria-label={`Execução de ${e.automation.name}, criada em ${formatDateTime(e.createdAt).text}`}
+          >
+            {e.automation.name}
+          </RouteLink>
           <span className="pw-exec__muted">versão {e.automationVersion.versionNumber}</span>
         </span>
       ),
@@ -129,7 +197,11 @@ export function ExecutionsPage() {
     {
       key: 'workspace',
       header: 'Workspace',
-      render: (e) => workspaceName.get(e.workspaceId) ?? <span className="pw-exec__muted">{e.workspaceId.slice(0, 8)}</span>,
+      render: (e) => (
+        <RouteLink to={orgPath.workspace(org, e.workspaceId)} state={backState} variant="default">
+          {workspaceName.get(e.workspaceId) ?? `Workspace ${e.workspaceId.slice(0, 8)}`}
+        </RouteLink>
+      ),
     },
     {
       key: 'estado',
@@ -144,13 +216,13 @@ export function ExecutionsPage() {
       ),
     },
     { key: 'origem', header: 'Origem', render: (e) => ORIGIN_LABEL[e.origin] },
-    { key: 'criada', header: 'Criada em', render: (e) => <DateCell iso={e.createdAt} offset={tzOffset} /> },
-    { key: 'inicio', header: 'Início', render: (e) => <DateCell iso={e.startedAt} offset={tzOffset} /> },
+    { key: 'criada', header: 'Criada em', render: (e) => <DateTimeText iso={e.createdAt} /> },
+    { key: 'inicio', header: 'Início', render: (e) => <DateTimeText iso={e.startedAt} /> },
     {
       key: 'termino',
       header: 'Término',
       render: (e) =>
-        e.finishedAt ? <DateCell iso={e.finishedAt} offset={tzOffset} /> : <span className="pw-exec__muted">{e.startedAt ? 'em andamento' : '—'}</span>,
+        e.finishedAt ? <DateTimeText iso={e.finishedAt} /> : <span className="pw-exec__muted">{e.startedAt ? 'em andamento' : '—'}</span>,
     },
     {
       key: 'duracao',
@@ -174,7 +246,9 @@ export function ExecutionsPage() {
     e instanceof ContractViolation
       ? 'A resposta do servidor veio fora do formato esperado.'
       : isApiError(e, 'not_found')
-        ? 'Workspace não encontrado ou sem acesso.'
+        ? filters.automationId
+          ? 'Automação ou workspace não encontrado ou sem acesso.'
+          : 'Workspace não encontrado ou sem acesso.'
         : isApiError(e, 'invalid_request')
           ? 'Algum filtro não foi aceito.'
           : commonMessage(e).title;
@@ -196,7 +270,14 @@ export function ExecutionsPage() {
                     ? 'Não foi possível carregar a lista de workspaces.'
                     : undefined
               }
-              options={[{ value: ALL_WORKSPACES, label: 'Todos os workspaces visíveis' }, ...workspaces.items.map((w) => ({ value: w.workspaceId, label: w.name }))]}
+              options={[
+                { value: ALL_WORKSPACES, label: 'Todos os workspaces visíveis' },
+                ...workspaces.items.map((w) => ({ value: w.workspaceId, label: w.name })),
+                // workspace vindo do endereço e ainda fora da parte carregada da lista
+                ...(filters.workspaceId !== ALL_WORKSPACES && !workspaces.items.some((w) => w.workspaceId === filters.workspaceId)
+                  ? [{ value: filters.workspaceId, label: `Workspace ${filters.workspaceId.slice(0, 8)}` }]
+                  : []),
+              ]}
               fullWidth
             />
             <Select
@@ -248,6 +329,20 @@ export function ExecutionsPage() {
                   </Button>
                 </>
               )}
+            </div>
+          )}
+          {filters.automationId && (
+            <div className="pw-exec__more-ws" role="status">
+              <Text variant="body-sm" color="secondary" as="span">
+                {automation.status === 'ready' && automation.data
+                  ? `Somente a automação ${automation.data.name}.`
+                  : automation.status === 'error'
+                    ? 'Filtro por uma automação não encontrada ou sem acesso.'
+                    : 'Filtro por automação.'}
+              </Text>
+              <Button variant="ghost" size="sm" onClick={() => set({ automationId: '' })}>
+                Remover filtro de automação
+              </Button>
             </div>
           )}
           {filters.period === 'custom' && (
@@ -303,8 +398,8 @@ export function ExecutionsPage() {
                 : commonMessage(list.error).description
           }
           actions={
-            isApiError(list.error, 'not_found') && filters.workspaceId !== ALL_WORKSPACES ? (
-              <Button onClick={() => set({ workspaceId: ALL_WORKSPACES })}>Ver todos os workspaces</Button>
+            isApiError(list.error, 'not_found') && (filters.workspaceId !== ALL_WORKSPACES || filters.automationId) ? (
+              <Button onClick={() => set({ workspaceId: ALL_WORKSPACES, automationId: '' })}>Ver todos os workspaces</Button>
             ) : (
               <Button onClick={list.reload}>Tentar novamente</Button>
             )

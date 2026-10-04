@@ -29,6 +29,11 @@ export const orgPath = {
   home: (org: string) => `/o/${org}`,
   /** Área interna (F4): lista de execuções. */
   executions: (org: string) => `/o/${org}/execucoes`,
+  /** F5: leituras de detalhe (os identificadores vão codificados no caminho). */
+  execution: (org: string, id: string) => `/o/${org}/execucoes/${encodeURIComponent(id)}`,
+  workspaces: (org: string) => `/o/${org}/workspaces`,
+  workspace: (org: string, id: string) => `/o/${org}/workspaces/${encodeURIComponent(id)}`,
+  automation: (org: string, id: string) => `/o/${org}/automacoes/${encodeURIComponent(id)}`,
 };
 
 /**

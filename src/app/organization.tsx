@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react';
+import { createContext, Fragment, useContext } from 'react';
 import { Outlet, useParams } from 'react-router';
 import { isValidOrganizationId } from '../auth/organization';
 import { OrganizationNotFoundPage } from '../pages/StatusPages';
@@ -12,14 +12,19 @@ export function useOrganization(): string {
   return org;
 }
 
-/** /o/:orgId/* — resolve o contexto a partir da URL; formato inválido = organização não encontrada. */
+/**
+ * /o/:orgId/* — resolve o contexto a partir da URL; formato inválido = organização não encontrada. Trocar de
+ * organização remonta toda a subárvore (chave): nenhum conteúdo nem resposta atrasada da anterior sobrevive.
+ */
 export function OrganizationRoute() {
   const { orgId } = useParams();
   if (!isValidOrganizationId(orgId)) return <OrganizationNotFoundPage />;
   const org = orgId.toLowerCase();
   return (
     <OrganizationContext.Provider value={org}>
-      <Outlet />
+      <Fragment key={org}>
+        <Outlet />
+      </Fragment>
     </OrganizationContext.Provider>
   );
 }
