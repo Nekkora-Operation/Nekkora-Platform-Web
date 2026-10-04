@@ -3,6 +3,10 @@ import { features } from '../config';
 import { ForgotPasswordPage, ResendVerificationPage } from '../pages/EmailRequestPage';
 import { AuthenticatedArea } from '../area/AuthenticatedArea';
 import { ExecutionsPage } from '../pages/ExecutionsPage';
+import { AutomationDetailPage } from '../pages/product/AutomationDetailPage';
+import { ExecutionDetailPage } from '../pages/product/ExecutionDetailPage';
+import { WorkspaceDetailPage } from '../pages/product/WorkspaceDetailPage';
+import { WorkspacesPage } from '../pages/product/WorkspacesPage';
 import { InternalHome } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { MfaPage } from '../pages/MfaPage';
@@ -24,6 +28,10 @@ export function AppRoutes() {
         <Route element={<AuthenticatedArea />}>
           <Route index element={<InternalHome />} />
           <Route path="execucoes" element={<ExecutionsPage />} />
+          <Route path="execucoes/:executionId" element={<ExecutionDetailPage />} />
+          <Route path="workspaces" element={<WorkspacesPage />} />
+          <Route path="workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
+          <Route path="automacoes/:automationId" element={<AutomationDetailPage />} />
         </Route>
         <Route path="login" element={<LoginPage />} />
         <Route path="mfa" element={<MfaPage />} />

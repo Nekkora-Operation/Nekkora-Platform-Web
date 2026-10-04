@@ -127,7 +127,7 @@ describe('área interna', () => {
     sessionFor('ana@nekkora.dev');
     renderAt(exec());
     const nav = await screen.findByRole('navigation', { name: 'Navegação principal' });
-    expect(within(nav).getAllByRole('link').map((l) => l.textContent)).toEqual(['Início', 'Execuções']);
+    expect(within(nav).getAllByRole('link').map((l) => l.textContent)).toEqual(['Início', 'Workspaces', 'Execuções']);
     expect(within(nav).getByRole('link', { name: 'Execuções' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getAllByText('Ana Souza').length).toBeGreaterThan(0);
     expect(screen.getByText('ana@nekkora.dev')).toBeInTheDocument();

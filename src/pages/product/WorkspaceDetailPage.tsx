@@ -1,0 +1,130 @@
+import { useState } from 'react';
+import { Link as RouterLink, useParams } from 'react-router';
+import { Card, DescriptionList, Heading, Link, LoadMore, Stack, StateView, Table, type TableColumn } from 'nekkora-lib';
+import { isApiError } from '../../api/http';
+import { getWorkspace, listAutomations } from '../../api/product';
+import type { Automation } from '../../api/v1';
+import { orgPath } from '../../auth/organization';
+import { useSession } from '../../area/session';
+import { useCursorList } from '../../hooks/useCursorList';
+import { useResource } from '../../hooks/useResource';
+import { RouteLink, DateTimeText, errorOf, errorText, isMissing, isSubordinateGone, LoadErrorState, NotFoundState, PageHeader, ResourceStatusBadge, useBackState, useBackTarget, useExpiresOn } from './shared';
+
+const PAGE = 25;
+
+export function WorkspaceDetailPage() {
+  const { workspaceId = '' } = useParams();
+  return <WorkspaceDetail key={workspaceId} workspaceId={workspaceId} />;
+}
+
+/** Detalhe do workspace (L02) e suas automações (L03, paginadas por cursor). */
+function WorkspaceDetail({ workspaceId }: { workspaceId: string }) {
+  const { org } = useSession();
+  const back = useBackTarget(orgPath.workspaces(org));
+  const backState = useBackState();
+  const [refresh, setRefresh] = useState(0);
+  const workspace = useResource(() => getWorkspace(org, workspaceId), [org, workspaceId]);
+  const automations = useCursorList<Automation>(
+    (cursor) => listAutomations(org, workspaceId, { limit: PAGE, cursor }),
+    (a) => a.automationId,
+    [org, workspaceId, refresh],
+  );
+
+  useExpiresOn(errorOf(workspace), automations.error);
+  const gone = (workspace.status === 'error' && isMissing(workspace.error)) || isSubordinateGone(automations.error);
+
+  const onRefresh = () => {
+    workspace.refresh();
+    setRefresh((n) => n + 1);
+  };
+  const backLink = { to: back, label: 'Voltar para workspaces' };
+
+  if (gone) return <NotFoundState title="Workspace não encontrado." back={backLink} />;
+  if (workspace.status === 'loading') return <StateView status="loading" title="Carregando workspace…" />;
+  if (workspace.status === 'error') {
+    return <LoadErrorState error={workspace.error} onRetry={onRefresh} page />;
+  }
+
+  const w = workspace.data;
+  const columns: TableColumn<Automation>[] = [
+    {
+      key: 'nome',
+      header: 'Automação',
+      render: (a) => (
+        <RouteLink to={orgPath.automation(org, a.automationId)} state={backState}>
+          {a.name}
+        </RouteLink>
+      ),
+    },
+    { key: 'estado', header: 'Estado', render: (a) => <ResourceStatusBadge status={a.status} /> },
+    {
+      key: 'versao',
+      header: 'Última versão publicada',
+      render: (a) =>
+        a.latestPublishedVersion ? (
+          <span className="pw-prod__cell">
+            <span>versão {a.latestPublishedVersion.versionNumber}</span>
+            <span className="pw-prod__muted">
+              <DateTimeText iso={a.latestPublishedVersion.publishedAt} />
+            </span>
+          </span>
+        ) : (
+          <span className="pw-prod__muted">Nenhuma publicada</span>
+        ),
+    },
+    { key: 'atualizada', header: 'Atualizada em', render: (a) => <DateTimeText iso={a.updatedAt} /> },
+  ];
+
+  return (
+    <Stack gap={6}>
+      <PageHeader title={w.name} subtitle="Workspace" back={backLink} onRefresh={onRefresh} refreshing={workspace.refreshing} />
+      <Card variant="surface" padding="lg">
+        <Stack gap={4}>
+          <DescriptionList
+            items={[
+              { key: 'estado', term: 'Estado', description: <ResourceStatusBadge status={w.status} /> },
+              { key: 'cliente', term: 'Cliente', description: w.client?.name ?? 'Sem cliente' },
+              { key: 'descricao', term: 'Descrição', description: w.description, wide: true },
+              { key: 'criado', term: 'Criado em', description: <DateTimeText iso={w.createdAt} /> },
+              { key: 'atualizado', term: 'Atualizado em', description: <DateTimeText iso={w.updatedAt} /> },
+            ]}
+          />
+          <div className="pw-prod__links">
+            <Link as={RouterLink} to={`${orgPath.executions(org)}?workspace=${encodeURIComponent(w.workspaceId)}`} arrow>
+              Ver execuções deste workspace
+            </Link>
+          </div>
+        </Stack>
+      </Card>
+
+      <section className="pw-prod__section" aria-labelledby="automacoes-titulo">
+        <Heading level={2} id="automacoes-titulo" className="pw-prod__section-title">
+          Automações
+        </Heading>
+        {automations.status === 'loading' ? (
+          <StateView status="loading" title="Carregando automações…" />
+        ) : automations.status === 'error' ? (
+          <LoadErrorState error={automations.error} onRetry={automations.reload} />
+        ) : automations.items.length === 0 ? (
+          <StateView status="neutral" title="Nenhuma automação neste workspace." />
+        ) : (
+          <>
+            <div className="pw-prod__scroll" role="region" aria-label="Automações do workspace" tabIndex={0}>
+              <Table columns={columns} data={automations.items} rowKey="automationId" size="sm" caption="Automações em ordem alfabética." />
+            </div>
+            <LoadMore
+              hasMore={automations.hasMore}
+              loading={automations.status === 'loading-more'}
+              onLoadMore={automations.loadMore}
+              count={automations.items.length}
+              itemLabel={automations.items.length === 1 ? 'automação' : 'automações'}
+              error={automations.error && !isApiError(automations.error, 'unauthenticated') ? `${errorText(automations.error).title} A lista exibida continua válida.` : undefined}
+              stale={automations.cursorRejected ? 'A lista mudou desde a última página (ou a continuação expirou).' : undefined}
+              onRestart={automations.reload}
+            />
+          </>
+        )}
+      </section>
+    </Stack>
+  );
+}
