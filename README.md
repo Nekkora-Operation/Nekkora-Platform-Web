@@ -61,6 +61,13 @@ O gerador (`openapi-typescript`) exige TypeScript 5, e o app usa TypeScript 7. P
 **isolada** em `tools/contract/` (dependências e lockfile próprios, instalados sob demanda pelo script).
 `npm run check` inclui o `contract:check`.
 
+O mesmo comando gera `src/api/generated/nekkora-api-v1.schemas.json` (esquemas do OpenAPI, sem textos descritivos).
+Os tipos gerados só existem na compilação; por isso **toda leitura da API v1 é validada em execução**
+(`src/api/validate.ts`): resposta fora do contrato vira `ApiError('unexpected')`, com caminhos e regras, nunca
+valores. Os testes do mock usam o mesmo validador em **modo estrito** (nenhum campo fora do contrato) e, como
+referência independente, o **Ajv 8.20.0 + ajv-formats 3.0.1** (JSON Schema 2020-12, só em testes): os dois conferem
+cada resposta pelo par operationId/status/content-type e precisam concordar.
+
 ### API simulada (`mock/`)
 
 Nesta fase o frontend trabalha contra uma **simulação em memória do contrato 8.7**, servida pelo próprio Vite
@@ -69,15 +76,30 @@ Nesta fase o frontend trabalha contra uma **simulação em memória do contrato 
 anti-replay, 5 tentativas por desafio, códigos de recuperação e links de uso único, expiração de sessão e
 respostas genéricas. Nada disso entra no build de produção.
 
+A simulação também atende as **leituras de permissões e do produto** (`mock/product.ts`; GAP-02 P01/P02 e GAP-06),
+com as regras do backend: ordem 401 → 400 → 403 → 404, visibilidade por `automation.read` efetivo, 404 idêntico
+para inexistente/sem acesso/outra organização, paginação keyset com cursor assinado (rotação da chave invalida os
+cursores, DC-15), filtros e período `[from, to)`. Os dados são sintéticos e determinísticos (mesmos ids a cada
+reinício), com uma segunda organização para conferir isolamento.
+
 Painel em **http://localhost:5173/__mock/**:
 
 - contas de exemplo (senha `Nekkora-Dev-2026`, organização `b7e1c3a0-5d2f-4e8b-9a61-0c3d5e7f9a12`):
-  - `ana@nekkora.dev` — MFA configurado (código TOTP do momento no painel);
+  - `ana@nekkora.dev` — ORG_ADMIN (vê todos os workspaces);
+  - `gestora@nekkora.dev` — WORKSPACE_ADMIN em Financeiro e OPERATOR em Operações;
+  - `operador@nekkora.dev` — OPERATOR em Operações e Logística;
+  - `leitora@nekkora.dev` — VIEWER em Atendimento e em Integrações legadas (arquivado);
+  - `sematribuicao@nekkora.dev` — sem atribuições (listas vazias);
+  - as cinco acima têm MFA na chave fixa (código TOTP do momento no painel);
   - `novo@nekkora.dev` — primeiro acesso (configuração do autenticador);
   - `pendente@nekkora.dev` — e-mail não confirmado (link de confirmação na caixa de e-mails);
-  - `portal@nekkora.dev` — conta do portal (inatividade de 15 min);
+  - `portal@nekkora.dev` — conta do portal (inatividade de 15 min; 403 nas rotas internas);
+  - `vizinha@nekkora.dev` — ORG_ADMIN da organização vizinha `f3d9b2c4-7a1e-4c5b-8d2f-6e0a9b1c3d57`;
 - **caixa de e-mails simulada** com os links de redefinição de senha e de confirmação;
-- expirar sessões, simular falhas (queda de conexão, 429, 503, 500) e restaurar os dados.
+- expirar sessões, simular falhas (queda de conexão, 429, 503, 500), **rotacionar a chave do cursor** e
+  restaurar os dados. As falhas HTTP simuladas só valem nas operações cujo contrato documenta o status (ex.: 503 no
+  login, MFA e pedidos de senha; nas leituras do produto, só 429 e 500); nas demais a chamada segue normal. A queda
+  de conexão vale para todas.
 
 Como na API real, um código TOTP só vale uma vez: para entrar de novo na mesma conta, espere o próximo código.
 Latência simulada: `NEKKORA_MOCK_DELAY` (ms, padrão 350).

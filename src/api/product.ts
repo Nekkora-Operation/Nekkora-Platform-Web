@@ -2,7 +2,7 @@
  * Leitura interna do produto (GAP-06): workspaces, automações, versões, execuções e eventos.
  * Inexistente, de outra organização ou sem acesso → 404 sem distinção; conta externa → 403.
  */
-import { request } from './http';
+import { readJson } from './validate';
 import { queryString } from './query';
 import type { Automation, AutomationVersion, Execution, ExecutionDetail, ExecutionEvent, Page, Query, Workspace } from './v1';
 
@@ -15,23 +15,23 @@ export type ExecutionQuery = Query<'listExecutions'>;
 export type PageQuery = { cursor?: string; limit?: number };
 
 export async function listWorkspaces(org: string, q: WorkspaceQuery = {}): Promise<Page<Workspace>> {
-  return (await request<Page<Workspace>>(`${base(org)}/workspaces${queryString(q)}`)).data;
+  return readJson<Page<Workspace>>('listWorkspaces', `${base(org)}/workspaces${queryString(q)}`);
 }
 
 export async function getWorkspace(org: string, workspaceId: string): Promise<Workspace> {
-  return (await request<Workspace>(`${base(org)}/workspaces/${id(workspaceId)}`)).data;
+  return readJson<Workspace>('getWorkspace', `${base(org)}/workspaces/${id(workspaceId)}`);
 }
 
 export async function listAutomations(org: string, workspaceId: string, q: AutomationQuery = {}): Promise<Page<Automation>> {
-  return (await request<Page<Automation>>(`${base(org)}/workspaces/${id(workspaceId)}/automations${queryString(q)}`)).data;
+  return readJson<Page<Automation>>('listAutomations', `${base(org)}/workspaces/${id(workspaceId)}/automations${queryString(q)}`);
 }
 
 export async function getAutomation(org: string, automationId: string): Promise<Automation> {
-  return (await request<Automation>(`${base(org)}/automations/${id(automationId)}`)).data;
+  return readJson<Automation>('getAutomation', `${base(org)}/automations/${id(automationId)}`);
 }
 
 export async function listAutomationVersions(org: string, automationId: string, q: PageQuery = {}): Promise<Page<AutomationVersion>> {
-  return (await request<Page<AutomationVersion>>(`${base(org)}/automations/${id(automationId)}/versions${queryString(q)}`)).data;
+  return readJson<Page<AutomationVersion>>('listAutomationVersions', `${base(org)}/automations/${id(automationId)}/versions${queryString(q)}`);
 }
 
 /**
@@ -39,14 +39,14 @@ export async function listAutomationVersions(org: string, automationId: string, 
  * `workspaceId` ou `automationId` sem acesso → 404 (regra geral, sem a exceção de /client-grants).
  */
 export async function listExecutions(org: string, q: ExecutionQuery = {}): Promise<Page<Execution>> {
-  return (await request<Page<Execution>>(`${base(org)}/executions${queryString(q)}`)).data;
+  return readJson<Page<Execution>>('listExecutions', `${base(org)}/executions${queryString(q)}`);
 }
 
 export async function getExecution(org: string, executionId: string): Promise<ExecutionDetail> {
-  return (await request<ExecutionDetail>(`${base(org)}/executions/${id(executionId)}`)).data;
+  return readJson<ExecutionDetail>('getExecution', `${base(org)}/executions/${id(executionId)}`);
 }
 
 /** Eventos sem payload; execução inexistente ou sem acesso → 404 (diferente do portal, que devolve lista vazia). */
 export async function listExecutionEvents(org: string, executionId: string, q: PageQuery = {}): Promise<Page<ExecutionEvent>> {
-  return (await request<Page<ExecutionEvent>>(`${base(org)}/executions/${id(executionId)}/events${queryString(q)}`)).data;
+  return readJson<Page<ExecutionEvent>>('listExecutionEvents', `${base(org)}/executions/${id(executionId)}/events${queryString(q)}`);
 }

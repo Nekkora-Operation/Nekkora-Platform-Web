@@ -5,6 +5,7 @@
  */
 import { sessionCsrf } from './auth';
 import { request } from './http';
+import { readJson } from './validate';
 import { queryString } from './query';
 import type { Client, ClientGrant, Member, MfaResetReason, Page, Query } from './v1';
 
@@ -16,16 +17,16 @@ export type ClientGrantQuery = Query<'listClientGrants'>;
 export type ClientQuery = Query<'listClients'>;
 
 export async function listMembers(org: string, q: MemberQuery = {}): Promise<Page<Member>> {
-  return (await request<Page<Member>>(`${base(org)}/members${queryString(q)}`)).data;
+  return readJson<Page<Member>>('listMembers', `${base(org)}/members${queryString(q)}`);
 }
 
 /** Filtro clientId/workspaceId inexistente ou de outra organização → lista vazia (exceção documentada, DC-05). */
 export async function listClientGrants(org: string, q: ClientGrantQuery = {}): Promise<Page<ClientGrant>> {
-  return (await request<Page<ClientGrant>>(`${base(org)}/client-grants${queryString(q)}`)).data;
+  return readJson<Page<ClientGrant>>('listClientGrants', `${base(org)}/client-grants${queryString(q)}`);
 }
 
 export async function listClients(org: string, q: ClientQuery = {}): Promise<Page<Client>> {
-  return (await request<Page<Client>>(`${base(org)}/clients${queryString(q)}`)).data;
+  return readJson<Page<Client>>('listClients', `${base(org)}/clients${queryString(q)}`);
 }
 
 async function sessionPost(org: string, path: string, body?: unknown): Promise<void> {

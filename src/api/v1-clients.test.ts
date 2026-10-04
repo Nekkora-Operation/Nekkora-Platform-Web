@@ -11,6 +11,7 @@ import { portalGetExecution, portalListExecutionEvents, portalListExecutions, po
 import { getAutomation, getExecution, getWorkspace, listAutomations, listAutomationVersions, listExecutionEvents, listExecutions, listWorkspaces } from './product';
 import { queryString } from './query';
 import type { MyPermissions } from './v1';
+import * as fx from '../test/contractFixtures';
 
 const ORG = '3f2a1c9e-5b7d-4e21-9c61-2e4d8f7a91c0';
 const W = 'e9b0c7a2-1111-4a22-8b33-0c44d55e66f7';
@@ -28,7 +29,7 @@ let responder: (url: string) => { status: number; body?: unknown };
 beforeEach(() => {
   csrfStore.clear();
   calls = [];
-  responder = () => ({ status: 200, body: { items: [], nextCursor: null } });
+  responder = (url) => ({ status: 200, body: conforming(url) });
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -43,6 +44,18 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals());
 
+/** Resposta conforme ao contrato para o caminho (o cliente valida as respostas desde a F2). */
+function conforming(url: string): unknown {
+  const path = url.split('?')[0];
+  if (/\/portal\/api\/v1\/o\/[^/]+\/executions\/[^/]+$/.test(path)) return fx.portalExecution;
+  if (path.startsWith('/portal/') && /\/(workspaces|events)$/.test(path)) return { items: [] };
+  if (/\/workspaces\/[^/]+$/.test(path)) return fx.workspace;
+  if (/\/automations\/[^/]+$/.test(path)) return fx.automation;
+  if (/\/executions\/[^/]+$/.test(path)) return fx.executionDetail;
+  if (/\/me\/permissions$/.test(path)) return fx.myPermissions;
+  return fx.emptyPage;
+}
+
 describe('queryString', () => {
   it('repete listas, omite vazios e serializa datas em ISO com fuso', () => {
     expect(queryString({ status: ['pending', 'failed'], workspaceId: undefined, cursor: '', limit: 25 })).toBe('?status=pending&status=failed&limit=25');
@@ -56,9 +69,7 @@ describe('leituras (GET, sem CSRF)', () => {
     await listWorkspaces(ORG, { status: ['active', 'archived'], limit: 10 });
     await getWorkspace(ORG, W);
     await listAutomations(ORG, W, { cursor: 'abc.def' });
-    responder = () => ({ status: 200, body: { automationId: 'a' } });
     await getAutomation(ORG, 'a1');
-    responder = () => ({ status: 200, body: { items: [], nextCursor: null } });
     await listAutomationVersions(ORG, 'a1', { limit: 5 });
     await listExecutions(ORG, { workspaceId: W, status: ['failed'], from: '2026-10-01T00:00:00Z', to: '2026-10-02T00:00:00-03:00' });
     await getExecution(ORG, 'x1');
@@ -78,9 +89,7 @@ describe('leituras (GET, sem CSRF)', () => {
   });
 
   it('permissões e administração', async () => {
-    responder = () => ({ status: 200, body: { organizationId: ORG, membershipId: 'm', organization: { roles: [], permissions: [] }, allWorkspaces: { permissions: [] }, hasWorkspaceAssignments: false } });
     await getMyPermissions(ORG);
-    responder = () => ({ status: 200, body: { items: [], nextCursor: null } });
     await listMyWorkspacePermissions(ORG, { limit: 50 });
     await listMembers(ORG, { status: ['active'] });
     await listClientGrants(ORG, { clientId: 'c1', status: ['revoked'] });
@@ -96,11 +105,20 @@ describe('leituras (GET, sem CSRF)', () => {
   });
 
   it('portal externo usa /portal/api/v1 e devolve as listas sem paginação', async () => {
-    responder = (url) => ({ status: 200, body: url.endsWith('/x1') ? { executionId: 'x1' } : { items: [{ k: 1 }], nextCursor: null } });
-    expect(await portalListWorkspaces(ORG)).toEqual([{ k: 1 }]);
+    responder = (url) => ({
+      status: 200,
+      body: url.endsWith('/workspaces')
+        ? { items: [fx.portalWorkspace] }
+        : url.endsWith('/events')
+          ? { items: [fx.portalEvent] }
+          : url.endsWith('/x1')
+            ? fx.portalExecution
+            : { items: [fx.portalExecution], nextCursor: null },
+    });
+    expect(await portalListWorkspaces(ORG)).toEqual([fx.portalWorkspace]);
     await portalListExecutions(ORG, { limit: 10 });
     await portalGetExecution(ORG, 'x1');
-    expect(await portalListExecutionEvents(ORG, 'x2')).toEqual([{ k: 1 }]);
+    expect(await portalListExecutionEvents(ORG, 'x2')).toEqual([fx.portalEvent]);
     expect(calls.map((c) => c.url)).toEqual([
       `/portal/api/v1/o/${ORG}/workspaces`,
       `/portal/api/v1/o/${ORG}/executions?limit=10`,
