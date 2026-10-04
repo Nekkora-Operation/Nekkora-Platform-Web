@@ -1,7 +1,9 @@
 import { Route, Routes } from 'react-router';
 import { features } from '../config';
 import { ForgotPasswordPage, ResendVerificationPage } from '../pages/EmailRequestPage';
-import { HomePage } from '../pages/HomePage';
+import { AuthenticatedArea } from '../area/AuthenticatedArea';
+import { ExecutionsPage } from '../pages/ExecutionsPage';
+import { InternalHome } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { MfaPage } from '../pages/MfaPage';
 import { MfaSetupPage } from '../pages/MfaSetupPage';
@@ -18,7 +20,11 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route path="/o/:orgId" element={<OrganizationRoute />}>
-        <Route index element={<HomePage />} />
+        {/* área autenticada: o portão carrega /me e só monta as rotas internas para conta interna */}
+        <Route element={<AuthenticatedArea />}>
+          <Route index element={<InternalHome />} />
+          <Route path="execucoes" element={<ExecutionsPage />} />
+        </Route>
         <Route path="login" element={<LoginPage />} />
         <Route path="mfa" element={<MfaPage />} />
         <Route path="mfa/setup" element={<MfaSetupPage />} />
