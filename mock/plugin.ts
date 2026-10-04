@@ -1,22 +1,27 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Connect, Plugin } from 'vite';
-import { DEV_ORG, DEV_PASSWORD, DEV_TOTP_SECRET, MockApi, type Failure } from './contract.ts';
+import { DEV_ORG, DEV_PASSWORD, DEV_TOTP_SECRET, MockApi, OTHER_ORG, type Failure } from './contract.ts';
 import { currentStep, totp } from './totp.ts';
 
 /**
  * Plugin do Vite: serve a API simulada em /api/v1 e o painel /__mock/ nos servidores de desenvolvimento e de
  * preview. Não participa do `vite build` — o bundle de produção não contém nada daqui.
  */
+/** Middleware da API simulada e do painel (exportado para os testes exercitarem o seletor real por HTTP). */
+export function mockMiddleware(api: MockApi, delay: number): Connect.NextHandleFunction {
+  return (req, res, next) => {
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    if (url.pathname.startsWith('/api/')) return void handleApi(api, delay, req, res, url).catch(next);
+    if (url.pathname === '/__mock' || url.pathname.startsWith('/__mock/')) return void handleControl(api, req, res, url).catch(next);
+    next();
+  };
+}
+
 export function nekkoraMockApi(): Plugin {
   const api = new MockApi();
   const delay = Number(process.env.NEKKORA_MOCK_DELAY ?? 350);
   const install = (middlewares: Connect.Server) => {
-    middlewares.use((req, res, next) => {
-      const url = new URL(req.url ?? '/', 'http://localhost');
-      if (url.pathname.startsWith('/api/')) return void handleApi(api, delay, req, res, url).catch(next);
-      if (url.pathname === '/__mock' || url.pathname.startsWith('/__mock/')) return void handleControl(api, req, res, url).catch(next);
-      next();
-    });
+    middlewares.use(mockMiddleware(api, delay));
   };
   return {
     name: 'nekkora-mock-api',
@@ -77,6 +82,7 @@ async function handleApi(api: MockApi, delay: number, req: IncomingMessage, res:
     csrf: typeof req.headers['x-csrf-token'] === 'string' ? req.headers['x-csrf-token'] : undefined,
     cookies: cookies(req),
     body,
+    query: url.searchParams,
   });
   res.statusCode = out.status;
   for (const [k, v] of Object.entries(out.headers)) res.setHeader(k, v);
@@ -115,10 +121,18 @@ async function handleControl(api: MockApi, req: IncomingMessage, res: ServerResp
         password: DEV_PASSWORD,
         failure: api.failure,
         secondsLeft: 30 - Math.floor((Date.now() / 1000) % 30),
+        otherOrg: OTHER_ORG,
+        product: {
+          workspaces: api.product.workspaces.size,
+          automations: api.product.automations.size,
+          executions: api.product.executions.size,
+        },
         accounts: [...api.accounts.values()]
-          .filter((a) => a.org === DEV_ORG)
+          .filter((a) => a.org === DEV_ORG || a.org === OTHER_ORG)
           .map((a) => ({
             userId: a.userId,
+            org: a.org,
+            roles: a.accountType === 'external' ? 'conta externa (portal)' : api.product.describe(a.membershipId),
             email: a.email,
             displayName: a.displayName,
             accountType: a.accountType,
@@ -159,6 +173,9 @@ async function handleControl(api: MockApi, req: IncomingMessage, res: ServerResp
     case 'POST /__mock/revoke-sessions':
       if (!account) return sendJson(res, 404, { error: 'account' });
       api.revokeSessions(userId);
+      return sendJson(res, 200, { ok: true });
+    case 'POST /__mock/cursor-key/rotate':
+      api.product.cursors.rotate();
       return sendJson(res, 200, { ok: true });
     case 'POST /__mock/sessions/revoke-all':
       for (const a of api.accounts.values()) api.revokeSessions(a.userId);
@@ -205,8 +222,14 @@ const PANEL = /* html */ `<!doctype html>
   </section>
   <section>
     <h2>Contas <span class="tag" id="timer"></span></h2>
-    <table><thead><tr><th>E-mail</th><th>Estado</th><th>Código TOTP agora</th><th>Sessões</th><th></th></tr></thead><tbody id="accounts"></tbody></table>
+    <table><thead><tr><th>E-mail</th><th>Papéis</th><th>Estado</th><th>Código TOTP agora</th><th>Sessões</th><th></th></tr></thead><tbody id="accounts"></tbody></table>
     <p style="margin-top:10px">A conta com MFA usa a chave fixa <code>${DEV_TOTP_SECRET}</code> — cadastre-a num autenticador real, se preferir.</p>
+  </section>
+  <section>
+    <h2>Produto (leitura)</h2>
+    <p id="product"></p>
+    <div class="row" style="margin-top:10px"><button id="rotate">Rotacionar a chave do cursor</button>
+      <p>Simula a rotação da chave de serviço (DC-15): os cursores já emitidos passam a dar 400; a primeira página continua funcionando.</p></div>
   </section>
   <section>
     <h2>Caixa de e-mails simulada</h2>
@@ -218,7 +241,8 @@ const PANEL = /* html */ `<!doctype html>
       <option value="none">Nenhuma (normal)</option><option value="offline">Queda de conexão</option>
       <option value="rate_limited">429 · muitas tentativas</option><option value="service_unavailable">503 · indisponível</option>
       <option value="internal_error">500 · erro interno</option></select>
-      <p>Vale para todas as chamadas até voltar para "Nenhuma".</p></div>
+      <p>Vale até voltar para "Nenhuma", e só nas operações cujo contrato documenta o status (ex.: 503 no login, MFA e
+      pedidos de senha; nas leituras do produto só 429 e 500). Nas demais a chamada segue normal. A queda de conexão vale para todas.</p></div>
   </section>
 </main>
 <script>
@@ -230,7 +254,9 @@ const PANEL = /* html */ `<!doctype html>
     $('org').textContent = s.org; $('pwd').textContent = s.password; $('login').href = '/o/' + s.org + '/login';
     $('timer').textContent = 'renova em ' + s.secondsLeft + ' s';
     if (document.activeElement !== $('failure')) $('failure').value = s.failure;
-    $('accounts').innerHTML = s.accounts.map((a) => '<tr><td>' + esc(a.email) + '<br><span class="tag">' + (a.accountType === 'internal' ? 'interna · 30 min' : 'portal · 15 min') + '</span></td><td>' +
+    $('product').textContent = s.product.workspaces + ' workspaces · ' + s.product.automations + ' automações · ' + s.product.executions + ' execuções (nas duas organizações; dados determinísticos)';
+    $('accounts').innerHTML = s.accounts.map((a) => '<tr><td>' + esc(a.email) + '<br><span class="tag">' + (a.accountType === 'internal' ? 'interna · 30 min' : 'portal · 15 min') + '</span>' +
+      (a.org === s.otherOrg ? ' <a class="tag" href="/o/' + a.org + '/login">organização vizinha</a>' : '') + '</td><td>' + esc(a.roles) + '</td><td>' +
       (a.verified ? '<span class="ok">e-mail confirmado</span>' : '<span class="warn">e-mail pendente</span>') + '<br>' +
       (a.mfa ? 'MFA configurado' : '<span class="warn">primeiro acesso (sem MFA)</span>') + '</td><td>' +
       (a.code ? '<span class="code">' + a.code + '</span>' : '—') +
@@ -245,6 +271,7 @@ const PANEL = /* html */ `<!doctype html>
     if (id) { await post('/__mock/revoke-sessions', { userId: id }); load(); }
   });
   $('reset').onclick = async () => { await post('/__mock/reset'); load(); };
+  $('rotate').onclick = async () => { await post('/__mock/cursor-key/rotate'); load(); };
   $('failure').onchange = async (e) => { await post('/__mock/failure', { failure: e.target.value }); load(); };
   load(); setInterval(load, 1000);
 </script>

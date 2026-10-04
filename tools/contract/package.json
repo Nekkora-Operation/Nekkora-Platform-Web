@@ -4,6 +4,7 @@
   "description": "Ferramenta isolada de geração dos tipos do contrato (openapi-typescript exige TypeScript 5; o app usa TypeScript 7).",
   "type": "module",
   "devDependencies": {
+    "js-yaml": "4.3.2",
     "openapi-typescript": "7.13.0",
     "typescript": "5.9.3"
   }

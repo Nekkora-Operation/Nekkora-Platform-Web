@@ -1,4 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
+import contract from '../src/api/generated/nekkora-api-v1.schemas.json' with { type: 'json' };
+import { ProductData, stableUuid, type OrgRole, type WorkspaceRole } from './product.ts';
 import { acceptedStep, newSecret } from './totp.ts';
 
 /**
@@ -9,10 +11,13 @@ import { acceptedStep, newSecret } from './totp.ts';
  * uso único, inatividade/limite absoluto de sessão e respostas genéricas (sem enumeração).
  *
  * O e-mail transacional é simulado: mensagens vão para uma caixa de entrada em memória, visível em /__mock/.
+ * As leituras de permissões e do produto (GAP-02/GAP-06) ficam em product.ts; aqui só a sessão é resolvida.
  * Nada daqui entra no build de produção (é só middleware dos servidores do Vite).
  */
 
 export const DEV_ORG = 'b7e1c3a0-5d2f-4e8b-9a61-0c3d5e7f9a12';
+/** Segunda organização, para conferir isolamento (ids de uma organização não valem na outra). */
+export const OTHER_ORG = 'f3d9b2c4-7a1e-4c5b-8d2f-6e0a9b1c3d57';
 export const DEV_PASSWORD = 'Nekkora-Dev-2026';
 /** Segredo fixo da conta de exemplo com MFA, para cadastrar uma vez num autenticador de verdade. */
 export const DEV_TOTP_SECRET = 'NEKKORADEVTOTPSECRETJBSWY3DPEHPK';
@@ -34,8 +39,37 @@ const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 
 export type Failure = 'none' | 'offline' | 'rate_limited' | 'service_unavailable' | 'internal_error';
 
+/** Status HTTP de cada falha simulada (a queda de conexão não é resposta HTTP). */
+const FAILURE_STATUS: Partial<Record<Failure, number>> = { rate_limited: 429, service_unavailable: 503, internal_error: 500 };
+
+/** Operações do contrato (todas as do OpenAPI), para casar método + caminho com os status documentados. */
+const OPERATIONS = Object.entries(contract.operations).map(([operationId, op]) => ({
+  operationId,
+  method: op.method,
+  pattern: new RegExp(`^${op.path.replace(/\{[^}]+\}/g, '[^/]+')}$`),
+  statuses: new Set(Object.keys(op.responses)),
+}));
+
+/** Operação do OpenAPI correspondente à requisição (undefined = rota fora do contrato). */
+export function operationFor(method: string, path: string) {
+  return OPERATIONS.find((o) => o.method === method && o.pattern.test(path));
+}
+
+/**
+ * A falha simulada só vale onde o contrato a documenta (ex.: 503 só nos POST de autenticação e em GET /api/v1/csrf;
+ * nas leituras do produto, 429 e 500). Fora disso a requisição segue normalmente: o mock nunca produz um status que a
+ * operação não prevê.
+ */
+export function simulatedFailureStatus(failure: Failure, method: string, path: string): number | undefined {
+  const status = FAILURE_STATUS[failure];
+  if (status === undefined) return undefined;
+  return operationFor(method, path)?.statuses.has(String(status)) ? status : undefined;
+}
+
 export interface Account {
   userId: string;
+  /** Vínculo com a organização (organization_memberships), usado pela leitura do produto. */
+  membershipId: string;
   org: string;
   email: string;
   displayName: string;
@@ -88,6 +122,7 @@ export interface MockRequest {
   csrf?: string;
   cookies: Record<string, string>;
   body: unknown;
+  query?: URLSearchParams;
 }
 
 export interface MockResponse {
@@ -112,6 +147,7 @@ export class MockApi {
   accounts = new Map<string, Account>();
   inbox: MailMessage[] = [];
   failure: Failure = 'none';
+  readonly product: ProductData;
   private pre = new Map<string, { csrf: string; expiresAt: number }>();
   private challenges = new Map<string, Challenge>();
   private sessions = new Map<string, Session>();
@@ -120,6 +156,7 @@ export class MockApi {
   private mailSeq = 0;
 
   constructor(private readonly now: () => number = Date.now) {
+    this.product = new ProductData(now);
     this.seed();
   }
 
@@ -135,20 +172,39 @@ export class MockApi {
     this.sessions.clear();
     this.resetTokens.clear();
     this.verificationTokens.clear();
+    this.product.clear();
     this.seed();
   }
 
   private seed() {
     this.createOrganization({ org: DEV_ORG, name: 'Organização de desenvolvimento' });
-    const ana = this.createAccount({ org: DEV_ORG, email: 'ana@nekkora.dev', displayName: 'Ana Souza' });
-    ana.totpSecret = DEV_TOTP_SECRET;
-    ana.recoveryCodes = Array.from({ length: 10 }, recoveryCode);
+    const ws = (k: string) => stableUuid(`dev:ws:${k}`);
+    // contas por papel (todas com MFA na chave fixa, para entrar rápido com o mesmo autenticador)
+    const people: [email: string, name: string, org: OrgRole[], workspaces: [string, WorkspaceRole[]][]][] = [
+      ['ana@nekkora.dev', 'Ana Souza', ['ORG_ADMIN'], []],
+      ['gestora@nekkora.dev', 'Bruna Lima', [], [[ws('financeiro'), ['WORKSPACE_ADMIN']], [ws('operacoes'), ['OPERATOR']]]],
+      ['operador@nekkora.dev', 'Caio Mendes', [], [[ws('operacoes'), ['OPERATOR']], [ws('logistica'), ['OPERATOR']]]],
+      ['leitora@nekkora.dev', 'Dani Rocha', [], [[ws('atendimento'), ['VIEWER']], [ws('legado'), ['VIEWER']]]],
+      ['sematribuicao@nekkora.dev', 'Edu Pires', [], []],
+    ];
+    for (const [email, displayName, orgRoles, workspaceRoles] of people) {
+      const a = this.createAccount({ org: DEV_ORG, email, displayName, orgRoles, workspaceRoles });
+      a.totpSecret = DEV_TOTP_SECRET;
+      a.recoveryCodes = Array.from({ length: 10 }, recoveryCode);
+    }
     this.createAccount({ org: DEV_ORG, email: 'novo@nekkora.dev', displayName: 'Pessoa Nova' });
     const pending = this.createAccount({ org: DEV_ORG, email: 'pendente@nekkora.dev', displayName: 'Pessoa Pendente', verified: false });
     this.sendVerification(pending);
     const portal = this.createAccount({ org: DEV_ORG, email: 'portal@nekkora.dev', displayName: 'Pessoa do Portal', accountType: 'external' });
     portal.totpSecret = DEV_TOTP_SECRET;
     portal.recoveryCodes = Array.from({ length: 10 }, recoveryCode);
+    this.product.seedOrganization(DEV_ORG, 'dev');
+
+    this.createOrganization({ org: OTHER_ORG, name: 'Organização vizinha' });
+    const vizinha = this.createAccount({ org: OTHER_ORG, email: 'vizinha@nekkora.dev', displayName: 'Vera Vizinha', orgRoles: ['ORG_ADMIN'] });
+    vizinha.totpSecret = DEV_TOTP_SECRET;
+    vizinha.recoveryCodes = Array.from({ length: 10 }, recoveryCode);
+    this.product.seedOrganization(OTHER_ORG, 'vizinha', 0.3);
   }
 
   createOrganization({ org = randomUUID(), name = 'Organização de teste', active = true } = {}) {
@@ -163,10 +219,13 @@ export class MockApi {
     verified?: boolean;
     accountType?: Account['accountType'];
     password?: string;
+    orgRoles?: OrgRole[];
+    workspaceRoles?: [string, WorkspaceRole[]][];
   }): Account {
     const userId = randomUUID();
     const account: Account = {
       userId,
+      membershipId: input.email ? stableUuid(`membership:${input.org}:${input.email}`) : randomUUID(),
       org: input.org,
       email: input.email ?? `pessoa-${userId.slice(0, 8)}@nekkora.dev`,
       displayName: input.displayName ?? 'Pessoa de Teste',
@@ -178,7 +237,27 @@ export class MockApi {
       recoveryCodes: [],
     };
     this.accounts.set(userId, account);
+    if (account.accountType === 'internal') {
+      this.product.addMembership({
+        membershipId: account.membershipId,
+        org: account.org,
+        displayName: account.displayName,
+        orgRoles: input.orgRoles,
+        workspaceRoles: input.workspaceRoles,
+      });
+    }
     return account;
+  }
+
+  /**
+   * Abre uma sessão direto, sem o fluxo de login (só para testes e ferramentas; não é exposto por HTTP).
+   * Devolve o valor do cookie de sessão.
+   */
+  openSession(userId: string): string {
+    const account = this.accounts.get(userId)!;
+    const id = opaque();
+    this.sessions.set(id, { userId, org: account.org, csrf: opaque(), createdAt: this.now(), lastSeenAt: this.now(), revoked: false });
+    return id;
   }
 
   issuePasswordResetToken(userId: string, { expired = false } = {}) {
@@ -225,15 +304,19 @@ export class MockApi {
 
   handle(req: MockRequest): MockResponse {
     const res: MockResponse = { status: 200, headers: { 'X-Request-Id': randomUUID(), 'Cache-Control': 'no-store' }, cookies: [] };
-    const json = (status: number, body?: unknown) => Object.assign(res, { status, body });
+    const json = (status: number, body?: unknown) => {
+      if (body !== undefined) res.headers['Content-Type'] = 'application/json';
+      return Object.assign(res, { status, body });
+    };
     const error = (status: number, code: string) => json(status, { error: code });
 
-    if (this.failure === 'rate_limited') {
+    const simulated = simulatedFailureStatus(this.failure, req.method, req.path);
+    if (simulated === 429) {
       res.headers['Retry-After'] = '120';
       return error(429, 'rate_limited');
     }
-    if (this.failure === 'service_unavailable') return error(503, 'service_unavailable');
-    if (this.failure === 'internal_error') return error(500, 'internal_error');
+    if (simulated === 503) return error(503, 'service_unavailable');
+    if (simulated === 500) return error(500, 'internal_error');
 
     const setCookie = (name: string, value: string, maxAgeMs: number, sameSite: 'Strict' | 'Lax') =>
       res.cookies.push(`${name}=${value}; Path=/; Max-Age=${Math.floor(maxAgeMs / 1000)}; HttpOnly; Secure; SameSite=${sameSite}`);
@@ -250,6 +333,8 @@ export class MockApi {
     }
 
     const m = /^\/api\/v1\/o\/([^/]+)(\/.*)$/.exec(req.path);
+    // {org} malformado nas leituras com sessão → 401 (nenhuma sessão é resolvida), como no backend
+    if (m && !UUID.test(m[1]) && req.method === 'GET' && ProductData.isRoute(m[2])) return error(401, 'unauthenticated');
     if (!m || !UUID.test(m[1])) return error(404, 'not_found');
     const [, org, route] = m;
     const key = `${req.method} ${route}`;
@@ -415,8 +500,23 @@ export class MockApi {
         return json(204);
       }
 
-      default:
+      default: {
+        const out = this.product.handle({
+          method: req.method,
+          route,
+          query: req.query ?? new URLSearchParams(),
+          org,
+          principal: () => {
+            const s = session();
+            if (!s) return undefined;
+            s.lastSeenAt = this.now();
+            const a = this.accounts.get(s.userId)!;
+            return { membershipId: a.membershipId, accountType: a.accountType };
+          },
+        });
+        if (out) return json(out.status, out.body);
         return error(404, 'not_found'); // inclui o reenvio de verificação, que não existe no contrato (D2)
+      }
     }
   }
 
