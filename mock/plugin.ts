@@ -1,7 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Connect, Plugin } from 'vite';
 import { DEV_ORG, DEV_PASSWORD, DEV_TOTP_SECRET, MockApi, OTHER_ORG, type Failure } from './contract.ts';
-import { currentStep, totp } from './totp.ts';
+import { stableUuid, type OrgRole, type WorkspaceRole } from './product.ts';
+import { currentStep, newSecret, totp } from './totp.ts';
 
 /**
  * Plugin do Vite: serve a API simulada em /api/v1 e o painel /__mock/ nos servidores de desenvolvimento e de
@@ -159,8 +160,30 @@ async function handleControl(api: MockApi, req: IncomingMessage, res: ServerResp
       return sendJson(res, 200, { org: api.createOrganization() });
     case 'POST /__mock/accounts': {
       const org = typeof body.org === 'string' ? body.org : api.createOrganization();
-      const a = api.createAccount({ org, verified: body.verified !== false, displayName: 'Pessoa E2E' });
-      return sendJson(res, 200, { org: a.org, userId: a.userId, email: a.email, password: a.password });
+      // papéis opcionais (E2E da área interna): workspaces pela chave da massa ("financeiro", "vizinho"…)
+      const orgKey = org === DEV_ORG ? 'dev' : org === OTHER_ORG ? 'vizinha' : undefined;
+      const orgRoles = Array.isArray(body.orgRoles) ? (body.orgRoles as OrgRole[]) : undefined;
+      const workspaceRoles = Array.isArray(body.workspaceRoles) && orgKey
+        ? (body.workspaceRoles as [string, WorkspaceRole[]][]).map(([k, roles]) => [stableUuid(`${orgKey}:ws:${k}`), roles] as [string, WorkspaceRole[]])
+        : undefined;
+      const a = api.createAccount({
+        org,
+        verified: body.verified !== false,
+        displayName: typeof body.displayName === 'string' ? body.displayName : 'Pessoa E2E',
+        accountType: body.accountType === 'external' ? 'external' : 'internal',
+        orgRoles,
+        workspaceRoles,
+      });
+      // MFA já configurado: a chave volta só para o teste calcular os códigos (controle exclusivo do mock)
+      if (body.mfa === true) a.totpSecret = newSecret();
+      return sendJson(res, 200, { org: a.org, userId: a.userId, email: a.email, password: a.password, totpSecret: a.totpSecret ?? null });
+    }
+    case 'POST /__mock/product/revoke-workspace-role': {
+      if (!account) return sendJson(res, 404, { error: 'account' });
+      const orgKey = account.org === DEV_ORG ? 'dev' : account.org === OTHER_ORG ? 'vizinha' : undefined;
+      if (!orgKey || typeof body.workspace !== 'string') return sendJson(res, 400, { error: 'workspace' });
+      api.product.revokeWorkspaceRole(account.membershipId, stableUuid(`${orgKey}:ws:${body.workspace}`));
+      return sendJson(res, 200, { ok: true });
     }
     case 'POST /__mock/password-reset-tokens':
       if (!account) return sendJson(res, 404, { error: 'account' });

@@ -1,0 +1,14 @@
+.pw-shell__title { margin: 0; }
+.pw-shell__account { display: flex; align-items: center; gap: var(--nk-space-3); }
+.pw-shell__name { font-size: var(--nk-font-size-sm); color: var(--nk-color-text-secondary); }
+.pw-shell__footer { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pw-shell__footer-name { color: var(--nk-color-text); font-weight: var(--nk-font-weight-semibold); }
+.pw-shell__footer-email,
+.pw-shell__footer-org { overflow-wrap: anywhere; font-size: var(--nk-font-size-xs); }
+.pw-shell__footer-org { font-family: var(--nk-font-mono); }
+.pw-shell__footer-access { margin-top: var(--nk-space-1); font-size: var(--nk-font-size-xs); color: var(--nk-color-text); }
+.pw-shell__alert { margin-bottom: var(--nk-space-5); }
+
+@media (max-width: 640px) {
+  .pw-shell__name { display: none; }
+}

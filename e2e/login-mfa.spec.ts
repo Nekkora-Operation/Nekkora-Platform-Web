@@ -8,7 +8,8 @@ test('DoD 1 — primeiro acesso: login → MFA obrigatório → códigos → ár
 
   await signIn(page, account);
   const { auth, codes } = await enrollMfa(page, account);
-  await expect(page.getByText(account.email)).toBeVisible();
+  // F4: o e-mail aparece também no rodapé do menu da área interna; a conferência é no conteúdo principal
+  await expect(page.getByRole('main').getByText(account.email)).toBeVisible();
   await expect(page).toHaveURL(path.home(account.org));
 
   await test.step('sair e entrar de novo: senha → código do autenticador', async () => {

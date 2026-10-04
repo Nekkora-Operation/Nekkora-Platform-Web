@@ -1,0 +1,13 @@
+.pw-exec__filters { display: flex; flex-direction: column; gap: var(--nk-space-4); }
+.pw-exec__actions { display: flex; align-items: flex-end; gap: var(--nk-space-2); flex-wrap: wrap; }
+.pw-exec__statuses { display: flex; flex-wrap: wrap; gap: var(--nk-space-2) var(--nk-space-5); }
+.pw-exec__period { margin: 0; }
+.pw-exec__automation,
+.pw-exec__status { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+.pw-exec__muted,
+.pw-exec__offset { font-size: var(--nk-font-size-xs); color: var(--nk-color-text-secondary); }
+.pw-exec__scroll { overflow-x: auto; border-radius: var(--nk-radius-md); }
+.pw-exec__scroll:focus-visible { outline: 2px solid var(--nk-color-accent); outline-offset: 2px; }
+/* a rolagem fica na região focável acima, não no wrapper interno da tabela */
+.pw-exec__scroll .nk-table-wrapper { overflow: visible; }
+.pw-exec__more-ws { display: flex; align-items: center; flex-wrap: wrap; gap: var(--nk-space-2) var(--nk-space-3); }

@@ -124,6 +124,20 @@ export class FakeApi {
       case 'GET /me':
         if (!this.session) return this.error(401, 'unauthenticated');
         return this.json(200, { accountType: 'internal', displayName: 'Ana Souza', email: this.session.email, organizationId: ORG });
+      // área interna (F4): respostas mínimas conformes ao contrato — conta sem atribuições, sem workspaces
+      case 'GET /me/permissions':
+        if (!this.session) return this.error(401, 'unauthenticated');
+        return this.json(200, {
+          organizationId: ORG,
+          membershipId: '0b6f6a10-8c0e-4a8e-9f2e-1d2c3b4a5f60',
+          organization: { roles: [], permissions: [] },
+          allWorkspaces: { permissions: [] },
+          hasWorkspaceAssignments: false,
+        });
+      case 'GET /workspaces?limit=100':
+      case 'GET /executions':
+        if (!this.session) return this.error(401, 'unauthenticated');
+        return this.json(200, { items: [], nextCursor: null });
       case 'GET /auth/csrf':
         if (!this.session) return this.error(401, 'unauthenticated');
         return this.json(200, { csrfToken: this.session.csrf });
