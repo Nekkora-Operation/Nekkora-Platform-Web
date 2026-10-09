@@ -4,7 +4,7 @@
  * O backend é a autoridade: a interface só apresenta.
  */
 import { sessionCsrf } from './auth';
-import { request } from './http';
+import { ApiError, request } from './http';
 import { readJson } from './validate';
 import { queryString } from './query';
 import type { Client, ClientGrant, Member, MfaResetReason, Page, Query } from './v1';
@@ -29,8 +29,13 @@ export async function listClients(org: string, q: ClientQuery = {}): Promise<Pag
   return readJson<Page<Client>>('listClients', `${base(org)}/clients${queryString(q)}`);
 }
 
+/**
+ * Escrita administrativa: o contrato documenta só 204 como sucesso. Qualquer outro 2xx é resposta fora do contrato
+ * (`unexpected`) — quem chama trata como resultado INCERTO, nunca como sucesso.
+ */
 async function sessionPost(org: string, path: string, body?: unknown): Promise<void> {
-  await request(`${base(org)}${path}`, { method: 'POST', body, csrf: await sessionCsrf(org) });
+  const res = await request(`${base(org)}${path}`, { method: 'POST', body, csrf: await sessionCsrf(org) });
+  if (res.status !== 204) throw new ApiError('unexpected', res.status);
 }
 
 /** Idempotente: concessão já revogada → 204. */

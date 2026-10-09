@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import contract from '../src/api/generated/nekkora-api-v1.schemas.json' with { type: 'json' };
 import { AdminData, type MembershipStatus } from './admin.ts';
-import { ProductData, stableUuid, type OrgRole, type WorkspaceRole } from './product.ts';
+import { ProductData, ROLE_PERMISSIONS, stableUuid, type OrgRole, type WorkspaceRole } from './product.ts';
 import { acceptedStep, newSecret } from './totp.ts';
 
 /**
@@ -156,6 +156,8 @@ export class MockApi {
   readonly product: ProductData;
   /** Leitura administrativa (GAP-03: membros, concessões, clientes). */
   readonly admin: AdminData;
+  /** F6a-2: escritas administrativas APLICADAS (para os testes contarem efeitos, não requisições). */
+  adminWrites: { org: string; action: 'suspend' | 'reactivate'; target: string; at: number }[] = [];
   private pre = new Map<string, { csrf: string; expiresAt: number }>();
   private challenges = new Map<string, Challenge>();
   private sessions = new Map<string, Session>();
@@ -185,6 +187,7 @@ export class MockApi {
     this.verificationTokens.clear();
     this.product.clear();
     this.admin.clear();
+    this.adminWrites = [];
     this.seed();
   }
 
@@ -608,6 +611,15 @@ export class MockApi {
       }
 
       default: {
+        // F6a-2: suspender/reativar (contrato 8.7 §5.3; AdminService): sessão → CSRF → UUID → permissão → alvo
+        const write = /^\/users\/([^/]+)\/(suspend|reactivate)$/.exec(route);
+        if (req.method === 'POST' && write) {
+          const s = session();
+          if (!s) return error(401, 'unauthenticated');
+          if (s.csrf !== req.csrf) return error(403, 'forbidden');
+          s.lastSeenAt = this.now();
+          return this.adminWrite(org, s, write[1], write[2] as 'suspend' | 'reactivate', json, error);
+        }
         const read = {
           method: req.method,
           route,
@@ -626,6 +638,45 @@ export class MockApi {
         return error(404, 'not_found'); // inclui o reenvio de verificação, que não existe no contrato (D2)
       }
     }
+  }
+
+  /**
+   * Suspensão e reativação administrativas, na ordem do AdminService: UUID malformado → 400; conta externa ou sem
+   * `org.manage` → 403; alvo = ator → 403; alvo fora da organização → 404; deixar a organização sem ORG_ADMIN efetivo
+   * → 403 (invariante da 003; pela API, provavelmente inalcançável: só o ORG_ADMIN tem org.manage e não pode ser alvo
+   * de si mesmo). Efeitos: suspender = conta suspensa + sessões e desafios do alvo encerrados; reativar = conta ativa,
+   * SEM restaurar sessões nem concessões. Idempotentes (repetir dá 204).
+   */
+  private adminWrite(
+    org: string,
+    s: Session,
+    rawTarget: string,
+    action: 'suspend' | 'reactivate',
+    json: (status: number, body?: unknown) => MockResponse,
+    error: (status: number, code: string) => MockResponse,
+  ): MockResponse {
+    if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(rawTarget)) return error(400, 'invalid_request');
+    const actor = this.accounts.get(s.userId)!;
+    const m = actor.accountType === 'internal' ? this.product.memberships.get(actor.membershipId) : undefined;
+    const perms = new Set((m?.orgRoles ?? []).flatMap((r) => ROLE_PERMISSIONS[r]));
+    if (!perms.has('org.manage')) return error(403, 'forbidden');
+    const target = rawTarget.toLowerCase();
+    if (target === actor.userId) return error(403, 'forbidden');
+    const acc = this.accounts.get(target);
+    if (!acc || acc.org !== org) return error(404, 'not_found');
+    if (action === 'suspend') {
+      const effectiveAdmin = (a: Account) =>
+        a.org === org && a.accountType === 'internal' && a.active && !a.closed && a.membershipStatus === 'active' &&
+        (this.product.memberships.get(a.membershipId)?.orgRoles ?? []).includes('ORG_ADMIN');
+      if (effectiveAdmin(acc) && ![...this.accounts.values()].some((a) => a !== acc && effectiveAdmin(a))) return error(403, 'forbidden');
+      acc.active = false;
+      for (const [id, c] of this.challenges) if (c.userId === acc.userId) this.challenges.delete(id);
+      this.revokeSessions(acc.userId);
+    } else {
+      acc.active = true;
+    }
+    this.adminWrites.push({ org, action, target, at: this.now() });
+    return json(204);
   }
 
   private sessionAlive(s: Session) {
