@@ -39,19 +39,19 @@ export const ROLE_PERMISSIONS: Record<OrgRole | WorkspaceRole, string[]> = {
 };
 const READ = 'automation.read';
 
-type ResourceStatus = 'active' | 'suspended' | 'archived';
+export type ResourceStatus = 'active' | 'suspended' | 'archived';
 export type ExecutionStatus = 'pending' | 'starting' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 type StatusReason =
   | 'process_completed' | 'start_failed' | 'process_failed' | 'cancelled_before_dispatch' | 'cancel_confirmed'
   | 'queue_deadline_exceeded' | null;
 type EventType = 'process_started' | 'process_succeeded' | 'process_failed' | 'process_start_failed' | 'process_cancelled';
 
-const RESOURCE_STATUS: ResourceStatus[] = ['active', 'suspended', 'archived'];
+export const RESOURCE_STATUS: ResourceStatus[] = ['active', 'suspended', 'archived'];
 const EXECUTION_STATUS: ExecutionStatus[] = ['pending', 'starting', 'running', 'succeeded', 'failed', 'cancelled'];
 
 // ------------------------------------------------------------------ modelo
 
-interface ClientRow { clientId: string; org: string; name: string }
+export interface ClientRow { clientId: string; org: string; name: string; status: ResourceStatus; createdAt: number; updatedAt: number }
 interface WorkspaceRow {
   workspaceId: string; org: string; name: string; description: string | null; status: ResourceStatus;
   clientId: string | null; createdAt: number; updatedAt: number;
@@ -108,9 +108,9 @@ export function stableUuid(label: string): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
-const iso = (ms: number | null) => (ms === null ? null : new Date(ms).toISOString());
+export const iso = (ms: number | null) => (ms === null ? null : new Date(ms).toISOString());
 const codePoints = (s: string) => Array.from(s);
-const name48 = (s: string) => codePoints(s).slice(0, 48);
+export const name48 = (s: string) => codePoints(s).slice(0, 48);
 /** COLLATE "C" = ordem dos bytes UTF-8 = ordem dos pontos de código. */
 function cmpCodePoints(a: string[], b: string[]): number {
   for (let i = 0; i < Math.min(a.length, b.length); i++) {
@@ -119,7 +119,7 @@ function cmpCodePoints(a: string[], b: string[]): number {
   }
   return a.length - b.length;
 }
-const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+export const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const CURSOR_RE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
@@ -127,11 +127,11 @@ const CURSOR_RE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const OFFSET_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?(Z|[+-]\d{2}:\d{2})$/;
 const MAX_PERIOD_MS = 366 * 24 * 3600 * 1000;
 
-class BadRequest extends Error {}
+export class BadRequest extends Error {}
 
 // ------------------------------------------------------------------ cursor (§1.5; DC-15)
 
-interface Scope { route: string; org: string; membership: string; parent: string | null; filters: string; sort: string }
+export interface Scope { route: string; org: string; membership: string; parent: string | null; filters: string; sort: string }
 
 export class CursorKeys {
   private key = randomBytes(32);
@@ -215,10 +215,17 @@ export class ProductData {
     const DAY = 86_400_000;
     const ids: Record<string, string> = {};
 
-    const clientDefs = key === 'dev' ? [['acme', 'ACME Logística'], ['banco', 'Banco Exemplo S.A.']] : [['vizinho', 'Cliente Vizinho']];
-    for (const [k, name] of clientDefs) {
+    // F6a-1: estados e datas dos clientes (listClients); "Ômega" (não ASCII) ordena depois dos ASCII por ponto de código
+    const clientDefs: [string, string, ResourceStatus][] =
+      key === 'dev'
+        ? [['acme', 'ACME Logística', 'active'], ['banco', 'Banco Exemplo S.A.', 'active'], ['clinica', 'Clínica Exemplo', 'suspended'], ['omega', 'Ômega Indústria', 'archived']]
+        : [['vizinho', 'Cliente Vizinho', 'active']];
+    // sequência própria: não desloca a massa já existente (workspaces, automações e execuções seguem iguais)
+    const crnd = prng(`${key}:clientes`);
+    for (const [k, name, status] of clientDefs) {
       const clientId = stableUuid(`${key}:client:${k}`);
-      this.clients.set(clientId, { clientId, org, name });
+      const createdAt = now - (300 + Math.floor(crnd() * 60)) * DAY;
+      this.clients.set(clientId, { clientId, org, name, status, createdAt, updatedAt: createdAt + Math.floor(crnd() * 200) * DAY });
       ids[`client:${k}`] = clientId;
     }
 
@@ -651,17 +658,17 @@ export class ProductData {
   }
 }
 
-class Forbidden extends Error {}
-class NotFound extends Error {}
+export class Forbidden extends Error {}
+export class NotFound extends Error {}
 
 // ------------------------------------------------------------------ parâmetros (mesmas regras do backend)
 
-function parseUuid(v: string): string {
+export function parseUuid(v: string): string {
   if (!UUID_RE.test(v)) throw new BadRequest('uuid');
   return v;
 }
 
-function parseLimit(q: URLSearchParams): number {
+export function parseLimit(q: URLSearchParams): number {
   const raw = q.get('limit');
   if (raw === null) return 25;
   if (!/^[+-]?\d+$/.test(raw)) throw new BadRequest('limit');
@@ -670,7 +677,7 @@ function parseLimit(q: URLSearchParams): number {
   return n;
 }
 
-function parseStatus<T extends string>(q: URLSearchParams, allowed: T[], max: number): T[] | null {
+export function parseStatus<T extends string>(q: URLSearchParams, allowed: T[], max: number): T[] | null {
   if (!q.has('status')) return null;
   const values = q.getAll('status');
   if (values.length === 0 || values.length > max || new Set(values).size !== values.length) throw new BadRequest('status');
@@ -693,15 +700,15 @@ function parseInstant(v: string | null): number | null {
 }
 
 /** Impressão canônica dos filtros: coleções sem repetição e ordenadas; datas como instantes. */
-function canonical(f: Record<string, string | number | string[] | null>): string {
+export function canonical(f: Record<string, string | number | string[] | null>): string {
   return JSON.stringify(Object.entries(f).map(([k, v]) => [k, Array.isArray(v) ? [...v].sort(cmp) : v]));
 }
 
-function byName48<T>(name: (r: T) => string, id: (r: T) => string) {
+export function byName48<T>(name: (r: T) => string, id: (r: T) => string) {
   return (a: T, b: T) => cmpCodePoints(name48(name(a)), name48(name(b))) || cmp(id(a), id(b));
 }
 
-function afterName48(name: string, id: string, after: (string | number)[]): boolean {
+export function afterName48(name: string, id: string, after: (string | number)[]): boolean {
   const d = cmpCodePoints(name48(name), codePoints(after[0] as string));
   return d > 0 || (d === 0 && id > (after[1] as string));
 }

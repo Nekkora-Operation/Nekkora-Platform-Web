@@ -34,6 +34,10 @@ export const orgPath = {
   workspaces: (org: string) => `/o/${org}/workspaces`,
   workspace: (org: string, id: string) => `/o/${org}/workspaces/${encodeURIComponent(id)}`,
   automation: (org: string, id: string) => `/o/${org}/automacoes/${encodeURIComponent(id)}`,
+  /** F6a-1: administração (só leitura). */
+  members: (org: string) => `/o/${org}/administracao/membros`,
+  clients: (org: string) => `/o/${org}/administracao/clientes`,
+  grants: (org: string) => `/o/${org}/administracao/concessoes`,
 };
 
 /**

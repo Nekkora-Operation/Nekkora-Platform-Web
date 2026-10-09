@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import contract from '../src/api/generated/nekkora-api-v1.schemas.json' with { type: 'json' };
+import { AdminData, type MembershipStatus } from './admin.ts';
 import { ProductData, stableUuid, type OrgRole, type WorkspaceRole } from './product.ts';
 import { acceptedStep, newSecret } from './totp.ts';
 
@@ -80,6 +81,11 @@ export interface Account {
   totpSecret?: string;
   lastStep: number;
   recoveryCodes: string[];
+  /** F6a-1 (listMembers): quando o vínculo foi criado e o seu estado. */
+  createdAt: number;
+  membershipStatus: MembershipStatus;
+  /** Conta encerrada (accountStatus `closed`). */
+  closed?: boolean;
 }
 
 interface Challenge {
@@ -148,6 +154,8 @@ export class MockApi {
   inbox: MailMessage[] = [];
   failure: Failure = 'none';
   readonly product: ProductData;
+  /** Leitura administrativa (GAP-03: membros, concessões, clientes). */
+  readonly admin: AdminData;
   private pre = new Map<string, { csrf: string; expiresAt: number }>();
   private challenges = new Map<string, Challenge>();
   private sessions = new Map<string, Session>();
@@ -157,6 +165,9 @@ export class MockApi {
 
   constructor(private readonly now: () => number = Date.now) {
     this.product = new ProductData(now);
+    this.admin = new AdminData(this.product, () =>
+      [...this.accounts.values()].map((a) => ({ ...a, mfaConfigured: !!a.totpSecret })),
+    );
     this.seed();
   }
 
@@ -173,6 +184,7 @@ export class MockApi {
     this.resetTokens.clear();
     this.verificationTokens.clear();
     this.product.clear();
+    this.admin.clear();
     this.seed();
   }
 
@@ -199,12 +211,104 @@ export class MockApi {
     portal.totpSecret = DEV_TOTP_SECRET;
     portal.recoveryCodes = Array.from({ length: 10 }, recoveryCode);
     this.product.seedOrganization(DEV_ORG, 'dev');
+    this.seedAdministration();
 
     this.createOrganization({ org: OTHER_ORG, name: 'Organização vizinha' });
     const vizinha = this.createAccount({ org: OTHER_ORG, email: 'vizinha@nekkora.dev', displayName: 'Vera Vizinha', orgRoles: ['ORG_ADMIN'] });
     vizinha.totpSecret = DEV_TOTP_SECRET;
     vizinha.recoveryCodes = Array.from({ length: 10 }, recoveryCode);
     this.product.seedOrganization(OTHER_ORG, 'vizinha', 0.3);
+    const contato = this.createAccount({ org: OTHER_ORG, email: 'contato@vizinho.dev', displayName: 'Contato do Vizinho', accountType: 'external' });
+    this.addGrant(OTHER_ORG, 'vizinha', 'g1', contato, 'vizinho', 'vizinho', 'active', 40);
+  }
+
+  /**
+   * F6a-1: massa da leitura administrativa na organização de desenvolvimento — membros em todos os estados (e mais de
+   * uma página de 25), clientes nos três estados (product.ts) e concessões nos quatro estados, com contas externas.
+   */
+  private seedAdministration() {
+    const DAY = 86_400_000;
+    const base = Math.floor(this.now() / 60_000) * 60_000;
+    // os vínculos de exemplo ganham datas crescentes, na ordem em que foram criados (ordem da lista: createdAt asc)
+    [...this.accounts.values()]
+      .filter((a) => a.org === DEV_ORG)
+      .forEach((a, i) => {
+        a.createdAt = base - (400 - i * 5) * DAY;
+      });
+    const extra: [email: string, name: string, fill: (a: Account) => void][] = [
+      ['suspensa@nekkora.dev', 'Flávia Suspensa', (a) => {
+        a.active = false;
+      }],
+      ['desligado@nekkora.dev', 'Gil Desligado', (a) => {
+        a.membershipStatus = 'revoked';
+      }],
+      ['convite@nekkora.dev', 'Helena Convidada', (a) => {
+        a.verified = false;
+        a.membershipStatus = 'pending';
+      }],
+      ['encerrada@nekkora.dev', 'Íris Encerrada', (a) => {
+        a.closed = true;
+        a.membershipStatus = 'suspended';
+      }],
+    ];
+    extra.forEach(([email, displayName, fill], i) => {
+      fill(this.createAccount({ org: DEV_ORG, email, displayName, createdAt: base - (300 - i * 3) * DAY }));
+    });
+    // equipe: completa mais de uma página de 25 membros
+    for (let i = 1; i <= 24; i++) {
+      const n = String(i).padStart(2, '0');
+      const a = this.createAccount({ org: DEV_ORG, email: `equipe${n}@nekkora.dev`, displayName: `Pessoa da Equipe ${n}`, createdAt: base - (200 - i) * DAY });
+      if (i % 3 === 0) a.totpSecret = DEV_TOTP_SECRET;
+    }
+    const portal = [...this.accounts.values()].find((a) => a.email === 'portal@nekkora.dev')!;
+    const banco = this.createAccount({ org: DEV_ORG, email: 'financeiro@banco-exemplo.dev', displayName: 'Financeiro do Banco', accountType: 'external' });
+    this.addGrant(DEV_ORG, 'dev', 'g1', portal, 'acme', 'logistica', 'active', 90);
+    this.addGrant(DEV_ORG, 'dev', 'g2', portal, 'acme', 'piloto', 'suspended', 70);
+    this.addGrant(DEV_ORG, 'dev', 'g3', portal, 'acme', 'logistica', 'revoked', 150);
+    this.addGrant(DEV_ORG, 'dev', 'g4', banco, 'banco', 'financeiro', 'active', 60);
+    this.addGrant(DEV_ORG, 'dev', 'g5', banco, 'banco', 'relatorios-sul', 'pending', 5);
+    this.addGrant(DEV_ORG, 'dev', 'g6', banco, 'banco', 'relatorios-norte', 'active', 30, { expiresInDays: 20 });
+  }
+
+  /** Concessão de exemplo: conta externa × workspace do cliente, criada há `daysAgo` dias. */
+  addGrant(
+    org: string,
+    key: string,
+    k: string,
+    external: Account,
+    client: string,
+    workspace: string,
+    status: 'pending' | 'active' | 'suspended' | 'revoked',
+    daysAgo: number,
+    { expiresInDays }: { expiresInDays?: number } = {},
+  ) {
+    const DAY = 86_400_000;
+    const base = Math.floor(this.now() / 60_000) * 60_000;
+    const createdAt = base - daysAgo * DAY;
+    const approved = status !== 'pending';
+    const grantId = stableUuid(`${key}:grant:${k}`);
+    this.admin.grants.set(grantId, {
+      grantId,
+      org,
+      status,
+      clientId: stableUuid(`${key}:client:${client}`),
+      workspaceId: stableUuid(`${key}:ws:${workspace}`),
+      externalAccount: {
+        clientMembershipId: stableUuid(`clientmembership:${org}:${external.email}`),
+        userId: external.userId,
+        displayName: external.displayName,
+        email: external.email,
+        membershipStatus: 'active',
+      },
+      approvedAt: approved ? createdAt + DAY : null,
+      startsAt: createdAt + DAY,
+      expiresAt: expiresInDays !== undefined ? base + expiresInDays * DAY : null,
+      nextReviewAt: approved && status !== 'revoked' ? base + 30 * DAY : null,
+      lastAccessAt: status === 'active' ? base - 2 * DAY : null,
+      revokedAt: status === 'revoked' ? createdAt + 40 * DAY : null,
+      createdAt,
+    });
+    return grantId;
   }
 
   createOrganization({ org = randomUUID(), name = 'Organização de teste', active = true } = {}) {
@@ -221,6 +325,7 @@ export class MockApi {
     password?: string;
     orgRoles?: OrgRole[];
     workspaceRoles?: [string, WorkspaceRole[]][];
+    createdAt?: number;
   }): Account {
     const userId = randomUUID();
     const account: Account = {
@@ -235,6 +340,8 @@ export class MockApi {
       active: true,
       lastStep: 0,
       recoveryCodes: [],
+      createdAt: input.createdAt ?? this.now(),
+      membershipStatus: 'active',
     };
     this.accounts.set(userId, account);
     if (account.accountType === 'internal') {
@@ -334,7 +441,7 @@ export class MockApi {
 
     const m = /^\/api\/v1\/o\/([^/]+)(\/.*)$/.exec(req.path);
     // {org} malformado nas leituras com sessão → 401 (nenhuma sessão é resolvida), como no backend
-    if (m && !UUID.test(m[1]) && req.method === 'GET' && ProductData.isRoute(m[2])) return error(401, 'unauthenticated');
+    if (m && !UUID.test(m[1]) && req.method === 'GET' && (ProductData.isRoute(m[2]) || AdminData.isRoute(m[2]))) return error(401, 'unauthenticated');
     if (!m || !UUID.test(m[1])) return error(404, 'not_found');
     const [, org, route] = m;
     const key = `${req.method} ${route}`;
@@ -354,7 +461,7 @@ export class MockApi {
       return s && s.org === org && this.sessionAlive(s) ? s : undefined;
     };
     const eligible = (a: Account | undefined) =>
-      !!a && a.org === org && a.active && a.verified && this.orgs.get(org)?.active === true;
+      !!a && a.org === org && a.active && !a.closed && a.verified && a.membershipStatus === 'active' && this.orgs.get(org)?.active === true;
     const createSession = (account: Account, extra: Record<string, unknown> = {}) => {
       this.challenges.delete(req.cookies[COOKIE.challenge] ?? '');
       clearCookie(COOKIE.challenge);
@@ -501,7 +608,7 @@ export class MockApi {
       }
 
       default: {
-        const out = this.product.handle({
+        const read = {
           method: req.method,
           route,
           query: req.query ?? new URLSearchParams(),
@@ -513,7 +620,8 @@ export class MockApi {
             const a = this.accounts.get(s.userId)!;
             return { membershipId: a.membershipId, accountType: a.accountType };
           },
-        });
+        };
+        const out = this.product.handle(read) ?? this.admin.handle(read);
         if (out) return json(out.status, out.body);
         return error(404, 'not_found'); // inclui o reenvio de verificação, que não existe no contrato (D2)
       }
