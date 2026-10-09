@@ -5,10 +5,11 @@ import { isApiError } from '../../api/http';
 import type { Member, MembershipStatus } from '../../api/v1';
 import { useInternalArea } from '../../area/InternalShell';
 import { useSession } from '../../area/session';
-import { clearSettled, dismissWrite, useWriteEntries, type WriteEntry } from '../../admin/writeStore';
+import { clearSettled, dismissWrite, isMemberEntry, useWriteEntries, type MemberEntry } from '../../admin/writeStore';
 import { useCursorList } from '../../hooks/useCursorList';
 import { DateTimeText, LoadErrorState, PageHeader, useExpiresOn } from '../product/shared';
-import { ACTION_LABEL, effectiveStatus, MemberActionDialog, UncertainPanel, type ActionDialogState } from './memberActions';
+import { ACTION_LABEL, effectiveStatus, findMember, MEMBER_UNCERTAIN_COPY, MemberActionDialog, type ActionDialogState } from './memberActions';
+import { UncertainPanel } from './uncertainPanel';
 import {
   ADMIN_PAGE,
   AccountStatusBadge,
@@ -60,7 +61,8 @@ export function MembersPage() {
     setRecheck(true);
     list.reload();
   };
-  const entries = useWriteEntries(org);
+  // só registros de membros: concessões têm chave própria e não aparecem aqui
+  const entries = useWriteEntries(org).filter(isMemberEntry);
   const byUser = new Map(entries.map((e) => [e.target.userId, e]));
   const [dialog, setDialog] = useState<ActionDialogState | null>(null);
   const [announce, setAnnounce] = useState<{ text: string; n: number } | null>(null);
@@ -69,7 +71,7 @@ export function MembersPage() {
   const focusTarget = useRef<string | null>(null);
 
   // lista relida do servidor (entrada na tela, filtros, Atualizar): concluídos e recusados deixam de sobrepor a leitura
-  useEffect(() => clearSettled(org), [org, filters.key, refresh]);
+  useEffect(() => clearSettled(org, 'member'), [org, filters.key, refresh]);
 
   const canManage = permissions.status === 'ready' && permissions.data.organization.permissions.includes('org.manage');
   const self = permissions.status === 'ready' ? permissions.data.membershipId : null;
@@ -103,7 +105,7 @@ export function MembersPage() {
     focusTarget.current = member.userId;
     setDialog({ action, member, retry, startedId: null });
   };
-  const retryFrom = (e: WriteEntry) => {
+  const retryFrom = (e: MemberEntry) => {
     const member = list.items.find((m) => m.userId === e.target.userId);
     open(e.action, member ?? ({ userId: e.target.userId, membershipId: e.target.membershipId, displayName: e.target.displayName } as Member), true);
   };
@@ -179,6 +181,8 @@ export function MembersPage() {
           ref={panelRef}
           org={org}
           entries={pending}
+          copy={MEMBER_UNCERTAIN_COPY}
+          find={(e, interrupted) => findMember(org, e, interrupted)}
           onRetry={retryFrom}
           onDismiss={(e) => dismissWrite(org, e.target.userId)}
           onUnauthenticated={expired}

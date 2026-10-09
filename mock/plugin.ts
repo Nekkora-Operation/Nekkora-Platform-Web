@@ -178,6 +178,23 @@ async function handleControl(api: MockApi, req: IncomingMessage, res: ServerResp
       if (body.mfa === true) a.totpSecret = newSecret();
       return sendJson(res, 200, { org: a.org, userId: a.userId, email: a.email, password: a.password, totpSecret: a.totpSecret ?? null });
     }
+    case 'POST /__mock/grants': {
+      // F6a-3 (E2E isolado): concessões numa organização NOVA criada pelo controle. Na primeira chamada, semeia o
+      // catálogo mínimo (1 cliente, 1 workspace); cada concessão liga uma conta externa da organização a esse workspace
+      const org = typeof body.org === 'string' ? body.org : '';
+      if (!api.orgs.has(org) || org === DEV_ORG || org === OTHER_ORG) return sendJson(res, 400, { error: 'org' });
+      const defs = Array.isArray(body.grants) ? (body.grants as { k?: unknown; externalUserId?: unknown; status?: unknown }[]) : [];
+      const STATUSES = ['pending', 'active', 'suspended', 'revoked'] as const;
+      if (!api.product.clients.has(stableUuid(`${org}:client:vizinho`))) api.product.seedOrganization(org, org, 0);
+      const ids: string[] = [];
+      for (const [i, d] of defs.entries()) {
+        const ext = api.accounts.get(String(d.externalUserId ?? ''));
+        const status = STATUSES.find((s) => s === d.status);
+        if (!ext || ext.org !== org || ext.accountType !== 'external' || !status || typeof d.k !== 'string') return sendJson(res, 400, { error: 'grant' });
+        ids.push(api.addGrant(org, org, d.k, ext, 'vizinho', 'vizinho', status, 10 + i));
+      }
+      return sendJson(res, 200, { grants: ids });
+    }
     case 'POST /__mock/product/revoke-workspace-role': {
       if (!account) return sendJson(res, 404, { error: 'account' });
       const orgKey = account.org === DEV_ORG ? 'dev' : account.org === OTHER_ORG ? 'vizinha' : undefined;
