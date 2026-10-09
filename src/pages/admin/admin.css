@@ -1,0 +1,2 @@
+.pw-admin__person { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+.pw-admin__filters { display: flex; flex-direction: column; gap: var(--nk-space-4); }

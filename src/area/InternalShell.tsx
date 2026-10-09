@@ -3,7 +3,7 @@ import { Link as RouterLink, Outlet, useLocation } from 'react-router';
 import { Alert, AppShell, Button, Logo, Text, type AppNavGroup } from 'nekkora-lib';
 import { isApiError } from '../api/http';
 import { getMyPermissions } from '../api/permissions';
-import type { MyPermissions } from '../api/v1';
+import type { MyPermissions, PermissionCode } from '../api/v1';
 import { orgPath, shortOrganizationId } from '../auth/organization';
 import { useSession } from './session';
 import { useVisibleWorkspaces, type VisibleWorkspaces } from './useVisibleWorkspaces';
@@ -32,11 +32,14 @@ export function useInternalArea(): InternalArea {
 const MAIN_ID = 'conteudo';
 
 /** Seção da área interna a que o endereço pertence (menu ativo e título do topo). */
-function sectionOf(pathname: string, org: string): 'inicio' | 'execucoes' | 'workspaces' | null {
+function sectionOf(pathname: string, org: string): 'inicio' | 'execucoes' | 'workspaces' | 'membros' | 'clientes' | 'concessoes' | null {
   if (pathname === orgPath.home(org)) return 'inicio';
   const rest = pathname.slice(orgPath.home(org).length);
   if (rest === '/execucoes' || rest.startsWith('/execucoes/')) return 'execucoes';
   if (rest === '/workspaces' || rest.startsWith('/workspaces/') || rest.startsWith('/automacoes/')) return 'workspaces';
+  if (rest === '/administracao/membros') return 'membros';
+  if (rest === '/administracao/clientes') return 'clientes';
+  if (rest === '/administracao/concessoes') return 'concessoes';
   return null;
 }
 
@@ -48,6 +51,9 @@ function titleFor(pathname: string, org: string): string {
   if (rest.startsWith('/workspaces/')) return 'Workspace';
   if (rest === '/workspaces') return 'Workspaces';
   if (rest.startsWith('/automacoes/')) return 'Automação';
+  if (rest === '/administracao/membros') return 'Membros';
+  if (rest === '/administracao/clientes') return 'Clientes';
+  if (rest === '/administracao/concessoes') return 'Concessões';
   return 'Início';
 }
 
@@ -57,7 +63,8 @@ function titleFor(pathname: string, org: string): string {
  * - A P01 orienta a navegação organizacional e o resumo de acesso; ela só APRESENTA (cada rota autoriza no backend).
  *   Falha da P01 não bloqueia a área: as telas consultam a API, que decide.
  * - Workspaces visíveis vêm de `listWorkspaces` (paginada), nunca da P02.
- * - O menu mostra só telas implementadas (Início, Workspaces e Execuções). Esconder itens não substitui a autorização do backend.
+ * - O menu mostra só telas implementadas (Início, Workspaces, Execuções e, pela P01, Administração). Esconder itens não
+ *   substitui a autorização do backend.
  * - Conta externa nunca chega aqui (o portão da área a mantém no encaminhamento próprio, sem P01/P02).
  */
 export function InternalShell() {
@@ -113,6 +120,19 @@ export function InternalShell() {
       ],
     },
   ];
+  // Administração (F6a-1): itens pela P01 — membros com org.manage; clientes com org.manage OU external_access.manage;
+  // concessões com external_access.manage. Sem P01 (carregando ou em erro) o grupo não aparece; o endereço direto
+  // continua funcionando e a API decide.
+  if (permissions.status === 'ready') {
+    const has = (p: PermissionCode) => permissions.data.organization.permissions.includes(p);
+    const admin: AppNavGroup['items'] = [];
+    if (has('org.manage')) admin.push({ id: 'membros', label: 'Membros', href: orgPath.members(org), icon: 'users', active: section === 'membros' });
+    if (has('org.manage') || has('external_access.manage'))
+      admin.push({ id: 'clientes', label: 'Clientes', href: orgPath.clients(org), icon: 'building', active: section === 'clientes' });
+    if (has('external_access.manage'))
+      admin.push({ id: 'concessoes', label: 'Concessões', href: orgPath.grants(org), icon: 'key', active: section === 'concessoes' });
+    if (admin.length) nav.push({ id: 'administracao', label: 'Administração', items: admin });
+  }
 
   const access =
     permissions.status === 'ready'

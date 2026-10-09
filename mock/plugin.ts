@@ -185,6 +185,12 @@ async function handleControl(api: MockApi, req: IncomingMessage, res: ServerResp
       api.product.revokeWorkspaceRole(account.membershipId, stableUuid(`${orgKey}:ws:${body.workspace}`));
       return sendJson(res, 200, { ok: true });
     }
+    case 'POST /__mock/product/revoke-organization-roles': {
+      // F6a-1-R1: perda de permissão organizacional entre duas páginas (ex.: ORG_ADMIN removido)
+      if (!account) return sendJson(res, 404, { error: 'account' });
+      api.product.revokeOrganizationRoles(account.membershipId);
+      return sendJson(res, 200, { ok: true });
+    }
     case 'POST /__mock/password-reset-tokens':
       if (!account) return sendJson(res, 404, { error: 'account' });
       return sendJson(res, 200, { token: api.issuePasswordResetToken(userId, { expired: body.expired === true }) });
