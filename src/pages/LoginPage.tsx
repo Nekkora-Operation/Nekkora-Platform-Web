@@ -15,6 +15,7 @@ const NOTICES = {
   'session-expired': { tone: 'info' as const, text: SESSION_EXPIRED },
   'signed-out': { tone: 'success' as const, text: 'Você saiu da sua conta.' },
   'challenge-expired': { tone: 'info' as const, text: 'A verificação expirou. Entre novamente para continuar.' },
+  'session-changed': { tone: 'info' as const, text: 'Sua sessão foi encerrada ou alterada em outra aba. Entre novamente para continuar.' },
 };
 
 /** /o/{org}/login — e-mail + senha. O resultado só define o próximo passo; quem autentica é a API. */

@@ -102,6 +102,20 @@ export function useSessionLoader(org: string) {
 
   useEffect(() => () => window.clearTimeout(watch.current), []);
 
+  // F6a-2-R2: a sessão foi encerrada ou trocada em OUTRA aba. O contexto autenticado desta aba (identidade, P01,
+  // listas, diálogos) deixa de valer AGORA: sai da área, sem ação possível, e pede uma nova entrada explícita.
+  useEffect(
+    () =>
+      csrfStore.onSessionBoundary((remote) => {
+        if (!remote || ended.current) return;
+        ended.current = true;
+        window.clearTimeout(watch.current);
+        sessionMemory.reset();
+        navigateRef.current(orgPath.login(org), { replace: true, state: { notice: 'session-changed' } satisfies NavState });
+      }),
+    [org],
+  );
+
   const signOut = useCallback(async () => {
     ended.current = true;
     window.clearTimeout(watch.current);

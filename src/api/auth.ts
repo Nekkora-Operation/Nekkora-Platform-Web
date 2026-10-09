@@ -79,7 +79,7 @@ export async function confirmMfaEnrollment(org: string, code: string): Promise<s
   });
   if (!Array.isArray(data?.recoveryCodes) || !data.csrfToken) throw new ApiError('unexpected', 200);
   csrfStore.setChallenge(org, undefined);
-  csrfStore.setSession(org, data.csrfToken);
+  csrfStore.beginSession(org, data.csrfToken);
   return data.recoveryCodes.filter((c): c is string => typeof c === 'string');
 }
 
@@ -92,7 +92,7 @@ export async function verifyMfa(org: string, secondFactor: { code: string } | { 
   });
   if (!data?.csrfToken) throw new ApiError('unexpected', 200);
   csrfStore.setChallenge(org, undefined);
-  csrfStore.setSession(org, data.csrfToken);
+  csrfStore.beginSession(org, data.csrfToken);
 }
 
 // ------------------------------------------------------------------ sessão
