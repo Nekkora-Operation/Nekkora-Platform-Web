@@ -14,3 +14,4 @@
 .pw-admin__partial-empty { display: flex; flex-direction: column; gap: var(--nk-space-1); padding: var(--nk-space-4); border: 1px dashed var(--nk-color-border); border-radius: var(--nk-radius-md); }
 .pw-admin__partial-empty:focus { outline: none; }
 .pw-admin__partial-empty:focus-visible { outline: 2px solid var(--nk-color-accent); outline-offset: 2px; }
+.pw-admin__row-actions { display: inline-flex; flex-wrap: wrap; gap: var(--nk-space-2); }

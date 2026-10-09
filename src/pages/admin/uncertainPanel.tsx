@@ -5,7 +5,7 @@ import { beginCheck, finishCheck, sessionEpoch, targetRef, type CheckState, type
 
 /** Resultado de procurar o alvo pelo id na leitura atual (sem filtros). Informa o estado; não prova a escrita. */
 export type FindResult =
-  | { kind: 'found'; state: Pick<Extract<CheckState, { status: 'found' }>, 'accountStatus' | 'grantStatus'> }
+  | { kind: 'found'; state: Pick<Extract<CheckState, { status: 'found' }>, 'accountStatus' | 'grantStatus' | 'mfaConfigured'> }
   | { kind: 'absent' }
   | { kind: 'incomplete' }
   | { kind: 'interrupted' };
@@ -66,7 +66,8 @@ function UncertainPanelInner<E extends WriteEntry>(
   }: {
     org: string;
     entries: E[];
-    copy: UncertainCopy<E>;
+    /** Textos do aviso; uma função escolhe os textos POR REGISTRO (ex.: Membros mostra suspensões e redefinições de MFA). */
+    copy: UncertainCopy<E> | ((e: E) => UncertainCopy<E>);
     find: (e: E, interrupted: () => boolean) => Promise<FindResult>;
     onRetry: (e: E) => void;
     onDismiss: (e: E) => void;
@@ -115,8 +116,9 @@ function UncertainPanelInner<E extends WriteEntry>(
           {entries.map((e) => {
             const sending = e.phase === 'sending';
             const checking = e.check?.status === 'checking';
-            const label = copy.label(e);
-            const text = checkText(e.check, copy);
+            const c = typeof copy === 'function' ? copy(e) : copy;
+            const label = c.label(e);
+            const text = checkText(e.check, c);
             return (
               <li key={e.id} className="pw-admin__uncertain-item">
                 <Text>
@@ -124,7 +126,7 @@ function UncertainPanelInner<E extends WriteEntry>(
                 </Text>
                 {!sending && e.refusedRetry !== undefined && (
                   <Text variant="body-sm" color="secondary">
-                    Nova tentativa recusada: {copy.refusalText(e.refusedRetry)} {copy.previousStillUncertain}
+                    Nova tentativa recusada: {c.refusalText(e.refusedRetry)} {c.previousStillUncertain}
                   </Text>
                 )}
                 {!sending && text && (

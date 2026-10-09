@@ -25,14 +25,14 @@ import type { GrantStatus, Member } from '../api/v1';
  * Nada aqui decide autorização: a API decide, e a interface só apresenta o que ela respondeu.
  */
 
-export type WriteAction = 'suspend' | 'reactivate' | 'revoke';
+export type WriteAction = 'suspend' | 'reactivate' | 'revoke' | 'mfa-reset';
 export type WritePhase = 'sending' | 'done' | 'refused' | 'uncertain';
 
 /**
  * Tipo do recurso alvo (F6a-3). Faz parte da CHAVE do registro: membro e concessão nunca colidem, mesmo com o mesmo
  * identificador.
  */
-export type ResourceKind = 'member' | 'grant';
+export type ResourceKind = 'member' | 'grant' | 'mfa';
 
 /** Membro (F6a-2). Sem `kind` = membro (compatível com o registro da F6a-2). */
 export interface MemberTarget {
@@ -53,22 +53,37 @@ export interface GrantTarget {
   workspaceName: string;
 }
 
-export type WriteTarget = MemberTarget | GrantTarget;
+/**
+ * MFA de um membro (F6a-4). Recurso próprio na chave: a redefinição de MFA e a suspensão da MESMA conta têm registros
+ * separados (conferência, dispensa e nova tentativa de cada uma).
+ */
+export interface MfaTarget {
+  kind: 'mfa';
+  userId: string;
+  membershipId: string;
+  displayName: string;
+  email: string;
+}
+
+export type WriteTarget = MemberTarget | GrantTarget | MfaTarget;
 
 export type MemberEntry = WriteEntry & { target: MemberTarget };
 export type GrantEntry = WriteEntry & { target: GrantTarget };
-export const isMemberEntry = (e: WriteEntry): e is MemberEntry => e.target.kind !== 'grant';
+export type MfaEntry = WriteEntry & { target: MfaTarget };
+export const isMemberEntry = (e: WriteEntry): e is MemberEntry => e.target.kind === undefined || e.target.kind === 'member';
 export const isGrantEntry = (e: WriteEntry): e is GrantEntry => e.target.kind === 'grant';
+export const isMfaEntry = (e: WriteEntry): e is MfaEntry => e.target.kind === 'mfa';
 
 /** Tipo e identificador do alvo (o que entra na chave). */
 export function targetRef(t: WriteTarget): { kind: ResourceKind; id: string } {
-  return t.kind === 'grant' ? { kind: 'grant', id: t.grantId } : { kind: 'member', id: t.userId };
+  if (t.kind === 'grant') return { kind: 'grant', id: t.grantId };
+  return { kind: t.kind === 'mfa' ? 'mfa' : 'member', id: t.userId };
 }
 
 /** Conferência do estado atual depois de resultado incerto. Informa o estado lido; NÃO prova o resultado da escrita. */
 export type CheckState =
   | { status: 'checking'; token: number }
-  | { status: 'found'; token: number; accountStatus?: Member['accountStatus']; grantStatus?: GrantStatus; at: number }
+  | { status: 'found'; token: number; accountStatus?: Member['accountStatus']; grantStatus?: GrantStatus; mfaConfigured?: boolean; at: number }
   | { status: 'absent'; token: number; at: number }
   | { status: 'failed'; token: number; reason: 'error' | 'forbidden' | 'interrupted' | 'incomplete'; at: number };
 
@@ -98,6 +113,18 @@ let epoch = 0;
 /** Época atual (quem faz leituras em várias etapas confere se ainda é a mesma sessão). */
 export const sessionEpoch = () => epoch;
 
+/**
+ * Guarda de sequência (F6a-4-R1): fixa a época da sessão de AGORA; a função devolvida lança `NotApplied('session')`
+ * se a sessão mudou desde então (login, logout, expiração ou aviso de outra aba). Para ser chamada antes de cada POST
+ * de uma sequência com várias etapas, inclusive depois de esperar o CSRF.
+ */
+export function sessionGuard(): () => void {
+  const started = epoch;
+  return () => {
+    if (epoch !== started) throw new NotApplied('session', new Error('a sessão mudou durante a sequência'));
+  };
+}
+
 function resetSession() {
   entries.clear();
   epoch++;
@@ -118,8 +145,28 @@ function emit() {
  * Todo o resto — rede interrompida, 5xx, resposta de gateway sem corpo, resposta fora do contrato — é INCERTO.
  */
 export function classify(e: unknown): 'refused' | 'uncertain' {
+  if (e instanceof NotApplied) return 'refused';
   return isApiError(e, 'unauthenticated', 'forbidden', 'not_found', 'invalid_request', 'rate_limited') ? 'refused' : 'uncertain';
 }
+
+/**
+ * Falha que comprovadamente aconteceu ANTES de o pedido de efeito ser enviado (F6a-4: a confirmação de identidade
+ * falhou — recusada, sem resposta ou fora do contrato — e a redefinição nem foi enviada; F6a-4-R1: a sessão mudou no
+ * meio da sequência, e ela parou antes do próximo POST). Nada foi aplicado ao alvo: é recusa, nunca incerteza,
+ * qualquer que seja a causa. `cause` guarda o erro original (ex.: 401 → sessão expirada).
+ */
+export class NotApplied extends Error {
+  constructor(
+    readonly stage: 'step-up' | 'session',
+    readonly cause: unknown,
+  ) {
+    super(`não aplicado (${stage})`);
+    this.name = 'NotApplied';
+  }
+}
+
+/** Erro original, sem o envoltório de `NotApplied` (para decidir 401, 429…). */
+export const rootError = (e: unknown): unknown => (e instanceof NotApplied ? e.cause : e);
 
 /**
  * Começa um envio. Devolve o número do envio, ou `null` se não começou: já há envio em curso para o alvo, ou o último
