@@ -309,7 +309,8 @@ const PANEL = /* html */ `<!doctype html>
       (a.recoveryCodes.length ? '<details><summary>' + a.recoveryCodes.length + ' códigos de recuperação</summary><div class="mono">' + a.recoveryCodes.map(esc).join('<br>') + '</div></details>' : '') +
       '</td><td>' + a.sessions + '</td><td>' + (a.sessions ? '<button data-revoke="' + a.userId + '">Expirar sessões</button>' : '') + '</td></tr>').join('');
     $('inbox').innerHTML = s.inbox.length ? s.inbox.map((m) => '<tr><td>' + new Date(m.at).toLocaleTimeString('pt-BR') + '</td><td>' + esc(m.to) + '</td><td>' +
-      (m.kind === 'password-reset' ? 'Redefinição de senha' : 'Confirmação de e-mail') + '</td><td><a href="' + esc(m.link) + '" target="_blank" rel="noopener">abrir link</a></td></tr>').join('')
+      ({ 'password-reset': 'Redefinição de senha', 'email-verification': 'Confirmação de e-mail', 'mfa-reset-notice': 'Aviso: MFA redefinido', 'mfa-reset-admin-notice': 'Aviso a administração: MFA redefinido' }[m.kind] ?? m.kind) +
+      '</td><td>' + (m.link ? '<a href="' + esc(m.link) + '" target="_blank" rel="noopener">abrir link</a>' : '—') + '</td></tr>').join('')
       : '<tr><td colspan="4"><p>Nenhuma mensagem. Use "Esqueci minha senha" para gerar uma.</p></td></tr>';
   }
   document.addEventListener('click', async (e) => {

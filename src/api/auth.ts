@@ -115,10 +115,14 @@ export async function sessionCsrf(org: string): Promise<string> {
 
 /**
  * Step-up com TOTP na sessão atual (exigido pelo reset administrativo de MFA). Só `code`: o código de recuperação
- * não é alternativa aqui (a API o ignora). Código errado → 403.
+ * não é alternativa aqui (a API o ignora). Código errado → 403. Só o 204 confirma (F6a-4): outra resposta 2xx é fora
+ * do contrato e não vale como confirmação.
  */
-export async function stepUp(org: string, code: string): Promise<void> {
-  await request(`${base(org)}/auth/mfa/step-up`, { method: 'POST', body: { code }, csrf: await sessionCsrf(org) });
+export async function stepUp(org: string, code: string, { beforeSend }: { beforeSend?: () => void } = {}): Promise<void> {
+  const csrf = await sessionCsrf(org);
+  beforeSend?.(); // F6a-4-R1: última conferência de quem chama DEPOIS da espera pelo CSRF e ANTES de o POST sair
+  const res = await request(`${base(org)}/auth/mfa/step-up`, { method: 'POST', body: { code }, csrf });
+  if (res.status !== 204) throw new ApiError('unexpected', res.status);
 }
 
 /** Logout idempotente; o estado local é limpo mesmo se a sessão já não existir. */

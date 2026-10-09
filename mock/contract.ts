@@ -104,7 +104,13 @@ interface Session {
   createdAt: number;
   lastSeenAt: number;
   revoked: boolean;
+  /** F6a-4: último step-up TOTP NESTA sessão (user_sessions.mfa_step_up_at). */
+  stepUpAt?: number;
 }
+
+/** Janela do step-up exigido pelo reset administrativo de MFA (application.yml: nekkora.session.step-up = 5m). */
+const STEP_UP_WINDOW = 5 * 60_000;
+const MFA_RESET_REASONS = ['DISPOSITIVO_PERDIDO', 'DISPOSITIVO_TROCADO', 'SUSPEITA_COMPROMETIMENTO', 'OUTRO'];
 
 interface LinkToken {
   userId: string;
@@ -116,7 +122,7 @@ export interface MailMessage {
   id: number;
   at: string;
   to: string;
-  kind: 'password-reset' | 'email-verification';
+  kind: 'password-reset' | 'email-verification' | 'mfa-reset-notice' | 'mfa-reset-admin-notice';
   link: string;
 }
 
@@ -157,7 +163,7 @@ export class MockApi {
   /** Leitura administrativa (GAP-03: membros, concessões, clientes). */
   readonly admin: AdminData;
   /** F6a-2: escritas administrativas APLICADAS (para os testes contarem efeitos, não requisições). */
-  adminWrites: { org: string; action: 'suspend' | 'reactivate' | 'revoke'; target: string; at: number }[] = [];
+  adminWrites: { org: string; action: 'suspend' | 'reactivate' | 'revoke' | 'mfa-reset'; target: string; at: number; reason?: string }[] = [];
   private pre = new Map<string, { csrf: string; expiresAt: number }>();
   private challenges = new Map<string, Challenge>();
   private sessions = new Map<string, Session>();
@@ -564,6 +570,24 @@ export class MockApi {
         return json(200, { csrfToken: s.csrf });
       }
 
+      case 'POST /auth/mfa/step-up': {
+        // F6a-4 (AuthService.stepUp): sessão (401) → CSRF (403) → code ausente (400) → conta sem fator, código errado ou
+        // já usado (403, sem detalhe) → step-up registrado NA SESSÃO. recoveryCode não é alternativa (ignorado).
+        const s = session();
+        if (!s) return error(401, 'unauthenticated');
+        if (s.csrf !== req.csrf) return error(403, 'forbidden');
+        const code = str(body.code);
+        if (code === undefined || code === '') return error(400, 'invalid_request');
+        s.lastSeenAt = this.now();
+        const account = this.accounts.get(s.userId)!;
+        if (!account.totpSecret || !/^\d{6}$/.test(code)) return error(403, 'forbidden');
+        const step = acceptedStep(account.totpSecret, code, account.lastStep, this.now());
+        if (step === null) return error(403, 'forbidden');
+        account.lastStep = step;
+        s.stepUpAt = this.now();
+        return json(204);
+      }
+
       case 'POST /auth/logout': {
         const s = session();
         if (s) {
@@ -611,6 +635,15 @@ export class MockApi {
       }
 
       default: {
+        // F6a-4: reset administrativo de MFA (AdminService.resetMfa): sessão → CSRF → UUID/motivo → permissão → alvo → step-up
+        const mfaReset = /^\/users\/([^/]+)\/mfa\/reset$/.exec(route);
+        if (req.method === 'POST' && mfaReset) {
+          const s = session();
+          if (!s) return error(401, 'unauthenticated');
+          if (s.csrf !== req.csrf) return error(403, 'forbidden');
+          s.lastSeenAt = this.now();
+          return this.resetMfa(org, s, mfaReset[1], body.reason, json, error);
+        }
         // F6a-2: suspender/reativar (contrato 8.7 §5.3; AdminService): sessão → CSRF → UUID → permissão → alvo
         const write = /^\/users\/([^/]+)\/(suspend|reactivate)$/.exec(route);
         if (req.method === 'POST' && write) {
@@ -712,6 +745,48 @@ export class MockApi {
       g.revokedAt = this.now();
     }
     this.adminWrites.push({ org, action: 'revoke', target: g.grantId, at: this.now() });
+    return json(204);
+  }
+
+  /**
+   * Reset administrativo de MFA, na ordem do AccountController + AdminService.resetMfa: UUID malformado ou motivo fora
+   * do enum → 400; conta externa ou sem `identity.mfa.reset` → 403; alvo = ator → 403; alvo fora da organização → 404;
+   * step-up ausente ou com mais de 5 min NESTA sessão → 403. Efeitos, juntos: desafios do alvo invalidados, fator e
+   * códigos de recuperação desativados, sessões do alvo encerradas, evento com o motivo; depois, aviso ao titular e, se
+   * o alvo for ORG_ADMIN efetivo, às demais ORG_ADMIN. NÃO é idempotente: repetir aplica tudo de novo (novo evento e
+   * novos avisos), como no backend.
+   */
+  private resetMfa(
+    org: string,
+    s: Session,
+    rawTarget: string,
+    reason: unknown,
+    json: (status: number, body?: unknown) => MockResponse,
+    error: (status: number, code: string) => MockResponse,
+  ): MockResponse {
+    if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(rawTarget)) return error(400, 'invalid_request');
+    if (typeof reason !== 'string' || !MFA_RESET_REASONS.includes(reason)) return error(400, 'invalid_request');
+    const actor = this.accounts.get(s.userId)!;
+    const m = actor.accountType === 'internal' ? this.product.memberships.get(actor.membershipId) : undefined;
+    const perms = new Set((m?.orgRoles ?? []).flatMap((r) => ROLE_PERMISSIONS[r]));
+    if (!perms.has('identity.mfa.reset')) return error(403, 'forbidden');
+    const target = rawTarget.toLowerCase();
+    if (target === actor.userId) return error(403, 'forbidden');
+    const acc = this.accounts.get(target);
+    if (!acc || acc.org !== org) return error(404, 'not_found');
+    if (s.stepUpAt === undefined || this.now() - s.stepUpAt >= STEP_UP_WINDOW) return error(403, 'forbidden');
+    const effectiveAdmin = (a: Account) =>
+      a.org === org && a.accountType === 'internal' && a.active && !a.closed && a.membershipStatus === 'active' &&
+      (this.product.memberships.get(a.membershipId)?.orgRoles ?? []).includes('ORG_ADMIN');
+    const others = effectiveAdmin(acc) ? [...this.accounts.values()].filter((a) => a !== acc && effectiveAdmin(a)) : [];
+    for (const [id, c] of this.challenges) if (c.userId === acc.userId) this.challenges.delete(id);
+    acc.totpSecret = undefined;
+    acc.lastStep = 0;
+    acc.recoveryCodes = [];
+    this.revokeSessions(acc.userId);
+    this.adminWrites.push({ org, action: 'mfa-reset', target, at: this.now(), reason });
+    this.mail(acc.email, 'mfa-reset-notice', '');
+    for (const a of others) this.mail(a.email, 'mfa-reset-admin-notice', '');
     return json(204);
   }
 

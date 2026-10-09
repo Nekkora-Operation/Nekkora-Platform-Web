@@ -33,8 +33,10 @@ export async function listClients(org: string, q: ClientQuery = {}): Promise<Pag
  * Escrita administrativa: o contrato documenta só 204 como sucesso. Qualquer outro 2xx é resposta fora do contrato
  * (`unexpected`) — quem chama trata como resultado INCERTO, nunca como sucesso.
  */
-async function sessionPost(org: string, path: string, body?: unknown): Promise<void> {
-  const res = await request(`${base(org)}${path}`, { method: 'POST', body, csrf: await sessionCsrf(org) });
+async function sessionPost(org: string, path: string, body?: unknown, beforeSend?: () => void): Promise<void> {
+  const csrf = await sessionCsrf(org);
+  beforeSend?.(); // F6a-4-R1: conferência de quem chama DEPOIS da espera pelo CSRF e ANTES de o POST sair
+  const res = await request(`${base(org)}${path}`, { method: 'POST', body, csrf });
   if (res.status !== 204) throw new ApiError('unexpected', res.status);
 }
 
@@ -52,6 +54,6 @@ export async function reactivateUser(org: string, userId: string): Promise<void>
 }
 
 /** Exige step-up TOTP recente NA MESMA sessão (`stepUp` em auth.ts); sem ele → 403. */
-export async function resetUserMfa(org: string, userId: string, reason: MfaResetReason): Promise<void> {
-  await sessionPost(org, `/users/${id(userId)}/mfa/reset`, { reason });
+export async function resetUserMfa(org: string, userId: string, reason: MfaResetReason, { beforeSend }: { beforeSend?: () => void } = {}): Promise<void> {
+  await sessionPost(org, `/users/${id(userId)}/mfa/reset`, { reason }, beforeSend);
 }

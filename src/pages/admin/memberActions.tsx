@@ -15,6 +15,7 @@ export const ACTION_LABEL: Record<WriteAction, { verb: string; noun: string; don
   suspend: { verb: 'Suspender', noun: 'Suspensão', done: (n) => `Conta de ${n} suspensa.` },
   reactivate: { verb: 'Reativar', noun: 'Reativação', done: (n) => `Conta de ${n} reativada.` },
   revoke: { verb: 'Revogar', noun: 'Revogação', done: (n) => `Concessão de ${n} revogada.` },
+  'mfa-reset': { verb: 'Redefinir MFA', noun: 'Redefinição de MFA', done: (n) => `MFA de ${n} redefinido.` },
 };
 
 /** Estado da conta depois de uma escrita CONFIRMADA (204); antes disso, vale o que a lista leu. */
