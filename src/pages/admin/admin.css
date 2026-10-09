@@ -5,3 +5,12 @@
 .pw-admin__uncertain-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--nk-space-3); }
 .pw-admin__uncertain-item { display: flex; flex-direction: column; gap: var(--nk-space-1); }
 .pw-admin__uncertain-actions { display: flex; flex-wrap: wrap; gap: var(--nk-space-2); margin-top: var(--nk-space-1); }
+.pw-admin__row-anchor:focus { outline: none; }
+.pw-admin__row-anchor:focus-visible { outline: 2px solid var(--nk-color-accent); outline-offset: 2px; border-radius: var(--nk-radius-sm); }
+.pw-admin__grant-id { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: var(--nk-space-1) var(--nk-space-3); }
+.pw-admin__grant-id > div { display: contents; }
+.pw-admin__grant-id dt { color: var(--nk-color-text-secondary); }
+.pw-admin__grant-id dd { margin: 0; overflow-wrap: anywhere; }
+.pw-admin__partial-empty { display: flex; flex-direction: column; gap: var(--nk-space-1); padding: var(--nk-space-4); border: 1px dashed var(--nk-color-border); border-radius: var(--nk-radius-md); }
+.pw-admin__partial-empty:focus { outline: none; }
+.pw-admin__partial-empty:focus-visible { outline: 2px solid var(--nk-color-accent); outline-offset: 2px; }

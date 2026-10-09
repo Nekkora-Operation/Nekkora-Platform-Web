@@ -157,7 +157,7 @@ export class MockApi {
   /** Leitura administrativa (GAP-03: membros, concessões, clientes). */
   readonly admin: AdminData;
   /** F6a-2: escritas administrativas APLICADAS (para os testes contarem efeitos, não requisições). */
-  adminWrites: { org: string; action: 'suspend' | 'reactivate'; target: string; at: number }[] = [];
+  adminWrites: { org: string; action: 'suspend' | 'reactivate' | 'revoke'; target: string; at: number }[] = [];
   private pre = new Map<string, { csrf: string; expiresAt: number }>();
   private challenges = new Map<string, Challenge>();
   private sessions = new Map<string, Session>();
@@ -620,6 +620,15 @@ export class MockApi {
           s.lastSeenAt = this.now();
           return this.adminWrite(org, s, write[1], write[2] as 'suspend' | 'reactivate', json, error);
         }
+        // F6a-3: revogar concessão (contrato 8.7; AdminService.revokeGrant): sessão → CSRF → UUID → permissão → alvo
+        const revoke = /^\/client-grants\/([^/]+)\/revoke$/.exec(route);
+        if (req.method === 'POST' && revoke) {
+          const s = session();
+          if (!s) return error(401, 'unauthenticated');
+          if (s.csrf !== req.csrf) return error(403, 'forbidden');
+          s.lastSeenAt = this.now();
+          return this.revokeGrant(org, s, revoke[1], json, error);
+        }
         const read = {
           method: req.method,
           route,
@@ -676,6 +685,33 @@ export class MockApi {
       acc.active = true;
     }
     this.adminWrites.push({ org, action, target, at: this.now() });
+    return json(204);
+  }
+
+  /**
+   * Revogação da concessão, na ordem do AdminService.revokeGrant: UUID malformado → 400; conta externa ou sem
+   * `external_access.manage` → 403; concessão fora da organização → 404. Qualquer estado diferente de revogada passa a
+   * revogada (só `status` e `revokedAt` mudam); já revogada → 204 sem alterar nada (idempotente).
+   */
+  private revokeGrant(
+    org: string,
+    s: Session,
+    rawGrant: string,
+    json: (status: number, body?: unknown) => MockResponse,
+    error: (status: number, code: string) => MockResponse,
+  ): MockResponse {
+    if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(rawGrant)) return error(400, 'invalid_request');
+    const actor = this.accounts.get(s.userId)!;
+    const m = actor.accountType === 'internal' ? this.product.memberships.get(actor.membershipId) : undefined;
+    const perms = new Set((m?.orgRoles ?? []).flatMap((r) => ROLE_PERMISSIONS[r]));
+    if (!perms.has('external_access.manage')) return error(403, 'forbidden');
+    const g = this.admin.grants.get(rawGrant.toLowerCase());
+    if (!g || g.org !== org) return error(404, 'not_found');
+    if (g.status !== 'revoked') {
+      g.status = 'revoked';
+      g.revokedAt = this.now();
+    }
+    this.adminWrites.push({ org, action: 'revoke', target: g.grantId, at: this.now() });
     return json(204);
   }
 

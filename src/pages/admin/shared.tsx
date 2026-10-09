@@ -198,14 +198,15 @@ export function ForbiddenState({ area, onRetry }: { area: string; onRetry?: () =
 }
 
 /** "Carregar mais" das listas administrativas, com falha e continuação recusada (cursor) tratadas como nas outras listas. */
-export function AdminLoadMore<T>({ list, one, many }: { list: CursorList<T>; one: string; many: string }) {
+/** `count`: quantos itens a tela EXIBE (padrão: os carregados; Concessões esconde as revogadas fora do filtro). */
+export function AdminLoadMore<T>({ list, one, many, count = list.items.length }: { list: CursorList<T>; one: string; many: string; count?: number }) {
   return (
     <LoadMore
       hasMore={list.hasMore}
       loading={list.status === 'loading-more'}
       onLoadMore={list.loadMore}
-      count={list.items.length}
-      itemLabel={list.items.length === 1 ? one : many}
+      count={count}
+      itemLabel={count === 1 ? one : many}
       error={list.error && !isApiError(list.error, 'unauthenticated') ? `${errorText(list.error).title} A lista exibida continua válida.` : undefined}
       stale={list.cursorRejected ? 'A lista mudou desde a última página (ou a continuação expirou).' : undefined}
       onRestart={list.reload}

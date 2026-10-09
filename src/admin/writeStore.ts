@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { csrfStore } from '../api/csrf';
 import { isApiError } from '../api/http';
-import type { Member } from '../api/v1';
+import type { GrantStatus, Member } from '../api/v1';
 
 /**
  * Escritas administrativas (F6a-2 em diante): registro em MEMÓRIA da aba, por organização e alvo, compartilhado entre
@@ -25,19 +25,50 @@ import type { Member } from '../api/v1';
  * Nada aqui decide autorização: a API decide, e a interface só apresenta o que ela respondeu.
  */
 
-export type WriteAction = 'suspend' | 'reactivate';
+export type WriteAction = 'suspend' | 'reactivate' | 'revoke';
 export type WritePhase = 'sending' | 'done' | 'refused' | 'uncertain';
 
-export interface WriteTarget {
+/**
+ * Tipo do recurso alvo (F6a-3). Faz parte da CHAVE do registro: membro e concessão nunca colidem, mesmo com o mesmo
+ * identificador.
+ */
+export type ResourceKind = 'member' | 'grant';
+
+/** Membro (F6a-2). Sem `kind` = membro (compatível com o registro da F6a-2). */
+export interface MemberTarget {
+  kind?: 'member';
   userId: string;
   membershipId: string;
   displayName: string;
 }
 
+/** Concessão de acesso externo (F6a-3). */
+export interface GrantTarget {
+  kind: 'grant';
+  grantId: string;
+  /** Conta externa da concessão. */
+  displayName: string;
+  email: string;
+  clientName: string;
+  workspaceName: string;
+}
+
+export type WriteTarget = MemberTarget | GrantTarget;
+
+export type MemberEntry = WriteEntry & { target: MemberTarget };
+export type GrantEntry = WriteEntry & { target: GrantTarget };
+export const isMemberEntry = (e: WriteEntry): e is MemberEntry => e.target.kind !== 'grant';
+export const isGrantEntry = (e: WriteEntry): e is GrantEntry => e.target.kind === 'grant';
+
+/** Tipo e identificador do alvo (o que entra na chave). */
+export function targetRef(t: WriteTarget): { kind: ResourceKind; id: string } {
+  return t.kind === 'grant' ? { kind: 'grant', id: t.grantId } : { kind: 'member', id: t.userId };
+}
+
 /** Conferência do estado atual depois de resultado incerto. Informa o estado lido; NÃO prova o resultado da escrita. */
 export type CheckState =
   | { status: 'checking'; token: number }
-  | { status: 'found'; token: number; accountStatus: Member['accountStatus']; at: number }
+  | { status: 'found'; token: number; accountStatus?: Member['accountStatus']; grantStatus?: GrantStatus; at: number }
   | { status: 'absent'; token: number; at: number }
   | { status: 'failed'; token: number; reason: 'error' | 'forbidden' | 'interrupted' | 'incomplete'; at: number };
 
@@ -74,7 +105,7 @@ function resetSession() {
 }
 csrfStore.onSessionBoundary(resetSession);
 
-const keyOf = (org: string, userId: string) => `${org}|${userId}`;
+const keyOf = (org: string, id: string, kind: ResourceKind = 'member') => `${org}|${kind}|${id}`;
 
 function emit() {
   version++;
@@ -95,7 +126,8 @@ export function classify(e: unknown): 'refused' | 'uncertain' {
  * resultado foi incerto e `retry` não foi pedido.
  */
 export function startWrite(org: string, action: WriteAction, target: WriteTarget, send: () => Promise<void>, { retry = false } = {}): number | null {
-  const key = keyOf(org, target.userId);
+  const ref = targetRef(target);
+  const key = keyOf(org, ref.id, ref.kind);
   const current = entries.get(key);
   if (current?.phase === 'sending') return null;
   if (current?.phase === 'uncertain' && !retry) return null;
@@ -129,17 +161,20 @@ function settle(key: string, id: number, patch: Pick<WriteEntry, 'phase' | 'erro
 }
 
 /** Decisão explícita de dispensar o registro (não envia nada). Não vale durante o envio. */
-export function dismissWrite(org: string, userId: string) {
-  const key = keyOf(org, userId);
+export function dismissWrite(org: string, id: string, kind: ResourceKind = 'member') {
+  const key = keyOf(org, id, kind);
   if (entries.get(key)?.phase === 'sending') return;
   if (entries.delete(key)) emit();
 }
 
-/** Lista relida do servidor: concluídos e recusados deixam de valer; incertos e envios em curso continuam. */
-export function clearSettled(org: string) {
+/**
+ * Lista relida do servidor: concluídos e recusados DAQUELE tipo de recurso deixam de valer; incertos e envios em curso
+ * continuam. Reler membros não apaga registros de concessões, e vice-versa.
+ */
+export function clearSettled(org: string, kind: ResourceKind = 'member') {
   let changed = false;
   for (const [k, e] of entries) {
-    if (e.org === org && (e.phase === 'done' || e.phase === 'refused')) {
+    if (e.org === org && targetRef(e.target).kind === kind && (e.phase === 'done' || e.phase === 'refused')) {
       entries.delete(k);
       changed = true;
     }
@@ -148,8 +183,8 @@ export function clearSettled(org: string) {
 }
 
 /** Abre uma conferência para o registro incerto `id`; devolve o token, ou null se o registro mudou. */
-export function beginCheck(org: string, userId: string, id: number): number | null {
-  const key = keyOf(org, userId);
+export function beginCheck(org: string, targetId: string, id: number, kind: ResourceKind = 'member'): number | null {
+  const key = keyOf(org, targetId, kind);
   const e = entries.get(key);
   if (!e || e.id !== id || e.phase !== 'uncertain') return null;
   const token = ++checkSeq;
@@ -159,16 +194,16 @@ export function beginCheck(org: string, userId: string, id: number): number | nu
 }
 
 /** Conclui a conferência `token` (respostas de conferências antigas são ignoradas). */
-export function finishCheck(org: string, userId: string, check: CheckState) {
-  const key = keyOf(org, userId);
+export function finishCheck(org: string, targetId: string, check: CheckState, kind: ResourceKind = 'member') {
+  const key = keyOf(org, targetId, kind);
   const e = entries.get(key);
   if (!e || e.phase !== 'uncertain' || e.check?.token !== check.token) return;
   entries.set(key, { ...e, check });
   emit();
 }
 
-export function writeEntry(org: string, userId: string): WriteEntry | undefined {
-  return entries.get(keyOf(org, userId));
+export function writeEntry(org: string, id: string, kind: ResourceKind = 'member'): WriteEntry | undefined {
+  return entries.get(keyOf(org, id, kind));
 }
 
 /** Registros da organização (outra organização nunca aparece). */
