@@ -18,6 +18,8 @@ function deferred() {
   let resolve!: () => void;
   let reject!: (e: unknown) => void;
   const promise = new Promise<void>((res, rej) => ((resolve = res), (reject = rej)));
+  // o envio só é chamado depois da gravação no registro persistente: a recusa pode chegar antes de quem a consome
+  promise.catch(() => {});
   return { promise, resolve, reject };
 }
 
