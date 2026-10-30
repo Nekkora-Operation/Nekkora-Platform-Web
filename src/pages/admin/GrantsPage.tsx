@@ -106,6 +106,11 @@ export function GrantsPage() {
   // M2 (024): decisões além da revogação — aprovar, pedir/aprovar renovação, revisar, pedir de novo
   const [decision, setDecision] = useState<{ grant: ClientGrant; decision: GrantDecision } | null>(null);
   const [decisionNotice, setDecisionNotice] = useState<{ tone: 'success' | 'warning'; text: string } | null>(null);
+  /**
+   * Concessões com decisão de resultado desconhecido: os botões de decisão da linha não voltam até a pessoa reler a
+   * lista por "Atualizar" (a leitura automática mostra o estado, mas não é a conferência da pessoa).
+   */
+  const [uncertainDecisions, setUncertainDecisions] = useState<ReadonlySet<string>>(new Set());
 
   // sessão expirada numa escrita: não foi aplicada (a sessão é validada antes dos efeitos) → fluxo de sessão expirada
   const expiredEntry = entries.find(
@@ -142,7 +147,14 @@ export function GrantsPage() {
     const e = byGrant.get(g.grantId);
     if (e?.phase === 'sending') return <Text variant="body-sm" color="secondary">Enviando…</Text>;
     if (e?.phase === 'uncertain') return <Text variant="body-sm" color="secondary">Resultado não confirmado</Text>;
-    const decisions = e?.phase === 'done' ? null : <GrantDecisionButtons grant={g} onPick={(d) => setDecision({ grant: g, decision: d })} />;
+    const decisions =
+      e?.phase === 'done' ? null : uncertainDecisions.has(g.grantId) ? (
+        <Text variant="body-sm" color="secondary">
+          Decisão não confirmada
+        </Text>
+      ) : (
+        <GrantDecisionButtons grant={g} onPick={(d) => setDecision({ grant: g, decision: d })} />
+      );
     if (!REVOCABLE.includes(effectiveGrantStatus(g, e))) return decisions ?? <span className="pw-prod__muted">—</span>;
     return (
       <span className="pw-admin__row-actions">
@@ -233,7 +245,14 @@ export function GrantsPage() {
             ? 'Acessos de contas externas aos workspaces dos clientes.'
             : 'Acessos de contas externas aos workspaces dos clientes. Somente consulta.'
         }
-        onRefresh={forbidden ? undefined : () => setRefresh((n) => n + 1)}
+        onRefresh={
+          forbidden
+            ? undefined
+            : () => {
+                setUncertainDecisions(new Set());
+                setRefresh((n) => n + 1);
+              }
+        }
         refreshing={list.status === 'loading' && refresh > 0}
       />
       <StatusRegion aria-label="Resultado das ações" message={announce?.text} announceKey={announce?.n} />
@@ -340,9 +359,12 @@ export function GrantsPage() {
           setDecisionNotice({ tone: 'success', text });
           setRefresh((n) => n + 1);
         }}
-        onUncertain={() =>
-          setDecisionNotice({ tone: 'warning', text: 'O resultado da última decisão não foi confirmado. Atualize a lista e confira antes de decidir de novo.' })
-        }
+        onUncertain={() => {
+          const id = decision?.grant.grantId;
+          if (id) setUncertainDecisions((s) => new Set(s).add(id));
+          setDecisionNotice({ tone: 'warning', text: 'O resultado da última decisão não foi confirmado. Atualize a lista e confira antes de decidir de novo.' });
+          setRefresh((n) => n + 1);
+        }}
         onUnauthenticated={expired}
         onRefused={() => setRefresh((n) => n + 1)}
       />

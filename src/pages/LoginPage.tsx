@@ -5,7 +5,7 @@ import { ApiError, isApiError } from '../api/http';
 import { AuthScreen } from '../app/AuthScreen';
 import { readNavState } from '../app/notices';
 import { identityPath, useAuthFlow } from '../auth/flow';
-import { commonMessage, INVALID_CREDENTIALS, SESSION_EXPIRED, UNAVAILABLE, type UserMessage } from '../auth/messages';
+import { commonMessage, INVALID_CREDENTIALS, SESSION_EXPIRED, SIGNED_OUT_UNCONFIRMED, UNAVAILABLE, type UserMessage } from '../auth/messages';
 import { orgPath } from '../auth/organization';
 import { features } from '../config';
 import { ErrorAlert } from './ErrorAlert';
@@ -13,6 +13,7 @@ import { ErrorAlert } from './ErrorAlert';
 const NOTICES = {
   'session-expired': { tone: 'info' as const, text: SESSION_EXPIRED },
   'signed-out': { tone: 'success' as const, text: 'Você saiu da sua conta.' },
+  'signed-out-unconfirmed': { tone: 'warning' as const, text: SIGNED_OUT_UNCONFIRMED },
   'challenge-expired': { tone: 'info' as const, text: 'A verificação expirou. Entre novamente para continuar.' },
   'session-changed': { tone: 'info' as const, text: 'Sua sessão foi encerrada ou alterada em outra aba. Entre novamente para continuar.' },
 };

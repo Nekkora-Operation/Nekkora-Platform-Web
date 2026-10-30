@@ -13,7 +13,8 @@ export type StepUpOutcome = 'refused-identity' | 'refused' | 'uncertain' | 'unau
  */
 export function classifyActionError(e: unknown): Exclude<StepUpOutcome, 'refused-identity'> {
   if (isApiError(e, 'unauthenticated')) return 'unauthenticated';
-  if (e instanceof ApiError && (e.code === 'network' || e.code === 'unexpected' || e.code === 'internal_error')) return 'uncertain';
+  // gateway: 502/503/504 sem o corpo da API — o pedido pode ter sido aplicado; só a recusa documentada é "nada foi feito"
+  if (e instanceof ApiError && (e.code === 'network' || e.code === 'unexpected' || e.code === 'internal_error' || e.code === 'gateway')) return 'uncertain';
   return 'refused';
 }
 
