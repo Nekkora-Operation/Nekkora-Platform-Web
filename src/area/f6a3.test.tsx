@@ -231,6 +231,8 @@ describe('revogar: sucesso', () => {
     expect(within(dialog).getByRole('button', { name: 'Enviar pedido' })).toBeDisabled();
     fireEvent.change(within(dialog).getByLabelText(/^Próxima revisão/), { target: { value: '2099-12-31' } });
     fireEvent.change(within(dialog).getByLabelText(/^Justificativa/), { target: { value: 'Contrato renovado' } });
+    // o envio só é liberado depois de o registro persistente da operação estar pronto (resumo assíncrono)
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Enviar pedido' })).toBeEnabled());
     fireEvent.click(within(dialog).getByRole('button', { name: 'Enviar pedido' }));
     expect(await screen.findByText(/Pedido de renovação registrado\. O acesso não muda/)).toBeInTheDocument();
     expect(sent).toHaveLength(1);
