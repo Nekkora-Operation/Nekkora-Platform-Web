@@ -37,7 +37,7 @@ function sectionOf(pathname: string, org: string): 'inicio' | 'execucoes' | 'wor
   if (pathname === orgPath.home(org)) return 'inicio';
   const rest = pathname.slice(orgPath.home(org).length);
   if (rest === '/execucoes' || rest.startsWith('/execucoes/')) return 'execucoes';
-  if (rest === '/workspaces' || rest.startsWith('/workspaces/') || rest.startsWith('/automacoes/')) return 'workspaces';
+  if (rest === '/workspaces' || rest.startsWith('/workspaces/') || rest.startsWith('/automacoes/') || rest.startsWith('/versoes/')) return 'workspaces';
   if (rest === '/administracao/membros' || rest.startsWith('/administracao/membros/')) return 'membros';
   if (rest === '/administracao/convites') return 'convites';
   if (rest === '/administracao/auditoria') return 'auditoria';
@@ -54,6 +54,7 @@ function titleFor(pathname: string, org: string): string {
   if (rest.startsWith('/workspaces/')) return 'Workspace';
   if (rest === '/workspaces') return 'Workspaces';
   if (rest.startsWith('/automacoes/')) return 'Automação';
+  if (rest.startsWith('/versoes/')) return 'Versão';
   if (rest === '/administracao/membros') return 'Membros';
   if (rest.startsWith('/administracao/membros/')) return 'Acessos do membro';
   if (rest === '/administracao/convites') return 'Convites';
