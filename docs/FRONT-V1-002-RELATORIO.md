@@ -36,20 +36,23 @@ Contagens: Vitest · E2E com API simulada.
 |----|------|------|------|----|--------|
 | [#10](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/pull/10) `m0-contrato-inventario` | `main` | `aa3ff80` | [41114425936](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114425936) 368/368 · 80/80 | [41114436646](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114436646) (`bc5040b`) 368/368 · 80/80 | pronto |
 | [#11](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/pull/11) `m1-identidade` | #10 | `db3bfef` | [41114426192](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114426192) 382/382 · 80/80 | [41114435956](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114435956) (`a388b20`) 382/382 · 80/80 | pronto |
-| [#12](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/pull/12) `m2-acessos` | #11 | `6ddf61c` | [41114426999](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114426999) 382/382 · 80/80 | [41114436185](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114436185) (`1bb5c82`) 382/382 · 80/80 | **draft** |
-| [#13](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/pull/13) `m3-automacoes` | #12 | `2b61b88` | [41114427718](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114427718) 382/382 · 80/80 | [41114436489](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114436489) (`4378ddf`) 382/382 · 80/80 | pronto |
-| [#14](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/pull/14) `m4-agents-supervisao` | #13 | `170ce53` | [41114428541](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114428541) 391/391 · 80/80 | [41114436805](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114436805) (`2a36bf2`) 391/391 · 80/80 | pronto |
-| [#15](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/pull/15) `002-incerteza` | #14 | `2f7c24c` | [41114427538](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114427538) 407/407 · 80/80 | [41114438882](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114438882) (`130cd27`) 407/407 · 80/80 | pronto |
-| [#16](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/pull/16) `002-lib-ci` | #15 | `016db72` | [41114428472](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114428472) 408/408 · 80/80 | [41114436921](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114436921) (`b851ebf`) 408/408 · 80/80 | pronto |
+| [#12](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/pull/12) `m2-acessos` | #11 | `9b8f62b` | [41122777489](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41122777489) 383/383 · 80/80 | [41122785666](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41122785666) (`567e34b`) 383/383 · 80/80 | pronto (entrega parcial) |
+| [#13](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/pull/13) `m3-automacoes` | #12 | `68774e8` | [41122777095](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41122777095) 383/383 · 80/80 | [41122787321](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41122787321) (`4f1ce93`) 383/383 · 80/80 | pronto |
+| [#14](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/pull/14) `m4-agents-supervisao` | #13 | `a1c1353` | [41122776941](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41122776941) 392/392 · 80/80 | [41122785911](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41122785911) (`a7e4143`) 392/392 · 80/80 | pronto |
+| [#15](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/pull/15) `002-incerteza` | #14 | `fee83f4` | [41122777284](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41122777284) 407/407 · 80/80 | [41122786733](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41122786733) (`950c49f`) 407/407 · 80/80 | pronto |
+| [#16](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/pull/16) `002-lib-ci` | #15 | `1b0818d` | [41122778196](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41122778196) 408/408 · 80/80 | [41122787080](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41122787080) (`5eda425`) 408/408 · 80/80 | pronto |
 | [#17](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/pull/17) `002-provas` | #16 | este commit de relatório; os checks dele ficam no PR | — | — | pronto |
 
-Contrato e build passaram em todos os runs da tabela. Os runs do HEAD anterior do #17 (`9f37475`, antes deste
-relatório): push [41114426717](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114426717) e PR [41114438390](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114438390), 408/408 · 80/80.
+Contrato e build passaram em todos os runs da tabela. Os runs do HEAD anterior do #17 (`539446d`, antes deste relatório): push [41122777429](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41122777429) e PR [41122786894](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41122786894) (`8c3cd19`), 408/408 · 80/80. No #11, um run de PR anterior do mesmo HEAD foi CANCELADO
+pela regra de concorrência (41114435510); o válido é o da tabela.
 
-Por que só o #12 continua draft: ele contém a aprovação de renovação por valores digitados que o #15 retira (D-API-02)
-e não deve chegar à `main` sem o #15. Os demais não têm bloqueio próprio: a pendência de concessões não bloqueia
-cadastro, automações ou Agents; D-API-01 tem medida temporária estrita no #11; a fixture de capacidade só serve ao
-laboratório e está declarada.
+Nenhum PR é draft. O #12 continha a aprovação de renovação por valores digitados, que só saía no #15; agora a
+retirada está no próprio #12 (`9b8f62b`, levada às branches seguintes por merge comum), e nenhum candidato depende de um
+merge futuro para remover esse comportamento. O #12 é uma **entrega parcial**: a aprovação da renovação está
+explicitamente indisponível e o pedido de renovação continua. Achado ao testar o #12: o cliente HTTP descartava o corpo
+do 202, e o pedido de renovação aparecia como "resultado não confirmado" — a leitura do corpo de 202 (que só entrava no
+#13) desceu para o #12. Quando a API entregar D-API-02, a tela precisará ser adaptada para ler e conferir o pedido do
+servidor; religar a ação não basta.
 
 Falhas encontradas no caminho, corrigidas na causa (sem repetir até passar): auxiliar de animação do E2E com
 `AbortError` de animação cancelada (f6a3; runs de PR do #12, #14 e #17), e espera de 1 s curta para o runner (f5; run de
@@ -61,23 +64,27 @@ PR do #12). As duas correções foram levadas à base (#10) e subiram pela pilha
 |------|----------|-------------|-----------|
 | Resultado desconhecido persistente, sem expiração silenciosa | Concluído | Frontend | §0.1; #15 |
 | CI de cada candidato | Concluído | Frontend | §0.2 |
-| J01–J08, vinculação, J10–J12, 503, J16–J18 | Concluído | Frontend | §2 e regressão final (§11), API real |
+| Jornadas | Demonstradas conforme a matriz de evidências (§2); **J09 parcial**, com aprovação da renovação e primeira concessão pela interface dependentes da API; ativação operacional não demonstrada neste laboratório | Frontend | §2 e regressão final (§11), API real |
 | J13–J15 com Agent real | Concluído (não repetido: nada desses caminhos mudou) | Frontend + pessoa no Agent | §3 |
-| D-API-01 confirmação do MFA | Bloqueado (sem candidato; medida temporária estrita no frontend) | Equipe da API | `docs/encaminhamentos/API-D-API-01-*.md` |
-| D-API-02 leitura do pedido de renovação; J09 completa | Bloqueado | Equipe da API | `docs/encaminhamentos/API-D-API-02-*.md`; J09 parcial em `e2e-real/m2-concessoes.spec.ts` |
-| D-API-03 leitura dos vínculos; primeira concessão pela tela | Bloqueado | Equipe da API | `docs/encaminhamentos/API-D-API-03-*.md` |
+| D-API-01 confirmação do MFA | Bloqueado (sem candidato; medida temporária estrita no frontend) | Equipe da API | [issue #37](https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/37); `docs/encaminhamentos/API-D-API-01-*.md` |
+| D-API-02 leitura do pedido de renovação (prioridade); J09 completa | Bloqueado | Equipe da API | [issue #38](https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/38); `docs/encaminhamentos/API-D-API-02-*.md`; J09 parcial em `e2e-real/m2-concessoes.spec.ts` |
+| D-API-03 leitura dos vínculos; primeira concessão pela tela (não é a jornada completa de clientes externos) | Bloqueado | Equipe da API | [issue #39](https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/39); `docs/encaminhamentos/API-D-API-03-*.md` |
 | Ativação operacional da organização | Não demonstrada neste laboratório (a fixture de capacidade não a substitui) | API/operação (B2) | `docs/FRONT-V1-INVENTARIO.md` §7 |
 | LIB-01 (`Field`, `Input type="file"`) | Encaminhado | Equipe da Nekkora-lib | `docs/encaminhamentos/LIB-01-*.md` |
 | AGENT-01 (aprovação sem teclado; build marcado; venv dos testes) | Encaminhado | Equipe do Agent | `docs/encaminhamentos/AGENT-01-*.md` |
 
-Nenhum candidato da API existia em 30/10/2026 (`origin/main` = `e04a57c`, sem issue ou PR aberto sobre D-API-01/02/03).
+Nenhum candidato da API existia em 30/10/2026 (`origin/main` = `e04a57c`). Encaminhamento aberto como issues no repositório
+da API: [#37](https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/37) (D-API-01), [#38](https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/38) (D-API-02, prioridade), [#39](https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/39) (D-API-03), cada uma com
+reprodução, comportamento esperado, critérios de aceite, referência do contrato e PRs afetados.
 O laboratório `frontlab-001` segue parado com containers e volumes preservados; nenhum volume foi excluído.
 
 
 Continuação da FRONT-V1-001 sobre as cinco branches existentes. Sem merge, sem produção, sem ambientes preservados,
 sem AWS/M365/DNS e sem envio real de e-mail. Laboratório descartável `frontlab-001`.
 
-## Situação
+## Situação (FRONT-V1-002 — histórico)
+
+> Superado pela §0: os oito PRs foram abertos (#10–#17), todos têm CI próprio e nenhum é draft.
 
 - **Jornada principal demonstrada com API real e Agent real:** cadastro → MFA → organização → acessos → automação
   publicada (pacote real do Studio) → Agent pareado → autorização local → **execução iniciada pela pessoa no Agent** →

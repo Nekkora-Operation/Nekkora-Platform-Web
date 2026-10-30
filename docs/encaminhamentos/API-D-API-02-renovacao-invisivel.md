@@ -67,3 +67,5 @@ solicitante e **identificador ou versão do pedido conferido na aprovação**. Q
 2. o próprio solicitante tem a aprovação recusada (e a tela não oferece a ação a ele);
 3. pedido SUBSTITUÍDO entre a leitura e a aprovação — inclusive com os MESMOS valores — é recusado pelo identificador
    ou versão; a tela relê e exige nova conferência, sem aprovar automaticamente.
+
+**Issue na API (aberta em 30/10/2026, FRONT-V1-003):** https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/38

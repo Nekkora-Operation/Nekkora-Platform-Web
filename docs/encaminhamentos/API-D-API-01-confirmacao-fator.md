@@ -49,3 +49,5 @@ O frontend mantém a validação pelo esquema do modo pedido (estrita). Quando o
 -- <commit>`, retirar `validatedAs` de `confirmIdentityEnrollment`, e rodar no laboratório a confirmação INICIAL
 (`e2e-real/m1-identidade.spec.ts`, J01) e a TROCA de fator (J03), conferindo que uma resposta inválida continua recusada
 (`src/api/validate.test.ts`).
+
+**Issue na API (aberta em 30/10/2026, FRONT-V1-003):** https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/37
