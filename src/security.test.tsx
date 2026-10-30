@@ -116,7 +116,9 @@ describe('§39/§40 — varredura estática do código de produção', () => {
 
   it('sem console, localStorage, sessionStorage, document.cookie ou analytics', () => {
     const offenders: string[] = [];
-    for (const file of sources(join(process.cwd(), 'src'))) {
+    // única exceção (FRONT-V1-002): o registro de operações incertas guarda só resumos e estados (ver pendingOps.test.ts)
+    const allowed = new Set([join(process.cwd(), 'src', 'api', 'pendingOps.ts')]);
+    for (const file of sources(join(process.cwd(), 'src')).filter((f) => !allowed.has(f))) {
       readFileSync(file, 'utf8')
         .split('\n')
         .forEach((line, i) => {

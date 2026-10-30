@@ -1,10 +1,11 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink, Outlet, useLocation } from 'react-router';
 import { Alert, AppShell, Button, Link, Logo, Text, type AppNavGroup } from 'nekkora-lib';
 import { isApiError } from '../api/http';
 import { getMyPermissions } from '../api/permissions';
 import type { MyPermissions, PermissionCode } from '../api/v1';
 import { identityPath } from '../auth/flow';
+import { OperationScopeProvider, type OperationScopeValue } from '../components/operationScope';
 import { orgPath, shortOrganizationId } from '../auth/organization';
 import { useSession } from './session';
 import { useVisibleWorkspaces, type VisibleWorkspaces } from './useVisibleWorkspaces';
@@ -88,6 +89,9 @@ export function InternalShell() {
   const generation = useRef(0);
   const { workspaces, reloadWorkspaces, loadMoreWorkspaces, restartWorkspaces } = useVisibleWorkspaces(org, expired);
   const section = sectionOf(pathname, org);
+  const membershipId = permissions.status === 'ready' ? permissions.data.membershipId : null;
+  // registro de operações incertas: vínculo desta organização (outra pessoa ou organização não encontra o registro)
+  const operationScope = useMemo<OperationScopeValue>(() => ({ org, subject: async () => (membershipId ? `m:${membershipId}` : null) }), [org, membershipId]);
 
   // Navegação entre páginas (não a primeira carga, nem só a troca de filtros na query): o foco vai ao conteúdo
   // principal, para o leitor de tela e o teclado começarem pela nova página.
@@ -175,6 +179,7 @@ export function InternalShell() {
 
   return (
     <InternalContext.Provider value={{ permissions, workspaces, reloadWorkspaces, loadMoreWorkspaces, restartWorkspaces }}>
+      <OperationScopeProvider value={operationScope}>
       <AppShell
         className="pw-shell"
         brand={<Logo variant="full" size={24} />}
@@ -225,6 +230,7 @@ export function InternalShell() {
         )}
         <Outlet />
       </AppShell>
+      </OperationScopeProvider>
     </InternalContext.Provider>
   );
 }

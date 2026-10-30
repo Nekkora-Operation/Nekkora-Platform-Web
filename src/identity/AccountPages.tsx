@@ -109,6 +109,7 @@ function PasswordSection() {
       <StepUpDialog<void>
         open={confirming}
         title="Trocar a senha?"
+        guard={{ operation: 'identity.password.change' }}
         confirmLabel="Trocar senha"
         stepUp={identityStepUp}
         action={() => changeIdentityPassword(current, next)}
@@ -177,6 +178,7 @@ function RecoveryCodesSection() {
       <StepUpDialog<string[]>
         open={confirming}
         title="Gerar novos códigos de recuperação?"
+        guard={{ operation: 'identity.recovery-codes.regenerate' }}
         confirmLabel="Gerar códigos"
         stepUp={identityStepUp}
         action={regenerateRecoveryCodes}

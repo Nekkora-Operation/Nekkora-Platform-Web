@@ -73,6 +73,7 @@ export function WorkspacesPage() {
       <StepUpDialog
         open={creating}
         title="Criar workspace"
+        guard={{ operation: 'workspace.create' }}
         confirmLabel="Criar workspace"
         ready={nameOk}
         action={() => createWorkspace(org, name.trim(), description.trim() || undefined)}

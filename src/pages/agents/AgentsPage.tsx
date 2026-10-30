@@ -237,6 +237,7 @@ export function AgentsPage() {
       <StepUpDialog<AgentCode>
         open={pending?.kind === 'pair'}
         title="Gerar código de pareamento"
+        guard={{ operation: 'agent.pairing-code' }}
         confirmLabel="Gerar código"
         ready={pairReady}
         stepUp={orgStepUp(org)}
@@ -292,6 +293,7 @@ export function AgentsPage() {
       <StepUpDialog<AgentCode>
         open={pending?.kind === 'rotate'}
         title={pending?.kind === 'rotate' ? `Gerar código de rotação para ${pending.agent.name}?` : ''}
+        guard={{ operation: 'agent.rotation-code', target: pending?.kind === 'rotate' ? pending.agent.agentId : undefined }}
         confirmLabel="Gerar código"
         stepUp={orgStepUp(org)}
         action={() => (pending?.kind === 'rotate' ? createRotationCode(org, pending.agent.agentId!) : Promise.reject())}
@@ -310,6 +312,7 @@ export function AgentsPage() {
       <StepUpDialog
         open={pending?.kind === 'revoke'}
         title={pending?.kind === 'revoke' ? `Revogar ${pending.agent.name}?` : ''}
+        guard={{ operation: 'agent.revoke', target: pending?.kind === 'revoke' ? pending.agent.agentId : undefined }}
         confirmLabel="Revogar Agent"
         tone="danger"
         stepUp={orgStepUp(org)}

@@ -149,6 +149,7 @@ export function LinkAccountPage() {
       <StepUpDialog<void>
         open={confirming}
         title="Vincular a conta antiga à sua identidade?"
+        guard={{ operation: 'account.link', target: organizationId }}
         confirmLabel="Vincular"
         stepUp={identityStepUp}
         action={() => confirmAccountLink(organizationId)}

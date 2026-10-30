@@ -186,6 +186,7 @@ export function InvitationsPage() {
       <StepUpDialog
         open={pending?.kind === 'issue'}
         title={pending?.kind === 'issue' ? `Convidar ${pending.email}?` : ''}
+        guard={{ operation: 'invitation.issue', target: pending?.kind === 'issue' ? pending.email.trim().toLowerCase() : undefined }}
         confirmLabel="Enviar convite"
         stepUp={orgStepUp(org)}
         action={() => (pending?.kind === 'issue' ? issueInvitation(org, pending.email, pending.role || undefined, pending.workspaceId || undefined) : Promise.reject())}
@@ -207,6 +208,7 @@ export function InvitationsPage() {
       <StepUpDialog
         open={pending?.kind === 'resend'}
         title={pending?.kind === 'resend' ? `Reenviar o convite para ${pending.invitation.email}?` : ''}
+        guard={{ operation: 'invitation.resend', target: pending?.kind === 'resend' ? pending.invitation.invitationId : undefined }}
         confirmLabel="Reenviar"
         stepUp={orgStepUp(org)}
         action={() => (pending?.kind === 'resend' ? resendInvitation(org, pending.invitation.invitationId) : Promise.reject())}
@@ -223,6 +225,7 @@ export function InvitationsPage() {
       <StepUpDialog
         open={pending?.kind === 'revoke'}
         title={pending?.kind === 'revoke' ? `Revogar o convite para ${pending.invitation.email}?` : ''}
+        guard={{ operation: 'invitation.revoke', target: pending?.kind === 'revoke' ? pending.invitation.invitationId : undefined }}
         confirmLabel="Revogar convite"
         tone="danger"
         action={() => (pending?.kind === 'revoke' ? revokeInvitation(org, pending.invitation.invitationId) : Promise.reject())}

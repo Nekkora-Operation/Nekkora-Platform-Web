@@ -122,6 +122,7 @@ export function WorkersPage() {
       <StepUpDialog
         open={pending?.kind === 'authorize'}
         title={pending?.kind === 'authorize' ? `Autorizar ${pending.worker.name} num workspace` : ''}
+        guard={{ operation: 'worker.authorize', target: pending?.kind === 'authorize' ? `${pending.worker.workerId}|${target}` : undefined }}
         confirmLabel="Autorizar"
         ready={!!target}
         stepUp={orgStepUp(org)}
@@ -150,6 +151,7 @@ export function WorkersPage() {
       <StepUpDialog
         open={pending?.kind === 'remove'}
         title={pending?.kind === 'remove' ? `Retirar ${pending.worker.name} de ${wsName(pending.workspaceId)}?` : ''}
+        guard={{ operation: 'worker.remove', target: pending?.kind === 'remove' ? `${pending.worker.workerId}|${pending.workspaceId}` : undefined }}
         confirmLabel="Retirar"
         tone="danger"
         action={() => (pending?.kind === 'remove' ? revokeWorkerInWorkspace(org, pending.worker.workerId!, pending.workspaceId) : Promise.reject())}

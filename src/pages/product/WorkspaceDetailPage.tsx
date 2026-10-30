@@ -107,6 +107,7 @@ function WorkspaceDetail({ workspaceId }: { workspaceId: string }) {
       <StepUpDialog
         open={creating}
         title="Criar automação"
+        guard={{ operation: 'automation.create', target: w.workspaceId }}
         confirmLabel="Criar automação"
         ready={newName.trim().length > 0 && [...newName.trim()].length <= 80}
         action={() => createAutomation(org, w.workspaceId, newName.trim())}

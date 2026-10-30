@@ -112,6 +112,7 @@ export function GrantDecisionDialog({
       <StepUpDialog
         {...common}
         title={`Aprovar o acesso de ${who}?`}
+        guard={{ operation: 'grant.approve', target: grant.grantId }}
         confirmLabel="Aprovar"
         ready={checked}
         stepUp={orgStepUp(org)}
@@ -155,6 +156,7 @@ export function GrantDecisionDialog({
       <StepUpDialog
         {...common}
         title={approving ? `Aprovar a renovação de ${who}?` : again ? `Pedir de novo o acesso de ${who}?` : `Pedir a renovação de ${who}?`}
+        guard={{ operation: approving ? 'grant.renewal.approve' : again ? 'grant.request-again' : 'grant.renewal.request', target: grant.grantId }}
         confirmLabel={approving ? 'Aprovar renovação' : 'Enviar pedido'}
         ready={ready}
         stepUp={approving ? orgStepUp(org) : undefined}
@@ -201,6 +203,7 @@ export function GrantDecisionDialog({
     <StepUpDialog
       {...common}
       title={`Revisar o acesso de ${who}`}
+      guard={{ operation: 'grant.review', target: grant.grantId }}
       confirmLabel={reviewDecision === 'KEEP' ? 'Manter' : reviewDecision === 'SUSPEND' ? 'Suspender' : 'Revogar'}
       tone={reviewDecision === 'KEEP' ? 'primary' : 'danger'}
       ready={reviewDecision !== 'KEEP' || !nextReview || (future(nextReview) && earlier)}
