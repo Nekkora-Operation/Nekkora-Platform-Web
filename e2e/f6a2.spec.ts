@@ -50,7 +50,8 @@ function posts(page: Page) {
 async function audit(page: Page, name: string) {
   // R1: espera as animações terminarem — durante a entrada do diálogo (opacidade 0) o axe ignora o conteúdo e o
   // contraste passaria por engano (falso positivo observado na F6a-2)
-  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+  // animação cancelada (o elemento foi renderizado de novo) rejeita `finished` com AbortError: ela já não existe, nada a esperar
+  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined))));
   await page.addScriptTag({ content: axeSource });
   const violations = await page.evaluate(async () => {
     // @ts-expect-error axe injetado acima
