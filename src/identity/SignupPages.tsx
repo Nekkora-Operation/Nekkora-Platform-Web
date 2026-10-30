@@ -184,7 +184,9 @@ export function SignupConfirmPage() {
       setConfirmation('');
       setState('success');
     } catch (e) {
-      // 400 = link inválido para a API (vencido, já usado, revogado, substituído por reenvio). Os campos já foram conferidos.
+      // 400 = link inválido para a API (vencido, já usado, revogado, substituído por reenvio). Os campos já foram conferidos
+      // com as MESMAS regras da API (e04a57c: PasswordPolicy 12–128 pontos de código; nome sem controle, até 120), então
+      // um 400 aqui não é recusa de política. Se a API endurecer a política, esta tela precisa distinguir os dois casos.
       if (isApiError(e, 'invalid_request')) setState('invalid');
       else if (isDisabled(e)) setState('disabled');
       else setError(commonMessage(e));

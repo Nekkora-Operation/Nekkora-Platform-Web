@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import { Alert, Badge, Button, Card, DescriptionList, Heading, Select, Stack, StateView, Table, Text, type TableColumn, type Tone } from 'nekkora-lib';
 import { getAgentRun, listAgentRunEvents, listAgentRuns, type AgentRun, type AgentRunEvent, type AgentSupervisorState } from '../../api/agents';
@@ -35,7 +35,8 @@ const PROCESS: Record<NonNullable<AgentRun['process']>, string> = {
 };
 const OUTCOME: Record<NonNullable<AgentRun['outcome']>, { label: string; tone: Tone }> = {
   PENDING: { label: 'Pendente', tone: 'info' },
-  KNOWN: { label: 'Conhecido', tone: 'success' },
+  // neutro: "conhecido" não é "bem-sucedido" — a cor do desfecho vem do estado do supervisor (Falhou, Concluída…)
+  KNOWN: { label: 'Conhecido', tone: 'neutral' },
   UNKNOWN: { label: 'Desconhecido', tone: 'warning' },
 };
 const COMPLETENESS: Record<NonNullable<NonNullable<AgentRun['history']>['completeness']>, { label: string; tone: Tone }> = {
@@ -61,7 +62,8 @@ const short = (v: string | null | undefined) => (v ? `${v.slice(0, 8)}…` : '�
 /** Um acompanhamento acabou quando o desfecho deixou de estar pendente E a entrega do histórico não está pendente. */
 export const runIsSettled = (r: AgentRun) => r.outcome !== 'PENDING' && r.history?.completeness !== 'PENDING';
 
-function Freshness({ poll, interval }: { poll: Polling<unknown>; interval: number }) {
+/** `always`: a lista continua consultando mesmo sem nada pendente (uma execução nova pode aparecer). */
+function Freshness({ poll, interval, always = false }: { poll: Polling<unknown>; interval: number; always?: boolean }) {
   return (
     <div className="pw-form__row" role="status">
       <Text variant="body-sm" color="secondary">
@@ -73,7 +75,9 @@ function Freshness({ poll, interval }: { poll: Polling<unknown>; interval: numbe
         {poll.paused
           ? 'Atualização pausada com a aba oculta.'
           : poll.following
-            ? `Atualiza a cada ${interval / 1000} s enquanto houver algo pendente.`
+            ? always
+              ? `Atualiza a cada ${interval / 1000} s.`
+              : `Atualiza a cada ${interval / 1000} s enquanto houver algo pendente.`
             : 'Acompanhamento automático encerrado: nada pendente.'}
       </Text>
       <Button size="sm" variant="secondary" leftIcon="refresh" loading={poll.loading} onClick={poll.refresh}>
@@ -87,7 +91,8 @@ function StaleAlert({ poll }: { poll: Polling<unknown> }) {
   if (!poll.stale || poll.data === undefined) return null;
   return (
     <Alert tone="warning" title="Os dados podem estar desatualizados.">
-      {poll.error ? `${errorText(poll.error).title} ` : ''}Mostrando a última consulta bem-sucedida; a próxima tentativa é automática.
+      {poll.error ? `${errorText(poll.error).title} ` : ''}Mostrando a última consulta bem-sucedida;{' '}
+      {poll.following && !poll.paused ? 'a próxima tentativa é automática.' : 'use Atualizar para consultar de novo.'}
     </Alert>
   );
 }
@@ -100,7 +105,8 @@ export function AgentRunsPage() {
   const [state, setState] = useState<AgentSupervisorState | ''>('');
   const poll = usePolling(() => listAgentRuns(org, { limit: 25, ...(workspaceId ? { workspaceId } : {}), ...(state ? { state: [state] } : {}) }), {
     intervalMs: LIST_INTERVAL_MS,
-    keepGoing: (page) => page.items.some((r) => !runIsSettled(r)),
+    // a lista continua mesmo vazia ou com tudo encerrado: a execução que a pessoa iniciar no Agent precisa aparecer
+    keepGoing: () => true,
     deps: [org, workspaceId, state],
     onUnauthenticated: expired,
   });
@@ -130,7 +136,7 @@ export function AgentRunsPage() {
           options={[{ value: '', label: 'Todos' }, ...Object.entries(SUPERVISOR).map(([value, s]) => ({ value, label: s.label }))]}
         />
       </div>
-      <Freshness poll={poll} interval={LIST_INTERVAL_MS} />
+      <Freshness poll={poll} interval={LIST_INTERVAL_MS} always />
       <StaleAlert poll={poll} />
       {poll.data === undefined ? (
         poll.error ? (
@@ -153,7 +159,7 @@ export function AgentRunsPage() {
   );
 }
 
-/** Todas as páginas de eventos (ordem de `sequence`), relidas a cada ciclo até o fim ou ao teto do ciclo. */
+/** Todas as páginas de eventos (ordem de `sequence`), até o fim ou ao teto da tela. */
 async function readEvents(org: string, runId: string): Promise<{ items: AgentRunEvent[]; truncated: boolean }> {
   const items: AgentRunEvent[] = [];
   let cursor: string | undefined;
@@ -170,10 +176,22 @@ async function readEvents(org: string, runId: string): Promise<{ items: AgentRun
 export function AgentRunPage() {
   const { org, expired } = useSession();
   const { runId = '' } = useParams();
+  // eventos da última leitura e a "assinatura" do histórico (contagens, retenção) que os produziu: se nada mudou no
+  // servidor, o ciclo não relê as páginas (o cursor é assinado e acaba na última página; não há como pedir "só os novos")
+  const lastEvents = useRef<{ key: string; sig: string; events: { items: AgentRunEvent[]; truncated: boolean } } | null>(null);
   const poll = usePolling(
     async () => {
       const run = await getAgentRun(org, runId);
-      const events = run.history?.stepsAvailable === false && !run.history?.eventsStored ? { items: [], truncated: false } : await readEvents(org, runId);
+      const key = `${org}/${runId}`;
+      const sig = JSON.stringify([run.history ?? null, run.retention ?? null]);
+      const prev = lastEvents.current;
+      const events =
+        run.history?.stepsAvailable === false && !run.history?.eventsStored
+          ? { items: [], truncated: false }
+          : prev && prev.key === key && prev.sig === sig
+            ? prev.events
+            : await readEvents(org, runId);
+      lastEvents.current = { key, sig, events };
       return { run, events };
     },
     { intervalMs: DETAIL_INTERVAL_MS, keepGoing: ({ run }) => !runIsSettled(run), deps: [org, runId], onUnauthenticated: expired },
@@ -287,7 +305,9 @@ export function AgentRunPage() {
           <StateView status="neutral" title="Nenhum evento recebido ainda." />
         ) : (
           <>
-            {events.truncated && <Alert tone="info">Histórico longo: mostrando os primeiros {events.items.length} eventos. Use Atualizar para reler.</Alert>}
+            {events.truncated && (
+              <Alert tone="info">Histórico longo: esta tela mostra só os primeiros {events.items.length} eventos; os seguintes não aparecem aqui.</Alert>
+            )}
             <div className="pw-prod__scroll" role="region" aria-label="Eventos da execução" tabIndex={0}>
               <Table columns={eventColumns} data={events.items} rowKey="sequence" size="sm" caption="Eventos em ordem de observação pelo Agent (sequence), não pelo relógio." />
             </div>
