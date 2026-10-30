@@ -19,7 +19,10 @@ import {
 const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const t = (userId: string) => ({ userId, membershipId: `m-${userId}`, displayName: userId.slice(0, 4) });
-const flush = () => new Promise<void>((r) => setTimeout(r, 0));
+// o envio passa antes pelo registro persistente (resumo SHA-256 e gravação, assíncronos): várias voltas do laço
+const flush = async () => {
+  for (let i = 0; i < 10; i++) await new Promise<void>((r) => setTimeout(r, 0));
+};
 
 function deferred() {
   let resolve!: () => void;
@@ -31,7 +34,7 @@ function deferred() {
 beforeEach(() => resetWriteStore());
 
 describe('registro de escritas', () => {
-  it('trava síncrona: dois inícios no mesmo instante → um envio só', () => {
+  it('trava síncrona: dois inícios no mesmo instante → um envio só', async () => {
     const d = deferred();
     let calls = 0;
     const send = () => {
@@ -41,6 +44,7 @@ describe('registro de escritas', () => {
     expect(startWrite(A, 'suspend', t('u1'), send)).not.toBeNull();
     expect(startWrite(A, 'suspend', t('u1'), send)).toBeNull();
     expect(startWrite(A, 'reactivate', t('u1'), send)).toBeNull();
+    await flush();
     expect(calls).toBe(1);
   });
 

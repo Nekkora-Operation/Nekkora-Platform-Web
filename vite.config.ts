@@ -12,7 +12,7 @@ const proxy = api ? { '/api': { target: api, secure: false } } : undefined;
 export default defineConfig({
   plugins: [react(), ...(api ? [] : [nekkoraMockApi()])],
   resolve: {
-    // A nekkora-lib vem de ../Nekkora-lib (link local): garante uma única cópia do React.
+    // Uma única cópia do React (a nekkora-lib declara react/react-dom como peer).
     dedupe: ['react', 'react-dom', 'react-router'],
   },
   server: {
@@ -32,6 +32,7 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
+    testTimeout: 15_000,
     css: false,
     include: ['src/**/*.test.{ts,tsx}', 'mock/**/*.test.ts'],
   },

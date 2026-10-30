@@ -14,7 +14,7 @@ import { currentStep, totp } from '../../mock/totp';
 import { AppRoutes } from '../app/AppRoutes';
 import { csrfStore } from '../api/csrf';
 import { sessionMemory } from '../app/notices';
-import { resetWriteStore, writeEntry } from '../admin/writeStore';
+import { PreviouslyUncertain, resetWriteStore, writeEntry } from '../admin/writeStore';
 
 const T0 = Date.UTC(2026, 9, 3, 12, 0, 0);
 const members = `/o/${DEV_ORG}/administracao/membros`;
@@ -484,7 +484,7 @@ describe('resultado incerto da redefinição (falhas de TRANSPORTE depois do ste
 });
 
 describe('sessão, abas e respostas pendentes', () => {
-  it('redefinição pendente que conclui DEPOIS da troca de sessão não aparece na sessão nova', async () => {
+  it('redefinição pendente que conclui DEPOIS da troca de sessão não altera a sessão nova; a incerteza volta só pelo registro persistente', async () => {
     sessionFor('ana@nekkora.dev');
     const view = await openMembers();
     let release!: () => void;
@@ -495,11 +495,19 @@ describe('sessão, abas e respostas pendentes', () => {
     view.unmount();
     act(() => csrfStore.clear());
     sessionFor('ana@nekkora.dev');
-    await openMembers();
+    const again = await openMembers();
     await act(async () => release());
     await settle();
-    expect(panel()).toBeNull();
-    expect(writeEntry(DEV_ORG, acc('operador@nekkora.dev').userId, 'mfa')).toBeUndefined();
+    // a conclusão atrasada da sessão anterior não cria nem altera registro da sessão nova
+    const id = acc('operador@nekkora.dev').userId;
+    const late = writeEntry(DEV_ORG, id, 'mfa');
+    expect(late === undefined || late.error instanceof PreviouslyUncertain).toBe(true);
+    // FRONT-V1-002: a MESMA pessoa, ao reler a lista, vê a incerteza vinda do registro persistente — sem reenvio
+    again.unmount();
+    renderAt(members);
+    await screen.findByRole('region', { name: 'Lista de membros' });
+    await waitFor(() => expect(writeEntry(DEV_ORG, id, 'mfa')?.error).toBeInstanceOf(PreviouslyUncertain));
+    expect(kinds()).toEqual(['step-up', 'reset']);
   });
 
   it('aviso de outra aba durante o step-up: sai da área; o 204 atrasado do step-up NÃO leva à redefinição', async () => {

@@ -6,6 +6,7 @@ import { getMyPermissions } from '../api/permissions';
 import type { MyPermissions, PermissionCode } from '../api/v1';
 import { identityPath } from '../auth/flow';
 import { OperationScopeProvider, type OperationScopeValue } from '../components/operationScope';
+import { setPersistentScope } from '../admin/writeStore';
 import { orgPath, shortOrganizationId } from '../auth/organization';
 import { useSession } from './session';
 import { useVisibleWorkspaces, type VisibleWorkspaces } from './useVisibleWorkspaces';
@@ -91,6 +92,10 @@ export function InternalShell() {
   const section = sectionOf(pathname, org);
   const membershipId = permissions.status === 'ready' ? permissions.data.membershipId : null;
   // registro de operações incertas: vínculo desta organização (outra pessoa ou organização não encontra o registro)
+  // definido já na renderização (atribuição idempotente): os efeitos das páginas filhas rodam ANTES dos efeitos deste
+  // componente e já precisam do sujeito para restaurar incertezas persistentes
+  setPersistentScope(org, membershipId ? `m:${membershipId}` : null);
+  useEffect(() => () => setPersistentScope(org, null), [org]);
   const operationScope = useMemo<OperationScopeValue>(() => ({ org, subject: async () => (membershipId ? `m:${membershipId}` : null) }), [org, membershipId]);
 
   // Navegação entre páginas (não a primeira carga, nem só a troca de filtros na query): o foco vai ao conteúdo

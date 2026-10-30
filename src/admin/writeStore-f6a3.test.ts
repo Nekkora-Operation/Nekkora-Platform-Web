@@ -24,7 +24,10 @@ const ORG = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const SAME = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const member: MemberTarget = { userId: SAME, membershipId: 'm1', displayName: 'Pessoa' };
 const grant: GrantTarget = { kind: 'grant', grantId: SAME, displayName: 'Conta externa', email: 'x@example.dev', clientName: 'Acme', workspaceName: 'Logística' };
-const flush = () => new Promise<void>((r) => setTimeout(r, 0));
+// o envio passa antes pelo registro persistente (resumo SHA-256 e gravação, assíncronos): várias voltas do laço
+const flush = async () => {
+  for (let i = 0; i < 10; i++) await new Promise<void>((r) => setTimeout(r, 0));
+};
 
 function deferred() {
   let resolve!: () => void;

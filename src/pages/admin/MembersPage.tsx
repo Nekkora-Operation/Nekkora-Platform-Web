@@ -10,12 +10,14 @@ import {
   dismissWrite,
   isMemberEntry,
   isMfaEntry,
+  restoreUncertain,
   rootError,
   targetRef,
   useWriteEntries,
   writeEntry,
   type MemberEntry,
   type MfaEntry,
+  type WriteAction,
   type WriteEntry,
 } from '../../admin/writeStore';
 import { useCursorList } from '../../hooks/useCursorList';
@@ -56,6 +58,7 @@ type MembersPageEntry = MemberEntry | MfaEntry;
 export function MembersPage() {
   const { org, expired } = useSession();
   const { permissions } = useInternalArea();
+  const membershipId = permissions.status === 'ready' ? permissions.data.membershipId : null;
   const filters = useUrlFilters<MembershipStatus>({ statuses: MEMBERSHIP_STATUS_ORDER });
   const [refresh, setRefresh] = useState(0);
   const list = useCursorList<Member>(
@@ -64,6 +67,13 @@ export function MembersPage() {
     [org, filters.key, refresh],
   );
   useExpiresOn(list.error);
+  // incerteza persistente (recarga, outra aba) volta para as linhas lidas (FRONT-V1-002)
+  useEffect(() => {
+    void restoreUncertain(org, [
+      ...list.items.map((m) => ({ target: { userId: m.userId, membershipId: m.membershipId, displayName: m.displayName }, actions: ['suspend', 'reactivate', 'revoke'] as WriteAction[] })),
+      ...list.items.map((m) => ({ target: mfaTarget(m), actions: ['mfa-reset'] as WriteAction[] })),
+    ]);
+  }, [org, list.items, membershipId]);
   const listDenied = useAccessDenied(list);
   /**
    * Conferência recusada (403): acesso negado até uma NOVA leitura iniciada EXPLICITAMENTE pela pessoa ("Verificar
@@ -255,7 +265,7 @@ export function MembersPage() {
           onRetry={retryFrom}
           onDismiss={(e) => {
             const { kind, id } = targetRef(e.target);
-            dismissWrite(org, id, kind);
+            dismissWrite(org, id, kind, { acknowledge: true });
           }}
           onUnauthenticated={expired}
           onForbidden={() => setCheckDenied(true)}
