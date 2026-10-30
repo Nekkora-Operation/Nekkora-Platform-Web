@@ -41,7 +41,8 @@ if (-not $AgentRepo) { $AgentRepo = Join-Path $PSScriptRoot '..\..\..\front-v1-0
 Add-Type -AssemblyName System.Windows.Forms
 $lab = Join-Path $PSScriptRoot "saidas\$Id"
 $app = Join-Path $lab 'agent-app'
-$data = Join-Path $lab 'agent-dados'
+# pasta de dados do Agent: FRONT_LAB_AGENT_DADOS (nome dentro da saída do laboratório) ou agent-dados
+$data = Join-Path $lab $(if ($env:FRONT_LAB_AGENT_DADOS) { $env:FRONT_LAB_AGENT_DADOS } else { 'agent-dados' })
 $exe = Join-Path $app 'Nekkora Agent.exe'
 if (-not (Test-Path (Join-Path $lab 'laboratorio.txt'))) { throw "laboratório $Id não encontrado ($lab)" }
 $apiUrl = ((Get-Content (Join-Path $lab 'laboratorio.txt')) | Where-Object { $_ -like 'api=*' }) -replace '^api=', ''
@@ -178,9 +179,13 @@ switch ($Acao) {
         $proc = Wait-For { Agent-Window '' } 30 'janela do Agent'
         $pid0 = [uint32]$proc.Id
         $insp0 = Log-Count 'EXEC_PACKAGE_INSPECTED'
-        [FrontLabWin]::Focus($proc.MainWindowHandle) | Out-Null
-        [System.Windows.Forms.SendKeys]::SendWait('%e')
-        $dlg = Wait-For { $h = [FrontLabWin]::Find($pid0, 'Execução local'); if ($h -ne [IntPtr]::Zero) { $h } } 20 'janela Execução local (Alt+E)'
+        # a janela pode continuar aberta desde a execução anterior: nela, Alt+E é "Entrada", não "abrir"
+        $dlg = [FrontLabWin]::Find($pid0, 'Execução local')
+        if ($dlg -eq [IntPtr]::Zero) {
+            [FrontLabWin]::Focus($proc.MainWindowHandle) | Out-Null
+            [System.Windows.Forms.SendKeys]::SendWait('%e')
+            $dlg = Wait-For { $h = [FrontLabWin]::Find($pid0, 'Execução local'); if ($h -ne [IntPtr]::Zero) { $h } } 20 'janela Execução local (Alt+E)'
+        }
         Start-Sleep -Milliseconds 800
         Choose $pid0 $dlg '%p' 'Pasta do pacote da automação' $Pacote
         Wait-For { (Log-Count 'EXEC_PACKAGE_INSPECTED') -gt $insp0 } 30 'pacote inspecionado' | Out-Null

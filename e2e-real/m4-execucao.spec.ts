@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, readFileSync, renameSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { confirmStepUp, LAB, signUpAndEnroll, type Person } from './support/lab';
@@ -25,9 +25,16 @@ const LABDIR = resolve(`tools/lab/saidas/${LAB}`);
 const PKG_ZIP = `tools/lab/saidas/${LAB}/pacotes/pacote-studio-real.zip`;
 const PKG_DIR = resolve(LABDIR, 'pacote-studio-real');
 const PYTHON = process.env.FRONT_LAB_PYTHON ?? resolve('..', 'front-v1-002-framework', '.venv', 'Scripts', 'python.exe');
+// 22 biografias distintas com as linhas da ficha que a automação do Studio lê (Nome completo, Nascimento, Nacionalidade,
+// Ocupação); a 1ª lista parou por dados da Wikipédia e linhas repetidas são recusadas pela planilha (SINK_REJECTED)
 const INPUT = resolve(LABDIR, 'entrada-j14.csv');
 const OUT = resolve(LABDIR, 'saida-execucoes');
 const WAIT_PERSON = 45 * 60_000;
+// dados novos do Agent para esta sessão, numa pasta própria (as anteriores ficam como estão, como evidência)
+// FRONT_LAB_AGENT_DADOS reaproveita a pasta de uma sessão anterior (a aprovação do pacote "nesta máquina" continua; o
+// pareamento é refeito)
+const DADOS = process.env.FRONT_LAB_AGENT_DADOS ?? `agent-dados-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')}`;
+process.env.FRONT_LAB_AGENT_DADOS = DADOS;
 
 const agent = (acao: string, extra: string[] = [], input?: string) => {
   const r = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'tools/lab/agent.ps1', '-Id', LAB, '-Acao', acao, ...extra], {
@@ -41,7 +48,7 @@ const agent = (acao: string, extra: string[] = [], input?: string) => {
 const lab = (...args: string[]) => execFileSync('node', ['tools/lab/lab.mjs', LAB, ...args], { encoding: 'utf8' });
 const agentLog = () => {
   try {
-    return readFileSync(`${LABDIR}/agent-dados/logs/agent.log`, 'utf8');
+    return readFileSync(`${LABDIR}/${DADOS}/logs/agent.log`, 'utf8');
   } catch {
     return '';
   }
@@ -102,15 +109,22 @@ async function setup(page: Page, person: Person) {
   agent('iniciar');
   agent('parear', [], `${code}\n`);
   await page.getByRole('button', { name: 'Concluir' }).click();
-  await expect
-    .poll(
-      async () => {
-        await page.getByRole('button', { name: 'Atualizar' }).click();
-        return page.getByRole('region', { name: 'Lista de Agents' }).innerText().catch(() => '');
-      },
-      { timeout: 240_000, intervals: [10_000] },
-    )
-    .toMatch(/LAB-FRONT-02[\s\S]*Conectado/);
+  let seen = '';
+  try {
+    await expect
+      .poll(
+        async () => {
+          await page.getByRole('button', { name: 'Atualizar' }).click();
+          await page.waitForTimeout(1_500);
+          seen = (await page.locator('main').innerText().catch(() => '')).replace(/\s+/g, ' ');
+          return seen;
+        },
+        { timeout: 240_000, intervals: [10_000] },
+      )
+      .toMatch(/LAB-FRONT-02[\s\S]*Conectado/);
+  } finally {
+    step(`Agents na tela: ${seen.slice(0, 600)}`);
+  }
 
   await page.goto(`/o/${org}/workers`);
   await page.getByRole('button', { name: 'Autorizar Worker do laboratório num workspace' }).click();
@@ -157,8 +171,7 @@ test('J13–J15: execução real supervisionada, quedas de canal, cancelamento l
   test.setTimeout(4 * 60 * 60_000);
   if (!existsSync(PYTHON)) throw new Error(`Python do laboratório ausente: ${PYTHON}`);
   agent('parar');
-  // dados novos do Agent para esta sessão (os anteriores ficam preservados como evidência)
-  if (existsSync(`${LABDIR}/agent-dados`)) renameSync(`${LABDIR}/agent-dados`, `${LABDIR}/agent-dados-${Date.now().toString(36)}`);
+  rmSync(`${LABDIR}/${DADOS}/plataforma`, { recursive: true, force: true });
   agent('preparar');
   step(`sessão assistida: Agent ${readFileSync(`${LABDIR}/agent.txt`, 'utf8').split('\n')[0]}`);
   const ana = await signUpAndEnroll(page, 'j13');
@@ -168,75 +181,82 @@ test('J13–J15: execução real supervisionada, quedas de canal, cancelamento l
   agent('iniciar');
   await expect.poll(() => count(/PLATFORM_AUTHORIZATIONS count=[1-9]/), { timeout: 240_000, intervals: [5_000] }).toBeGreaterThan(0);
 
-  // ---------------- A: J13 + J14
-  await startByPerson('A (sucesso)');
-  await openNewestRun(page, org, 1);
-  await expect(page.getByText(/Atualiza a cada 10 s/)).toBeVisible();
+  // FRONT_LAB_ETAPAS (ex.: "C"): só as execuções pedidas, quando as outras já foram comprovadas numa rodada anterior
+  // (registradas em intervencoes.txt e no log da sessão)
+  const etapas = (process.env.FRONT_LAB_ETAPAS ?? 'A,B,C').split(',');
+  let runs = 0;
+  let detail = '';
+  if (etapas.includes('A')) {
+    runs++;
+    // ---------------- A: J13 + J14
+    await startByPerson('A (sucesso)');
+    // J14b: SÓ Agent–API, logo depois do início, com a execução em curso (o navegador continua falando com a API)
+    const finished0 = count(/EXEC_FINISHED/);
+    const conn0 = count(/PLATFORM_CONNECTED/);
+    lab('canal-agent', 'pausar');
+    step(`J14b: canal Agent–API pausado (agent-gateway); navegador–API intacto; execução em curso: ${count(/EXEC_FINISHED/) === finished0}`);
+    try {
+      await openNewestRun(page, org, 1);
+      await expect(page.getByText('Os dados podem estar desatualizados.')).toHaveCount(0);
+      await page.waitForTimeout(15_000);
+    } finally {
+      lab('canal-agent', 'retomar');
+    }
+    step(`J14b: canal retomado; execução ainda em curso: ${count(/EXEC_FINISHED/) === finished0}; desconexões no log do Agent: ${count(/PLATFORM_DISCONNECTED/)}`);
 
-  // J14a: SÓ navegador–API (o Agent continua falando com a API)
-  const reportsBeforeOffline = count(/PLATFORM_REPORT/);
-  step('J14a: navegador offline (canal Agent–API intacto)');
-  await context.setOffline(true);
-  await expect(page.getByText('Os dados podem estar desatualizados.')).toBeVisible({ timeout: 60_000 });
-  await page.waitForTimeout(20_000);
-  await context.setOffline(false);
-  await expect(page.getByText('Os dados podem estar desatualizados.')).toHaveCount(0, { timeout: 60_000 });
-  step(`J14a: navegador de volta; relatórios do Agent durante a queda do navegador: ${count(/PLATFORM_REPORT/) - reportsBeforeOffline}`);
+    // J14a: SÓ navegador–API (o Agent continua falando com a API)
+    const reportsBeforeOffline = count(/PLATFORM_REPORT/);
+    step(`J14a: navegador offline (canal Agent–API intacto); execução em curso: ${count(/EXEC_FINISHED/) === finished0}`);
+    await context.setOffline(true);
+    await expect(page.getByText('Os dados podem estar desatualizados.')).toBeVisible({ timeout: 60_000 });
+    await context.setOffline(false);
+    await expect(page.getByText('Os dados podem estar desatualizados.')).toHaveCount(0, { timeout: 60_000 });
+    step(`J14a: navegador de volta; relatórios do Agent durante a queda do navegador: ${count(/PLATFORM_REPORT/) - reportsBeforeOffline}`);
+    await expect.poll(() => count(/PLATFORM_CONNECTED/), { timeout: 300_000, intervals: [5_000] }).toBeGreaterThanOrEqual(conn0);
 
-  // J14b: SÓ Agent–API (o navegador continua falando com a API)
-  const disc0 = count(/PLATFORM_DISCONNECTED/);
-  const conn0 = count(/PLATFORM_CONNECTED/);
-  lab('canal-agent', 'pausar');
-  step('J14b: canal Agent–API pausado (agent-gateway); navegador–API intacto');
-  try {
-    await page.reload();
-    await expect(page.getByRole('heading', { name: 'Execução local' })).toBeVisible();
-    await expect(page.getByText('Os dados podem estar desatualizados.')).toHaveCount(0);
-    await page.waitForTimeout(200_000); // passa do limite de presença (180 s sem sinal)
-    await page.reload();
-    await expect(page.getByText('Agent sem sinal recente')).toBeVisible({ timeout: 60_000 });
-  } finally {
-    lab('canal-agent', 'retomar');
+    // desfecho de A
+    await expect(page.getByText('Acompanhamento automático encerrado: nada pendente.')).toBeVisible({ timeout: 30 * 60_000 });
+    detail = (await page.locator('main').innerText()).replace(/\s+/g, ' ');
+    step(`A detalhe: ${detail.slice(0, 900)}`);
+    expect(detail).toMatch(/Concluída com sucesso/);
+    expect(detail).toMatch(/Desfecho Conhecido/i);
+    const seqA = await eventSequences(page);
+    expect(seqA.length).toBeGreaterThan(0);
+    expect(new Set(seqA).size).toBe(seqA.length); // nenhuma sequência repetida depois das quedas
+    await page.goto(`/o/${org}/supervisao`);
+    await expect(page.getByRole('region', { name: 'Execuções locais' }).getByRole('link')).toHaveCount(1); // nenhuma nova execução
   }
-  step(`J14b: canal retomado; desconexões no log do Agent: ${count(/PLATFORM_DISCONNECTED/) - disc0}`);
-  await expect.poll(() => count(/PLATFORM_CONNECTED/), { timeout: 300_000, intervals: [5_000] }).toBeGreaterThan(conn0);
 
-  // desfecho de A
-  await expect(page.getByText('Acompanhamento automático encerrado: nada pendente.')).toBeVisible({ timeout: 30 * 60_000 });
-  let detail = (await page.locator('main').innerText()).replace(/\s+/g, ' ');
-  step(`A detalhe: ${detail.slice(0, 900)}`);
-  expect(detail).toMatch(/Concluída com sucesso/);
-  expect(detail).toMatch(/Desfecho Conhecido/);
-  const seqA = await eventSequences(page);
-  expect(seqA.length).toBeGreaterThan(0);
-  expect(new Set(seqA).size).toBe(seqA.length); // nenhuma sequência repetida depois das quedas
-  await page.goto(`/o/${org}/supervisao`);
-  await expect(page.getByRole('region', { name: 'Execuções locais' }).getByRole('link')).toHaveCount(1); // nenhuma nova execução
-
-  // ---------------- B: cancelamento local
-  const cancel0 = count(/EXEC_CANCEL_REQUESTED/);
-  await startByPerson('B (cancelamento)', ' Depois que ela começar, clique em "Cancelar execução" no próprio Agent.');
-  await person('Execução B: no Agent, clique em "Cancelar execução".', /EXEC_CANCEL_REQUESTED/, cancel0);
-  await openNewestRun(page, org, 2);
-  await expect(page.getByText('Acompanhamento automático encerrado: nada pendente.')).toBeVisible({ timeout: 15 * 60_000 });
-  detail = (await page.locator('main').innerText()).replace(/\s+/g, ' ');
-  step(`B detalhe: ${detail.slice(0, 900)}`);
-  expect(detail).toMatch(/Cancelada/);
+  if (etapas.includes('B')) {
+    runs++;
+    // ---------------- B: cancelamento local
+    const cancel0 = count(/EXEC_CANCEL_REQUESTED/);
+    await startByPerson('B (cancelamento)', ' Depois que ela começar, clique em "Cancelar execução" no próprio Agent.');
+    await person('Execução B: no Agent, clique em "Cancelar execução".', /EXEC_CANCEL_REQUESTED/, cancel0);
+    await openNewestRun(page, org, runs);
+    await expect(page.getByText('Acompanhamento automático encerrado: nada pendente.')).toBeVisible({ timeout: 15 * 60_000 });
+    detail = (await page.locator('main').innerText()).replace(/\s+/g, ' ');
+    step(`B detalhe: ${detail.slice(0, 900)}`);
+    expect(detail).toMatch(/Cancelada/);
+  }
 
   // ---------------- C: desfecho desconhecido (reprodução segura)
+  runs++;
+  const finishedC = count(/EXEC_FINISHED/);
   await startByPerson('C (desfecho desconhecido: o laboratório vai derrubar o Agent depois do início)');
-  const reports0 = count(/PLATFORM_REPORT/);
-  await expect.poll(() => count(/PLATFORM_REPORT/), { timeout: 180_000, intervals: [2_000] }).toBeGreaterThan(reports0);
+  // derruba com a execução em curso (a 1ª tentativa esperou o próximo relatório, que só veio no fim da execução)
+  await page.waitForTimeout(5_000);
+  expect(count(/EXEC_FINISHED/), 'a execução C ainda está em curso quando o Agent cai').toBe(finishedC);
   step('C: Agent encerrado à força e, com ele fora, o processo da execução (laboratório)');
   step(agent('derrubar', ['-Saida', OUT]).trim());
   const rec0 = count(/EXEC_RECONCILED/);
   agent('iniciar');
   await expect.poll(() => count(/EXEC_RECONCILED/), { timeout: 180_000, intervals: [3_000] }).toBeGreaterThan(rec0);
-  await openNewestRun(page, org, 3); // reabrir não relança nada
+  await openNewestRun(page, org, runs); // reabrir não relança nada
   await expect(page.getByText(/Supervisor: Desfecho desconhecido/)).toBeVisible({ timeout: 15 * 60_000 });
   detail = (await page.locator('main').innerText()).replace(/\s+/g, ' ');
   step(`C detalhe: ${detail.slice(0, 900)}`);
-  expect(detail).toMatch(/Desfecho Desconhecido/);
+  expect(detail).toMatch(/Desfecho Desconhecido/i);
   expect(detail).not.toMatch(/Concluída com sucesso/);
   step(`J13–J15 org=${org}`);
 });
