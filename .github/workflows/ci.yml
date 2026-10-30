@@ -1,0 +1,89 @@
+# CI do frontend (FRONT-V1-002). Instalação reproduzível (lib fixada por commit e sha256; package-lock com integridade),
+# typecheck, testes, conferência do contrato contra o commit fixado da API, build e E2E com a API SIMULADA.
+# Os E2E de e2e-real/ (API real, e-mail capturado, Agent real) dependem do laboratório Windows e NÃO rodam aqui.
+name: CI
+
+on:
+  pull_request:
+  push:
+    # branches da FRONT-V1: o CI roda também antes de o PR existir (o resultado vale para o HEAD empurrado)
+    branches: [main, 'feat/front-v1-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validar:
+    name: Instalação, typecheck, testes, contrato e build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Commit fixado da API (contract/SOURCE.json)
+        id: api
+        run: echo "commit=$(node -p "require('./contract/SOURCE.json').commit")" >> "$GITHUB_OUTPUT"
+
+      - name: OpenAPI da API no commit fixado (só leitura)
+        uses: actions/checkout@v4
+        with:
+          repository: Nekkora-Operation/Nekkora-Platform-API
+          ref: ${{ steps.api.outputs.commit }}
+          path: .ci/api
+          sparse-checkout: api/openapi
+          persist-credentials: false
+
+      - name: Nekkora-lib fixada (lib.lock.json) — checkout isolado, build, pacote e sha256
+        run: node scripts/lib.mjs prepare
+
+      - name: Instalar dependências (lockfile; integridade da lib conferida pelo npm)
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Testes (vitest)
+        run: npm test
+
+      - name: Contrato (cópia = OpenAPI da API no commit fixado; tipos gerados atualizados)
+        env:
+          NEKKORA_API_REPO: .ci/api
+        run: npm run contract:check
+
+      - name: Build
+        run: npm run build
+
+  e2e-simulador:
+    name: E2E com a API simulada (navegador)
+    needs: validar
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: node scripts/lib.mjs prepare
+      - run: npm ci --no-audit --no-fund
+      - name: Chromium do Playwright
+        run: npx playwright install --with-deps chromium
+      - name: E2E (e2e/, API simulada do contrato; sem repetição automática)
+        run: npx playwright test --retries=0
+      - name: Evidência de falha (traces só de testes que falharam; dados sintéticos)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-simulador-falhas-${{ github.sha }}
+          path: test-results/
+          retention-days: 14

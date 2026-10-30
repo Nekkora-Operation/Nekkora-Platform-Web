@@ -9,3 +9,5 @@ playwright-report/
 .env.*
 !.env.example
 tools/lab/saidas/
+.deps/
+.ci/

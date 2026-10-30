@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/Nekkora-Operation/Nekkora-lib.git",
+  "commit": "0a29d95fbadb19da74cfa90a55542fb14885458d",
+  "version": "0.2.0",
+  "tarballSha256": "1a2e614576f7c33ec98bbaf1dfe9f0eb6098637ca1075113c666aea6662526a6",
+  "integrity": "sha512-LE1ZO5MkrPi38W5oKykk5/bT322ewlpcWgrZJ/MPHOmOtARreSQ4J0GNMst4T6rgdiTnikZOZTFVeoingIcT4A==",
+  "evidence": "docs/release/evidencias/pacote-resultado.json no commit fixado (LIB-RELEASE-001, PR #6 mesclado)"
+}
