@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fakeLocks } from '../test/fakeLocks';
-import { createOperationRegistry, opKey, UNKNOWN_TTL, type RegistryDeps } from './pendingOps';
+import { createOperationRegistry, opKey, UNKNOWN_REVIEW, type RegistryDeps } from './pendingOps';
 
 function tab(storage: Storage, locks: ReturnType<typeof fakeLocks> | null, clock = { t: 1_000_000 }) {
   const deps: RegistryDeps = { storage: () => storage, locks: () => locks, now: () => clock.t };
@@ -71,11 +71,9 @@ describe('registro de operações incertas (pendingOps)', () => {
     expect(await none.begin(await opKey(scope))).toMatchObject({ ok: false, reason: 'storage' });
   });
 
-  it('expiração remove sem declarar nada; o registro não guarda nada em claro', async () => {
+  it('o registro não guarda nada em claro', async () => {
     localStorage.clear();
-    const clock = { t: 9_000_000 };
-    const locks = fakeLocks();
-    const reg = tab(localStorage, locks, clock);
+    const reg = tab(localStorage, fakeLocks());
     const key = await opKey({ ...scope, target: 'alvo-secreto@empresa.com' });
     const begun = await reg.begin(key);
     if (begun.ok) begun.finish('unknown');
@@ -83,10 +81,61 @@ describe('registro de operações incertas (pendingOps)', () => {
     for (const plain of [scope.subject, scope.org, scope.operation, 'alvo-secreto', 'empresa.com', '00000000-0000-4000-8000-000000000001']) expect(dump).not.toContain(plain);
     expect(Object.keys(JSON.parse(localStorage.getItem(key)!)).sort()).toEqual(['at', 'exp', 's', 'v']);
     expect(key).toMatch(/^nk\.op\.1\.[0-9a-f]{32}$/);
-    clock.t += UNKNOWN_TTL + 1;
+  });
+
+  it('FRONT-V1-003: 72 h depois a incerteza CONTINUA bloqueando — após recarga e em outra aba; só a liberação explícita solta', async () => {
+    localStorage.clear();
+    const clock = { t: 9_000_000 };
+    const locks = fakeLocks();
+    const key = await opKey(scope);
+    const first = tab(localStorage, locks, clock);
+    const begun = await first.begin(key);
+    if (begun.ok) begun.finish('unknown');
+    await new Promise((r) => setTimeout(r, 0)); // a soltura do lock é assíncrona (como nos Web Locks)
+    clock.t += UNKNOWN_REVIEW + 60 * 60_000; // 73 h
+
+    // recarga: registro novo, mesma origem; a limpeza do carregamento não remove a incerteza
+    const reloaded = tab(localStorage, locks, clock);
+    reloaded.sweep();
+    expect(await reloaded.inspect(key)).toMatchObject({ state: 'unknown', old: true });
+    expect(await reloaded.begin(key)).toMatchObject({ ok: false, reason: 'unknown' });
+
+    // segunda aba (depois de o lock da recusa acima ser solto: logo antes disso a resposta seria "busy", também recusa)
+    await new Promise((r) => setTimeout(r, 0));
+    const other = tab(localStorage, locks, clock);
+    expect(await other.begin(key)).toMatchObject({ ok: false, reason: 'unknown' });
+
+    // envio em curso de uma aba que morreu há 73 h também vira incerteza, não "nada aconteceu"
+    const key2 = await opKey({ ...scope, operation: 'automation.create' });
+    const crashed = tab(localStorage, locks, clock);
+    expect((await crashed.begin(key2)).ok).toBe(true);
+    locks.dropAll();
+    clock.t += UNKNOWN_REVIEW + 1;
+    const later = tab(localStorage, locks, clock);
+    later.sweep();
+    expect(await later.inspect(key2)).toMatchObject({ state: 'unknown', old: true });
+
+    // outra pessoa e outra organização continuam sem ver nada
+    expect(await later.inspect(await opKey({ ...scope, subject: 'm:00000000-0000-4000-8000-000000000002' }))).toBeNull();
+    expect(await later.inspect(await opKey({ ...scope, org: '11111111-3b2d-4c5e-8f71-2a9b3c4d5e6f' }))).toBeNull();
+
+    // só a decisão explícita libera
+    expect(other.acknowledge(key)).toBe(true);
+    expect(await reloaded.inspect(key)).toBeNull();
+    expect((await reloaded.begin(key)).ok).toBe(true);
+  });
+
+  it('confirmado e recusado (que não bloqueiam) somem na limpeza depois de 10 min', async () => {
+    localStorage.clear();
+    const clock = { t: 9_000_000 };
+    const reg = tab(localStorage, fakeLocks(), clock);
+    const key = await opKey(scope);
+    const begun = await reg.begin(key);
+    if (begun.ok) begun.finish('confirmed');
+    expect(await reg.inspect(key)).toMatchObject({ state: 'confirmed' });
+    clock.t += 10 * 60_000 + 1;
     reg.sweep();
     expect(localStorage.getItem(key)).toBeNull();
-    expect(await reg.inspect(key)).toBeNull();
   });
 
   it('escopo diferente (outra pessoa, organização, operação ou alvo) = outra chave', async () => {

@@ -252,6 +252,10 @@ function RecordNotice({ record, uncertainText, onAcknowledge }: { record: OpReco
             Uma tentativa enviada às {timeOf(view.at)} ficou sem resposta confirmada. Nada será repetido automaticamente. {uncertainText} Não encontrar o
             resultado numa lista não comprova que nada foi feito.
           </span>
+          {view.old && <span>Este registro tem mais de 72 horas e continua sem confirmação: o tempo não resolve a dúvida.</span>}
+          <span>
+            Liberar permite enviar de novo. Não confirma o resultado da tentativa anterior nem garante que não haverá duplicidade.
+          </span>
           <span>
             <Button variant="secondary" size="sm" onClick={onAcknowledge}>
               Já conferi o estado atual; liberar nova tentativa
