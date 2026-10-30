@@ -11,3 +11,5 @@ playwright-report/
 tools/lab/saidas/
 .deps/
 .ci/
+vitest-resultado.json
+playwright-resultado.json
