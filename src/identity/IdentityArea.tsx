@@ -90,8 +90,9 @@ export function IdentityArea() {
   // sessão trocada ou encerrada em OUTRA aba: o conteúdo desta deixa de valer agora
   useEffect(
     () =>
-      csrfStore.onSessionBoundary((remote) => {
-        if (!remote || ended.current) return;
+      csrfStore.onSessionBoundary((remote, scope) => {
+        // outra aba só entrou numa organização: a sessão de identidade (cookie próprio) continua valendo aqui
+        if (!remote || scope === 'organization' || ended.current) return;
         ended.current = true;
         sessionMemory.reset();
         navigateRef.current(identityPath.login, { replace: true, state: { notice: 'session-changed' } satisfies NavState });
@@ -102,13 +103,15 @@ export function IdentityArea() {
   const signOut = useCallback(async () => {
     ended.current = true;
     setSigningOut(true);
+    let notice: 'signed-out' | 'signed-out-unconfirmed' = 'signed-out';
     try {
       await identityLogout();
     } catch {
-      // a memória local já foi limpa; a sessão vence no servidor
+      // a memória local foi limpa, mas o servidor não confirmou o fim da sessão: a pessoa é avisada
+      notice = 'signed-out-unconfirmed';
     } finally {
       sessionMemory.reset();
-      navigateRef.current(identityPath.login, { replace: true, state: { notice: 'signed-out' } satisfies NavState });
+      navigateRef.current(identityPath.login, { replace: true, state: { notice } satisfies NavState });
     }
   }, []);
 
