@@ -44,7 +44,7 @@ Nenhuma validação foi desligada: campo ausente, tipo errado ou status fora do 
 
 ## Acompanhamento (FRONT-V1-003, 30/10/2026)
 
-Sem candidato: `origin/main` da API continua em `e04a57c`; nenhuma issue ou PR aberto no repositório da API sobre isto.
+Sem candidato: `origin/main` da API continua em `e04a57c`; nenhum PR no repositório da API sobre isto (a issue foi aberta depois: ver abaixo).
 O frontend mantém a validação pelo esquema do modo pedido (estrita). Quando o candidato existir: `npm run contract:sync
 -- <commit>`, retirar `validatedAs` de `confirmIdentityEnrollment`, e rodar no laboratório a confirmação INICIAL
 (`e2e-real/m1-identidade.spec.ts`, J01) e a TROCA de fator (J03), conferindo que uma resposta inválida continua recusada

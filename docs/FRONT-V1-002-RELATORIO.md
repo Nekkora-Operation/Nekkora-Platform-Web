@@ -65,7 +65,7 @@ PR do #12). As duas correções foram levadas à base (#10) e subiram pela pilha
 | Resultado desconhecido persistente, sem expiração silenciosa | Concluído | Frontend | §0.1; #15 |
 | CI de cada candidato | Concluído | Frontend | §0.2 |
 | Jornadas | Demonstradas conforme a matriz de evidências (§2); **J09 parcial**, com aprovação da renovação e primeira concessão pela interface dependentes da API; ativação operacional não demonstrada neste laboratório | Frontend | §2 e regressão final (§11), API real |
-| J13–J15 com Agent real | Concluído (não repetido: nada desses caminhos mudou) | Frontend + pessoa no Agent | §3 |
+| J13–J15 com Agent real | Demonstradas com o código ANTERIOR à revisão (§0.4): a supervisão e o script do laboratório mudaram depois; conferir só as telas afetadas na próxima sessão de laboratório | Frontend + pessoa no Agent | §3; §0.4 |
 | D-API-01 confirmação do MFA | Bloqueado (sem candidato; medida temporária estrita no frontend) | Equipe da API | [issue #37](https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/37); `docs/encaminhamentos/API-D-API-01-*.md` |
 | D-API-02 leitura do pedido de renovação (prioridade); J09 completa | Bloqueado | Equipe da API | [issue #38](https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/38); `docs/encaminhamentos/API-D-API-02-*.md`; J09 parcial em `e2e-real/m2-concessoes.spec.ts` |
 | D-API-03 leitura dos vínculos; primeira concessão pela tela (não é a jornada completa de clientes externos) | Bloqueado | Equipe da API | [issue #39](https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/39); `docs/encaminhamentos/API-D-API-03-*.md` |
@@ -77,6 +77,45 @@ Nenhum candidato da API existia em 30/10/2026 (`origin/main` = `e04a57c`). Encam
 da API: [#37](https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/37) (D-API-01), [#38](https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/38) (D-API-02, prioridade), [#39](https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/39) (D-API-03), cada uma com
 reprodução, comportamento esperado, critérios de aceite, referência do contrato e PRs afetados.
 O laboratório `frontlab-001` segue parado com containers e volumes preservados; nenhum volume foi excluído.
+
+### 0.4 Revisão dos diffs #10–#17 (FRONT-V1-003)
+
+Cada PR foi revisado; as correções entraram na branch mais baixa afetada, por commits normais, e subiram pela pilha
+por merge (sem reescrever histórico). Os HEADs e runs da §0.2 são os de ANTES da revisão: os resultados de lá
+pertencem àqueles commits; os do candidato novo de cada PR estão no bloco de estado do próprio PR.
+
+| PR | Achado | Correção |
+|----|--------|----------|
+| #11 (e #13, #15) | 502/503/504 do proxy sem o corpo da API viravam `service_unavailable` → "nada foi criado/gravado", e a confirmação podia ser repetida | código `gateway`: numa escrita é resultado desconhecido (confirmações com step-up, envio de pacote, registro persistente); leituras mostram indisponibilidade |
+| #14 | `tools/lab/agent.ps1` deste PR aprovava o pacote e iniciava a execução por teclas (atos da pessoa) | sai a versão do #17 (só prepara e confere o log); toda tecla restante só com o foco conferido na janela certa |
+| #11 | entrar numa organização em outra aba tirava esta da área de identidade (e de um desafio MFA em curso) | aviso entre abas com alcance (organização × tudo) |
+| #11 | vinculação incerta perdia o aviso ao fechar; "Sair" sem confirmação do servidor dizia "Você saiu" | aviso persistente e "Vincular" bloqueado; aviso de saída não confirmada |
+| #12 | decisão de concessão incerta deixava decidir de novo na mesma linha | "Decisão não confirmada" até "Atualizar" |
+| #13 | 413 do proxy caía em incerto; seletor de arquivo reabria o envio incerto; sem SHA-256 local a conferência dizia "não tem o pacote" | 413 é recusa com o motivo; seletor bloqueado; conferência mostra o SHA-256 da Platform |
+| #14 | aviso "desatualizado, próxima tentativa automática" depois de o acompanhamento acabar; lista parava de consultar quando vazia; detalhe relia todo o histórico a cada 10 s; "Conhecido" em verde | só desatualiza enquanto acompanha; lista sempre a cada 30 s; eventos relidos só quando o histórico muda; tom neutro; rotação cancelável; Worker escolhido reiniciado |
+| #15 | teste do 502 passava por acaso; sem Web Locks não havia exclusão entre abas; com locks sem `query()`, envio vivo virava desconhecido; "em curso em outra aba" parecia recusa | teste com resposta real de proxy; marca conferida depois de gravar; vivo sem informação; aviso próprio |
+| #10, #16 | validador com mapa + propriedades; proteções do `subir.sh` puladas por SIGPIPE; anotação de contagens sem arquivos que não carregaram | corrigidos (ver commits) |
+| #17 | relatório afirmava mais do que os specs (ver abaixo); caminhos e uma frase de encaminhamento desatualizados | texto corrigido |
+
+Limitações aceitas, registradas no código: o sujeito do registro na área de identidade é o resumo do CSRF da sessão (a
+API em `e04a57c` não expõe identificador estável), então uma incerteza de lá não é encontrada depois de sair e entrar;
+o alvo do convite é o e-mail, só dentro do resumo da chave. Um 400 na confirmação do cadastro continua "link inválido":
+as regras locais são as mesmas da API (`PasswordPolicy`, nome), conferido no código da API.
+
+O que os specs da API real afirmam e o que só foi observado (sem repetir provas; o laboratório continua parado):
+
+- Execução A: o spec afirma "Concluída com sucesso" e "Desfecho Conhecido"; "Processo Encerrado" e "Histórico
+  Completo" estão no texto da tela registrado no log da sessão (`sessao-j13-j15-A-aprovada.log`), não em asserção. A
+  reconexão do J14b aparece como retomada do canal e entrega do histórico completo; a asserção do spec sobre a contagem
+  de conexões (`>=`) não a prova sozinha.
+- J17: a varredura axe percorre 10 telas × 3 larguras e confere um h1 em cada uma; não confere que cada tela carregou
+  os dados (o limitador de leituras da API pode ter mostrado "Muitas tentativas" em parte delas, e essa tela também foi
+  auditada).
+- J16: 429 observado na API real, provado em componente; nenhum spec da API real afirma um 429.
+
+Endurecimento desses specs (h1 específico e ausência de "Muitas tentativas" antes de cada axe, com ritmo; reconexão com
+`>` e desconexão durante a pausa; asserções de processo e histórico) fica para a próxima sessão de laboratório, junto
+das telas afetadas pela revisão: supervisão (lista e detalhe), envio de pacote, confirmações com step-up.
 
 
 Continuação da FRONT-V1-001 sobre as cinco branches existentes. Sem merge, sem produção, sem ambientes preservados,
@@ -138,9 +177,9 @@ API simulada `mock/` (suíte legada `e2e/`); **fixture** = pré-condição perif
 | J13 execução real e supervisão | Aprovada | Agent real + API real, sessão assistida (§3) |
 | J14 quedas de canal | Aprovada | Agent real + API real (§3) |
 | J15 cancelamento local e desfecho desconhecido | Aprovada | Agent real + API real (§3) |
-| J16 HTTP (401/403/404/409/422/429/503) | Aprovada | componente + API real (403, 409, 422, 429 observado no J17, 503) |
+| J16 HTTP (401/403/404/409/422/429/503) | Aprovada | componente + API real (403, 409, 422, 503); 429 só observado na API real (J17), provado em componente |
 | Resultado desconhecido persistente | Aprovada | componente (`uncertainOps.test.tsx`, `pendingOps.test.ts`, f6a*) |
-| J17 teclado, foco, zoom 200 %, viewports, recarga, links | Aprovada | API real (`m5-a11y-seguranca`): axe com contraste em 10 telas × 3 larguras |
+| J17 teclado, foco, zoom 200 %, viewports, recarga, links | Aprovada | API real (`m5-a11y-seguranca`): axe com contraste em 10 telas × 3 larguras (ressalva em §0.4) |
 | J18 segredos | Aprovada | API real (`m5`) + varredura estática (`security.test.tsx`) |
 
 Estados raros da supervisão (histórico incompleto, expurgo, etapas indisponíveis) continuam também em testes de
@@ -154,7 +193,7 @@ aprovação do pacote (`EXEC_PACKAGE_APPROVED` 15:50:49Z), "Iniciar" em cada exe
 
 | Execução | Resultado no navegador (do supervisor) | Evidência |
 |----------|-----------------------------------------|-----------|
-| A — J13 + J14 | Processo Encerrado · Desfecho Conhecido · **Concluída com sucesso** · Histórico Completo; 1 execução; nenhuma sequência de evento repetida | início 16:17:08Z; **J14b** (só Agent–API: `agent-gateway` pausado 16:17:09→16:17:30, execução em curso, navegador falando com a API, 2 desconexões no log do Agent, reconexão); **J14a** (só navegador–API: contexto offline, aviso "dados podem estar desatualizados", volta; o Agent entregou 1 relatório durante a queda) |
+| A — J13 + J14 | Processo Encerrado · Desfecho Conhecido · **Concluída com sucesso** · Histórico Completo (o que é asserção e o que é texto registrado: §0.4); 1 execução; nenhuma sequência de evento repetida | início 16:17:08Z; **J14b** (só Agent–API: `agent-gateway` pausado 16:17:09→16:17:30, execução em curso, navegador falando com a API, 2 desconexões no log do Agent, reconexão); **J14a** (só navegador–API: contexto offline, aviso "dados podem estar desatualizados", volta; o Agent entregou 1 relatório durante a queda) |
 | B — J15 cancelamento | Encerrado · Conhecido · **Cancelada** · Completo | `EXEC_CANCEL_REQUESTED` 16:21:50Z → `EXEC_FINISHED state=CANCELLED code=AGT-EXE-024` |
 | C — J15 desconhecido | Encerrado · **Desfecho desconhecido** (supervisor) · Completo; nada relançado | início 16:53:24Z; Agent encerrado à força 5 s depois e o processo da execução com ele fora; reaberto: `EXEC_RECONCILED code=AGT-EXE-025 adopted=false` → `PLATFORM_REPORT state=OUTCOME_UNKNOWN` |
 
@@ -264,7 +303,7 @@ A suíte da API não foi rodada (só o frontend mudou).
 Estado: `frontlab-001` **parado** (`docker compose stop`: containers e volumes preservados como evidência; nada
 apagado); Agent do laboratório encerrado; nenhum Python de execução vivo; Vite parado. Para remover de vez:
 `node tools/lab/lab.mjs frontlab-001 compose down -v`. Cópias isoladas criadas nesta missão (podem ser apagadas):
-`..ront-v1-002-agent`, `..ront-v1-002-framework`, `..ront-v1-002-limpo`. Os repositórios de outras sessões
+`../front-v1-002-agent`, `../front-v1-002-framework`, `../front-v1-002-limpo`. Os repositórios de outras sessões
 (`../Nekkora-lib`, `../Nekkora-RPA-Framework`, `../Nekkora-Agent`, `agent-int`, a API de trabalho) não foram alterados.
 Evidências locais (não versionadas: contêm dados do laboratório) em `tools/lab/saidas/frontlab-001/`; nenhuma captura,
 trace, QR, código ou token foi versionado (configuração real com trace, screenshot e vídeo desligados).
