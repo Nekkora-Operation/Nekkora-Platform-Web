@@ -63,7 +63,14 @@ export interface RegistryDeps {
   storage: () => Storage | null;
   locks: () => LockManagerLike | null;
   now: () => number;
+  /**
+   * Sem Web Locks: espera entre gravar a marca e conferi-la (dá tempo de a gravação de outra aba chegar). Padrão: 25–75 ms
+   * aleatórios. Os testes de componente usam espera imediata (o teste do próprio registro usa a real).
+   */
+  settle?: () => Promise<void>;
 }
+
+const defaultSettle = () => new Promise<void>((r) => setTimeout(r, 25 + Math.floor(Math.random() * 50)));
 
 const PREFIX = 'nk.op.1.';
 const MINUTE = 60_000;
@@ -222,7 +229,7 @@ export function createOperationRegistry(deps: RegistryDeps) {
     const mark = locks ? undefined : Math.random().toString(36).slice(2);
     if (!write(key, { v: 1, s: 'pending', at: now, exp: NEVER, ...(locks ? {} : { hb: now, n: mark }) })) return fail('storage');
     if (!locks) {
-      await new Promise((r) => setTimeout(r, 25 + Math.floor(Math.random() * 50)));
+      await (deps.settle ?? defaultSettle)();
       if (readRaw(key)?.n !== mark) return fail('busy', now);
     }
     emit();
@@ -302,7 +309,7 @@ export function createOperationRegistry(deps: RegistryDeps) {
 
 export type OperationRegistry = ReturnType<typeof createOperationRegistry>;
 
-const browserDeps: RegistryDeps = {
+export const browserDeps: RegistryDeps = {
   storage: () => {
     try {
       return window.localStorage;
