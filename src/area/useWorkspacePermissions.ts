@@ -23,6 +23,8 @@ export function useWorkspacePermissions(workspaceId: string | undefined): Worksp
   useEffect(() => {
     if (!workspaceId || permissions.status === 'loading') return setState({ status: 'loading' });
     if (permissions.status === 'error') return setState({ status: 'unknown' });
+    // outro workspace (ou P01 relido): a resposta anterior não vale até a nova leitura terminar
+    setState({ status: 'loading' });
     let alive = true;
     (async () => {
       let explicit: WorkspacePermissions | undefined;

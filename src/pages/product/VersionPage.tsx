@@ -22,6 +22,7 @@ import { StepUpDialog } from '../../components/StepUpDialog';
 import { useResource } from '../../hooks/useResource';
 import { orgStepUp } from '../access/shared';
 import { DateTimeText, LoadErrorState, NotFoundState, PageHeader, isMissing } from './shared';
+import { uploadOutcome } from './uploadOutcome';
 import './shared.css';
 import '../../identity/identity.css';
 
@@ -31,7 +32,8 @@ type Upload =
   | { phase: 'done' }
   | { phase: 'refused'; text: string }
   | { phase: 'uncertain' }
-  | { phase: 'reconciled'; arrived: boolean };
+  /** `unknown`: sem SHA-256 local (Web Crypto indisponível) não há como comparar; mostra o que a Platform tem. */
+  | { phase: 'reconciled'; arrived: 'yes' | 'no' | 'unknown'; serverSha256?: string | null };
 
 const mib = (n: number) => `${(n / 1024 / 1024).toFixed(n < 1024 * 1024 ? 2 : 1)} MiB`;
 
@@ -132,9 +134,9 @@ export function VersionPage() {
         version.refresh();
       })
       .catch((e) => {
-        if (isApiError(e, 'unauthenticated')) return expired();
-        if (isApiError(e, 'network') || isApiError(e, 'unexpected') || isApiError(e, 'internal_error')) setUpload({ phase: 'uncertain' });
-        else setUpload({ phase: 'refused', text: uploadRefusal(e) });
+        const outcome = uploadOutcome(e);
+        if (outcome === 'expired') return expired();
+        setUpload(outcome === 'uncertain' ? { phase: 'uncertain' } : { phase: 'refused', text: uploadRefusal(e) });
       })
       .finally(() => {
         handle.current = null;
@@ -146,7 +148,9 @@ export function VersionPage() {
     try {
       const fresh = await getAutomationVersion(org, versionId);
       version.refresh();
-      setUpload({ phase: 'reconciled', arrived: !!localHash && fresh.artifact?.sha256 === localHash });
+      const serverSha256 = fresh.artifact?.sha256 ?? null;
+      const arrived = !localHash ? 'unknown' : serverSha256 === localHash ? 'yes' : 'no';
+      setUpload({ phase: 'reconciled', arrived, serverSha256 });
     } catch (e) {
       if (isApiError(e, 'unauthenticated')) return expired();
       setUpload({ phase: 'uncertain' });
@@ -278,7 +282,8 @@ export function VersionPage() {
                   type="file"
                   accept=".zip,application/zip"
                   onChange={(e) => void choose(e)}
-                  disabled={upload.phase === 'sending'}
+                  // com resultado desconhecido, escolher outro arquivo reabriria o envio sem a conferência
+                  disabled={upload.phase === 'sending' || upload.phase === 'uncertain'}
                   aria-invalid={fileProblem ? true : undefined}
                   aria-describedby="pw-pacote-message"
                 />
@@ -322,11 +327,23 @@ export function VersionPage() {
                   </Stack>
                 </Alert>
               )}
-              {upload.phase === 'reconciled' && (
-                <Alert tone={upload.arrived ? 'success' : 'info'}>
-                  {upload.arrived
+              {upload.phase === 'reconciled' && upload.arrived !== 'unknown' && (
+                <Alert tone={upload.arrived === 'yes' ? 'success' : 'info'}>
+                  {upload.arrived === 'yes'
                     ? 'Conferido: a Platform tem o pacote com o mesmo SHA-256 do arquivo escolhido.'
                     : 'A versão não tem o pacote deste arquivo. Você pode enviar de novo.'}
+                </Alert>
+              )}
+              {upload.phase === 'reconciled' && upload.arrived === 'unknown' && (
+                <Alert tone="warning" title="Não foi possível comparar com o arquivo escolhido.">
+                  {upload.serverSha256 ? (
+                    <>
+                      Este navegador não calculou o SHA-256 do arquivo. A Platform tem um pacote com SHA-256 <Hash value={upload.serverSha256} />:
+                      compare com o do seu arquivo antes de enviar de novo.
+                    </>
+                  ) : (
+                    'A versão ainda não tem pacote. Você pode enviar de novo.'
+                  )}
                 </Alert>
               )}
               <div>
