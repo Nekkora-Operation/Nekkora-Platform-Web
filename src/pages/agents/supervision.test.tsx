@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { csrfStore } from '../../api/csrf';
 import { sessionMemory } from '../../app/notices';
@@ -120,6 +120,56 @@ describe('supervisão (fixtures de contrato)', () => {
     expect(screen.getByText(/Atualiza a cada 10 s/)).toBeInTheDocument();
     const codes = screen.getAllByText(/^STEP_/).map((e) => e.textContent);
     expect(codes).toEqual(['STEP_STARTED', 'STEP_DONE']);
+  });
+
+  it('desfecho conhecido não é pintado de sucesso: a cor vem do supervisor', async () => {
+    api.on('GET', `/api/v1/o/${ORG}/agent-runs/${RUN}`, 'getAgentRun', {
+      status: 200,
+      body: run({ supervisor: { ...run().supervisor, state: 'FAILED', code: 'AGT-SUP-003' }, outcome: 'KNOWN' }),
+    });
+    renderApp(`/o/${ORG}/supervisao/${RUN}`);
+    const known = await screen.findByText('Conhecido');
+    expect(known.closest('[class*="success"]')).toBeNull();
+  });
+
+  it('com o histórico igual no servidor, "Atualizar" relê a execução mas não as páginas de eventos; mudou, relê', async () => {
+    const pending = { completeness: 'PENDING', reasons: ['DELIVERY_PENDING'], eventsStored: 1, storedThrough: 1, settledThrough: 1, maxSequence: 2, declaredMissing: 0, collectionCompletedSequence: null, invalidRefused: 0, stepsAvailable: true };
+    let history = pending;
+    api.on('GET', `/api/v1/o/${ORG}/agent-runs/${RUN}`, 'getAgentRun', () => ({
+      status: 200,
+      body: run({ supervisor: { ...run().supervisor, state: 'RUNNING', code: null }, process: 'RUNNING', outcome: 'PENDING', history, retention: { state: 'AVAILABLE', eventsPurged: 0 } }),
+    }));
+    api.on('GET', new RegExp(`/agent-runs/${RUN}/events$`), 'listAgentRunEvents', { status: 200, body: { items: [], nextCursor: null } });
+    renderApp(`/o/${ORG}/supervisao/${RUN}`);
+    await screen.findByText('Entrega pendente');
+    const events = () => api.sent('GET', new RegExp(`/agent-runs/${RUN}/events$`)).length;
+    const runs = () => api.sent('GET', `/api/v1/o/${ORG}/agent-runs/${RUN}`).length;
+    await waitFor(() => expect(events()).toBeGreaterThan(0));
+    const e0 = events();
+    const r0 = runs();
+    fireEvent.click(screen.getByRole('button', { name: 'Atualizar' }));
+    await waitFor(() => expect(runs()).toBe(r0 + 1));
+    expect(events()).toBe(e0);
+    history = { ...pending, eventsStored: 2, storedThrough: 2, settledThrough: 2 };
+    fireEvent.click(screen.getByRole('button', { name: 'Atualizar' }));
+    await waitFor(() => expect(events()).toBe(e0 + 1));
+  });
+
+  it('lista vazia continua sendo consultada: a execução iniciada depois no Agent aparece sem "Atualizar"', async () => {
+    let items: unknown[] = [];
+    api.on('GET', `/api/v1/o/${ORG}/agent-runs`, 'listAgentRuns', () => ({ status: 200, body: { items, nextCursor: null } }));
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'], shouldAdvanceTime: true });
+    try {
+      renderApp(`/o/${ORG}/supervisao`);
+      expect(await screen.findByText('Nenhuma execução local registrada.')).toBeInTheDocument();
+      expect(screen.getByText(/Atualiza a cada 30 s\./)).toBeInTheDocument();
+      items = [run({ supervisor: { ...run().supervisor, state: 'RUNNING', code: null }, process: 'RUNNING', outcome: 'PENDING' })];
+      await vi.advanceTimersByTimeAsync(31_000);
+      await waitFor(() => expect(screen.queryByText('Nenhuma execução local registrada.')).toBeNull());
+      expect(screen.getByRole('region', { name: 'Execuções locais' })).toHaveTextContent('Em execução');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('falha da consulta não vira lista vazia; 403 é recusa', async () => {
