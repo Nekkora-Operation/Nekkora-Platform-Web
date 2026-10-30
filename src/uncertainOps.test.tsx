@@ -1,7 +1,7 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { csrfStore } from './api/csrf';
-import { createOperationRegistry, opKey, setOperationRegistryForTest, type OperationRegistry } from './api/pendingOps';
+import { createOperationRegistry, opKey, setOperationRegistryForTest, UNKNOWN_REVIEW, type OperationRegistry } from './api/pendingOps';
 import { sessionMemory } from './app/notices';
 import { fakeLocks } from './test/fakeLocks';
 import { renderApp } from './test/render';
@@ -20,8 +20,10 @@ const WS = '22222222-3333-4444-8555-666666666666';
 let api: RouteApi;
 let locks: ReturnType<typeof fakeLocks>;
 /** Aba atual: registro próprio, armazenamento e locks da origem compartilhados. */
+/** Relógio do registro (o resto da página usa o relógio real): permite simular a passagem das 72 h. */
+let skew = 0;
 function newTab(): OperationRegistry {
-  const reg = createOperationRegistry({ storage: () => localStorage, locks: () => locks, now: () => Date.now() });
+  const reg = createOperationRegistry({ storage: () => localStorage, locks: () => locks, now: () => Date.now() + skew });
   setOperationRegistryForTest(reg);
   return reg;
 }
@@ -62,6 +64,7 @@ beforeEach(() => {
   sessionMemory.reset();
   vi.unstubAllGlobals();
   locks = fakeLocks();
+  skew = 0;
   newTab();
   api = new RouteApi().install();
   session(ORG, ANA);
@@ -187,6 +190,46 @@ describe('resultado desconhecido persistente (FRONT-V1-002)', () => {
     await waitFor(() => expect(confirmButton(again)).toBeEnabled());
     expect(posts()).toBe(1); // liberar não envia nada
     fireEvent.click(confirmButton(again));
+    await waitFor(() => expect(posts()).toBe(2));
+  });
+
+  it('FRONT-V1-003: 72 h depois, após recarga e em outra aba, a incerteza continua bloqueando; liberar explica que não confirma nada', async () => {
+    api.on('POST', `/api/v1/o/${ORG}/workspaces`, 'createWorkspace', (_c, n) =>
+      n === 0 ? 'network' : { status: 201, body: { workspaceId: WS, name: 'Operações', description: null, status: 'ACTIVE', createdAt: '2026-10-30T10:00:00Z', updatedAt: '2026-10-30T10:00:00Z' } },
+    );
+    const view = renderApp(`/o/${ORG}/workspaces`);
+    const dialog = await openCreate();
+    await waitFor(() => expect(confirmButton(dialog)).toBeEnabled());
+    fireEvent.click(confirmButton(dialog));
+    await within(dialog).findByText(/Não foi possível confirmar se o workspace foi criado/);
+    view.unmount();
+
+    // 73 h depois, página recarregada (registro novo; a limpeza do carregamento roda)
+    skew = UNKNOWN_REVIEW + 60 * 60_000;
+    newTab().sweep();
+    const reloaded = renderApp(`/o/${ORG}/workspaces`);
+    const after = await openCreate();
+    expect(await within(after).findByText('Resultado não confirmado')).toBeInTheDocument();
+    expect(within(after).getByText(/mais de 72 horas e continua sem confirmação/)).toBeInTheDocument();
+    expect(within(after).getByText(/Não confirma o resultado da tentativa anterior nem garante que não haverá duplicidade/)).toBeInTheDocument();
+    expect(confirmButton(after)).toBeDisabled();
+    fireEvent.click(confirmButton(after));
+    reloaded.unmount();
+
+    // outra aba, também 73 h depois
+    const tabB = newTab();
+    expect(await tabB.begin(await opKey({ subject: `m:${ANA}`, org: ORG, operation: 'workspace.create' }))).toMatchObject({ ok: false, reason: 'unknown' });
+    renderApp(`/o/${ORG}/workspaces`);
+    const inB = await openCreate();
+    expect(await within(inB).findByText('Resultado não confirmado')).toBeInTheDocument();
+    expect(confirmButton(inB)).toBeDisabled();
+    expect(posts()).toBe(1);
+
+    // só a decisão explícita libera, e libera UM envio
+    fireEvent.click(within(inB).getByRole('button', { name: 'Já conferi o estado atual; liberar nova tentativa' }));
+    await waitFor(() => expect(confirmButton(inB)).toBeEnabled());
+    expect(posts()).toBe(1);
+    fireEvent.click(confirmButton(inB));
     await waitFor(() => expect(posts()).toBe(2));
   });
 
