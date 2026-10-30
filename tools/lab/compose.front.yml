@@ -1,0 +1,35 @@
+# FRONT-V1-001 — complemento do laboratório DESCARTÁVEL do frontend sobre api/e2e/compose.e2e.yml da API (a API não é
+# alterada). Só vale para o projeto criado por tools/lab/subir.sh (ensaio-*), nunca para ambiente preservado.
+#
+# - origem pública = Vite (http://localhost:5173): o navegador fala só com o Vite, que repassa /api ao nginx do laboratório
+#   (NEKKORA_API_URL); Origin e cookies __Host- seguem a origem do Vite;
+# - cadastro web ligado (as demais chaves de identidade já vêm ligadas no compose E2E da API);
+# - e-mail pelo transporte de HOMOLOGAÇÃO: cada mensagem vira arquivo na caixa (volume exclusivo do projeto, dono nekkora,
+#   0700), sem envio externo; a leitura é pela ferramenta tools/lab/caixa.sh;
+# - armazenamento local dos artefatos recebidos (NEKKORA_ARTEFATOS_DIR, migration 028), volume do projeto;
+# - limites de memória (histórico de pressão de memória nas suítes pesadas).
+volumes:
+  artefatos: {}
+  caixa: {}
+
+services:
+  platform:
+    mem_limit: 900m
+    environment:
+      NEKKORA_ORIGEM_PUBLICA: ${FRONT_ORIGEM:-http://localhost:5173}
+      NEKKORA_CADASTRO: "true"
+      NEKKORA_AMBIENTE: ${FRONT_AMBIENTE:?defina FRONT_AMBIENTE}
+      NEKKORA_MAIL_TRANSPORTE: homologacao
+      NEKKORA_MAIL_CAIXA: /caixa
+      NEKKORA_ARTEFATOS_DIR: /var/lib/nekkora/artefatos
+    volumes:
+      - artefatos:/var/lib/nekkora/artefatos
+      - caixa:/caixa
+  portal:
+    mem_limit: 512m
+  agent-gateway:
+    mem_limit: 640m
+  postgres:
+    mem_limit: 768m
+  redis:
+    mem_limit: 128m
