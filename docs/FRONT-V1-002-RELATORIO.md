@@ -1,5 +1,79 @@
 # FRONT-V1-002 — correções, integração e fechamento da homologação (30/10/2026)
 
+> **Atualização FRONT-V1-003 (30/10/2026).** A seção 0 abaixo é o estado atual para revisão: PRs, HEADs, checks e
+> pendências. As seções 1–11 continuam valendo como registro da FRONT-V1-002; onde citam HEADs ou runs, eram os daquele
+> momento (os HEADs mudaram depois: ver a seção 0).
+
+## 0. FRONT-V1-003 — estado para revisão
+
+### 0.1 Resultado desconhecido: o prazo de 72 h não libera nada
+
+Achado: até a FRONT-V1-002, depois de 72 h `inspect()` apagava o registro `unknown`, `begin()` o ignorava e a limpeza do
+carregamento o removia — uma nova tentativa ficava liberada SEM decisão da pessoa. Corrigido no #15 (`d13164b`):
+
+- `unknown` (e `pending` sem dono vivo) **não expira**; só some pela liberação explícita da pessoa.
+- Depois de 72 h a tela continua bloqueando e avisa: "Este registro tem mais de 72 horas e continua sem confirmação: o
+  tempo não resolve a dúvida."
+- A liberação diz o que faz: "Liberar permite enviar de novo. Não confirma o resultado da tentativa anterior nem garante
+  que não haverá duplicidade." O mesmo aviso acompanha "Dispensar aviso" nas ações administrativas.
+- Confirmado e recusado (que não bloqueiam nada) continuam sumindo em 10 min.
+- Provas (componente, no #15): `src/api/pendingOps.test.ts` e `src/uncertainOps.test.tsx` — 73 h, recarga (com a limpeza
+  do carregamento), segunda aba, envio em curso de aba morta, isolamento por pessoa e por organização, e só a liberação
+  explícita permite UM novo envio.
+
+### 0.2 PRs, HEADs e checks
+
+Pilha linear; integrar na ordem, cada PR sobre o anterior. Nenhum merge foi feito; as correções da base subiram para as
+branches seguintes por commits de merge comuns (sem reescrever histórico). A entrada futura na `main` deve ser
+conferida pelo conteúdo, não pela ordem.
+
+Cada candidato agora tem CI próprio: #10–#15 preparam `../Nekkora-lib` no commit fixado `c4c479f` (o da FRONT-V1-001);
+#16–#17 usam a lib 0.2.0 por tarball conferido. "Push" = run do HEAD da branch; "PR" = run do evento `pull_request`,
+que o GitHub executa sobre o commit de merge do HEAD com a base (o SHA testado aparece entre parênteses).
+Contagens: Vitest · E2E com API simulada.
+
+| PR | Base | HEAD | Push | PR | Estado |
+|----|------|------|------|----|--------|
+| [#10](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/pull/10) `m0-contrato-inventario` | `main` | `aa3ff80` | [41114425936](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114425936) 368/368 · 80/80 | [41114436646](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114436646) (`bc5040b`) 368/368 · 80/80 | pronto |
+| [#11](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/pull/11) `m1-identidade` | #10 | `db3bfef` | [41114426192](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114426192) 382/382 · 80/80 | [41114435956](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114435956) (`a388b20`) 382/382 · 80/80 | pronto |
+| [#12](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/pull/12) `m2-acessos` | #11 | `6ddf61c` | [41114426999](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114426999) 382/382 · 80/80 | [41114436185](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114436185) (`1bb5c82`) 382/382 · 80/80 | **draft** |
+| [#13](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/pull/13) `m3-automacoes` | #12 | `2b61b88` | [41114427718](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114427718) 382/382 · 80/80 | [41114436489](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114436489) (`4378ddf`) 382/382 · 80/80 | pronto |
+| [#14](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/pull/14) `m4-agents-supervisao` | #13 | `170ce53` | [41114428541](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114428541) 391/391 · 80/80 | [41114436805](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114436805) (`2a36bf2`) 391/391 · 80/80 | pronto |
+| [#15](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/pull/15) `002-incerteza` | #14 | `2f7c24c` | [41114427538](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114427538) 407/407 · 80/80 | [41114438882](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114438882) (`130cd27`) 407/407 · 80/80 | pronto |
+| [#16](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/pull/16) `002-lib-ci` | #15 | `016db72` | [41114428472](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114428472) 408/408 · 80/80 | [41114436921](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114436921) (`b851ebf`) 408/408 · 80/80 | pronto |
+| [#17](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/pull/17) `002-provas` | #16 | este commit de relatório; os checks dele ficam no PR | — | — | pronto |
+
+Contrato e build passaram em todos os runs da tabela. Os runs do HEAD anterior do #17 (`9f37475`, antes deste
+relatório): push [41114426717](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114426717) e PR [41114438390](https://github.com/Nekkora-Operation/Nekkora-Platform-Web/actions/runs/41114438390), 408/408 · 80/80.
+
+Por que só o #12 continua draft: ele contém a aprovação de renovação por valores digitados que o #15 retira (D-API-02)
+e não deve chegar à `main` sem o #15. Os demais não têm bloqueio próprio: a pendência de concessões não bloqueia
+cadastro, automações ou Agents; D-API-01 tem medida temporária estrita no #11; a fixture de capacidade só serve ao
+laboratório e está declarada.
+
+Falhas encontradas no caminho, corrigidas na causa (sem repetir até passar): auxiliar de animação do E2E com
+`AbortError` de animação cancelada (f6a3; runs de PR do #12, #14 e #17), e espera de 1 s curta para o runner (f5; run de
+PR do #12). As duas correções foram levadas à base (#10) e subiram pela pilha.
+
+### 0.3 Concluído, bloqueado, responsável e evidência
+
+| Item | Situação | Responsável | Evidência |
+|------|----------|-------------|-----------|
+| Resultado desconhecido persistente, sem expiração silenciosa | Concluído | Frontend | §0.1; #15 |
+| CI de cada candidato | Concluído | Frontend | §0.2 |
+| J01–J08, vinculação, J10–J12, 503, J16–J18 | Concluído | Frontend | §2 e regressão final (§11), API real |
+| J13–J15 com Agent real | Concluído (não repetido: nada desses caminhos mudou) | Frontend + pessoa no Agent | §3 |
+| D-API-01 confirmação do MFA | Bloqueado (sem candidato; medida temporária estrita no frontend) | Equipe da API | `docs/encaminhamentos/API-D-API-01-*.md` |
+| D-API-02 leitura do pedido de renovação; J09 completa | Bloqueado | Equipe da API | `docs/encaminhamentos/API-D-API-02-*.md`; J09 parcial em `e2e-real/m2-concessoes.spec.ts` |
+| D-API-03 leitura dos vínculos; primeira concessão pela tela | Bloqueado | Equipe da API | `docs/encaminhamentos/API-D-API-03-*.md` |
+| Ativação operacional da organização | Não demonstrada neste laboratório (a fixture de capacidade não a substitui) | API/operação (B2) | `docs/FRONT-V1-INVENTARIO.md` §7 |
+| LIB-01 (`Field`, `Input type="file"`) | Encaminhado | Equipe da Nekkora-lib | `docs/encaminhamentos/LIB-01-*.md` |
+| AGENT-01 (aprovação sem teclado; build marcado; venv dos testes) | Encaminhado | Equipe do Agent | `docs/encaminhamentos/AGENT-01-*.md` |
+
+Nenhum candidato da API existia em 30/10/2026 (`origin/main` = `e04a57c`, sem issue ou PR aberto sobre D-API-01/02/03).
+O laboratório `frontlab-001` segue parado com containers e volumes preservados; nenhum volume foi excluído.
+
+
 Continuação da FRONT-V1-001 sobre as cinco branches existentes. Sem merge, sem produção, sem ambientes preservados,
 sem AWS/M365/DNS e sem envio real de e-mail. Laboratório descartável `frontlab-001`.
 

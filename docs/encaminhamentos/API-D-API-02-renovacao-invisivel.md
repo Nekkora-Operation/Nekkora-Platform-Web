@@ -57,3 +57,13 @@ aprovação de um pedido substituído mesmo que os valores coincidam.
    aprovação para o próprio solicitante, trata 409 relendo e pedindo nova conferência — nunca aprova automaticamente
    os novos valores. J09 com duas pessoas cobre: renovação aprovada, valores divergentes (pedido substituído entre a
    leitura e a aprovação) e solicitante recusado.
+
+## Acompanhamento (FRONT-V1-003, 30/10/2026)
+
+Sem candidato (`origin/main` = `e04a57c`). Entrega esperada: leitura autorizada do pedido pendente com valores,
+solicitante e **identificador ou versão do pedido conferido na aprovação**. Quando existir, o frontend fecha J09 com:
+
+1. segunda pessoa aprova a renovação com os valores lidos do servidor;
+2. o próprio solicitante tem a aprovação recusada (e a tela não oferece a ação a ele);
+3. pedido SUBSTITUÍDO entre a leitura e a aprovação — inclusive com os MESMOS valores — é recusado pelo identificador
+   ou versão; a tela relê e exige nova conferência, sem aprovar automaticamente.

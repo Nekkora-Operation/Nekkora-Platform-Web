@@ -41,3 +41,11 @@ Nenhuma validação foi desligada: campo ausente, tipo errado ou status fora do 
 2. Uma resposta com campo obrigatório ausente continua inválida.
 3. O frontend então remove `validatedAs` dessa operação e demonstra os dois caminhos reais no laboratório (J01 e a
    troca de fator em J03), registrando o commit da API.
+
+## Acompanhamento (FRONT-V1-003, 30/10/2026)
+
+Sem candidato: `origin/main` da API continua em `e04a57c`; nenhuma issue ou PR aberto no repositório da API sobre isto.
+O frontend mantém a validação pelo esquema do modo pedido (estrita). Quando o candidato existir: `npm run contract:sync
+-- <commit>`, retirar `validatedAs` de `confirmIdentityEnrollment`, e rodar no laboratório a confirmação INICIAL
+(`e2e-real/m1-identidade.spec.ts`, J01) e a TROCA de fator (J03), conferindo que uma resposta inválida continua recusada
+(`src/api/validate.test.ts`).
