@@ -1,11 +1,12 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { readFileSync, rmSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { confirmStepUp, LAB, signUpAndEnroll, type Person } from './support/lab';
 
 /**
- * M4 contra a API REAL e o Agent REAL (empacotado, cópia do laboratório: tools/lab/agent.ps1). O código de pareamento
+ * M4 (J12) contra a API REAL e o Agent REAL (empacotado, cópia do laboratório: tools/lab/agent.ps1). A execução local
+ * (J13–J15), com os atos da pessoa no Agent, está em m4-execucao.spec.ts. O código de pareamento
  * é lido da tela e entregue ao Agent pela entrada padrão do script (nunca em arquivo). Fixture DECLARADA: limites da
  * organização (010) — a ativação operacional não tem ferramenta no laboratório (B2).
  */
@@ -21,14 +22,6 @@ const agent = (acao: string, input?: string, extra: string[] = []) => {
 };
 
 const LABDIR = resolve(`tools/lab/saidas/${LAB}`);
-const agentLog = () => {
-  try {
-    return readFileSync(`${LABDIR}/agent-dados/logs/agent.log`, 'utf8');
-  } catch {
-    return '';
-  }
-};
-const count = (pattern: RegExp) => (agentLog().match(pattern) ?? []).length;
 
 async function prepareOrganization(page: Page, person: Person) {
   const name = `Ensaio M4 ${Date.now().toString(36)}`;
@@ -48,7 +41,6 @@ test('J12: código emitido na tela, pareamento do Agent real, presença, Worker 
   // Agent do laboratório sem pareamento anterior (dados locais da cópia descartável)
   agent('parar');
   rmSync(`${LABDIR}/agent-dados/plataforma`, { recursive: true, force: true });
-  const authsAtStart = count(/PLATFORM_AUTHORIZATIONS count=[1-9]/g);
   const ana = await signUpAndEnroll(page, 'j12');
   const org = await prepareOrganization(page, ana);
 
@@ -128,33 +120,5 @@ test('J12: código emitido na tela, pareamento do Agent real, presença, Worker 
   await page.goto(`/o/${org}/supervisao`);
   await expect(page.getByText('Nenhuma execução local registrada.')).toBeVisible();
 
-  // J13: o Agent recebe a autorização na próxima conexão (este build baixa ao conectar): a pessoa reabre o Agent
-  agent('parar');
-  agent('iniciar');
-  await expect.poll(() => count(/PLATFORM_AUTHORIZATIONS count=[1-9]/g), { timeout: 240_000, intervals: [5_000] }).toBeGreaterThan(authsAtStart);
-  agent('executar', undefined, [
-    '-Pacote',
-    resolve(LABDIR, 'pacote-studio-real'),
-    '-Python',
-    resolve('..', 'Nekkora-RPA-Framework', '.venv', 'Scripts', 'python.exe'),
-    '-Entrada',
-    resolve(LABDIR, 'entrada-j13.csv'),
-    '-Saida',
-    resolve(LABDIR, 'saida-automacao'),
-  ]);
-
-  // supervisão pelo navegador até o desfecho (sem despacho remoto: o início foi local)
-  await page.goto(`/o/${org}/supervisao`);
-  const row = page.getByRole('region', { name: 'Execuções locais' }).getByRole('link').first();
-  await expect(row).toBeVisible({ timeout: 120_000 });
-  await row.click();
-  await expect(page.getByRole('heading', { name: 'Execução local' })).toBeVisible();
-  await expect(page.getByText(/Atualiza a cada 10 s|Acompanhamento automático encerrado/)).toBeVisible();
-  await expect(page.getByText('Acompanhamento automático encerrado: nada pendente.')).toBeVisible({ timeout: 480_000 });
-  const detail = (await page.locator('main').innerText()).replace(/\s+/g, ' ');
-  console.log(`J13 detalhe: ${detail.slice(0, 1200)}`);
-  expect(detail).toMatch(/Processo Encerrado/);
-  expect(detail).toMatch(/Desfecho (Conhecido|Desconhecido)/);
-  expect(detail).toMatch(/Histórico (Completo|Incompleto)/);
-  console.log(`J12/J13 org=${org} workspace=${workspaceId} versao=${versionUrl.split('/').pop()}`);
+  console.log(`J12 org=${org} workspace=${workspaceId} versao=${versionUrl.split('/').pop()}`);
 });

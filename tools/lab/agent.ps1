@@ -20,6 +20,7 @@
     derrubar   reprodução segura do desfecho desconhecido (como a C6 do AGENT-PLATFORM-002): encerra à força ESTA cópia do
                Agent e, com ele fora, o processo Python da execução em curso (identificado pela pasta de saída do
                laboratório). Reaberto, o Agent reconcilia; nada é relançado.
+    avisar     mostra à pessoa o que fazer agora (caixa de mensagem em processo separado)
     parar      encerra o Agent desta cópia
 
   FRONT-V1-002: aprovar o pacote e iniciar a execução são atos LOCAIS da pessoa. Este script não os simula (nada de
@@ -28,10 +29,12 @@
 #>
 param(
     [Parameter(Mandatory)][string]$Id,
-    [Parameter(Mandatory)][ValidateSet('preparar', 'iniciar', 'parear', 'abrir-execucao', 'completar-execucao', 'derrubar', 'parar')][string]$Acao,
+    [Parameter(Mandatory)][ValidateSet('preparar', 'iniciar', 'parear', 'abrir-execucao', 'completar-execucao', 'derrubar', 'avisar', 'parar')][string]$Acao,
     [string]$AgentRepo,
     # abrir-execucao: pasta do pacote (a mesma impressão da versão autorizada); completar-execucao: Python, entrada e saída
-    [string]$Pacote, [string]$Python, [string]$Entrada, [string]$Saida
+    [string]$Pacote, [string]$Python, [string]$Entrada, [string]$Saida,
+    # avisar: texto mostrado à pessoa numa caixa de mensagem (só informa; não age no Agent)
+    [string]$Aviso
 )
 $ErrorActionPreference = 'Stop'
 if (-not $AgentRepo) { $AgentRepo = Join-Path $PSScriptRoot '..\..\..\front-v1-002-agent' }
@@ -104,6 +107,13 @@ function Choose([uint32]$pid0, [IntPtr]$dlg, [string]$keys, [string]$title, [str
     Start-Sleep -Milliseconds 300
     [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
     Wait-For { [FrontLabWin]::Find($pid0, $title) -eq [IntPtr]::Zero } 20 "seletor '$title' fechado" | Out-Null
+}
+
+# Aviso visível para a pessoa (caixa de mensagem em processo separado: não espera, não clica nada no Agent)
+function Avisar([string]$Texto) {
+    $t = $Texto -replace "'", "''"
+    $cmd = "Add-Type -AssemblyName System.Windows.Forms; [void][System.Windows.Forms.MessageBox]::Show('$t', 'Laboratório FRONT-V1-002 — sua vez no Agent', 'OK', 'Information', 'Button1', 'DefaultDesktopOnly')"
+    Start-Process powershell -ArgumentList '-NoProfile', '-WindowStyle', 'Hidden', '-Command', $cmd | Out-Null
 }
 
 function Log-Count([string]$Pattern) {
@@ -203,6 +213,11 @@ switch ($Acao) {
         $runs = @(Get-CimInstance Win32_Process -Filter "Name='python.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($full) })
         foreach ($r in $runs) { Stop-Process -Id $r.ProcessId -Force -ErrorAction SilentlyContinue }
         Write-Host "Agent encerrado à força; processos da execução encerrados com o Agent fora: $($runs.Count)"
+    }
+    'avisar' {
+        if (-not $Aviso) { throw 'avisar exige -Aviso' }
+        Avisar $Aviso
+        Write-Host "aviso mostrado: $Aviso"
     }
     'parar' {
         foreach ($p in Agent-Processes) { Stop-Process -Id $p.ProcessId -Force }

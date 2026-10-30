@@ -22,6 +22,9 @@
  *                                                         senha sintética lida da ENTRADA PADRÃO). O autenticador da conta
  *                                                         é cadastrado pelo fluxo real (entrada da organização). Imprime o
  *                                                         id da organização. Registrada em fixtures.txt
+ *   node tools/lab/lab.mjs <id> canal-agent pausar|retomar  SÓ laboratório descartável (FRONT-V1-002, J14): pausa/retoma o
+ *                                                         container agent-gateway — interrompe SÓ o canal Agent–API (o
+ *                                                         navegador continua falando com a API). Registrado em fixtures.txt
  *   node tools/lab/lab.mjs <id> artefatos off|on          SÓ laboratório descartável (FRONT-V1-002): recria o serviço
  *                                                         platform sem armazenamento de artefatos (503) e depois volta.
  *                                                         Registrado em tools/lab/saidas/<id>/fixtures.txt
@@ -198,6 +201,16 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const { appendFileSync } = await import('node:fs');
     appendFileSync(join(here, 'saidas', id, 'fixtures.txt'), `${new Date().toISOString()} conta antiga (organização + conta interna só com senha, sem MFA e sem identidade) org=${org}\n`);
     process.stdout.write(org);
+  } else if (cmd === 'canal-agent') {
+    const e = env(id);
+    if (!/^ensaio-frontlab-/.test(e.FRONT_AMBIENTE ?? '')) throw new Error('recusado: só em laboratório descartável ensaio-frontlab-*');
+    const mode = rest[0];
+    if (mode !== 'pausar' && mode !== 'retomar') throw new Error('uso: canal-agent pausar|retomar');
+    compose(id, [mode === 'pausar' ? 'pause' : 'unpause', 'agent-gateway'], { stdio: ['ignore', 'inherit', 'inherit'] });
+    const { appendFileSync } = await import('node:fs');
+    appendFileSync(join(here, 'saidas', id, 'fixtures.txt'), `${new Date().toISOString()} canal Agent–API ${mode === 'pausar' ? 'PAUSADO' : 'retomado'} (agent-gateway; navegador–API intacto)
+`);
+    console.log(`canal do Agent ${mode === 'pausar' ? 'pausado' : 'retomado'}`);
   } else if (cmd === 'artefatos') {
     const e = env(id);
     if (!/^ensaio-frontlab-/.test(e.FRONT_AMBIENTE ?? '')) throw new Error('recusado: só em laboratório descartável ensaio-frontlab-*');
