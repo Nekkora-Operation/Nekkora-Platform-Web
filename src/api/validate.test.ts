@@ -7,7 +7,7 @@ import contract from './generated/nekkora-api-v1.schemas.json' with { type: 'jso
 import { ApiError } from './http';
 import { getExecution, listExecutions, listWorkspaces } from './product';
 import { getMyPermissions } from './permissions';
-import { ContractViolation, isDateTime, readJson, validated, violations } from './validate';
+import { ContractViolation, isDateTime, readJson, schemaViolations, validated, violations } from './validate';
 import { ajvValidate } from '../test/ajvContract';
 import * as fx from '../test/contractFixtures';
 
@@ -65,6 +65,15 @@ describe('validador', () => {
     const run = { runId: fx.IDS.org, supervisor: { state: 'RUNNING', counts: { ok: 2, falhas: 'tres' } } };
     expect(bad('getAgentRun', run)).toEqual(['$.supervisor.counts.falhas type integer']);
     expect(bad('getAgentRun', { ...run, supervisor: { state: 'RUNNING', counts: { ok: 2 } } })).toEqual([]);
+  });
+
+  it('D-API-01: o oneOf da confirmação do fator é ambíguo; o cliente confere pelo esquema do modo', () => {
+    const challenge = { recoveryCodes: ['AAAA-BBBB-CCCC-DDDD'], csrfToken: 'x', restricted: false };
+    // a resposta real do desafio satisfaz os DOIS ramos: pelo oneOf do contrato ela seria recusada
+    expect(violations('identityConfirmMfaEnrollment', challenge).map((v) => v.rule)).toEqual(['oneOf (mais de um)']);
+    expect(schemaViolations('IdentityEnrollmentConfirmation', challenge)).toEqual([]);
+    expect(schemaViolations('IdentityEnrollmentConfirmation', { recoveryCodes: [], restricted: false }).map((v) => v.rule)).toEqual(['required csrfToken']);
+    expect(schemaViolations('IdentityFactorReplacement', { recoveryCodes: ['A'], restricted: false })).toEqual([]);
   });
 
   it('todos os esquemas usam só palavras-chave que o validador implementa', () => {

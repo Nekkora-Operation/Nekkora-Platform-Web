@@ -55,3 +55,5 @@ export function commonMessage(error: unknown): UserMessage {
 export const INVALID_CREDENTIALS = 'E-mail ou senha incorretos.';
 export const INVALID_CODE = 'Código inválido ou expirado. Confira e tente novamente.';
 export const SESSION_EXPIRED = 'Sua sessão expirou. Entre novamente para continuar.';
+/** Rota desligada pela chave da API (404): a funcionalidade não está disponível neste ambiente. */
+export const UNAVAILABLE = 'Este acesso não está disponível no momento. Se precisar entrar, procure quem administra a sua organização.';

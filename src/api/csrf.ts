@@ -6,6 +6,9 @@
 let pre: string | undefined;
 const challenge = new Map<string, string>();
 const session = new Map<string, string>();
+/** Entrada geral (identidade, fora de /o/{org}): desafio de login e sessão de identidade (cookie __Host-nekkora_id). */
+let identityChallenge: string | undefined;
+let identitySession: string | undefined;
 /**
  * Avisados a cada fronteira de sessão: nesta aba (login que emite sessão nova, logout, sessão expirada) ou em OUTRA aba
  * da mesma origem (`remote`). O cookie de sessão é um só por origem: a troca feita em outra aba vale para esta.
@@ -23,6 +26,8 @@ const forget = () => {
   pre = undefined;
   challenge.clear();
   session.clear();
+  identityChallenge = undefined;
+  identitySession = undefined;
 };
 
 const boundary = (remote: boolean) => {
@@ -58,6 +63,25 @@ export const csrfStore = {
    */
   beginSession: (org: string, t: string) => {
     session.set(org, t);
+    boundary(false);
+  },
+  /** Desafio da entrada geral (5 min; perdido ao recarregar a página: só um novo login continua). */
+  identityChallenge: () => identityChallenge,
+  setIdentityChallenge: (t: string | undefined) => {
+    identityChallenge = t;
+  },
+  /** CSRF da sessão de identidade (memória; recuperado de GET /api/v1/me/session depois de recarregar). */
+  identitySession: () => identitySession,
+  setIdentitySession: (t: string | undefined) => {
+    identitySession = t;
+  },
+  /**
+   * Sessão de identidade NOVA (MFA verificado ou primeiro fator confirmado): fronteira de sessão. As sessões de
+   * organização desta origem passam a depender dela.
+   */
+  beginIdentitySession: (t: string) => {
+    identityChallenge = undefined;
+    identitySession = t;
     boundary(false);
   },
   /** Esquece tudo (logout, sessão expirada, testes): também é fronteira de sessão. */

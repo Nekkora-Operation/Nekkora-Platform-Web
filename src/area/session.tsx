@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router';
 import { logout, me, type Me } from '../api/auth';
 import { csrfStore } from '../api/csrf';
 import { isApiError } from '../api/http';
+import { identityLogout, identitySession } from '../api/identity';
+import { identityPath } from '../auth/flow';
 import { sessionMemory, type NavState } from '../app/notices';
 import { commonMessage, type UserMessage } from '../auth/messages';
 import { orgPath } from '../auth/organization';
@@ -38,6 +40,19 @@ export function useSession(): Session {
 }
 
 /**
+ * Para onde volta quem perdeu a sessão de organização: com sessão de identidade válida (a API responde), a reentrada
+ * pela identidade; sem ela, a entrada por conta da organização (conta antiga não vinculada).
+ */
+async function reentryPath(org: string): Promise<string> {
+  try {
+    await identitySession();
+    return orgPath.entry(org);
+  } catch {
+    return orgPath.login(org);
+  }
+}
+
+/**
  * Carrega a sessão pela API (/me) e cuida da inatividade e da saída. Estado local nunca libera acesso: quem decide é
  * a API. 401 aqui = sessão expirada/revogada (é leitura de sessão; erros de credencial não passam por aqui).
  */
@@ -63,7 +78,7 @@ export function useSessionLoader(org: string) {
     csrfStore.clear();
     sessionMemory.reset();
     const nav: NavState = hadSession ? { notice: 'session-expired' } : {};
-    navigateRef.current(orgPath.login(org), { replace: true, state: nav });
+    void reentryPath(org).then((to) => navigateRef.current(to, { replace: true, state: nav }));
   }, [org]);
 
   const arm = useCallback((delay: number, check: () => void) => {
@@ -111,7 +126,7 @@ export function useSessionLoader(org: string) {
         ended.current = true;
         window.clearTimeout(watch.current);
         sessionMemory.reset();
-        navigateRef.current(orgPath.login(org), { replace: true, state: { notice: 'session-changed' } satisfies NavState });
+        void reentryPath(org).then((to) => navigateRef.current(to, { replace: true, state: { notice: 'session-changed' } satisfies NavState }));
       }),
     [org],
   );
@@ -120,13 +135,22 @@ export function useSessionLoader(org: string) {
     ended.current = true;
     window.clearTimeout(watch.current);
     setSigningOut(true);
+    let viaIdentity = false;
     try {
       await logout(org);
     } catch {
       // mesmo com falha de rede o estado local é descartado; a sessão expira no servidor
+    }
+    try {
+      // "Sair" encerra também a sessão de identidade de onde esta nasceu (se houver): sair é sair de tudo
+      await identitySession();
+      viaIdentity = true;
+      await identityLogout();
+    } catch {
+      // sem sessão de identidade (conta antiga) ou falha: nada mais a encerrar daqui
     } finally {
       sessionMemory.reset();
-      navigateRef.current(orgPath.login(org), { replace: true, state: { notice: 'signed-out' } satisfies NavState });
+      navigateRef.current(viaIdentity ? identityPath.login : orgPath.login(org), { replace: true, state: { notice: 'signed-out' } satisfies NavState });
     }
   }, [org]);
 

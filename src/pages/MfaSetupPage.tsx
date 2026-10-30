@@ -1,14 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { Alert, Button, Checkbox, CodeInput, Link, QrCode, StateView, Text } from 'nekkora-lib';
-import { confirmMfaEnrollment, startMfaEnrollment } from '../api/auth';
-import { csrfStore } from '../api/csrf';
 import { isApiError } from '../api/http';
 import { AuthScreen } from '../app/AuthScreen';
 import { sessionMemory } from '../app/notices';
-import { useOrganization } from '../app/organization';
+import { useAuthFlow } from '../auth/flow';
 import { commonMessage, INVALID_CODE, type UserMessage } from '../auth/messages';
-import { orgPath } from '../auth/organization';
 import { manualKeyFromOtpauth } from '../auth/otpauth';
 import { ChallengeExpired } from './MfaPage';
 import { ErrorAlert } from './ErrorAlert';
@@ -25,11 +22,12 @@ const STEP_LABEL: Partial<Record<Step, string>> = {
 const MAX_ATTEMPTS = 5;
 
 /**
- * /o/{org}/mfa/setup — primeiro acesso com MFA obrigatório. A pessoa só chega à área interna depois de
+ * /entrar/configurar-autenticador e /o/{org}/mfa/setup — primeiro fator obrigatório. A pessoa só continua depois de
  * confirmar o autenticador (a API só cria a sessão nesse momento) e reconhecer os códigos de recuperação.
  */
 export function MfaSetupPage() {
-  const org = useOrganization();
+  const flow = useAuthFlow();
+  const org = flow.org;
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>('intro');
   const [otpauthUri, setOtpauthUri] = useState<string | null>(null);
@@ -57,9 +55,9 @@ export function MfaSetupPage() {
   // Os códigos só existem nesta tela, em memória; saem dela ao concluir.
   useEffect(() => () => setCodes([]), []);
 
-  const hasChallenge = !!csrfStore.challenge(org);
+  const hasChallenge = flow.hasChallenge();
   if (lost || ((step === 'intro' || step === 'configure' || step === 'confirm') && !hasChallenge) || failures >= MAX_ATTEMPTS) {
-    return <ChallengeExpired org={org} />;
+    return <ChallengeExpired />;
   }
 
   const run = async (action: () => Promise<void>) => {
@@ -78,7 +76,7 @@ export function MfaSetupPage() {
   const start = () =>
     run(async () => {
       try {
-        setOtpauthUri(await startMfaEnrollment(org));
+        setOtpauthUri(await flow.startEnrollment());
         setStep('configure');
       } catch (e) {
         if (isApiError(e, 'unauthenticated')) setLost(true);
@@ -94,7 +92,7 @@ export function MfaSetupPage() {
       }
       setFieldError(undefined);
       try {
-        const received = await confirmMfaEnrollment(org, value);
+        const received = await flow.confirmEnrollment(value);
         sessionMemory.markActive();
         setOtpauthUri(null); // o segredo sai da memória assim que o fator é confirmado
         setCodes(received);
@@ -233,7 +231,7 @@ export function MfaSetupPage() {
         focusTitle
       >
         {stepLabel}
-        <RecoveryCodesPanel codes={codes} org={org} />
+        <RecoveryCodesPanel codes={codes} context={flow.codesContext} />
         <Checkbox
           label="Guardei meus códigos de recuperação em um local seguro."
           checked={stored}
@@ -258,8 +256,8 @@ export function MfaSetupPage() {
         title="Autenticador configurado"
         description="A partir de agora, o código do aplicativo será pedido a cada login."
         actions={
-          <Button fullWidth size="lg" onClick={() => navigate(orgPath.home(org), { replace: true })}>
-            Continuar para o Platform
+          <Button fullWidth size="lg" onClick={() => navigate(flow.home(false), { replace: true })}>
+            {flow.kind === 'identity' ? 'Continuar' : 'Continuar para o Platform'}
           </Button>
         }
       />

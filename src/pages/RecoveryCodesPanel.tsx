@@ -6,7 +6,7 @@ import './RecoveryCodesPanel.css';
  * Exibe os códigos de recuperação recebidos da API (só em memória). Copiar e baixar acontecem localmente;
  * nada vai para log, analytics ou storage.
  */
-export function RecoveryCodesPanel({ codes, org }: { codes: string[]; org: string }) {
+export function RecoveryCodesPanel({ codes, context }: { codes: string[]; context: string }) {
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'warning'; text: string } | null>(null);
 
   const copy = async () => {
@@ -21,7 +21,7 @@ export function RecoveryCodesPanel({ codes, org }: { codes: string[]; org: strin
   const download = () => {
     const content = [
       'Nekkora Platform — códigos de recuperação',
-      `Organização: ${org}`,
+      context,
       `Gerado em: ${new Date().toLocaleString('pt-BR')}`,
       '',
       ...codes,

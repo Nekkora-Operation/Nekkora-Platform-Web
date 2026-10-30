@@ -10,6 +10,14 @@ export type ApiErrorCode =
   | 'unauthenticated'
   | 'forbidden'
   | 'not_found'
+  /** O estado atual impede o ato (409). */
+  | 'conflict'
+  /** Convite (409): já membro ativo; conta da organização com o e-mail, não ligada (vinculação); conta indisponível. */
+  | 'already_member'
+  | 'account_exists'
+  | 'account_unavailable'
+  /** Pacote recusado pela conferência da API (422), com motivo de vocabulário fechado em `reason`. */
+  | 'package_rejected'
   | 'rate_limited'
   | 'internal_error'
   | 'service_unavailable'
@@ -23,6 +31,11 @@ const KNOWN: ReadonlySet<string> = new Set([
   'unauthenticated',
   'forbidden',
   'not_found',
+  'conflict',
+  'already_member',
+  'account_exists',
+  'account_unavailable',
+  'package_rejected',
   'rate_limited',
   'internal_error',
   'service_unavailable',
@@ -35,8 +48,10 @@ export class ApiError extends Error {
   readonly retryAfterSeconds?: number;
   /** Correlação segura devolvida pela API (X-Request-Id) — pode ser mostrada discretamente. */
   readonly requestId?: string;
+  /** Motivo de vocabulário fechado (só em `package_rejected`); nunca texto livre da API. */
+  readonly reason?: string;
 
-  constructor(code: ApiErrorCode, status: number, retryAfterSeconds?: number, requestId?: string) {
+  constructor(code: ApiErrorCode, status: number, retryAfterSeconds?: number, requestId?: string, reason?: string) {
     // a mensagem é só o código: nunca payload, URL ou token
     super(code);
     this.name = 'ApiError';
@@ -44,11 +59,12 @@ export class ApiError extends Error {
     this.status = status;
     this.retryAfterSeconds = retryAfterSeconds;
     this.requestId = requestId;
+    this.reason = reason;
   }
 }
 
 export interface RequestOptions {
-  method?: 'GET' | 'POST';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   /** Token sincronizador do contexto atual (pré-autenticação, desafio ou sessão). */
   csrf?: string;
@@ -94,15 +110,17 @@ export async function request<T = unknown>(path: string, options: RequestOptions
   }
 
   let code: ApiErrorCode = res.status >= 500 ? 'internal_error' : 'unexpected';
+  let reason: string | undefined;
   try {
-    const body = (await res.json()) as { error?: unknown };
+    const body = (await res.json()) as { error?: unknown; reason?: unknown };
     if (typeof body?.error === 'string' && KNOWN.has(body.error)) code = body.error as ApiErrorCode;
+    if (code === 'package_rejected' && typeof body.reason === 'string' && /^[a-z_]{1,64}$/.test(body.reason)) reason = body.reason;
   } catch {
     // gateway sem corpo JSON (ex.: 502 do proxy)
     if (res.status === 502 || res.status === 503 || res.status === 504) code = 'service_unavailable';
   }
   const retry = Number(res.headers.get('Retry-After'));
-  throw new ApiError(code, res.status, Number.isFinite(retry) && retry > 0 ? retry : undefined, requestId);
+  throw new ApiError(code, res.status, Number.isFinite(retry) && retry > 0 ? retry : undefined, requestId, reason);
 }
 
 export function isApiError(e: unknown, ...codes: ApiErrorCode[]): e is ApiError {

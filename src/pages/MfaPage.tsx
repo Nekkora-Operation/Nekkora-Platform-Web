@@ -1,14 +1,11 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { Alert, Button, CodeInput, Input, Link, StateView } from 'nekkora-lib';
-import { verifyMfa } from '../api/auth';
-import { csrfStore } from '../api/csrf';
 import { isApiError } from '../api/http';
 import { AuthScreen } from '../app/AuthScreen';
 import { sessionMemory, type NavState } from '../app/notices';
-import { useOrganization } from '../app/organization';
+import { useAuthFlow } from '../auth/flow';
 import { commonMessage, INVALID_CODE, type UserMessage } from '../auth/messages';
-import { orgPath } from '../auth/organization';
 import { ErrorAlert } from './ErrorAlert';
 
 /** Tentativas erradas após as quais a API invalida o desafio (contrato §3.3). Aqui só orienta a pessoa. */
@@ -19,10 +16,11 @@ const RECOVERY_FORMAT = /^[A-Z2-7]{16}$/;
 type Mode = 'totp' | 'recovery';
 
 /** Desafio perdido (recarregou, expirou, excedeu tentativas): só um novo login continua. */
-export function ChallengeExpired({ org }: { org: string }) {
+export function ChallengeExpired() {
+  const flow = useAuthFlow();
   const navigate = useNavigate();
   return (
-    <AuthScreen org={org} icon="shield" title="Verificação encerrada" focusTitle>
+    <AuthScreen org={flow.org} icon="shield" title="Verificação encerrada" focusTitle>
       <StateView
         status="info"
         title="Sua verificação expirou ou não pode mais continuar."
@@ -31,8 +29,8 @@ export function ChallengeExpired({ org }: { org: string }) {
           <Button
             fullWidth
             onClick={() => {
-              csrfStore.setChallenge(org, undefined);
-              navigate(orgPath.login(org), { replace: true });
+              flow.clearChallenge();
+              navigate(flow.paths.login, { replace: true });
             }}
           >
             Voltar para o login
@@ -43,9 +41,10 @@ export function ChallengeExpired({ org }: { org: string }) {
   );
 }
 
-/** /o/{org}/mfa — segundo fator de uma conta com autenticador já configurado. */
+/** /entrar/verificacao e /o/{org}/mfa — segundo fator de uma conta com autenticador já configurado. */
 export function MfaPage() {
-  const org = useOrganization();
+  const flow = useAuthFlow();
+  const org = flow.org;
   const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>('totp');
   const [code, setCode] = useState('');
@@ -56,7 +55,7 @@ export function MfaPage() {
   const [failures, setFailures] = useState(0);
   const inFlight = useRef(false);
 
-  if (!csrfStore.challenge(org) || failures >= MAX_ATTEMPTS) return <ChallengeExpired org={org} />;
+  if (!flow.hasChallenge() || failures >= MAX_ATTEMPTS) return <ChallengeExpired />;
 
   const submit = async (value?: string) => {
     if (inFlight.current) return;
@@ -75,10 +74,10 @@ export function MfaPage() {
     setFieldError(undefined);
     setError(null);
     try {
-      await verifyMfa(org, mode === 'totp' ? { code: totp } : { recoveryCode: recovery.toUpperCase() });
+      const { restricted } = await flow.verify(mode === 'totp' ? { code: totp } : { recoveryCode: recovery.toUpperCase() });
       sessionMemory.markActive();
       const state: NavState = { recoveryCodeUsed: mode === 'recovery' };
-      navigate(orgPath.home(org), { replace: true, state });
+      navigate(flow.home(restricted), { replace: true, state });
     } catch (e) {
       if (isApiError(e, 'unauthenticated', 'invalid_request')) {
         setFailures((n) => n + 1);

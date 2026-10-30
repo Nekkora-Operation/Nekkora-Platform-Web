@@ -5,6 +5,10 @@
  *   node tools/lab/lab.mjs <id> caixa                     lista as mensagens da caixa de homologação (sem tokens)
  *   node tools/lab/lab.mjs <id> token <TIPO> <e-mail>     token da mensagem MAIS RECENTE do tipo para o destinatário
  *   node tools/lab/lab.mjs <id> compose <args...>         docker compose do projeto (ex.: ps, logs platform)
+ *   node tools/lab/lab.mjs <id> limpar-redis              SÓ laboratório descartável: zera o Redis do projeto (limitadores
+ *                                                         R9/R9b/R11 etc. e CSRF de pré-autenticação) entre rodadas.
+ *                                                         Nunca é chamado pelos testes; cada uso fica registrado na
+ *                                                         saída do laboratório (tools/lab/saidas/<id>/redis_limpo.txt)
  *
  * A caixa é o transporte de HOMOLOGAÇÃO da Platform (nenhum envio externo): cada mensagem é um arquivo JSON no volume do
  * projeto. O token só sai no comando `token`, para o teste do navegador seguir o link da mensagem produzida pelo fluxo
@@ -77,6 +81,13 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const t = latestToken(id, rest[0], rest[1]);
     if (!t) process.exit(1);
     process.stdout.write(t);
+  } else if (cmd === 'limpar-redis') {
+    const e = env(id);
+    if (!/^ensaio-frontlab-/.test(e.FRONT_AMBIENTE ?? '')) throw new Error('recusado: só em laboratório descartável ensaio-frontlab-*');
+    compose(id, ['exec', '-T', 'redis', 'redis-cli', 'FLUSHALL']);
+    const { appendFileSync } = await import('node:fs');
+    appendFileSync(join(here, 'saidas', id, 'redis_limpo.txt'), `${new Date().toISOString()} FLUSHALL (entre rodadas de teste)\n`);
+    console.log('redis do laboratório zerado (registrado em redis_limpo.txt)');
   } else if (cmd === 'compose') {
     process.stdout.write(compose(id, rest));
   } else {
