@@ -46,6 +46,8 @@ interface StoredOp {
   at: number;
   exp: number;
   hb?: number;
+  /** Sem Web Locks: marca de quem gravou o `pending` (conferida depois de gravar; ganha quem ficou gravado). */
+  n?: string;
 }
 
 export type BeginResult =
@@ -84,7 +86,13 @@ export async function opKey(scope: OpScope): Promise<string> {
   return PREFIX + (await sha256Hex(parts.map((p) => `${p.length}:${p}`).join('|'))).slice(0, 32);
 }
 
-/** Sujeito da identidade: resumo do CSRF da sessão (muda a cada sessão; o CSRF em si nunca é gravado). */
+/**
+ * Sujeito da identidade: resumo do CSRF da sessão (o CSRF em si nunca é gravado). LIMITAÇÃO ACEITA (revisão do #15): o
+ * CSRF muda a cada sessão de identidade, e a API (e04a57c) não expõe um identificador estável da identidade a esta
+ * interface. Uma incerteza registrada na área de identidade (criar organização, aceitar convite, vincular conta, novos
+ * códigos de recuperação) deixa de ser encontrada depois de sair e entrar de novo; a tela avisa na hora e orienta a
+ * conferir a lista antes de repetir. Na área da organização o sujeito é o vínculo (membershipId), estável.
+ */
 export async function identitySubject(csrf: string): Promise<string> {
   return `i:${(await sha256Hex(`nk-op-subject/1|${csrf}`)).slice(0, 32)}`;
 }
@@ -157,7 +165,9 @@ export function createOperationRegistry(deps: RegistryDeps) {
     if (op.s !== 'pending') return { state: op.s, at: op.at };
     if (local.has(key)) return { state: 'pending', at: op.at };
     const held = await heldElsewhere(key);
-    const alive = held ?? (op.hb !== undefined && now - op.hb < HEARTBEAT_STALE);
+    // com Web Locks não há batimento gravado: sem conseguir consultar os locks, o envio é tratado como vivo (nunca vira
+    // "desconhecido" por falta de informação; `begin` continua barrado pelo próprio lock)
+    const alive = held ?? (deps.locks() ? true : op.hb !== undefined && now - op.hb < HEARTBEAT_STALE);
     if (alive) return { state: 'pending', at: op.at };
     write(key, unknownAt(op.at));
     return { state: 'unknown', at: op.at, old: now - op.at > UNKNOWN_REVIEW };
@@ -207,7 +217,14 @@ export function createOperationRegistry(deps: RegistryDeps) {
         return fail('unknown', current.at);
       }
     }
-    if (!write(key, { v: 1, s: 'pending', at: now, exp: NEVER, ...(locks ? {} : { hb: now }) })) return fail('storage');
+    // sem Web Locks, ler-e-gravar não é atômico entre abas: cada aba grava sua marca, espera um instante e confere;
+    // fica quem ficou gravado (melhor esforço — os navegadores atuais têm Web Locks; limitação registrada)
+    const mark = locks ? undefined : Math.random().toString(36).slice(2);
+    if (!write(key, { v: 1, s: 'pending', at: now, exp: NEVER, ...(locks ? {} : { hb: now, n: mark }) })) return fail('storage');
+    if (!locks) {
+      await new Promise((r) => setTimeout(r, 25 + Math.floor(Math.random() * 50)));
+      if (readRaw(key)?.n !== mark) return fail('busy', now);
+    }
     emit();
     const beat = locks
       ? null

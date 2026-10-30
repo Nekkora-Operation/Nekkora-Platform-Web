@@ -186,6 +186,9 @@ export function InvitationsPage() {
       <StepUpDialog
         open={pending?.kind === 'issue'}
         title={pending?.kind === 'issue' ? `Convidar ${pending.email}?` : ''}
+        // alvo = e-mail convidado, só como parte do resumo da chave (nunca em claro). Limitação aceita (revisão do #15): quem
+        // tem acesso a este navegador e conhece o vínculo e a organização pode testar se um e-mail candidato foi convidado
+        // daqui; o registro fica no armazenamento local do próprio navegador de quem convidou
         guard={{ operation: 'invitation.issue', target: pending?.kind === 'issue' ? pending.email.trim().toLowerCase() : undefined }}
         confirmLabel="Enviar convite"
         stepUp={orgStepUp(org)}
