@@ -47,7 +47,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Senha (passo 1): abre o desafio de MFA; resposta unica para credencial invalida (sem enumeracao) */
+        /**
+         * Senha (passo 1): abre o desafio de MFA; resposta unica para credencial invalida (sem enumeracao)
+         * @description Conta VINCULADA a uma identidade (cadastro ou vinculacao, contrato P3; DC-17.9) nao entra por aqui: o mesmo 401 generico de credencial invalida, sem desafio e sem revelar o vinculo, tambem quando o vinculo acontece enquanto o login espera o lock da conta (a trigger da 017 recusa o desafio). A pessoa entra pela entrada geral e pela troca.
+         */
         post: operations["login"];
         delete?: never;
         options?: never;
@@ -117,7 +120,7 @@ export interface paths {
         put?: never;
         /**
          * Step-up com TOTP na sessao (exigido pelo reset administrativo de MFA)
-         * @description Codigo TOTP errado -> 403 forbidden (step_up); so codigo TOTP (recoveryCode nao aceito).
+         * @description Codigo TOTP errado -> 403 forbidden (step_up); so codigo TOTP (recoveryCode nao aceito). Sessao do login por organizacao: TOTP do fator local, R1/R4, caminho inalterado. Sessao VINCULADA (nascida da troca, contrato P4): TOTP do fator da IDENTIDADE de origem. O CSRF desta sessao de organizacao continua exigido (o CSRF da sessao de identidade nao o substitui) e o cookie __Host-nekkora_id e exigido EM ADICAO, resolvendo exatamente a sessao de identidade que originou esta sessao (unica rota em que os dois cookies valem juntos). Cookie ausente, de outra identidade ou de outra sessao da mesma identidade: 403 sem conferir o codigo. Numa so transacao, na ordem global da 017 (identidade -> sessao de identidade -> organizacao -> conta -> sessao de organizacao), com a revalidacao da sessao de organizacao sob o lock, anti-replay no fator da identidade (um codigo aceito aqui nao serve para outro step-up, global ou de outra organizacao, nem para o login), step-up SO nesta sessao de organizacao (nem na de identidade, nem em outra sessao), eventos mfa_events 6 e identity_events 14 (ORG_STEP_UP) no mesmo commit, e as duas sessoes e a janela do passo reconferidas antes do commit. Codigo errado ou replay: 403, contado em R8m (identidade global). Sessao que caiu durante as esperas: 401, sem efeito.
          */
         post: operations["mfaStepUp"];
         delete?: never;
@@ -169,7 +172,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Troca a propria senha (senha atual errada -> 401) */
+        /**
+         * Troca a propria senha (senha atual errada -> 401)
+         * @description Sessao VINCULADA (conta que entra pela identidade, contrato P3): 403 generico, sem conferir a senha; a senha local nao autentica nem muda depois do vinculo (DC-17.12). A senha da pessoa e a da identidade.
+         */
         post: operations["changePassword"];
         delete?: never;
         options?: never;
@@ -186,7 +192,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Pede a recuperacao de senha: 202 SEMPRE (sem enumeracao) */
+        /**
+         * Pede a recuperacao de senha: 202 SEMPRE (sem enumeracao)
+         * @description Conta vinculada a uma identidade (contrato P3, DC-17.12): nenhum token e nenhum e-mail, e a mesma resposta 202 com o mesmo piso de tempo, inclusive quando o vinculo acontece entre a leitura e o lock da conta. A recuperacao da pessoa e a da identidade.
+         */
         post: operations["requestPasswordReset"];
         delete?: never;
         options?: never;
@@ -228,6 +237,406 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pede o cadastro da identidade: 202 SEMPRE, sem corpo (sem enumeracao de e-mail)
+         * @description Missao 1, desenho 6.1. Fora de /o/{org}. DESLIGADO por padrao (nekkora.cadastro.enabled=false): 404 em qualquer metodo, antes de CSRF e limites. Recebe SO o e-mail: senha e nome sao escolhidos na confirmacao (o pedido que os traz e recusado com 400). E-mail livre: identidade PENDING, SEM credencial, e e-mail de confirmacao. Identidade PENDING: reemissao da confirmacao (R9b). Identidade ACTIVE: so o aviso de conta existente, sem token (R9b). Nada e criado alem disso; a resposta e a mesma em todos os casos, com o piso de tempo da recuperacao, e o e-mail sai fora do caminho da resposta. R9 (10 por IP por hora) e R9b (3 por identidade e 10 por IP por hora) excedidos tambem respondem 202, sem efeito. Nao cria sessao, conta de organizacao nem organizacao.
+         */
+        post: operations["signup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/signup/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Conclui o cadastro com o token de uso unico: a titular define a senha e o nome (PENDING -> ACTIVE)
+         * @description Missao 1, desenho 6.1 e 6.2 (revisao de 2026-10-13). Numa unica transacao autorizada pelo token: identidade e token travados, validade conferida DEPOIS dos locks, token consumido, credencial (Argon2id) gravada, identidade ativada com o nome escolhido. Token de 24 h, uso unico, so o SHA-256 no banco. Nao cria sessao nem organizacao. Token malformado, desconhecido, vencido (inclusive durante a espera), revogado, ja consumido, de identidade fora de PENDING, senha fora da politica ou nome invalido: 400 invalid_request, sem efeito. Desligado: 404.
+         */
+        post: operations["confirmSignup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/signup/confirmation/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reenvia a confirmacao do cadastro: 202 SEMPRE, sem corpo
+         * @description Missao 1, desenho 6.1. So identidade PENDING recebe nova confirmacao (o token anterior e revogado; no maximo um valido). E-mail desconhecido, ACTIVE, malformado ou R9b excedido: 202, sem efeito. Desligado: 404.
+         */
+        post: operations["resendSignupConfirmation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Entrada geral, passo 1 (senha): abre o desafio de identidade; resposta unica para credencial invalida
+         * @description Missao 1, desenho 6.3. Fora de /o/{org}. Identidade inexistente, senha errada, identidade nao confirmada ou nao ACTIVE: 401 identico, com verificacao contra hash ficticio. Sucesso: desafio de 5 min no cookie __Host-nekkora_id_mfa (SameSite=Strict) e o CSRF do desafio no corpo; mfa_enrollment_required se a identidade nunca confirmou fator. Estado, verificacao do e-mail e credencial vigente sao reconferidos sob o lock da identidade antes de emitir o desafio. R8 (identidade global + IP) e R12. Chave propria, separada da do cadastro (nekkora.entrada-geral.enabled, desligada por padrao): desligada, 404.
+         */
+        post: operations["identityLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/mfa/enroll/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cria o TOTP pendente da identidade (identity_mfa_enroll_pending) e devolve a URI otpauth: primeiro fator ou substituicao
+         * @description DOIS modos explicitos, pela credencial apresentada. (1) Desafio de login (cookie __Host-nekkora_id_mfa, CSRF do desafio): primeiro fator, so para identidade que nunca confirmou fator; desafio ausente, vencido, de outro proposito ou recusado pela funcao: 401. (2) Sessao de identidade (cookie __Host-nekkora_id, CSRF da sessao): substituicao autorizada pela DC-17.13, com step-up de ate 5 min (sessao comum) ou dentro de 15 min da marca de recuperacao (sessao restrita); descarta o pendente anterior. Sem essa prova: 403, sem efeito; sessao invalida: 401. Os dois cookies na mesma requisicao: 400 (modo ambiguo), antes de qualquer acesso ao banco. Segredo cifrado com AAD da identidade (sem organizacao). Nenhum papel de organizacao tem autoridade aqui. Entrada geral desligada: 404.
+         */
+        post: operations["identityStartMfaEnrollment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/mfa/enroll/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirma o fator pendente: primeiro fator (emite a sessao) ou substituicao (T1 da DC-17.13); devolve os codigos de recuperacao novos
+         * @description DOIS modos, como em enroll/start. (1) Desafio de login: na MESMA transacao, com a identidade travada, o fator pendente e lido, o TOTP e conferido com o relogio lido depois de qualquer espera, e identity_mfa_confirm_first conclui com o id exato desse fator (consumo do desafio, credencial vigente, confirmacao, codigos e sessao). Codigo errado: tentativa registrada (5 invalidam o desafio) e 401. Sessao de 12 h no cookie __Host-nekkora_id (SameSite=Lax); restricted=false. (2) Sessao de identidade (substituicao): so o TOTP do fator NOVO (recoveryCode presente: 400). Numa so transacao: identidade travada, fator pendente lido sob o lock, TOTP conferido no segredo DESTE fator, identity_mfa_replace com o id exato dele (prova de troca reconferida depois dos locks; fator antigo desabilitado, novo confirmado, codigos antigos invalidados e novos gravados, restricao da sessao levantada, DEMAIS sessoes revogadas, evento 11), passo gravado no fator novo (anti-replay) e, no fim, sessao e janela do passo reconferidas; fora delas, rollback integral. A sessao da requisicao continua, ja sem restricao (restricted=false). Codigos novos mostrados uma unica vez. Aviso NOTICE_MFA_REPLACED ao titular depois do commit; falha do aviso nao desfaz a troca. Sem prova, sem fator pendente, codigo errado, replay ou passo vencido: 403 generico, sem efeito (codigo errado conta em R8m). Sessao que caiu, inclusive durante as esperas: 401. Os dois cookies: 400. Entrada geral desligada: 404.
+         */
+        post: operations["identityConfirmMfaEnrollment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/mfa/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verifica o TOTP ou um codigo de recuperacao (exatamente um); emite a sessao de identidade
+         * @description Na MESMA transacao, com a identidade travada (a troca de fator fica fora do intervalo): o fator confirmado e lido, o TOTP e conferido com o relogio lido depois de qualquer espera (passo vencido durante a espera: 401), e identity_login_complete conclui (consumo do desafio, credencial vigente, anti-replay, sessao); o passo gravado tem de estar no MESMO fator conferido, senao a transacao e desfeita (401). Codigo de recuperacao: sessao RESTRITA (DC-17.13; so cadastrar fator novo e logout ate T1), demais sessoes revogadas, demais desafios invalidados, aviso ao titular. Codigo errado ou passo ja usado: tentativa registrada e 401. Entrada geral desligada: 404.
+         */
+        post: operations["identityVerifyMfa"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Encerra a sessao de identidade atual (idempotente; sem sessao = sem efeito; fora dos limitadores)
+         * @description As sessoes de organizacao derivadas caem na requisicao seguinte (DC-17.4), sem escrita entre organizacoes. SEM CHAVE: disponivel mesmo com o cadastro e a entrada geral desligados (encerrar sessao nunca depende de configuracao). Fora dos limitadores R7/R12 e sem depender do Redis; CSRF da sessao conferido no banco.
+         */
+        post: operations["identityLogout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/step-up": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Step-up da sessao de identidade com o TOTP do fator da identidade (vale 5 min, so nesta sessao)
+         * @description P1 (contrato de 2026-10-13). Sessao de identidade nao restrita (cookie __Host-nekkora_id) e CSRF dela. So o codigo TOTP: recoveryCode NAO e alternativa (code ausente: 400). Numa so transacao, na ordem global da 017: identidade e sessao travadas e reconferidas (ativa, no prazo, nao restrita; identidade ACTIVE), fator lido sob o lock, TOTP, anti-replay no fator (o passo so avanca), marcador de step-up SO nesta sessao, evento 13 (STEP_UP) e a janela do passo reconferida antes do commit. Codigo errado, ja usado ou vencido durante as esperas: 403 generico; codigo errado e replay contam em R8m (identidade global, o mesmo contador da verificacao do login). Sessao que caiu: 401. Sessao restrita a recuperacao (DC-17.13): 403, sem conferir o codigo. R12. Mesma chave da entrada geral: desligada, 404.
+         */
+        post: operations["identityStepUp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Troca a senha da identidade (sessao comum com step-up recente); revoga as demais sessoes
+         * @description Missao 002. Sessao de identidade NAO restrita (cookie __Host-nekkora_id) e CSRF dela; step-up de ate 5 min (POST /api/v1/auth/step-up, so TOTP). Senha nova pela politica da Platform (400). A senha atual e conferida por Argon2 fora de transacao contra o hash vigente; errada: 403 e conta em R8 (identidade global). Numa so transacao, identity_password_change (017) reconfere a prova depois dos locks e so troca se o hash vigente ainda for o conferido; invalida os desafios pendentes, revoga as DEMAIS sessoes (a da requisicao continua) e grava o evento 12. Sem step-up, sessao restrita ou senha trocada no intervalo: 403, sem efeito. Sessao que caiu: 401. Aviso NOTICE_PASSWORD_CHANGED ao titular depois do commit (falha do aviso nao desfaz a troca). O MFA nao muda. R12. Mesma chave da entrada geral: desligada, 404.
+         */
+        post: operations["identityChangePassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/mfa/recovery-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Regenera os codigos de recuperacao da identidade (sessao comum com step-up recente); o conjunto anterior e invalidado
+         * @description Missao 002. Sessao de identidade NAO restrita e CSRF dela; step-up de ate 5 min (so TOTP). Numa so transacao, identity_recovery_codes_regenerate (019) trava identidade, sessao, fator confirmado e codigos vivos, reconfere a prova depois dos locks, invalida o conjunto vivo e grava o novo para o fator vigente, com o evento 15. O conjunto novo e devolvido UMA unica vez (so os hashes ficam no banco). Sem step-up ou sessao restrita: 403, sem efeito. Sessao que caiu: 401. Aviso NOTICE_RECOVERY_CODES_REGENERATED depois do commit. R12. Mesma chave da entrada geral: desligada, 404.
+         */
+        post: operations["identityRegenerateRecoveryCodes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password-reset/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pede a recuperacao de senha da identidade por e-mail: resposta uniforme, sem enumeracao
+         * @description Missao 002 (migration 020). Pre-autenticacao (cookie __Host-nekkora_pre e CSRF dele). Sempre 202 sem corpo, com piso de tempo (recovery-response-floor), para e-mail desconhecido, identidade nao ACTIVE ou nao verificada, limite R14 excedido (identidade global e IP, valores de R5) ou token emitido. So a identidade ACTIVE com e-mail verificado recebe token: sob o lock dela, os tokens de recuperacao vivos sao revogados, o novo e gravado (so o hash; uso unico; prazo de 30 min) e o evento 16 e registrado; o e-mail sai fora do caminho da resposta. E-mail malformado: 400. R12: 429; Redis fora: 503. Chave propria nekkora.recuperacao-senha.enabled, so com a entrada geral ligada: desligada, 404.
+         */
+        post: operations["identityRequestPasswordReset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password-reset/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Conclui a recuperacao: consome o token e troca a senha na mesma transacao; nenhuma sessao criada; MFA preservado
+         * @description Missao 002 (migration 020). Pre-autenticacao. Politica da senha nova e Argon2 antes da transacao; na transacao, identity_password_reset trava identidade, token, credencial, demais tokens de recuperacao, desafios e sessoes, mede a hora depois dos locks e reconfere o prazo; consome o token, troca a senha, revoga TODAS as sessoes de identidade, invalida os desafios pendentes e os demais tokens de recuperacao e grava o evento 17. Nenhuma sessao e criada. O MFA nao muda: a proxima entrada exige o fator ou um codigo de recuperacao. Token malformado, desconhecido, de outro proposito, consumido, revogado ou vencido (inclusive durante a espera), identidade fora de ACTIVE, ou senha fora da politica: 400, sem efeito. Aviso NOTICE_PASSWORD_CHANGED depois do commit. Mesma chave do pedido.
+         */
+        post: operations["identityConfirmPasswordReset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Estado da sessao de identidade do cookie: restricted e o CSRF dela
+         * @description Para a interface retomar a jornada depois de recarregar a pagina. restricted=true: sessao nascida de codigo de recuperacao, antes de concluir a troca do fator (DC-17.13); so cadastrar e confirmar o fator novo e logout. Lido do banco a cada requisicao. Sem sessao valida: 401. Mesma chave da entrada geral: desligada, 404.
+         */
+        get: operations["identitySessionState"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/organizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Organizacoes em que a identidade pode entrar (vinculo ACTIVE, conta elegivel, organizacao ativa)
+         * @description Missao 1, desenho 6.4. Sessao de identidade (cookie __Host-nekkora_id), sem organizacao. A lista vem inteira de identity_organizations (017), com a mesma elegibilidade da emissao. Lista vazia e resposta legitima (identidade recem-confirmada). activationState (022) indica, por organizacao, se ela ainda aguarda a ativacao (capacidade de execucao zero) ou ja foi ativada pela operacao; e independente da situacao administrativa. canCreateOrganization (P2) e SO indicacao para a interface: chave da criacao de organizacao ligada, sessao nao restrita e identity_org_creation_allowed (R5 da 017) verdadeira (identidade ACTIVE e verificada, menos de 10 organizacoes criadas pelo cadastro). O step-up nao entra no calculo (e pedido na hora); a criacao reconfere tudo na funcao de escrita. Sessao restrita a recuperacao (DC-17.13): 403. R12. Mesma chave da entrada geral (nekkora.entrada-geral.enabled): desligada, 404.
+         */
+        get: operations["identityOrganizations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cria uma organizacao com a identidade como ORG_ADMIN (exige step-up da identidade de ate 5 min)
+         * @description P2 (contrato de 2026-10-13). Sessao de identidade nao restrita (cookie __Host-nekkora_id) e CSRF dela. Corpo: name e legalName opcional, cada um com 1 a 120 pontos de codigo, sem espaco nas pontas e sem caractere de controle (fora disso: 400). Uma transacao que chama so identity_create_organization: a funcao reconfere, sob o lock da identidade, sessao nao restrita, step-up de ate 5 min, identidade ACTIVE e verificada e o teto de 10, e cria organizacao, conta, vinculo, ORG_ADMIN e o evento 6 (ORG_CREATED) no mesmo commit. Recusa da funcao: 403 generico; sessao que caiu: 401. R11 (3 reservas por identidade a cada 24 h; devolvidas quando a criacao comprovadamente nao aconteceu, mantidas em resultado desconhecido; Redis fora: 503) e R12. Chave propria (nekkora.criacao-organizacao.enabled) e a da entrada geral: qualquer uma desligada, 404. Em seguida, a troca (/api/v1/sessions/organization) da a sessao de organizacao.
+         */
+        post: operations["identityCreateOrganization"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/links/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Vinculacao, etapa 1: prova da conta antiga (senha + TOTP ou codigo de recuperacao da conta); 204 + cookie do desafio
+         * @description P3 (contrato de 2026-10-13). Sessao de identidade nao restrita (cookie __Host-nekkora_id) e CSRF dela. A conta e procurada pelo e-mail da propria identidade na organizacao pedida: a pessoa nunca informa outro e-mail, outra conta ou outra pessoa, e nenhum administrador vincula em nome de alguem. Corpo: organizationId, password e EXATAMENTE um de code (TOTP da conta) e recoveryCode (codigo de recuperacao da conta); nenhum ou os dois, password ausente ou organizationId malformado: 400. Argon2 fora da transacao (hash ficticio quando nao ha conta, mesmo custo); depois, numa transacao, na ordem global da 017: identidade e sessao travadas e reconferidas, organizacao FOR SHARE, conta FOR UPDATE (credencial IGUAL a conferida pelo Argon2, conta interna elegivel e nao vinculada, mesmo e-mail), fator local com anti-replay (passo so avanca) ou codigo local consumido (evento mfa_events 2 e aviso, como no login), revogacao do desafio anterior da identidade e o desafio novo, amarrado ao par exato identidade/conta, valido por 5 min; a sessao e a janela do passo sao reconferidas antes do commit. Sucesso: 204 e o cookie __Host-nekkora_link (SameSite=Strict, Max-Age=300); a etapa 1 NAO vincula. QUALQUER falha da prova: o mesmo 401, sem distinguir conta inexistente, senha errada, codigo errado, conta inelegivel, organizacao inativa ou conta ja vinculada. R13 (5 falhas em 15 min por identidade e por conta alvo; falha fechada) e R12. Sessao restrita a recuperacao: 403. Chave propria (nekkora.vinculacao.enabled) e a da entrada geral: qualquer uma desligada, 404.
+         */
+        post: operations["identityLinkStart"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/links/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Vinculacao, etapa 2: prova da identidade (step-up de ate 5 min) e consumo do desafio; fecha a entrada local da conta
+         * @description P3. Sessao de identidade nao restrita COM step-up de ate 5 min (/api/v1/auth/step-up), o cookie __Host-nekkora_link da etapa 1 e o CSRF da sessao de identidade. Uma transacao que chama so identity_link_account (017): sob os seus locks, a funcao reconfere step-up, conta, e-mail e ausencia de vinculo e consome o desafio so se ele for da identidade da sessao, estiver no prazo e a credencial da conta ainda for a da etapa 1; no mesmo commit, revoga as sessoes da organizacao da conta, invalida desafios, tokens e codigos locais, desabilita o fator local, grava o vinculo (link_channel vinculacao) e o evento 9 (IDENTITY_LINKED). Depois do commit, aviso ao endereco. Sucesso: 204; recusa da funcao (sem step-up, desafio ausente, vencido, de outra identidade, substituido ou ja usado, credencial trocada, conta inelegivel ou ja vinculada): 403 generico, sem efeito. Nos dois casos o cookie do desafio expira. Em seguida, a pessoa entra na organizacao pela troca (/api/v1/sessions/organization). R12. Chaves: as mesmas da etapa 1.
+         */
+        post: operations["identityLinkConfirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/organization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Troca a sessao de identidade por sessao de organizacao; resposta unica para qualquer recusa
+         * @description Missao 1, desenho 6.5 e DC-17.6. identity_org_session_target indica a candidata; a emissao, em transacao de organizacao READ COMMITTED, trava a organizacao antes de tudo, e a trigger da 017 reconfere vinculo, sessao de identidade (ativa, nao restrita), identidade e elegibilidade da conta, da organizacao e do vinculo interno. Sucesso: sessao de organizacao no cookie __Host-nekkora_session (SameSite=Lax), com o marcador de MFA herdado e prazo que nao passa o da sessao de identidade; as rotas /api/v1/o/{org}/... funcionam sem alteracao, e a sessao cai na requisicao seguinte se a sessao de identidade for encerrada (DC-17.4). Organizacao inexistente, suspensa ou encerrada, sem vinculo, vinculo inativo, conta inelegivel ou mudanca entre a resolucao e a emissao: 200 sem_acesso, sem distinguir a causa. As duas respostas 200 tem o mesmo piso de tempo. R10 (por sessao de identidade) e R12. organizationId malformado ou ausente: 400. Sessao restrita a recuperacao: 403. Mesma chave da entrada geral: desligada, 404.
+         */
+        post: operations["exchangeOrganizationSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invitations/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Aceita convite pela identidade (step-up de ate 5 min); nenhuma vinculacao por igualdade de e-mail
+         * @description Contrato de 2026-10-27, secao 4.3. Sessao de identidade nao restrita COM step-up (/api/v1/auth/step-up) e CSRF dela. A organizacao vai no corpo e chega antes do token: o hash so e procurado dentro dela. Uma transacao que chama so identity_accept_invitation (023): identidade -> sessao -> organizacao (ATIVA) -> convite -> contas; hora medida depois dos locks; reconfere step-up, prazo, e-mail do convite = e-mail da identidade e a AUTORIDADE DO EMISSOR no instante do aceite. Sem conta na organizacao: cria conta interna ativa (e-mail verificado da identidade), vinculo, o papel do convite (atribuido pelo emissor) e a ligacao (link_channel convite). Conta ligada com vinculo retirado: readmissao. Destinataria sem identidade: conclui antes o cadastro (/api/v1/signup); o convite nao cadastra. Convite inexistente, vencido, revogado, ja aceito, de outro e-mail, de emissor sem autoridade ou organizacao nao ativa: 404 unico, sem efeito. 409: already_member (ja membro ativo), account_exists (conta da organizacao com o e-mail, nao ligada a esta identidade: use /api/v1/links/*), account_unavailable (conta ligada suspensa ou vinculo inativo nao retirado). Depois, a troca (/api/v1/sessions/organization). Chaves nekkora.convites.enabled e nekkora.entrada-geral.enabled: desligada, 404.
+         */
+        post: operations["acceptInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/me": {
         parameters: {
             query?: never;
@@ -235,7 +644,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Conta autenticada (allowlist: tipo, nome, e-mail, organizacao) */
+        /** Conta autenticada (allowlist: tipo, nome, e-mail, organizacao e o estado de ativacao dela) */
         get: operations["getMe"];
         put?: never;
         post?: never;
@@ -291,7 +700,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reset administrativo de MFA (identity.mfa.reset + step-up recente na mesma sessao + motivo codificado) */
+        /**
+         * Reset administrativo de MFA (identity.mfa.reset + step-up recente na mesma sessao + motivo codificado)
+         * @description Conta alvo VINCULADA a uma identidade (contrato P3, parecer de 2026-10-19): 403 generico, conferido sob o lock da conta e antes de qualquer efeito (nenhuma sessao revogada, nenhum evento, nenhum aviso). O fator dessa pessoa e o da identidade, que nenhuma autoridade de organizacao redefine.
+         */
         post: operations["resetUserMfa"];
         delete?: never;
         options?: never;
@@ -308,8 +720,260 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Revoga a concessao externa (external_access.manage); idempotente */
+        /**
+         * Revoga a concessao externa (external_access.manage); idempotente
+         * @description Desde a 023: trava a organizacao antes da concessao, audita (access_events 13, so quando muda) e aceita concessao PENDENTE (cancelada antes da aprovacao; antes da 023 o CHECK da 003 fazia esta rota responder 500 para pendente).
+         */
         post: operations["revokeClientGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Convites da organizacao (org.manage), sem token nem hash; ate 200, os mais recentes
+         * @description state=pending (padrao): abertos no prazo; state=all: todos, com o estado derivado (PENDENTE, EXPIRADO, ACEITO, REVOGADO).
+         */
+        get: operations["listInvitations"];
+        put?: never;
+        /**
+         * Emite convite para a organizacao (org.manage e autoridade sobre o papel; step-up)
+         * @description Contrato de 2026-10-27, secao 4 (023). Corpo: email e, opcional, um papel: ORG_ADMIN (sem workspaceId) ou WORKSPACE_ADMIN/OPERATOR/VIEWER com workspaceId de workspace ativo da organizacao. Exige org.manage, a permissao de atribuir o papel (role.assign_admin_roles ou role.assign_operator_viewer) e step-up de ate 5 min na mesma sessao, reconferidos depois do lock da organizacao. Prazo de 7 dias; token de 32 bytes so no e-mail (fila cifrada, link /o/{org}/convite#token=), o banco guarda o SHA-256. Um convite aberto por organizacao e e-mail: outro aberto e no prazo -> 409 (use o reenvio); um aberto vencido e fechado (motivo EXPIRADO) no mesmo ato. Destinataria ja cadastrada na organizacao -> 409, exceto a readmissao (conta ligada a identidade, ativa, com vinculo retirado). Auditoria (access_events 1). Chave nekkora.convites.enabled com a entrada geral: desligada, 404.
+         */
+        post: operations["issueInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/invitations/{invitation}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoga convite (org.manage, sem step-up); idempotente
+         * @description Ja revogado: 204 sem efeito novo. Aceito: 409. Auditoria (access_events 2).
+         */
+        post: operations["revokeInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/invitations/{invitation}/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reenvia: revoga o convite aberto (motivo REENVIADO) e emite um novo com token e prazo novos (como a emissao; step-up)
+         * @description So convite aberto (no prazo ou vencido); aceito, revogado ou ja substituido: 409. O token anterior deixa de valer no mesmo ato. Auditoria (access_events 3).
+         */
+        post: operations["resendInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/users/{user}/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Papeis ativos do membro (org.manage) */
+        get: operations["listMemberRoles"];
+        put?: never;
+        /**
+         * Atribui papel (autoridade sobre o papel; step-up); repeticao devolve a existente
+         * @description Contrato, secao 5. ORG_ADMIN e WORKSPACE_ADMIN: role.assign_admin_roles organizacional. OPERATOR e VIEWER: role.assign_operator_viewer organizacional ou de WORKSPACE_ADMIN no MESMO workspace. Nunca o proprio ator (403). Alvo com vinculo e conta ativos (senao 409); de outra organizacao ou workspace inexistente: 404. A 023 confere a mesma regra no banco (42501 -> 403). Auditoria (access_events 5) e aviso ao alvo.
+         */
+        post: operations["assignRole"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/role-assignments/{assignment}/replace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Altera o papel no mesmo escopo (revoga e cria numa transacao; step-up)
+         * @description Autoridade sobre o papel atual e o novo. Mesmo papel: sem efeito. Novo papel ja ativo: 409. Escopo diferente: 400. Auditoria (access_events 7, com o papel anterior).
+         */
+        post: operations["replaceRole"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/role-assignments/{assignment}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoga papel (autoridade sobre o papel, sem step-up); idempotente
+         * @description Ja revogada: 204 sem efeito. Nunca o proprio ator (403). Ultimo ORG_ADMIN efetivo: 403 (003). A permissao e relida a cada requisicao: o papel deixa de valer na proxima, sem revogar sessoes. Auditoria (access_events 6) e aviso.
+         */
+        post: operations["revokeRole"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/users/{user}/membership/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retira o vinculo (org.manage, sem step-up); idempotente
+         * @description Contrato, secao 6. Na mesma transacao: papeis ativos revogados, vinculo REVOKED, sessoes da organizacao da conta revogadas e desafios invalidados. A conta e a ligacao com a identidade continuam (historico); sessoes, fator e codigos da identidade NAO mudam. Nunca o proprio ator (403); ultimo ORG_ADMIN: 403. Auditoria (access_events 8) e aviso. Readmissao: so por convite novo.
+         */
+        post: operations["revokeMembership"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista concessoes de acesso externo (exige external_access.manage)
+         * @description EXCECAO documentada a regra geral do 404: clientId/workspaceId sao filtros de rota organizacional. Inexistente ou de outra organizacao -> 200 com items vazio (nao revela existencia). UUID malformado -> 400.
+         */
+        get: operations["listClientGrants"];
+        put?: never;
+        /**
+         * Cria concessao PENDENTE (external_access.manage)
+         * @description Contrato, secao 7. Vinculo de cliente e cliente ativos, conta externa ativa e workspace ativo do MESMO cliente (senao 404). Uma concessao nao revogada por vinculo e workspace: 409. Sem acesso ate a aprovacao. Quem cria fica gravado como solicitante (024) e os valores pedidos (startsAt, nextReviewAt obrigatorio e futuro, expiresAt) ficam imutaveis ate a decisao: a aprovacao aplica exatamente esses valores (D-GRANT-1a). Auditoria (access_events 9).
+         */
+        post: operations["createClientGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-grants/{grant}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Aprova: PENDENTE -> ATIVA, aprovacao INITIAL (step-up)
+         * @description Aprovacao vinculada aos valores pedidos (D-GRANT-1a, 024): nextReviewAt e expiresAt sao os valores que o aprovador conferiu e precisam ser IGUAIS aos pedidos na criacao (diferentes: 409 valores_divergentes; proxima revisao pedida ja vencida: 409 proxima_revisao_vencida). Fora de PENDENTE: 409. Segunda pessoa (D-GRANT-1, 024): aprovador igual ao solicitante: 403; concessao sem solicitante gravado (anterior a 024): 409 (revogue e crie de novo). A 023 e a 024 conferem no banco a permissao do aprovador, a separacao e os valores. Auditoria (access_events 10).
+         */
+        post: operations["approveClientGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-grants/{grant}/renew": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pede renovacao (ATIVA ou SUSPENSA): grava o pedido, sem mudar o acesso
+         * @description D-GRANT-1a (024): toda extensao de uma concessao aprovada (proxima revisao ou prazo mais tarde, prazo removido, SUSPENSA -> ATIVA) e um pedido seguido da aprovacao de OUTRA pessoa (/renew/approve) com exatamente os valores pedidos. justification obrigatoria; nextReviewAt futuro; expiresAt nulo = sem prazo. Um pedido novo substitui o anterior; qualquer mudanca de validade (KEEP com data mais cedo, suspensao, revogacao, outra aprovacao) descarta o pedido pendente. Sem step-up (o pedido nao amplia nada). Outros estados: 409. Auditoria (access_events 14).
+         */
+        post: operations["requestClientGrantRenewal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-grants/{grant}/renew/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Aprova o pedido de renovacao: -> ATIVA, aprovacao RENEWAL (step-up, outra pessoa)
+         * @description nextReviewAt e expiresAt sao os valores que o aprovador conferiu e precisam ser IGUAIS aos do pedido (diferentes: 409 valores_divergentes). O solicitante nao aprova (403). Sem pedido pendente (nunca houve ou caiu com uma mudanca de validade): 409 sem_renovacao_pendente; proxima revisao pedida ja vencida: 409 proxima_revisao_vencida. Os valores anteriores, os novos e o solicitante ficam na aprovacao (003/024). O banco confere de novo. Auditoria (access_events 11).
+         */
+        post: operations["approveClientGrantRenewal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-grants/{grant}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revisao periodica: KEEP (step-up, sem estender), SUSPEND ou REVOKE
+         * @description KEEP e SUSPEND so em ATIVA; REVOKE em ATIVA ou SUSPENSA; outros: 409. KEEP (D-GRANT-1a, 024): sem nextReviewAt ou com a mesma data, so registra a revisao; com data mais cedo (futura), reduz; data mais tarde estenderia o acesso: 409 keep_estenderia_prazo (use o pedido de renovacao). Reducao, suspensao e revogacao descartam o pedido de renovacao pendente. A revisao fica na tabela propria da 003. Auditoria (access_events 12, com a decisao).
+         */
+        post: operations["reviewClientGrant"];
         delete?: never;
         options?: never;
         head?: never;
@@ -424,26 +1088,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/o/{org}/client-grants": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Lista concessoes de acesso externo (exige external_access.manage)
-         * @description EXCECAO documentada a regra geral do 404: clientId/workspaceId sao filtros de rota organizacional. Inexistente ou de outra organizacao -> 200 com items vazio (nao revela existencia). UUID malformado -> 400.
-         */
-        get: operations["listClientGrants"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/o/{org}/clients": {
         parameters: {
             query?: never;
@@ -453,6 +1097,26 @@ export interface paths {
         };
         /** Lista clientes (org.manage ou external_access.manage) */
         get: operations["listClients"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/access-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Auditoria dos atos de acesso (org.manage), do mais recente ao mais antigo
+         * @description So identificadores e codigos (sem e-mail nem token). Paginacao keyset com cursor assinado, como as demais listas internas.
+         */
+        get: operations["listAccessEvents"];
         put?: never;
         post?: never;
         delete?: never;
@@ -471,7 +1135,11 @@ export interface paths {
         /** Workspaces visiveis (automation.read efetivo); sem nenhum -> lista vazia */
         get: operations["listWorkspaces"];
         put?: never;
-        post?: never;
+        /**
+         * Cria um workspace interno da organizacao
+         * @description Exige workspace.lifecycle (permissao da organizacao). Nasce ACTIVE. Auditado (automation_admin_events, ato 1).
+         */
+        post: operations["createWorkspace"];
         delete?: never;
         options?: never;
         head?: never;
@@ -505,7 +1173,11 @@ export interface paths {
         /** Automacoes do workspace (automation.read em W; sem acesso -> 404) */
         get: operations["listAutomations"];
         put?: never;
-        post?: never;
+        /**
+         * Cadastra uma automacao no workspace
+         * @description Exige automation.manage no workspace (papel da organizacao ou do proprio workspace); workspace ACTIVE, senao 409. Sem acesso: 404. Auditado (ato 2).
+         */
+        post: operations["createAutomation"];
         delete?: never;
         options?: never;
         head?: never;
@@ -539,7 +1211,11 @@ export interface paths {
         /** Versoes da automacao (sem command_json) */
         get: operations["listAutomationVersions"];
         put?: never;
-        post?: never;
+        /**
+         * Cria uma versao DRAFT (numero atribuido pelo banco)
+         * @description Exige automation.manage no workspace da automacao; automacao e workspace ACTIVE, senao 409. O numero e MAX+1 com a automacao travada (005): criacoes concorrentes nunca repetem numero. command_json nasce com contract_version 1, runtime, entrypoint main.py, arguments, parameters e secret_bindings vazios; o artefato vem pelo PUT do artefato. Auditado (ato 3).
+         */
+        post: operations["createAutomationVersion"];
         delete?: never;
         options?: never;
         head?: never;
@@ -680,13 +1356,345 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/agent-enrollments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cria o codigo de pareamento de um Agent a um Worker (step-up)
+         * @description Exige agent.manage, agent_credential.manage e worker_agent.assign (e worker.manage ao criar o Worker) e step-up recente. workerId OU workerName (cria o Worker; a 010 confere WORKERS_REGISTERED). Worker com Agent ativo: 409. O codigo nkp1 aparece SO nesta resposta (Cache-Control no-store); o banco guarda o SHA-256. Validade de 5 a 60 minutos (padrao 15). A 025 reconfere a autoridade na criacao e no resgate. Auditoria (agent_admin_events 1 e 7).
+         */
+        post: operations["createAgentPairingCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/agent-enrollments/{enrollment}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancela um codigo ainda nao usado
+         * @description Exige agent_credential.manage. Consumido ou ja cancelado: 409. Auditoria (agent_admin_events 2).
+         */
+        post: operations["cancelAgentCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista os Agents da organizacao
+         * @description Exige agent.manage. Identidade, Worker, versao informada, ultimo contato, conectividade (CONNECTED ate 180 s do ultimo heartbeat), capacidades e validade da credencial; nunca o hash.
+         */
+        get: operations["listAgents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/agents/{agent}/credential-rotations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cria o codigo de rotacao da credencial (step-up)
+         * @description Exige agent_credential.manage e step-up. O Agent resgata o codigo apresentando a credencial atual; a anterior e revogada (motivo 1) na mesma transacao. Agent inexistente ou sem associacao ativa: 404. Auditoria (agent_admin_events 4).
+         */
+        post: operations["createAgentRotationCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/agents/{agent}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoga o Agent (step-up)
+         * @description Exige agent.manage e step-up. reason COMPROMISED (motivo 3) ou ADMINISTRATIVE (4). Na mesma transacao: credencial revogada, associacao com o Worker encerrada, codigos abertos cancelados, Agent REVOKED. Efeito imediato no canal (atos em curso terminam antes). Ja revogado: 409. Auditoria (agent_admin_events 6).
+         */
+        post: operations["revokeAgent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/workers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista os Workers
+         * @description Exige worker.manage. Situacao, Agent associado e workspaces autorizados.
+         */
+        get: operations["listWorkers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/workers/{worker}/workspaces/{workspace}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Autoriza o Worker no workspace (step-up)
+         * @description Exige worker_workspace.authorize e step-up. Idempotente: ja autorizado devolve 200 com a mesma associacao. Worker ou workspace nao ativo: 409. Auditoria (agent_admin_events 8).
+         */
+        put: operations["authorizeWorkerInWorkspace"];
+        post?: never;
+        /**
+         * Revoga a autorizacao do Worker no workspace
+         * @description Exige worker_workspace.authorize. As autorizacoes de execucao local desse Worker no workspace deixam de ser entregues ao Agent. Auditoria (agent_admin_events 9).
+         */
+        delete: operations["revokeWorkerInWorkspace"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/workspaces/{workspace}/local-run-authorizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista as autorizacoes de execucao local do workspace
+         * @description Exige automation.read no workspace.
+         */
+        get: operations["listLocalRunAuthorizations"];
+        put?: never;
+        /**
+         * Autoriza execucao local de uma versao publicada num Worker (step-up)
+         * @description Exige automation.execute no workspace e step-up. Vincula organizacao, workspace, Worker AUTORIZADO no workspace, versao PUBLICADA e o pacote imutavel (packageFingerprint = command_json.agent_package.fingerprint da versao, com agent_package.fingerprint_rule = nekkora-agent/package-fingerprint/1; NAO e command_json.artifact.sha256, que mede os bytes do artefato). validUntil posterior a agora e ate 366 dias (fora disso, 400); automacao ou workspace inativo, 409. Versao rascunho ou sem artefato, ou Worker sem autorizacao no workspace: 409. A 025 reconfere tudo no banco. Auditoria (agent_admin_events 10).
+         */
+        post: operations["createLocalRunAuthorization"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/workspaces/{workspace}/local-run-authorizations/{authorization}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoga uma autorizacao de execucao local
+         * @description Exige automation.execute no workspace. Limite declarado: uma maquina desconectada so ve a revogacao no proximo download das autorizacoes; execucoes ja feitas continuam sendo fatos aceitos e marcados (authorizationStateAtRegistration). Auditoria (agent_admin_events 11).
+         */
+        post: operations["revokeLocalRunAuthorization"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/agent-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Execucoes locais registradas pelo Agent
+         * @description automation.read no workspace de cada execucao (regra unica de acesso por workspace). Ordem estavel (registeredAt, runId) com cursor assinado. Filtros workspaceId, automationId, state (READY ... OUTCOME_UNKNOWN), from/to (registro). Cada item traz a correlacao, a origem, o desfecho do supervisor e as quatro dimensoes do contrato (processo, resultado, transporte, historico com motivos).
+         */
+        get: operations["listAgentRuns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/agent-runs/{run}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Uma execucao local registrada pelo Agent
+         * @description Como a listagem, mais as transacoes vistas nos eventos do Framework (so codigos e contagens). Sem acesso ao workspace ou de outra organizacao: 404.
+         */
+        get: operations["getAgentRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/agent-runs/{run}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Etapas reais da execucao, em ordem de sequence
+         * @description So os campos do envelope OBS 1.0.0 (sem texto livre); ordem de observacao do Agent (sequence), nunca o relogio. Numeros declarados ausentes nao viram evento. Cursor assinado.
+         */
+        get: operations["listAgentRunEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/automation-versions/{version}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Versao com estado, comando, artefato e impressao do pacote
+         * @description Exige automation.read no workspace. artifact.sha256 (bytes do ZIP) e agentPackage.fingerprint (regra nekkora-agent/package-fingerprint/1) sao medidas diferentes. provenance=DECLARED: o gerador vem do manifesto, nao e prova de origem.
+         */
+        get: operations["getAutomationVersion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Altera runtime e argumentos de uma versao DRAFT
+         * @description Exige automation.manage. Versao PUBLISHED e imutavel: 409 (uma mudanca exige nova versao). Auditado (ato 4).
+         */
+        patch: operations["updateAutomationVersionDraft"];
+        trace?: never;
+    };
+    "/api/v1/o/{org}/automation-versions/{version}/artifact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Recebe o pacote do Studio (ZIP) de uma versao DRAFT e o confere
+         * @description Exige automation.manage; corpo application/zip ate 50 MiB com Content-Length. O servidor nao executa nada: le o ZIP pelo diretorio central (sem cifragem, ZIP64, ligacao simbolica, caminho absoluto ou com .., nome repetido), confere o manifesto nekkora-studio/codegen-manifest 1.4+ e cada arquivo listado pelo hash declarado, recusa pacote que pede segredo, calcula o sha256 dos bytes e a impressao package-fingerprint/1 e grava os bytes no armazenamento da API (chave = sha256). A versao passa a referenciar 'nekkora-artifact:<artifactId>' (nunca caminho ou URL do cliente). Os mesmos bytes de novo: idempotente. Recusa do pacote: 422 com motivo de vocabulario fechado. Versao publicada: 409. Armazenamento nao configurado: 503. Auditado (ato 5).
+         */
+        put: operations["putAutomationVersionArtifact"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/automation-versions/{version}/artifact/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Bytes preservados do artefato da versao (conferidos pelo sha256)
+         * @description Exige automation.manage. Bytes relidos e conferidos: ausente ou corrompido no armazenamento, 409. Cache-Control no-store; X-Artifact-Sha256.
+         */
+        get: operations["getAutomationVersionArtifactContent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/automation-versions/{version}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publica a versao DRAFT (step-up; irreversivel)
+         * @description Exige automation.publish no workspace e step-up recente na mesma sessao. A pessoa confirma o que conferiu (expectedArtifactSha256 e expectedPackageFingerprint): diferente do rascunho atual, 409. Os bytes guardados sao relidos e conferidos (hash e impressao) antes da transacao; ausentes ou corrompidos, 409. Na mesma transacao: DRAFT -> PUBLISHED com autoria e instante do servidor, e o gatilho da 028 reconfere o vinculo com o artefato e a autoridade de quem publica. Repeticao com a mesma expectativa (resposta perdida): 200 com a versao ja publicada; outra expectativa: 409. Concorrentes: uma publica, as demais veem a mesma publicacao. Publicar NAO autoriza nem dispara execucao (a autorizacao de execucao local e outro ato). Auditado (ato 6).
+         */
+        post: operations["publishAutomationVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "unauthenticated" | "forbidden" | "not_found" | "rate_limited" | "internal_error" | "service_unavailable";
+            error: "invalid_request" | "unauthenticated" | "forbidden" | "not_found" | "conflict" | "already_member" | "account_exists" | "account_unavailable" | "rate_limited" | "internal_error" | "service_unavailable" | "unsupported_contract";
         };
         /**
          * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
@@ -959,6 +1967,31 @@ export interface components {
             code?: string;
             recoveryCode?: string;
         } & (unknown | unknown);
+        IdentityEnrollmentConfirmation: {
+            recoveryCodes: string[];
+            csrfToken: string;
+            /** @enum {boolean} */
+            restricted: false;
+        };
+        IdentityFactorReplacement: {
+            /** @description Conjunto novo; o anterior foi invalidado. Mostrado uma unica vez */
+            recoveryCodes: string[];
+            /** @enum {boolean} */
+            restricted: false;
+        };
+        IdentitySessionIssued: {
+            csrfToken: string;
+            /** @description true: sessao nascida de codigo de recuperacao (DC-17.13), restrita ate concluir a troca do fator */
+            restricted: boolean;
+        };
+        RecoveryCodes: {
+            /** @description Conjunto novo; o anterior foi invalidado. Mostrado uma unica vez */
+            recoveryCodes: string[];
+        };
+        IdentitySessionState: {
+            restricted: boolean;
+            csrfToken: string;
+        };
         EnrollmentConfirmation: {
             recoveryCodes: string[];
             csrfToken: string;
@@ -983,6 +2016,280 @@ export interface components {
         TokenBody: {
             token: string;
         };
+        /** @description Pedido de cadastro: SO o e-mail, sem espacos nas pontas nem internos, com um @, ate 254 caracteres (comparado em minusculas). password ou displayName presentes: 400 (pertencem a confirmacao). */
+        SignupRequest: {
+            email: string;
+        };
+        /** @description Conclusao do cadastro pela titular do e-mail: token recebido, senha pela politica atual (12-128 pontos de codigo, sem regras de composicao) e nome (ate 120 pontos de codigo, nao em branco, sem caracteres de controle). */
+        SignupConfirmation: {
+            token: string;
+            /** Format: password */
+            password: string;
+            displayName: string;
+        };
+        IdentityOrganizationList: {
+            organizations: {
+                /** Format: uuid */
+                organizationId: string;
+                name: string;
+                /** @description codigos dos papeis ativos do vinculo interno, em ordem */
+                roles: string[];
+                activationState: components["schemas"]["OrganizationActivationState"];
+            }[];
+            /** @description so indicacao para a interface (P2): chave da criacao ligada e identity_org_creation_allowed verdadeira; a criacao reconfere tudo */
+            canCreateOrganization: boolean;
+        };
+        OrganizationCreateRequest: {
+            /** @description 1 a 120 pontos de codigo, sem espaco nas pontas, sem caractere de controle */
+            name: string;
+            /** @description opcional; mesma regra de name */
+            legalName?: string;
+        };
+        OrganizationCreated: {
+            /** Format: uuid */
+            organizationId: string;
+        };
+        /** @description Etapa 1 da vinculacao: EXATAMENTE um entre code (TOTP da conta antiga) e recoveryCode (codigo de recuperacao da conta antiga); nenhum ou os dois -> 400. */
+        LinkStartRequest: {
+            /**
+             * Format: uuid
+             * @description UUID canonico; malformado -> 400
+             */
+            organizationId: string;
+            /**
+             * Format: password
+             * @description senha da conta antiga (nao a da identidade)
+             */
+            password: string;
+            code?: string;
+            recoveryCode?: string;
+        };
+        LinkConfirmRequest: {
+            /**
+             * Format: uuid
+             * @description UUID canonico; malformado ou ausente -> 400
+             */
+            organizationId: string;
+        };
+        OrganizationSessionRequest: {
+            /**
+             * Format: uuid
+             * @description UUID canonico; malformado -> 400
+             */
+            organizationId: string;
+        };
+        OrganizationSessionResult: {
+            /** @enum {string} */
+            status: "sessao_criada" | "sem_acesso";
+            /** @description so em sessao_criada: CSRF da sessao de organizacao */
+            csrfToken?: string;
+        };
+        SignupResendRequest: {
+            email: string;
+        };
+        InvitationRequest: {
+            /** @description normalizado em minusculas; forma invalida -> 400 */
+            email: string;
+            role?: components["schemas"]["RoleCode"];
+            /**
+             * Format: uuid
+             * @description obrigatorio com papel de workspace; proibido com ORG_ADMIN ou sem papel
+             */
+            workspaceId?: string;
+        };
+        InvitationCreated: {
+            /** Format: uuid */
+            invitationId: string;
+            email: string;
+            /** @enum {string|null} */
+            role: "ORG_ADMIN" | "WORKSPACE_ADMIN" | "OPERATOR" | "VIEWER" | null;
+            /** Format: uuid */
+            workspaceId: string | null;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        InvitationList: {
+            items: {
+                /** Format: uuid */
+                invitationId: string;
+                email: string;
+                role: string | null;
+                /** Format: uuid */
+                workspaceId: string | null;
+                /** @enum {string} */
+                state: "PENDENTE" | "EXPIRADO" | "ACEITO" | "REVOGADO";
+                /** Format: date-time */
+                createdAt: string;
+                /** Format: date-time */
+                expiresAt: string;
+                /** Format: date-time */
+                acceptedAt: string | null;
+                /** Format: date-time */
+                revokedAt: string | null;
+                /**
+                 * @description EMISSOR_SEM_AUTORIDADE (024): fechado pelo banco quando o emissor perdeu a autoridade; nunca volta a valer
+                 * @enum {string|null}
+                 */
+                revokeReason: "REVOGADO" | "REENVIADO" | "EXPIRADO" | "EMISSOR_SEM_AUTORIDADE" | null;
+                /**
+                 * Format: uuid
+                 * @description conta (user_id) do emissor
+                 */
+                issuedBy: string;
+                /** Format: uuid */
+                replacesInvitationId: string | null;
+            }[];
+        };
+        InvitationAcceptRequest: {
+            /**
+             * Format: uuid
+             * @description UUID canonico; malformado ou ausente -> 400
+             */
+            organizationId: string;
+            /** @description token do link do convite (fragmento #token=); nunca vai a log */
+            token: string;
+        };
+        InvitationAccepted: {
+            /** Format: uuid */
+            organizationId: string;
+        };
+        RoleRequest: {
+            role: components["schemas"]["RoleCode"];
+            /**
+             * Format: uuid
+             * @description na atribuicao: obrigatorio com papel de workspace; na alteracao: proibido (o escopo e o da atribuicao atual)
+             */
+            workspaceId?: string;
+        };
+        RoleAssignment: {
+            /** Format: uuid */
+            assignmentId: string;
+            role: components["schemas"]["RoleCode"];
+            /** Format: uuid */
+            workspaceId: string | null;
+        };
+        MemberRoles: {
+            /** Format: uuid */
+            userId: string;
+            /** Format: uuid */
+            membershipId: string;
+            /** @enum {string} */
+            membershipState: "PENDENTE" | "ATIVO" | "SUSPENSO" | "RETIRADO";
+            organizationRoles: components["schemas"]["RoleAssignment"][];
+            workspaceRoles: components["schemas"]["RoleAssignment"][];
+        };
+        GrantCreateRequest: {
+            /** Format: uuid */
+            clientMembershipId: string;
+            /** Format: uuid */
+            workspaceId: string;
+            /**
+             * Format: date-time
+             * @description padrao: agora
+             */
+            startsAt?: string;
+            /**
+             * Format: date-time
+             * @description depois de startsAt
+             */
+            expiresAt?: string;
+            /**
+             * Format: date-time
+             * @description obrigatorio e futuro (024): proxima revisao pedida
+             */
+            nextReviewAt: string;
+        };
+        GrantApprovalRequest: {
+            /**
+             * Format: date-time
+             * @description pedido: futuro; aprovacao: igual ao pedido
+             */
+            nextReviewAt: string;
+            /**
+             * Format: date-time
+             * @description pedido: depois do inicio, ausente = sem prazo; aprovacao: igual ao pedido
+             */
+            expiresAt?: string;
+            /** @description obrigatoria no pedido de renovacao; opcional na aprovacao inicial; ignorada em /renew/approve */
+            justification?: string;
+        };
+        GrantReviewRequest: {
+            /** @enum {string} */
+            decision: "KEEP" | "SUSPEND" | "REVOKE";
+            notes?: string;
+            /**
+             * Format: date-time
+             * @description KEEP: opcional; igual ou mais cedo (futuro); mais tarde -> 409
+             */
+            nextReviewAt?: string;
+        };
+        GrantState: {
+            /** Format: uuid */
+            grantId: string;
+            /** Format: uuid */
+            clientMembershipId: string;
+            /** Format: uuid */
+            workspaceId: string;
+            /** @enum {string} */
+            status: "PENDENTE" | "ATIVA" | "SUSPENSA" | "REVOGADA";
+            /** Format: date-time */
+            startsAt: string;
+            /** Format: date-time */
+            expiresAt: string | null;
+            /**
+             * Format: date-time
+             * @description na PENDENTE: a pedida
+             */
+            nextReviewAt: string | null;
+            /** @description pedido de renovacao pendente (024); null sem pedido */
+            renewal: {
+                /** Format: uuid */
+                requestedByMembershipId: string;
+                /** Format: date-time */
+                requestedAt: string;
+                /** Format: date-time */
+                nextReviewAt: string;
+                /**
+                 * Format: date-time
+                 * @description null = sem prazo
+                 */
+                expiresAt: string | null;
+                justification: string;
+            } | null;
+        };
+        AccessEventPage: {
+            nextCursor: string | null;
+            items: {
+                /** Format: uuid */
+                eventId: string;
+                /** @enum {string} */
+                type: "CONVITE_EMITIDO" | "CONVITE_REVOGADO" | "CONVITE_REENVIADO" | "CONVITE_ACEITO" | "PAPEL_ATRIBUIDO" | "PAPEL_REVOGADO" | "PAPEL_ALTERADO" | "VINCULO_RETIRADO" | "CONCESSAO_CRIADA" | "CONCESSAO_APROVADA" | "CONCESSAO_RENOVADA" | "CONCESSAO_REVISADA" | "CONCESSAO_REVOGADA" | "CONCESSAO_RENOVACAO_SOLICITADA";
+                /**
+                 * Format: uuid
+                 * @description nulo no aceite (o autor e a identidade convidada)
+                 */
+                actorUserId: string | null;
+                byInvitee: boolean;
+                /** Format: uuid */
+                targetUserId: string | null;
+                role: string | null;
+                previousRole: string | null;
+                /** Format: uuid */
+                workspaceId: string | null;
+                /** Format: uuid */
+                invitationId: string | null;
+                /** Format: uuid */
+                assignmentId: string | null;
+                /** Format: uuid */
+                grantId: string | null;
+                /** @enum {string|null} */
+                decision: "KEEP" | "SUSPEND" | "REVOKE" | null;
+                /** Format: uuid */
+                correlationId: string;
+                /** Format: date-time */
+                createdAt: string;
+            }[];
+        };
         Me: {
             /** @enum {string} */
             accountType: "internal" | "external";
@@ -990,7 +2297,13 @@ export interface components {
             email: string;
             /** Format: uuid */
             organizationId: string;
+            organizationActivationState: components["schemas"]["OrganizationActivationState"];
         };
+        /**
+         * @description Ciclo de ativacao da organizacao (migration 022), INDEPENDENTE da situacao administrativa (ativa, suspensa, encerrada). AGUARDANDO_ATIVACAO: capacidade de execucao zero (nenhum Worker registrado, nenhuma execucao simultanea ou pendente) ate a ativacao pela operacao da Nekkora; toda organizacao criada nasce assim. ATIVADA: a operacao aplicou limites explicitos. So indicacao para a interface: os valores dos limites nao sao expostos e a admissao de execucao continua decidida no banco.
+         * @enum {string}
+         */
+        OrganizationActivationState: "AGUARDANDO_ATIVACAO" | "ATIVADA";
         MfaResetRequest: {
             /** @enum {string} */
             reason: "DISPOSITIVO_PERDIDO" | "DISPOSITIVO_TROCADO" | "SUSPEITA_COMPROMETIMENTO" | "OUTRO";
@@ -1042,6 +2355,351 @@ export interface components {
                 receivedAt: string;
             }[];
         };
+        AgentPairingRequest: {
+            /**
+             * Format: uuid
+             * @description Worker existente (ou workerName, nunca os dois)
+             */
+            workerId?: string;
+            workerName?: string;
+            /** @description Nome logico da maquina, informado pela pessoa (nada e coletado da maquina) */
+            agentName: string;
+            /** @default 15 */
+            expiresInMinutes: number;
+        };
+        AgentRotationRequest: {
+            /** @default 15 */
+            expiresInMinutes: number;
+        };
+        AgentRevokeRequest: {
+            /** @enum {string} */
+            reason: "COMPROMISED" | "ADMINISTRATIVE";
+        };
+        AgentCode: {
+            /** Format: uuid */
+            enrollmentId: string;
+            /** @description So nesta resposta */
+            code: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: uuid */
+            workerId: string;
+            /**
+             * Format: uuid
+             * @description So na rotacao
+             */
+            agentId?: string | null;
+        };
+        AgentList: {
+            items: {
+                /** Format: uuid */
+                agentId?: string;
+                name?: string;
+                /** Format: uuid */
+                installationId?: string;
+                agentVersion?: string;
+                /** @enum {string} */
+                status?: "PENDING" | "ACTIVE" | "SUSPENDED" | "REVOKED";
+                /** Format: uuid */
+                workerId?: string | null;
+                /** Format: date-time */
+                registeredAt?: string;
+                /** Format: date-time */
+                lastHeartbeatAt?: string | null;
+                /** @enum {string} */
+                connectivity?: "CONNECTED" | "DISCONNECTED";
+                contractVersion?: string | null;
+                capabilities?: ("RUN_LOCAL" | "OBS_1_0" | "SUPERVISOR_REPORT_1_0")[];
+                /** Format: date-time */
+                credentialExpiresAt?: string | null;
+            }[];
+        };
+        WorkerList: {
+            items: {
+                /** Format: uuid */
+                workerId?: string;
+                name?: string;
+                /** @enum {string} */
+                status?: "ACTIVE" | "SUSPENDED" | "RETIRED";
+                /** Format: uuid */
+                agentId?: string | null;
+                workspaceIds?: string[];
+            }[];
+        };
+        WorkerWorkspace: {
+            /** Format: uuid */
+            assignmentId?: string;
+            /** Format: uuid */
+            workerId?: string;
+            /** Format: uuid */
+            workspaceId?: string;
+            created?: boolean;
+        };
+        LocalRunAuthorizationRequest: {
+            /** Format: uuid */
+            workerId: string;
+            /** Format: uuid */
+            automationVersionId: string;
+            /**
+             * Format: date-time
+             * @description Com fuso; ate 366 dias
+             */
+            validUntil: string;
+        };
+        LocalRunAuthorization: {
+            /** Format: uuid */
+            authorizationId?: string;
+            /** Format: uuid */
+            workspaceId?: string;
+            /** Format: uuid */
+            workerId?: string;
+            /** Format: uuid */
+            automationId?: string;
+            /** Format: uuid */
+            automationVersionId?: string;
+            packageFingerprint?: string;
+            /** Format: date-time */
+            grantedAt?: string;
+            /** Format: date-time */
+            validUntil?: string;
+            /** Format: date-time */
+            revokedAt?: string | null;
+        };
+        WorkspaceCreateRequest: {
+            name: string;
+            description?: string | null;
+        };
+        AutomationCreateRequest: {
+            name: string;
+        };
+        VersionDraftRequest: {
+            /** @description padrao python3.12 */
+            runtime?: string;
+            arguments?: string[];
+        };
+        PublishRequest: {
+            expectedArtifactSha256: string;
+            expectedPackageFingerprint: string;
+        };
+        PackageRejected: {
+            /** @enum {string} */
+            error: "package_rejected";
+            /** @enum {string} */
+            reason: "vazio" | "tamanho_excedido" | "zip_malformado" | "zip_nao_suportado" | "zip_cifrado" | "zip_ambiguo" | "zip_corrompido" | "ligacao_simbolica" | "caminho_inseguro" | "nome_repetido" | "arquivos_demais" | "manifesto_ausente" | "manifesto_grande" | "manifesto_malformado" | "manifesto_fora_do_contrato" | "modo_de_execucao_invalido" | "framework_invalido" | "linha_de_comando_invalida" | "segredos_nao_suportados" | "lista_de_arquivos_ausente" | "hash_declarado_invalido" | "entrada_ausente" | "arquivo_listado_ausente" | "hash_divergente";
+        };
+        LifecycleWorkspace: {
+            /** Format: uuid */
+            workspaceId?: string;
+            name?: string;
+            /** @enum {string} */
+            status?: "ACTIVE" | "SUSPENDED" | "ARCHIVED";
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        LifecycleAutomation: {
+            /** Format: uuid */
+            automationId?: string;
+            /** Format: uuid */
+            workspaceId?: string;
+            name?: string;
+            /** @enum {string} */
+            status?: "ACTIVE" | "SUSPENDED" | "ARCHIVED";
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        LifecycleArtifact: {
+            /** Format: uuid */
+            artifactId?: string;
+            /** @description SHA-256 dos BYTES do ZIP recebido (calculado pelo servidor) */
+            sha256?: string;
+            sizeBytes?: number;
+            /** @enum {string} */
+            fingerprintRule?: "nekkora-agent/package-fingerprint/1";
+            /** @description impressao do pacote (calculada pelo servidor; a mesma do Agent) */
+            fingerprint?: string;
+            filesCount?: number;
+            manifestVersion?: string;
+            framework?: string;
+            /** @enum {string} */
+            executionMode?: "single" | "list" | "tabular";
+            declaredGenerator?: string | null;
+            /**
+             * @description procedencia declarada no manifesto; nao verificada criptograficamente
+             * @enum {string}
+             */
+            provenance?: "DECLARED";
+            /** Format: date-time */
+            receivedAt?: string;
+        };
+        LifecycleVersion: {
+            /** Format: uuid */
+            automationVersionId?: string;
+            /** Format: uuid */
+            automationId?: string;
+            /** Format: uuid */
+            workspaceId?: string;
+            versionNumber?: number;
+            /** @enum {string} */
+            status?: "DRAFT" | "PUBLISHED";
+            runtime?: string | null;
+            entrypoint?: string | null;
+            arguments?: string[];
+            /** @description 'nekkora-artifact:<artifactId>' (artefato recebido) ou a referencia declarada de versoes anteriores */
+            artifactReference?: string | null;
+            artifact?: components["schemas"]["LifecycleArtifact"] | null;
+            agentPackage?: {
+                fingerprintRule?: string;
+                fingerprint?: string;
+            } | null;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            publishedAt?: string | null;
+            /** Format: uuid */
+            publishedByMembershipId?: string | null;
+        };
+        LocalRunAuthorizationList: {
+            items: components["schemas"]["LocalRunAuthorization"][];
+        };
+        /** @enum {string} */
+        AgentSupervisorState: "READY" | "STARTING" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELLED" | "TIMED_OUT" | "BLOCKED" | "OUTCOME_UNKNOWN";
+        AgentRun: {
+            /** Format: uuid */
+            runId?: string;
+            correlation?: {
+                agentExecutionId?: string;
+                frameworkExecutionId?: string | null;
+                /**
+                 * Format: uuid
+                 * @description Nulo em execucao local
+                 */
+                platformExecutionId?: string | null;
+                /** Format: uuid */
+                agentId?: string;
+                /** Format: uuid */
+                workerId?: string;
+                /** Format: uuid */
+                workspaceId?: string;
+                /** Format: uuid */
+                automationId?: string;
+                /** Format: uuid */
+                automationVersionId?: string;
+                /** Format: uuid */
+                authorizationId?: string;
+            };
+            /** @enum {string} */
+            origin?: "LOCAL_AUTHORIZED";
+            /** @enum {string} */
+            authorizationStateAtRegistration?: "ACTIVE" | "REVOKED" | "EXPIRED";
+            /** Format: date-time */
+            registeredAt?: string;
+            supervisor?: {
+                state?: components["schemas"]["AgentSupervisorState"];
+                /** @description AGT-XXX-nnn */
+                code?: string | null;
+                exitCode?: number | null;
+                counts?: {
+                    [key: string]: number;
+                };
+                /**
+                 * Format: date-time
+                 * @description Relogio do Agent, como informado
+                 */
+                agentCreatedAt?: string | null;
+                /** Format: date-time */
+                agentStartedAt?: string | null;
+                /** Format: date-time */
+                agentEndedAt?: string | null;
+                adopted?: boolean;
+                suspensions?: number;
+                locks?: number;
+                reports?: number;
+                /** @description Relatorios contraditorios registrados (o estado nao mudou) */
+                conflicts?: number;
+                /** Format: date-time */
+                lastReportAt?: string;
+            };
+            /** @enum {string} */
+            process?: "NOT_STARTED" | "STARTING" | "RUNNING" | "ENDED";
+            /** @enum {string} */
+            outcome?: "PENDING" | "KNOWN" | "UNKNOWN";
+            transport?: {
+                /** @enum {string} */
+                connectivity?: "CONNECTED" | "DISCONNECTED";
+                /** Format: date-time */
+                lastHeartbeatAt?: string | null;
+                /** Format: date-time */
+                lastEventAt?: string | null;
+            };
+            history?: {
+                /** @enum {string} */
+                completeness?: "COMPLETE" | "PENDING" | "INCOMPLETE";
+                reasons?: ("DELIVERY_PENDING" | "LOST_AT_SOURCE" | "LOST_LOCAL" | "PURGED_LOCAL" | "INVALID_REFUSED" | "DELIVERY_CONFLICT")[];
+                eventsStored?: number;
+                storedThrough?: number;
+                settledThrough?: number;
+                maxSequence?: number;
+                declaredMissing?: number;
+                collectionCompletedSequence?: number | null;
+                invalidRefused?: number;
+                /** @description false: processo sem eventos do Framework (etapas indisponiveis; nada e inventado) */
+                stepsAvailable?: boolean;
+            };
+            /** @description So no detalhe */
+            transactionsSeen?: {
+                [key: string]: number;
+            };
+            /** @description So no detalhe. Retencao no servidor (026): dimensao propria; nunca muda history.completeness, que e a da entrega. Expurgo nao e perda na origem */
+            retention?: {
+                /** @enum {string} */
+                state?: "AVAILABLE" | "PARTIALLY_PURGED" | "PURGED";
+                eventsPurged?: number;
+            };
+        };
+        AgentRunPage: {
+            items: components["schemas"]["AgentRun"][];
+            nextCursor: string | null;
+        };
+        AgentRunEventPage: {
+            items: {
+                sequence?: number;
+                /** @enum {string} */
+                source?: "AGENT" | "FRAMEWORK" | "COLLECTOR";
+                eventCode?: string;
+                /** @enum {string} */
+                severity?: "INFO" | "WARNING" | "ERROR";
+                /** @enum {string} */
+                category?: "LIFECYCLE" | "ACTIVITY" | "BUSINESS" | "FAILURE" | "TELEMETRY";
+                phase?: string | null;
+                stepId?: string | null;
+                /** Format: uuid */
+                studioStepId?: string | null;
+                action?: string | null;
+                status?: string | null;
+                errorCode?: string | null;
+                attempt?: number | null;
+                elapsedMs?: number | null;
+                transactionRef?: string | null;
+                counts?: {
+                    [key: string]: number;
+                } | null;
+                /**
+                 * Format: date-time
+                 * @description Instante informado pela origem
+                 */
+                timestampUtc?: string | null;
+                /**
+                 * Format: date-time
+                 * @description Instante em que o Agent leu o evento
+                 */
+                observedUtc?: string;
+                /** Format: date-time */
+                receivedAt?: string;
+                /** @description Expurgado pela retencao do servidor: ficam a classificacao e os instantes; o conteudo da etapa vem nulo */
+                purged?: boolean;
+            }[];
+            nextCursor: string | null;
+        };
     };
     responses: {
         /** @description Sucesso sem corpo */
@@ -1071,6 +2729,34 @@ export interface components {
                 [name: string]: unknown;
             };
             content?: never;
+        };
+        /** @description Rota de identidade desligada pela sua chave (cadastro: nekkora.cadastro.enabled; login, MFA, organizacoes da identidade e troca: nekkora.entrada-geral.enabled; criacao de organizacao: nekkora.criacao-organizacao.enabled; vinculacao: nekkora.vinculacao.enabled; convites: nekkora.convites.enabled - estas tres so abrem com a entrada geral ligada; todas desligadas por padrao): a rota nao existe */
+        SignupDisabled: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": "not_found"
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Sessao de identidade restrita a recuperacao (DC-17.13): so cadastrar e confirmar o fator novo, e logout */
+        RestrictedIdentitySession: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": "forbidden"
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
         };
         /** @description Origin diferente da origem publica ou X-CSRF-Token do contexto ausente/invalido */
         CsrfForbidden: {
@@ -1166,6 +2852,20 @@ export interface components {
                 /**
                  * @example {
                  *       "error": "internal_error"
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description O estado atual impede o ato (convite pendente, destinataria ja cadastrada, concessao duplicada ou fora do estado, papel ja ativo, vinculo inativo) */
+        Conflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": "conflict"
                  *     }
                  */
                 "application/json": components["schemas"]["Error"];
@@ -1453,7 +3153,20 @@ export interface operations {
             204: components["responses"]["NoContent"];
             400: components["responses"]["InvalidRequest"];
             401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["CsrfForbidden"];
+            /** @description Origin/CSRF invalido, ou sessao de conta vinculada */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "forbidden"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };
@@ -1523,6 +3236,715 @@ export interface operations {
             204: components["responses"]["NoContent"];
             400: components["responses"]["InvalidRequest"];
             403: components["responses"]["CsrfForbidden"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    signup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignupRequest"];
+            };
+        };
+        responses: {
+            202: components["responses"]["Accepted"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["CsrfForbidden"];
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    confirmSignup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignupConfirmation"];
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["CsrfForbidden"];
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    resendSignupConfirmation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignupResendRequest"];
+            };
+        };
+        responses: {
+            202: components["responses"]["Accepted"];
+            403: components["responses"]["CsrfForbidden"];
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    identityLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Desafio de identidade aberto (cookie __Host-nekkora_id_mfa) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResponse"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["CsrfForbidden"];
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    identityStartMfaEnrollment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description URI otpauth do fator pendente */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OtpauthUri"];
+                };
+            };
+            /** @description Credenciais dos dois modos na mesma requisicao (cookies de desafio e de sessao de identidade) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "invalid_request"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description Origin/CSRF do modo invalido; no modo sessao, tambem sem a prova de troca (DC-17.13) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "forbidden"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    identityConfirmMfaEnrollment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TotpCodeRequest"];
+            };
+        };
+        responses: {
+            /** @description Desafio: sessao de identidade emitida (cookie __Host-nekkora_id). Sessao: fator substituido, a mesma sessao continua sem restricao */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentityEnrollmentConfirmation"] | components["schemas"]["IdentityFactorReplacement"];
+                };
+            };
+            /** @description Modo ambiguo (os dois cookies) ou, no modo sessao, code ausente ou recoveryCode presente */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "invalid_request"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description Origin/CSRF do modo invalido; no modo sessao, tambem sem prova de troca, sem fator pendente, codigo errado, ja usado ou vencido */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "forbidden"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    identityVerifyMfa: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MfaVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Sessao de identidade emitida (cookie __Host-nekkora_id); restricted=true quando nasceu de codigo de recuperacao */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentitySessionIssued"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["CsrfForbidden"];
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    identityLogout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            403: components["responses"]["CsrfForbidden"];
+        };
+    };
+    identityStepUp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TotpCodeRequest"];
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description Origin/CSRF da sessao de identidade invalido; codigo errado, ja usado ou vencido; ou sessao restrita a recuperacao (DC-17.13) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "forbidden"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    identityChangePassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChange"];
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            /** @description Corpo incompleto ou senha nova fora da politica */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "invalid_request"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description Origin/CSRF invalido; senha atual errada; sem step-up recente; sessao restrita; senha trocada no intervalo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "forbidden"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    identityRegenerateRecoveryCodes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Conjunto novo de codigos */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryCodes"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description Origin/CSRF invalido; sem step-up recente; sessao restrita */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "forbidden"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    identityRequestPasswordReset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecoveryRequest"];
+            };
+        };
+        responses: {
+            /** @description Pedido recebido (resposta identica em qualquer desfecho) */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["CsrfForbidden"];
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    identityConfirmPasswordReset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecoveryConfirmation"];
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["CsrfForbidden"];
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    identitySessionState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sessao de identidade valida */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentitySessionState"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["SignupDisabled"];
+        };
+    };
+    identityOrganizations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Organizacoes da identidade */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentityOrganizationList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["RestrictedIdentitySession"];
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    identityCreateOrganization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrganizationCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Organizacao criada */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationCreated"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description Origin/CSRF da sessao de identidade invalido; sem step-up recente, teto atingido, identidade inelegivel ou sessao restrita (recusa generica) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "forbidden"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    identityLinkStart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkStartRequest"];
+            };
+        };
+        responses: {
+            /** @description Desafio de vinculacao emitido (cookie __Host-nekkora_link); nada vinculado ainda */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["InvalidRequest"];
+            /** @description Sem sessao de identidade valida, ou prova da conta antiga recusada (resposta unica para qualquer causa) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "unauthenticated"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Origin/CSRF da sessao de identidade invalido, ou sessao restrita a recuperacao (DC-17.13) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "forbidden"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    identityLinkConfirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description Conta vinculada; a entrada local da conta foi fechada no mesmo ato */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description Origin/CSRF invalido, sessao restrita, ou recusa da vinculacao (generica) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "forbidden"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    exchangeOrganizationSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrganizationSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description sessao_criada (cookie __Host-nekkora_session e CSRF da sessao de organizacao) ou sem_acesso */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationSessionResult"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description Origin/CSRF da sessao de identidade invalido, ou sessao restrita a recuperacao (DC-17.13) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "forbidden"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    acceptInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvitationAcceptRequest"];
+            };
+        };
+        responses: {
+            /** @description Aceito */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationAccepted"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description Origin/CSRF da sessao de identidade invalido, ou sessao restrita a recuperacao (DC-17.13) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "forbidden"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Convite invalido para esta identidade (resposta unica), ou convites desligados */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "not_found"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description already_member, account_exists ou account_unavailable */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "account_exists"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };
@@ -1644,6 +4066,563 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listInvitations: {
+        parameters: {
+            query?: {
+                /** @description outro valor -> 400 */
+                state?: "pending" | "all";
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lista */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationList"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            /** @description Convite inexistente ou de outra organizacao, ou convites desligados (nekkora.convites.enabled e nekkora.entrada-geral.enabled) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "not_found"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    issueInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvitationRequest"];
+            };
+        };
+        responses: {
+            /** @description Convite emitido (sem token na resposta) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationCreated"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            /** @description Convite inexistente ou de outra organizacao, ou convites desligados (nekkora.convites.enabled e nekkora.entrada-geral.enabled) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "not_found"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    revokeInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                invitation: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revogado */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            /** @description Convite inexistente ou de outra organizacao, ou convites desligados (nekkora.convites.enabled e nekkora.entrada-geral.enabled) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "not_found"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    resendInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                invitation: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Convite novo */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationCreated"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            /** @description Convite inexistente ou de outra organizacao, ou convites desligados (nekkora.convites.enabled e nekkora.entrada-geral.enabled) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "not_found"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listMemberRoles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                user: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Papeis de organizacao e de workspace */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberRoles"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    assignRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                user: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleRequest"];
+            };
+        };
+        responses: {
+            /** @description Atribuicao (nova ou ja existente) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleAssignment"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    replaceRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                assignment: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleRequest"];
+            };
+        };
+        responses: {
+            /** @description Atribuicao nova */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleAssignment"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    revokeRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                assignment: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revogada */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    revokeMembership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                user: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Retirado */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listClientGrants: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["GrantStatus"][];
+                /** @description inexistente ou de outra organizacao -> lista vazia; malformado -> 400 */
+                clientId?: string;
+                /** @description inexistente ou de outra organizacao -> lista vazia; malformado -> 400 */
+                workspaceId?: string;
+                /** @description Opaco e assinado: base64url(payload) "." base64url(HMAC-SHA256). Vinculado a rota, organizacao, vinculo da sessao, recurso pai, filtros (impressao canonica; limit fora) e ordenacao. Posicao = chave de ordenacao de tamanho limitado (prefixo de 48 pontos de codigo + id, ou campos de tamanho fixo); id da chave como impressao de 11 caracteres. O servidor nunca emite cursor maior que 872 caracteres (pior caso calculado, documento secao 1.5.1); aceita ate 1024. Nao e autoridade: autorizacao reaplicada a cada pagina. Malformado, adulterado, de outra rota/organizacao/vinculo/pai, com filtros ou ordenacao diferentes, ou de chave desconhecida (inclusive apos rotacao da chave) -> 400. Sem expiracao por tempo. Chave: decisao DC-15 (subchave derivada; a rotacao invalida os cursores). */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description fora de 1-100 ou nao inteiro -> 400; pode mudar entre paginas */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pagina de concessoes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantPage"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["CatalogInconsistent"];
+        };
+    };
+    createClientGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Concessao pendente */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantState"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    approveClientGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                grant: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantApprovalRequest"];
+            };
+        };
+        responses: {
+            /** @description Concessao ativa */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantState"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    requestClientGrantRenewal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                grant: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantApprovalRequest"];
+            };
+        };
+        responses: {
+            /** @description Pedido gravado (renewal preenchido); acesso inalterado */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantState"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    approveClientGrantRenewal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                grant: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantApprovalRequest"];
+            };
+        };
+        responses: {
+            /** @description Concessao ativa com os valores pedidos */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantState"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    reviewClientGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                grant: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Concessao depois da revisao */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantState"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };
@@ -1815,44 +4794,6 @@ export interface operations {
             500: components["responses"]["CatalogInconsistent"];
         };
     };
-    listClientGrants: {
-        parameters: {
-            query?: {
-                status?: components["schemas"]["GrantStatus"][];
-                /** @description inexistente ou de outra organizacao -> lista vazia; malformado -> 400 */
-                clientId?: string;
-                /** @description inexistente ou de outra organizacao -> lista vazia; malformado -> 400 */
-                workspaceId?: string;
-                /** @description Opaco e assinado: base64url(payload) "." base64url(HMAC-SHA256). Vinculado a rota, organizacao, vinculo da sessao, recurso pai, filtros (impressao canonica; limit fora) e ordenacao. Posicao = chave de ordenacao de tamanho limitado (prefixo de 48 pontos de codigo + id, ou campos de tamanho fixo); id da chave como impressao de 11 caracteres. O servidor nunca emite cursor maior que 872 caracteres (pior caso calculado, documento secao 1.5.1); aceita ate 1024. Nao e autoridade: autorizacao reaplicada a cada pagina. Malformado, adulterado, de outra rota/organizacao/vinculo/pai, com filtros ou ordenacao diferentes, ou de chave desconhecida (inclusive apos rotacao da chave) -> 400. Sem expiracao por tempo. Chave: decisao DC-15 (subchave derivada; a rotacao invalida os cursores). */
-                cursor?: components["parameters"]["Cursor"];
-                /** @description fora de 1-100 ou nao inteiro -> 400; pode mudar entre paginas */
-                limit?: components["parameters"]["Limit"];
-            };
-            header?: never;
-            path: {
-                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
-                org: components["parameters"]["Org"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Pagina de concessoes */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GrantPage"];
-                };
-            };
-            400: components["responses"]["InvalidRequest"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Forbidden"];
-            429: components["responses"]["RateLimited"];
-            500: components["responses"]["CatalogInconsistent"];
-        };
-    };
     listClients: {
         parameters: {
             query?: {
@@ -1887,6 +4828,39 @@ export interface operations {
             500: components["responses"]["CatalogInconsistent"];
         };
     };
+    listAccessEvents: {
+        parameters: {
+            query?: {
+                /** @description Opaco e assinado: base64url(payload) "." base64url(HMAC-SHA256). Vinculado a rota, organizacao, vinculo da sessao, recurso pai, filtros (impressao canonica; limit fora) e ordenacao. Posicao = chave de ordenacao de tamanho limitado (prefixo de 48 pontos de codigo + id, ou campos de tamanho fixo); id da chave como impressao de 11 caracteres. O servidor nunca emite cursor maior que 872 caracteres (pior caso calculado, documento secao 1.5.1); aceita ate 1024. Nao e autoridade: autorizacao reaplicada a cada pagina. Malformado, adulterado, de outra rota/organizacao/vinculo/pai, com filtros ou ordenacao diferentes, ou de chave desconhecida (inclusive apos rotacao da chave) -> 400. Sem expiracao por tempo. Chave: decisao DC-15 (subchave derivada; a rotacao invalida os cursores). */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description fora de 1-100 ou nao inteiro -> 400; pode mudar entre paginas */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pagina */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessEventPage"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
     listWorkspaces: {
         parameters: {
             query?: {
@@ -1919,6 +4893,39 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["CatalogInconsistent"];
+        };
+    };
+    createWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkspaceCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Workspace criado */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LifecycleWorkspace"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     getWorkspace: {
@@ -1989,6 +4996,42 @@ export interface operations {
             500: components["responses"]["CatalogInconsistent"];
         };
     };
+    createAutomation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                workspaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Automacao criada */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LifecycleAutomation"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
     getAutomation: {
         parameters: {
             query?: never;
@@ -2054,6 +5097,42 @@ export interface operations {
             404: components["responses"]["NotFound"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["CatalogInconsistent"];
+        };
+    };
+    createAutomationVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                automationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["VersionDraftRequest"];
+            };
+        };
+        responses: {
+            /** @description Versao DRAFT criada */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LifecycleVersion"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     listExecutions: {
@@ -2286,6 +5365,656 @@ export interface operations {
             404: components["responses"]["NotFound"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["ListLimitExceeded"];
+        };
+    };
+    createAgentPairingCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentPairingRequest"];
+            };
+        };
+        responses: {
+            /** @description Codigo emitido */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentCode"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    cancelAgentCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                enrollment: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cancelado */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listAgents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Agents */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentList"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    createAgentRotationCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentRotationRequest"];
+            };
+        };
+        responses: {
+            /** @description Codigo emitido */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentCode"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    revokeAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentRevokeRequest"];
+            };
+        };
+        responses: {
+            /** @description Revogado */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listWorkers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Workers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerList"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    authorizeWorkerInWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                worker: string;
+                /** @description malformado -> 400 */
+                workspace: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ja autorizado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerWorkspace"];
+                };
+            };
+            /** @description Autorizado */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerWorkspace"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    revokeWorkerInWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                worker: string;
+                /** @description malformado -> 400 */
+                workspace: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revogada */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listLocalRunAuthorizations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                workspace: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Autorizacoes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocalRunAuthorizationList"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    createLocalRunAuthorization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                workspace: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LocalRunAuthorizationRequest"];
+            };
+        };
+        responses: {
+            /** @description Autorizacao criada */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocalRunAuthorization"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    revokeLocalRunAuthorization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                workspace: string;
+                /** @description malformado -> 400 */
+                authorization: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revogada */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listAgentRuns: {
+        parameters: {
+            query?: {
+                workspaceId?: string;
+                automationId?: string;
+                state?: components["schemas"]["AgentSupervisorState"][];
+                from?: string;
+                to?: string;
+                /** @description Opaco e assinado: base64url(payload) "." base64url(HMAC-SHA256). Vinculado a rota, organizacao, vinculo da sessao, recurso pai, filtros (impressao canonica; limit fora) e ordenacao. Posicao = chave de ordenacao de tamanho limitado (prefixo de 48 pontos de codigo + id, ou campos de tamanho fixo); id da chave como impressao de 11 caracteres. O servidor nunca emite cursor maior que 872 caracteres (pior caso calculado, documento secao 1.5.1); aceita ate 1024. Nao e autoridade: autorizacao reaplicada a cada pagina. Malformado, adulterado, de outra rota/organizacao/vinculo/pai, com filtros ou ordenacao diferentes, ou de chave desconhecida (inclusive apos rotacao da chave) -> 400. Sem expiracao por tempo. Chave: decisao DC-15 (subchave derivada; a rotacao invalida os cursores). */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description fora de 1-100 ou nao inteiro -> 400; pode mudar entre paginas */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pagina de execucoes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentRunPage"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getAgentRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                run: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Execucao */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentRun"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listAgentRunEvents: {
+        parameters: {
+            query?: {
+                /** @description Opaco e assinado: base64url(payload) "." base64url(HMAC-SHA256). Vinculado a rota, organizacao, vinculo da sessao, recurso pai, filtros (impressao canonica; limit fora) e ordenacao. Posicao = chave de ordenacao de tamanho limitado (prefixo de 48 pontos de codigo + id, ou campos de tamanho fixo); id da chave como impressao de 11 caracteres. O servidor nunca emite cursor maior que 872 caracteres (pior caso calculado, documento secao 1.5.1); aceita ate 1024. Nao e autoridade: autorizacao reaplicada a cada pagina. Malformado, adulterado, de outra rota/organizacao/vinculo/pai, com filtros ou ordenacao diferentes, ou de chave desconhecida (inclusive apos rotacao da chave) -> 400. Sem expiracao por tempo. Chave: decisao DC-15 (subchave derivada; a rotacao invalida os cursores). */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description fora de 1-100 ou nao inteiro -> 400; pode mudar entre paginas */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                run: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pagina de eventos */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentRunEventPage"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getAutomationVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                version: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Versao */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LifecycleVersion"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    updateAutomationVersionDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                version: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionDraftRequest"];
+            };
+        };
+        responses: {
+            /** @description Versao alterada */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LifecycleVersion"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    putAutomationVersionArtifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                version: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/zip": string;
+            };
+        };
+        responses: {
+            /** @description Artefato aceito */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LifecycleVersion"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            /** @description Pacote recusado */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageRejected"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getAutomationVersionArtifactContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                version: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ZIP */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    publishAutomationVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                version: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishRequest"];
+            };
+        };
+        responses: {
+            /** @description Versao publicada */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LifecycleVersion"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
 }

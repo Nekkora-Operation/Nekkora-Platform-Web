@@ -6,7 +6,7 @@
  * `ApiError('unexpected')`, sem expor o corpo: o erro leva só os caminhos e as regras violadas (nunca valores).
  *
  * Implementa o subconjunto de JSON Schema que o OpenAPI usa: type (inclusive listas com 'null'), enum, required,
- * properties, additionalProperties: false, items, minItems/maxItems, uniqueItems, minimum, minLength/maxLength,
+ * properties, additionalProperties (false ou esquema), items, minItems/maxItems, uniqueItems, minimum/maximum, minLength/maxLength,
  * pattern, format (uuid, date-time), $ref, oneOf, anyOf, allOf e not. Palavra-chave desconhecida → falha (o validador
  * não deixa passar o que não sabe conferir).
  *
@@ -66,7 +66,7 @@ export function isDateTime(str: string): boolean {
 
 const KNOWN = new Set([
   'type', 'enum', 'required', 'properties', 'additionalProperties', 'items', 'minItems', 'maxItems', 'uniqueItems',
-  'minimum', 'minLength', 'maxLength', 'pattern', 'format', '$ref', 'oneOf', 'anyOf', 'allOf', 'not', 'default',
+  'minimum', 'maximum', 'minLength', 'maxLength', 'pattern', 'format', '$ref', 'oneOf', 'anyOf', 'allOf', 'not', 'default',
 ]);
 const patterns = new Map<string, RegExp>();
 
@@ -121,6 +121,7 @@ function check(s: Schema, v: unknown, path: string, strict: boolean, out: Violat
     if (r.format === 'date-time' && !isDateTime(v)) fail('format date-time');
   }
   if (typeof v === 'number' && typeof r.minimum === 'number' && v < r.minimum) fail('minimum');
+  if (typeof v === 'number' && typeof r.maximum === 'number' && v > r.maximum) fail('maximum');
 
   if (Array.isArray(v)) {
     if (typeof r.minItems === 'number' && v.length < r.minItems) fail('minItems');
@@ -134,6 +135,10 @@ function check(s: Schema, v: unknown, path: string, strict: boolean, out: Violat
     for (const k of (r.required as string[] | undefined) ?? []) if (!(k in obj)) fail(`required ${k}`);
     const props = (r.properties as Record<string, Schema> | undefined) ?? {};
     for (const [k, ps] of Object.entries(props)) if (k in obj) check(ps, obj[k], `${path}.${k}`, strict, out);
+    // mapa (additionalProperties com esquema, ex.: contagens por código): cada valor não declarado segue o esquema
+    if (r.additionalProperties && typeof r.additionalProperties === 'object') {
+      for (const [k, item] of Object.entries(obj)) if (!(k in props)) check(r.additionalProperties as Schema, item, `${path}.${k}`, strict, out);
+    }
     const closed = r.additionalProperties === false || (strict && (r.properties !== undefined || r.allOf !== undefined));
     if (closed && r.type === 'object' && !levelOpen) {
       const known = declared(r);
