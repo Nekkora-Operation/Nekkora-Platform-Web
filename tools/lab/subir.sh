@@ -43,14 +43,17 @@ FIXADO="$(sed -n 's/.*"commit": "\([0-9a-f]*\)".*/\1/p' "$RAIZ/contract/SOURCE.j
 
 # --- proteção de recursos existentes ---
 [ -d "$SEG" ] && falha "laboratório $ID já existe ($SEG): use outro id"
+# a saída é capturada antes do grep: com pipefail, `grep -q` saindo cedo pode dar SIGPIPE no escritor e pular a proteção
+PORTAS_PUBLICADAS="$(docker ps --format '{{.Ports}}')" || falha "docker ps falhou"
 for p in "$E2E_PORTA" "$E2E_PG_PORTA"; do
     [ "$p" != "5432" ] || falha "porta 5432 é da stack principal"
-    if docker ps --format '{{.Ports}}' | grep -q ":$p->"; then falha "porta $p já publicada"; fi
+    if grep -q ":$p->" <<<"$PORTAS_PUBLICADAS"; then falha "porta $p já publicada"; fi
     if (exec 3<>"/dev/tcp/127.0.0.1/$p") 2>/dev/null; then falha "porta $p em uso"; fi
 done
 [ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$E2E_PROJETO")" ] || falha "projeto $E2E_PROJETO já tem containers"
 docker network inspect "${E2E_PROJETO}_e2e" >/dev/null 2>&1 && falha "rede ${E2E_PROJETO}_e2e já existe"
-if docker network ls -q | xargs -r docker network inspect -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}' 2>/dev/null | grep -q "$E2E_REDE.0/24"; then
+SUBREDES="$(docker network ls -q | xargs -r docker network inspect -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}')" || falha "não foi possível listar as sub-redes do Docker"
+if grep -qF "$E2E_REDE.0/24" <<<"$SUBREDES"; then
     falha "sub-rede $E2E_REDE.0/24 já em uso por outra rede"
 fi
 for j in nekkora-platform nekkora-portal nekkora-agent-gateway; do

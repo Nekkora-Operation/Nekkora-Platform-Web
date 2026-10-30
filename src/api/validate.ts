@@ -139,7 +139,9 @@ function check(s: Schema, v: unknown, path: string, strict: boolean, out: Violat
     if (r.additionalProperties && typeof r.additionalProperties === 'object') {
       for (const [k, item] of Object.entries(obj)) if (!(k in props)) check(r.additionalProperties as Schema, item, `${path}.${k}`, strict, out);
     }
-    const closed = r.additionalProperties === false || (strict && (r.properties !== undefined || r.allOf !== undefined));
+    // mapa com esquema: as chaves não declaradas já foram conferidas acima e não são "propriedades extras"
+    const isMap = typeof r.additionalProperties === 'object' && r.additionalProperties !== null;
+    const closed = r.additionalProperties === false || (strict && !isMap && (r.properties !== undefined || r.allOf !== undefined));
     if (closed && r.type === 'object' && !levelOpen) {
       const known = declared(r);
       for (const k of Object.keys(obj)) if (!known.has(k)) fail(`additionalProperties ${k}`);
@@ -176,6 +178,13 @@ function spec(operationId: string, status: number): ResponseSpec | undefined {
   const op = doc.operations[operationId];
   if (!op) throw new Error(`operação sem esquema de resposta: ${operationId}`);
   return op.responses[String(status)];
+}
+
+/** Violações de um esquema avulso (testes do validador; o contrato real passa por `violations`). */
+export function rawSchemaViolations(schema: Schema, data: unknown, strict = false): Violation[] {
+  const out: Violation[] = [];
+  check(schema, data, '$', strict, out);
+  return out;
 }
 
 /** Violações do corpo da resposta `status` (padrão 200) de `operationId` (vazio = conforme). */

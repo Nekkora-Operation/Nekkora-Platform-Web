@@ -1,9 +1,10 @@
 ﻿<#
 .SYNOPSIS
-  FRONT-V1-001 — Agent REAL no laboratório descartável do frontend (tools/lab/subir.sh).
+  FRONT-V1-001/002 — Agent REAL no laboratório descartável do frontend (tools/lab/subir.sh).
 
 .DESCRIPTION
-  Usa o Agent empacotado do repositório do Agent (target\dist\Nekkora Agent) SEM alterá-lo: copia para
+  Usa o Agent empacotado de um checkout ISOLADO do Agent (padrão: ..\front-v1-002-agent, construído do commit aprovado;
+  ver docs/FRONT-V1-RELATORIO.md) SEM alterá-lo: copia target\dist\Nekkora Agent para
   tools\lab\saidas\<id>\agent-app, cria um armazenamento de confiança só com o certificado do laboratório (validação TLS
   normal) e aponta o Agent para a origem do laboratório. Os dados do Agent ficam em tools\lab\saidas\<id>\agent-dados.
 
@@ -12,27 +13,39 @@
     iniciar    abre o Agent (NEKKORA_AGENT_DATA_DIR = dados do laboratório)
     parear     lê o código nkp1 da ENTRADA PADRÃO (nunca de arquivo ou argumento), abre "Parear com a Platform" (Alt+A),
                digita o código e confirma. O código não é gravado em lugar nenhum por este script.
-    executar   o que a PESSOA faz no Agent para iniciar localmente (Alt+E): escolhe a pasta do pacote, aprova o pacote
-               (confirmação do Agent), escolhe o Python, a entrada e a pasta de saída e inicia (Alt+I). Cada etapa é
-               conferida no log do Agent; nada é assumido.
+    abrir-execucao   prepara (Alt+E) e escolhe a pasta do pacote; espera a inspeção no log e PARA. Ponto de intervenção 1:
+                     a PESSOA aprova o pacote no Agent ("Aprovar este pacote…" e a confirmação).
+    completar-execucao  só depois de EXEC_PACKAGE_APPROVED registrado pelo Agent (a aprovação da pessoa): escolhe o Python,
+                     a entrada e a pasta de saída e PARA. Ponto de intervenção 2: a PESSOA clica em "Iniciar".
+    derrubar   reprodução segura do desfecho desconhecido (como a C6 do AGENT-PLATFORM-002): encerra à força ESTA cópia do
+               Agent e, com ele fora, o processo Python da execução em curso (identificado pela pasta de saída do
+               laboratório). Reaberto, o Agent reconcilia; nada é relançado.
+    avisar     mostra à pessoa o que fazer agora (caixa de mensagem em processo separado)
     parar      encerra o Agent desta cópia
 
-  O pareamento e o início de uma execução são atos da PESSOA no Agent; aqui o teclado é enviado à janela do Agent como a
-  pessoa faria. Nada chama /agent/api/v1 diretamente.
+  FRONT-V1-002: aprovar o pacote e iniciar a execução são atos LOCAIS da pessoa. Este script não os simula (nenhuma
+  tecla ou clique nesses atos, nada de cliques por cor, cópia de registros de aprovação ou alteração de estado): só
+  prepara até o ponto de intervenção e confere no log do Agent que o ato aconteceu. O que ele digita por teclado é só o
+  preparo: o código no diálogo de pareamento e os caminhos nos seletores de arquivo (pacote, Python, entrada, saída),
+  sempre com o foco conferido na janela certa antes de cada tecla — se o foco não estiver nela, o script para em vez de
+  digitar. Nada chama /agent/api/v1 diretamente.
 #>
 param(
     [Parameter(Mandatory)][string]$Id,
-    [Parameter(Mandatory)][ValidateSet('preparar', 'iniciar', 'parear', 'executar', 'parar')][string]$Acao,
+    [Parameter(Mandatory)][ValidateSet('preparar', 'iniciar', 'parear', 'abrir-execucao', 'completar-execucao', 'derrubar', 'avisar', 'parar')][string]$Acao,
     [string]$AgentRepo,
-    # executar: pasta do pacote (a mesma impressão da versão autorizada), Python do projeto, entrada e pasta de saída
-    [string]$Pacote, [string]$Python, [string]$Entrada, [string]$Saida
+    # abrir-execucao: pasta do pacote (a mesma impressão da versão autorizada); completar-execucao: Python, entrada e saída
+    [string]$Pacote, [string]$Python, [string]$Entrada, [string]$Saida,
+    # avisar: texto mostrado à pessoa numa caixa de mensagem (só informa; não age no Agent)
+    [string]$Aviso
 )
 $ErrorActionPreference = 'Stop'
-if (-not $AgentRepo) { $AgentRepo = Join-Path $PSScriptRoot '..\..\..\agent-int' }
+if (-not $AgentRepo) { $AgentRepo = Join-Path $PSScriptRoot '..\..\..\front-v1-002-agent' }
 Add-Type -AssemblyName System.Windows.Forms
 $lab = Join-Path $PSScriptRoot "saidas\$Id"
 $app = Join-Path $lab 'agent-app'
-$data = Join-Path $lab 'agent-dados'
+# pasta de dados do Agent: FRONT_LAB_AGENT_DADOS (nome dentro da saída do laboratório) ou agent-dados
+$data = Join-Path $lab $(if ($env:FRONT_LAB_AGENT_DADOS) { $env:FRONT_LAB_AGENT_DADOS } else { 'agent-dados' })
 $exe = Join-Path $app 'Nekkora Agent.exe'
 if (-not (Test-Path (Join-Path $lab 'laboratorio.txt'))) { throw "laboratório $Id não encontrado ($lab)" }
 $apiUrl = ((Get-Content (Join-Path $lab 'laboratorio.txt')) | Where-Object { $_ -like 'api=*' }) -replace '^api=', ''
@@ -83,9 +96,37 @@ public static class FrontLabWin {
     }
     return false;
   }
+  public static bool IsForeground(IntPtr h) { return GetForegroundWindow() == h; }
 }
 "@
     }
+}
+
+# Teclas só com o foco conferido: se outra janela (um aviso, a confirmação de aprovação, a pessoa) estiver na frente, o
+# script para — nunca digita às cegas onde um ENTER poderia acionar um ato da pessoa.
+function Send-To([IntPtr]$h, [string]$keys, [string]$what) {
+    if (-not [FrontLabWin]::IsForeground($h)) { throw "foco fora de '$what': nada foi digitado" }
+    [System.Windows.Forms.SendKeys]::SendWait($keys)
+}
+
+function Choose([uint32]$pid0, [IntPtr]$dlg, [string]$keys, [string]$title, [string]$path) {
+    if (-not [FrontLabWin]::Focus($dlg)) { throw 'não foi possível focar a janela Execução local' }
+    Send-To $dlg $keys 'Execução local'
+    $ch = Wait-For { $h = [FrontLabWin]::Find($pid0, $title); if ($h -ne [IntPtr]::Zero) { $h } } 20 "seletor '$title'"
+    if (-not [FrontLabWin]::Focus($ch)) { throw "não foi possível focar o seletor '$title'" }
+    Start-Sleep -Milliseconds 400
+    Send-To $ch '^a' $title
+    Send-To $ch ($path -replace '[+^%~(){}\[\]]', '{$0}') $title
+    Start-Sleep -Milliseconds 300
+    Send-To $ch '{ENTER}' $title
+    Wait-For { [FrontLabWin]::Find($pid0, $title) -eq [IntPtr]::Zero } 20 "seletor '$title' fechado" | Out-Null
+}
+
+# Aviso visível para a pessoa (caixa de mensagem em processo separado: não espera, não clica nada no Agent)
+function Avisar([string]$Texto) {
+    $t = $Texto -replace "'", "''"
+    $cmd = "Add-Type -AssemblyName System.Windows.Forms; [void][System.Windows.Forms.MessageBox]::Show('$t', 'Laboratório FRONT-V1-002 — sua vez no Agent', 'OK', 'Information', 'Button1', 'DefaultDesktopOnly')"
+    Start-Process powershell -ArgumentList '-NoProfile', '-WindowStyle', 'Hidden', '-Command', $cmd | Out-Null
 }
 
 function Log-Count([string]$Pattern) {
@@ -134,67 +175,66 @@ switch ($Acao) {
         $proc = Wait-For { Agent-Window '' } 30 'janela do Agent'
         $pid0 = [uint32]$proc.Id
         if (-not [FrontLabWin]::Focus($proc.MainWindowHandle)) { throw 'não foi possível trazer a janela do Agent para a frente' }
-        [System.Windows.Forms.SendKeys]::SendWait('%a')
+        Send-To $proc.MainWindowHandle '%a' 'janela do Agent'
         $dlg = Wait-For { $h = [FrontLabWin]::Find($pid0, 'Parear com a Platform'); if ($h -ne [IntPtr]::Zero) { $h } } 20 'diálogo "Parear com a Platform" (Alt+A)'
         if (-not [FrontLabWin]::Focus($dlg)) { throw 'não foi possível focar o diálogo de pareamento' }
         Start-Sleep -Milliseconds 300
-        [System.Windows.Forms.SendKeys]::SendWait(($code -replace '[+^%~(){}\[\]]', '{$0}'))
+        Send-To $dlg ($code -replace '[+^%~(){}\[\]]', '{$0}') 'Parear com a Platform'
         $code = $null
         Start-Sleep -Milliseconds 300
-        [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+        Send-To $dlg '{ENTER}' 'Parear com a Platform'
         Write-Host 'código enviado ao diálogo de pareamento do Agent'
     }
-    'executar' {
-        foreach ($v in 'Pacote', 'Python', 'Entrada', 'Saida') { if (-not (Get-Variable $v -ValueOnly)) { throw "executar exige -$v" } }
+    'abrir-execucao' {
+        if (-not $Pacote) { throw 'abrir-execucao exige -Pacote' }
+        Ensure-Win
+        $proc = Wait-For { Agent-Window '' } 30 'janela do Agent'
+        $pid0 = [uint32]$proc.Id
+        $insp0 = Log-Count 'EXEC_PACKAGE_INSPECTED'
+        # a janela pode continuar aberta desde a execução anterior: nela, Alt+E é "Entrada", não "abrir"
+        $dlg = [FrontLabWin]::Find($pid0, 'Execução local')
+        if ($dlg -eq [IntPtr]::Zero) {
+            if (-not [FrontLabWin]::Focus($proc.MainWindowHandle)) { throw 'não foi possível trazer a janela do Agent para a frente' }
+            Send-To $proc.MainWindowHandle '%e' 'janela do Agent'
+            $dlg = Wait-For { $h = [FrontLabWin]::Find($pid0, 'Execução local'); if ($h -ne [IntPtr]::Zero) { $h } } 20 'janela Execução local (Alt+E)'
+        }
+        Start-Sleep -Milliseconds 800
+        Choose $pid0 $dlg '%p' 'Pasta do pacote da automação' $Pacote
+        Wait-For { (Log-Count 'EXEC_PACKAGE_INSPECTED') -gt $insp0 } 30 'pacote inspecionado' | Out-Null
+        Write-Host 'PONTO DE INTERVENÇÃO 1: no Agent, a pessoa aprova o pacote ("Aprovar este pacote…" e a confirmação).'
+    }
+    'completar-execucao' {
+        foreach ($v in 'Python', 'Entrada', 'Saida') { if (-not (Get-Variable $v -ValueOnly)) { throw "completar-execucao exige -$v" } }
         Ensure-Win
         New-Item -ItemType Directory -Force $Saida | Out-Null
         $proc = Wait-For { Agent-Window '' } 30 'janela do Agent'
         $pid0 = [uint32]$proc.Id
-        function Choose([IntPtr]$dlg, [string]$keys, [string]$title, [string]$path) {
-            [FrontLabWin]::Focus($dlg) | Out-Null
-            [System.Windows.Forms.SendKeys]::SendWait($keys)
-            $ch = Wait-For { $h = [FrontLabWin]::Find($pid0, $title); if ($h -ne [IntPtr]::Zero) { $h } } 20 "seletor '$title'"
-            [FrontLabWin]::Focus($ch) | Out-Null; Start-Sleep -Milliseconds 400
-            [System.Windows.Forms.SendKeys]::SendWait('^a')
-            [System.Windows.Forms.SendKeys]::SendWait(($path -replace '[+^%~(){}\[\]]', '{$0}'))
-            Start-Sleep -Milliseconds 300
-            [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
-            Wait-For { [FrontLabWin]::Find($pid0, $title) -eq [IntPtr]::Zero } 20 "seletor '$title' fechado" | Out-Null
-        }
-        $insp0 = Log-Count 'EXEC_PACKAGE_INSPECTED'; $appr0 = Log-Count 'EXEC_PACKAGE_APPROVED'; $py0 = Log-Count 'EXEC_PYTHON_CHECKED'; $st0 = Log-Count 'EXEC_STARTED'
-        [FrontLabWin]::Focus($proc.MainWindowHandle) | Out-Null
-        [System.Windows.Forms.SendKeys]::SendWait('%e')
-        $dlg = Wait-For { $h = [FrontLabWin]::Find($pid0, 'Execução local'); if ($h -ne [IntPtr]::Zero) { $h } } 20 'janela Execução local (Alt+E)'
-        Start-Sleep -Milliseconds 800
-        Choose $dlg '%p' 'Pasta do pacote da automação' $Pacote
-        Wait-For { (Log-Count 'EXEC_PACKAGE_INSPECTED') -gt $insp0 } 30 'pacote inspecionado' | Out-Null
-        if ((Log-Count 'EXEC_PACKAGE_APPROVED') -eq $appr0) {
-            # o botão "Aprovar este pacote…" vem logo depois de "Pasta do pacote" na ordem de foco
-            [FrontLabWin]::Focus($dlg) | Out-Null; Start-Sleep -Milliseconds 400
-            [System.Windows.Forms.SendKeys]::SendWait('{TAB}'); Start-Sleep -Milliseconds 200
-            [System.Windows.Forms.SendKeys]::SendWait(' ')
-            $conf = Wait-For { $h = [FrontLabWin]::Find($pid0, 'Aprovar este pacote?'); if ($h -ne [IntPtr]::Zero) { $h } } 20 'confirmação "Aprovar este pacote?"'
-            [FrontLabWin]::Focus($conf) | Out-Null; Start-Sleep -Milliseconds 400
-            [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
-            Start-Sleep -Seconds 2
-            if ((Log-Count 'EXEC_PACKAGE_APPROVED') -eq $appr0 -and [FrontLabWin]::Find($pid0, 'Aprovar este pacote?') -ne [IntPtr]::Zero) {
-                [System.Windows.Forms.SendKeys]::SendWait('{TAB}'); Start-Sleep -Milliseconds 200; [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
-            }
-            Wait-For { (Log-Count 'EXEC_PACKAGE_APPROVED') -gt $appr0 } 20 'aprovação registrada no Agent' | Out-Null
-        }
-        Choose $dlg '%y' 'Python do ambiente do projeto' $Python
+        $dlg = [FrontLabWin]::Find($pid0, 'Execução local')
+        if ($dlg -eq [IntPtr]::Zero) { throw 'janela "Execução local" não está aberta' }
+        if ([FrontLabWin]::Find($pid0, 'Aprovar este pacote?') -ne [IntPtr]::Zero) { throw 'a confirmação de aprovação ainda está aberta: a pessoa decide antes' }
+        $py0 = Log-Count 'EXEC_PYTHON_CHECKED'
+        Choose $pid0 $dlg '%y' 'Python do ambiente do projeto' $Python
         Wait-For { (Log-Count 'EXEC_PYTHON_CHECKED') -gt $py0 } 60 'Python conferido' | Out-Null
-        Choose $dlg '%e' 'Entrada da automação' $Entrada
+        Choose $pid0 $dlg '%e' 'Entrada da automação' $Entrada
         Start-Sleep -Seconds 1
-        Choose $dlg '%a' 'Pasta de saída (uma subpasta por execução)' $Saida
-        Start-Sleep -Seconds 1
-        [FrontLabWin]::Focus($dlg) | Out-Null
-        [System.Windows.Forms.SendKeys]::SendWait('%i')
-        Wait-For { (Log-Count 'EXEC_STARTED') -gt $st0 } 30 'execução iniciada no Agent' | Out-Null
-        Start-Sleep -Seconds 1
-        [FrontLabWin]::Focus($dlg) | Out-Null
-        [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
-        Write-Host 'execução iniciada localmente no Agent'
+        Choose $pid0 $dlg '%a' 'Pasta de saída (uma subpasta por execução)' $Saida
+        Write-Host 'PONTO DE INTERVENÇÃO 2: no Agent, a pessoa clica em "Iniciar".'
+    }
+    'derrubar' {
+        if (-not $Saida) { throw 'derrubar exige -Saida (pasta de saída do laboratório que identifica a execução)' }
+        $agents = Agent-Processes
+        if (-not $agents) { throw 'o Agent desta cópia não está aberto' }
+        foreach ($p in $agents) { Stop-Process -Id $p.ProcessId -Force }
+        Wait-For { -not (Agent-Processes) } 20 'Agent encerrado' | Out-Null
+        $full = (Resolve-Path $Saida).Path
+        $runs = @(Get-CimInstance Win32_Process -Filter "Name='python.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($full) })
+        foreach ($r in $runs) { Stop-Process -Id $r.ProcessId -Force -ErrorAction SilentlyContinue }
+        Write-Host "Agent encerrado à força; processos da execução encerrados com o Agent fora: $($runs.Count)"
+    }
+    'avisar' {
+        if (-not $Aviso) { throw 'avisar exige -Aviso' }
+        Avisar $Aviso
+        Write-Host "aviso mostrado: $Aviso"
     }
     'parar' {
         foreach ($p in Agent-Processes) { Stop-Process -Id $p.ProcessId -Force }

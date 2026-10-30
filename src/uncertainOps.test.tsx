@@ -115,7 +115,7 @@ describe('resultado desconhecido persistente (FRONT-V1-002)', () => {
   });
 
   it('4: outra aba vê o envio em andamento e não consegue enviar; depois vê a incerteza', async () => {
-    let release!: (r: { status: number }) => void;
+    let release!: (r: { gateway: 502 }) => void;
     api.on('POST', `/api/v1/o/${ORG}/workspaces`, 'createWorkspace', { hold: new Promise((r) => (release = r)) });
     const tabA = newTab();
     const viewA = renderApp(`/o/${ORG}/workspaces`);
@@ -134,9 +134,10 @@ describe('resultado desconhecido persistente (FRONT-V1-002)', () => {
     expect(await within(dialogB).findByText('Envio em andamento')).toBeInTheDocument();
     expect(confirmButton(dialogB)).toBeDisabled();
 
-    // a resposta da aba A chega sem corpo de contrato (502 do gateway): incerta, e a aba B passa a ver isso
+    // a resposta da aba A é um 502 do PROXY, sem o corpo da API (antes este teste mandava um status fora do contrato, que
+    // virava erro de rede por acaso): incerta, e a aba B passa a ver isso
     setOperationRegistryForTest(tabA);
-    await act(async () => release({ status: 502 }));
+    await act(async () => release({ gateway: 502 }));
     setOperationRegistryForTest(tabB);
     window.dispatchEvent(new StorageEvent('storage', { key }));
     expect(await within(dialogB).findByText('Resultado não confirmado')).toBeInTheDocument();

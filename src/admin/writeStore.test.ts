@@ -5,12 +5,18 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ApiError } from '../api/http';
 import { ContractViolation } from '../api/validate';
+import { grantRefusalText } from '../pages/admin/grantActions';
+import { refusalText } from '../pages/admin/memberActions';
+import { mfaRefusalText } from '../pages/admin/mfaResetActions';
 import {
   beginCheck,
+  BUSY_ELSEWHERE_TEXT,
+  BusyElsewhere,
   classify,
   clearSettled,
   dismissWrite,
   finishCheck,
+  NotApplied,
   resetWriteStore,
   startWrite,
   writeEntry,
@@ -48,6 +54,13 @@ describe('registro de escritas', () => {
     expect(startWrite(A, 'reactivate', t('u1'), send)).toBeNull();
     await flush();
     expect(calls).toBe(1);
+  });
+
+  it('envio em curso em OUTRA aba aparece como tal, não como recusa da API', () => {
+    const busy = new NotApplied('registry', new BusyElsewhere());
+    expect(classify(busy)).toBe('refused'); // nada foi enviado desta aba
+    for (const text of [grantRefusalText(busy), refusalText(busy), mfaRefusalText(busy, 'Caio')]) expect(text).toBe(BUSY_ELSEWHERE_TEXT);
+    expect(grantRefusalText(new ApiError('forbidden', 403))).not.toBe(BUSY_ELSEWHERE_TEXT);
   });
 
   it('classificação: recusa só com status documentado que não aplica; o resto é incerto', () => {

@@ -161,6 +161,21 @@ export function classify(e: unknown): 'refused' | 'uncertain' {
  * meio da sequência, e ela parou antes do próximo POST). Nada foi aplicado ao alvo: é recusa, nunca incerteza,
  * qualquer que seja a causa. `cause` guarda o erro original (ex.: 401 → sessão expirada).
  */
+/** O registro recusou porque OUTRA aba está enviando a mesma escrita agora (nada foi enviado desta aba). */
+export class BusyElsewhere extends Error {
+  constructor() {
+    super('envio em curso em outra aba');
+    this.name = 'BusyElsewhere';
+  }
+}
+
+export const BUSY_ELSEWHERE_TEXT = 'Esta mesma alteração está sendo enviada em outra aba agora. Nada foi enviado daqui: aguarde e atualize a lista para conferir.';
+
+/** Recusa que é só "em andamento em outra aba" (não é recusa da API). */
+export function isBusyElsewhere(e: unknown): boolean {
+  return e instanceof NotApplied && e.cause instanceof BusyElsewhere;
+}
+
 export class NotApplied extends Error {
   constructor(
     readonly stage: 'step-up' | 'session' | 'registry',
@@ -212,7 +227,7 @@ function persisted(org: string, action: WriteAction, target: WriteTarget, send: 
     const begun = await operations().begin(key);
     if (!begun.ok) {
       if (begun.reason === 'unknown') throw new PreviouslyUncertain(begun.at);
-      throw new NotApplied('registry', new Error(begun.reason));
+      throw new NotApplied('registry', begun.reason === 'busy' ? new BusyElsewhere() : new Error(begun.reason));
     }
     try {
       await send();
