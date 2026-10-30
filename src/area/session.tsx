@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { useNavigate } from 'react-router';
 import { logout, me, type Me } from '../api/auth';
 import { csrfStore } from '../api/csrf';
-import { isApiError } from '../api/http';
+import { ApiError, isApiError } from '../api/http';
 import { identityLogout, identitySession } from '../api/identity';
 import { identityPath } from '../auth/flow';
 import { sessionMemory, type NavState } from '../app/notices';
@@ -136,21 +136,28 @@ export function useSessionLoader(org: string) {
     window.clearTimeout(watch.current);
     setSigningOut(true);
     let viaIdentity = false;
+    // o estado local é descartado de qualquer jeito; se o servidor não confirmar o fim de alguma sessão, a pessoa é
+    // avisada (num computador compartilhado, a sessão continuaria valendo até vencer)
+    let confirmed = true;
     try {
       await logout(org);
     } catch {
-      // mesmo com falha de rede o estado local é descartado; a sessão expira no servidor
+      confirmed = false;
     }
     try {
       // "Sair" encerra também a sessão de identidade de onde esta nasceu (se houver): sair é sair de tudo
       await identitySession();
       viaIdentity = true;
       await identityLogout();
-    } catch {
-      // sem sessão de identidade (conta antiga) ou falha: nada mais a encerrar daqui
+    } catch (e) {
+      // 401 = sem sessão de identidade (conta antiga) e 404 = identidade desligada: nada mais a encerrar; qualquer outra
+      // falha não confirma a saída
+      const noIdentity = !viaIdentity && (isApiError(e, 'unauthenticated') || (e instanceof ApiError && e.status === 404));
+      if (!noIdentity) confirmed = false;
     } finally {
       sessionMemory.reset();
-      navigateRef.current(viaIdentity ? identityPath.login : orgPath.login(org), { replace: true, state: { notice: 'signed-out' } satisfies NavState });
+      const notice = confirmed ? 'signed-out' : 'signed-out-unconfirmed';
+      navigateRef.current(viaIdentity ? identityPath.login : orgPath.login(org), { replace: true, state: { notice } satisfies NavState });
     }
   }, [org]);
 

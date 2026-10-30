@@ -21,6 +21,11 @@ export type ApiErrorCode =
   | 'rate_limited'
   | 'internal_error'
   | 'service_unavailable'
+  /**
+   * 502/503/504 SEM o corpo de erro da API (proxy/gateway): não se sabe se o pedido chegou à API. Leituras tratam como
+   * indisponibilidade; uma escrita com esse erro tem resultado DESCONHECIDO (nunca "nada foi gravado").
+   */
+  | 'gateway'
   /** Sem resposta (rede, gateway fora). */
   | 'network'
   /** Resposta fora do contrato. */
@@ -117,7 +122,7 @@ export async function request<T = unknown>(path: string, options: RequestOptions
     if (code === 'package_rejected' && typeof body.reason === 'string' && /^[a-z_]{1,64}$/.test(body.reason)) reason = body.reason;
   } catch {
     // gateway sem corpo JSON (ex.: 502 do proxy)
-    if (res.status === 502 || res.status === 503 || res.status === 504) code = 'service_unavailable';
+    if (res.status === 502 || res.status === 503 || res.status === 504) code = 'gateway';
   }
   const retry = Number(res.headers.get('Retry-After'));
   throw new ApiError(code, res.status, Number.isFinite(retry) && retry > 0 ? retry : undefined, requestId, reason);

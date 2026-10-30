@@ -2,7 +2,8 @@
  * Avisos passados entre telas pelo estado de navegação do roteador (memória do histórico) — nunca pela URL
  * nem por storage. Não carregam dado sensível.
  */
-export type Notice = 'session-expired' | 'signed-out' | 'challenge-expired' | 'session-changed';
+/** `signed-out-unconfirmed`: a memória desta aba foi limpa, mas o servidor não confirmou o fim de alguma sessão. */
+export type Notice = 'session-expired' | 'signed-out' | 'signed-out-unconfirmed' | 'challenge-expired' | 'session-changed';
 
 export interface NavState {
   notice?: Notice;
@@ -16,7 +17,13 @@ export function readNavState(state: unknown): NavState {
   const notice = s.notice;
   return {
     notice:
-      notice === 'session-expired' || notice === 'signed-out' || notice === 'challenge-expired' || notice === 'session-changed' ? notice : undefined,
+      notice === 'session-expired' ||
+      notice === 'signed-out' ||
+      notice === 'signed-out-unconfirmed' ||
+      notice === 'challenge-expired' ||
+      notice === 'session-changed'
+        ? notice
+        : undefined,
     recoveryCodeUsed: s.recoveryCodeUsed === true,
   };
 }
