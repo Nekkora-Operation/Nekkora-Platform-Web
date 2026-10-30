@@ -26,8 +26,11 @@ export interface StepUpDialogProps<T> {
   children?: ReactNode;
   /** Campos próprios do ato estão válidos (além do código). */
   ready?: boolean;
-  /** Step-up da sessão em uso (identidade ou organização). Só o 204 confirma. */
-  stepUp: (code: string) => Promise<void>;
+  /**
+   * Step-up da sessão em uso (identidade ou organização). Só o 204 confirma. Ausente: o ato não exige step-up (só a
+   * confirmação explícita, com as mesmas regras de recusa e incerteza).
+   */
+  stepUp?: (code: string) => Promise<void>;
   /** O ato. Chamado UMA vez por confirmação, só depois do step-up aceito; nunca repetido automaticamente. */
   action: () => Promise<T>;
   onDone: (result: T) => void;
@@ -69,15 +72,16 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
     };
   }, []);
 
+  const needsCode = !!stepUp;
   const confirm = async () => {
-    if (code.length !== TOTP_DIGITS || !ready || outcome?.kind === 'uncertain') return;
+    if ((needsCode && code.length !== TOTP_DIGITS) || !ready || outcome?.kind === 'uncertain') return;
     const typed = code;
     setCode(''); // código de uso único: sai da tela assim que é usado
     setOutcome(null);
     setBusy(true);
     try {
       try {
-        await stepUp(typed);
+        if (stepUp) await stepUp(typed);
       } catch (e) {
         if (!alive.current) return;
         if (isApiError(e, 'unauthenticated')) return onUnauthenticated();
@@ -114,7 +118,7 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
       confirmLabel={confirmLabel}
       tone={tone}
       busy={busy}
-      confirmDisabled={!ready || code.length !== TOTP_DIGITS || outcome?.kind === 'uncertain'}
+      confirmDisabled={!ready || (needsCode && code.length !== TOTP_DIGITS) || outcome?.kind === 'uncertain'}
       error={outcome?.text}
       onConfirm={confirm}
       onCancel={() => {
@@ -130,6 +134,7 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
             Nada será repetido automaticamente. Feche e confira o estado atual antes de decidir.
           </Alert>
         ) : (
+          needsCode && (
           <CodeInput
             label="Código do seu aplicativo autenticador"
             hint="Confirma a sua identidade imediatamente antes do ato. Códigos de recuperação não são aceitos aqui."
@@ -138,6 +143,7 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
             onValueChange={setCode}
             disabled={busy}
           />
+          )
         )}
       </Stack>
     </ConfirmDialog>

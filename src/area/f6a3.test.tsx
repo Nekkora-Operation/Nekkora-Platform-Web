@@ -188,7 +188,9 @@ describe('revogar: sucesso', () => {
     sessionFor('ana@nekkora.dev');
     const v = await openGrants();
     for (const k of ['g1', 'g2', 'g4', 'g5', 'g6']) expect(within(row(G(k))!).getByRole('button', { name: /^Revogar a concessão de / }), k).toBeInTheDocument();
-    expect(within(row(G('g3'))!).queryByRole('button')).toBeNull();
+    // revogada: sem "Revogar"; M2 (024) acrescenta só "Pedir de novo" (pedido novo, outra pessoa aprova)
+    expect(within(row(G('g3'))!).queryByRole('button', { name: /^Revogar/ })).toBeNull();
+    expect(within(row(G('g3'))!).getAllByRole('button').map((b) => b.textContent)).toEqual(['Pedir de novo']);
     v.unmount();
     transport = (m, p) => (m === 'GET' && p.endsWith('/me/permissions') ? { kind: 'status', status: 500, body: { error: 'internal_error' } } : null);
     renderAt(grants);

@@ -58,3 +58,7 @@
   display: grid;
   gap: var(--nk-space-3);
 }
+
+.pw-break {
+  overflow-wrap: anywhere;
+}

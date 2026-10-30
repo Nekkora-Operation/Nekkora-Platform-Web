@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, Card, Grid, Select, Stack, StateView, StatusRegion, Table, Text, type TableColumn } from 'nekkora-lib';
+import { Alert, Button, Card, Grid, Select, Stack, StateView, StatusRegion, Table, Text, type TableColumn } from 'nekkora-lib';
+import { GrantDecisionButtons, GrantDecisionDialog, type GrantDecision } from '../access/grantDecisions';
 import { listClientGrants, listClients } from '../../api/admin';
 import { isApiError } from '../../api/http';
 import type { ClientGrant, GrantStatus } from '../../api/v1';
@@ -48,6 +49,8 @@ const CLIENT_OPTIONS_LIMIT = 100;
  * decide de qualquer forma. Só o 204 é sucesso (inclusive para concessão já revogada). Envio, recusa, resultado incerto e
  * conferência ficam no registro de escritas, com chave própria de concessão (não colide com membros).
  */
+
+
 export function GrantsPage() {
   const { org, expired } = useSession();
   const { workspaces, permissions } = useInternalArea();
@@ -100,6 +103,9 @@ export function GrantsPage() {
   useEffect(() => clearSettled(org, 'grant'), [org, filters.key, refresh]);
 
   const canManage = permissions.status === 'ready' && permissions.data.organization.permissions.includes('external_access.manage');
+  // M2 (024): decisões além da revogação — aprovar, pedir/aprovar renovação, revisar, pedir de novo
+  const [decision, setDecision] = useState<{ grant: ClientGrant; decision: GrantDecision } | null>(null);
+  const [decisionNotice, setDecisionNotice] = useState<{ tone: 'success' | 'warning'; text: string } | null>(null);
 
   // sessão expirada numa escrita: não foi aplicada (a sessão é validada antes dos efeitos) → fluxo de sessão expirada
   const expiredEntry = entries.find(
@@ -136,8 +142,11 @@ export function GrantsPage() {
     const e = byGrant.get(g.grantId);
     if (e?.phase === 'sending') return <Text variant="body-sm" color="secondary">Enviando…</Text>;
     if (e?.phase === 'uncertain') return <Text variant="body-sm" color="secondary">Resultado não confirmado</Text>;
-    if (!REVOCABLE.includes(effectiveGrantStatus(g, e))) return <span className="pw-prod__muted">—</span>;
+    const decisions = e?.phase === 'done' ? null : <GrantDecisionButtons grant={g} onPick={(d) => setDecision({ grant: g, decision: d })} />;
+    if (!REVOCABLE.includes(effectiveGrantStatus(g, e))) return decisions ?? <span className="pw-prod__muted">—</span>;
     return (
+      <span className="pw-admin__row-actions">
+      {decisions}
       <Button
         size="sm"
         variant="secondary"
@@ -147,6 +156,7 @@ export function GrantsPage() {
       >
         Revogar
       </Button>
+      </span>
     );
   };
 
@@ -319,6 +329,22 @@ export function GrantsPage() {
           )}
         </>
       )}
+      {decisionNotice && <Alert tone={decisionNotice.tone}>{decisionNotice.text}</Alert>}
+      <GrantDecisionDialog
+        org={org}
+        grant={forbidden ? null : (decision?.grant ?? null)}
+        decision={decision?.decision ?? null}
+        onClose={() => setDecision(null)}
+        onDone={(text) => {
+          setDecision(null);
+          setDecisionNotice({ tone: 'success', text });
+          setRefresh((n) => n + 1);
+        }}
+        onUncertain={() =>
+          setDecisionNotice({ tone: 'warning', text: 'O resultado da última decisão não foi confirmado. Atualize a lista e confira antes de decidir de novo.' })
+        }
+        onUnauthenticated={expired}
+      />
       <RevokeGrantDialog
         org={org}
         dialog={forbidden ? null : dialog}
