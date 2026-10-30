@@ -4,6 +4,7 @@ import { createAutomation } from '../../api/lifecycle';
 import { useWorkspacePermissions } from '../../area/useWorkspacePermissions';
 import { StepUpDialog } from '../../components/StepUpDialog';
 import { accessRefusal } from '../access/shared';
+import { LocalRunAuthorizations } from '../agents/LocalRunAuthorizations';
 import { Link as RouterLink, useParams } from 'react-router';
 import { Alert, Button, Card, Input, DescriptionList, Heading, Link, LoadMore, Stack, StateView, Table, type TableColumn } from 'nekkora-lib';
 import { isApiError } from '../../api/http';
@@ -141,6 +142,8 @@ function WorkspaceDetail({ workspaceId }: { workspaceId: string }) {
           </div>
         </Stack>
       </Card>
+
+      <LocalRunAuthorizations workspaceId={w.workspaceId} canExecute={perms.status === 'ready' && perms.has('automation.execute')} />
 
       <section className="pw-prod__section" aria-labelledby="automacoes-titulo">
         <Heading level={2} id="automacoes-titulo" className="pw-prod__section-title">

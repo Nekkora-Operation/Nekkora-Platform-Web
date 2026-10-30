@@ -21,6 +21,7 @@ import { orgPath } from '../../auth/organization';
 import { StepUpDialog } from '../../components/StepUpDialog';
 import { useResource } from '../../hooks/useResource';
 import { orgStepUp } from '../access/shared';
+import { LocalRunAuthorizations } from '../agents/LocalRunAuthorizations';
 import { DateTimeText, LoadErrorState, NotFoundState, PageHeader, isMissing } from './shared';
 import './shared.css';
 import '../../identity/identity.css';
@@ -389,6 +390,14 @@ export function VersionPage() {
             </Stack>
           </Card>
         </section>
+      )}
+
+      {!draft && (
+        <LocalRunAuthorizations
+          workspaceId={data.workspaceId!}
+          version={{ automationVersionId: data.automationVersionId!, versionNumber: data.versionNumber, fingerprint: data.agentPackage?.fingerprint ?? art?.fingerprint }}
+          canExecute={perms.status === 'ready' && perms.has('automation.execute')}
+        />
       )}
 
       <StepUpDialog<LifecycleVersion>
