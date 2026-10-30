@@ -1,0 +1,112 @@
+# CI do frontend para as branches da pilha FRONT-V1 que ainda resolvem a Nekkora-lib por file:../Nekkora-lib
+# (FRONT-V1-003). Prepara ../Nekkora-lib no commit fixado abaixo (o mesmo usado na FRONT-V1-001), depois: npm ci,
+# typecheck, testes, contrato contra o commit fixado da API, build e E2E com a API SIMULADA. A partir do PR que fixa a
+# lib 0.2.0 (feat/front-v1-002-lib-ci) o workflow é substituído pelo da lib por tarball. Os E2E de e2e-real/ (API real,
+# Agent real, Windows) não rodam aqui.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, 'feat/front-v1-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Nekkora-lib usada por estas branches (file:../Nekkora-lib), fixada por commit
+  NEKKORA_LIB_COMMIT: c4c479f55c96f5c3fc3e202e08ba71a01f058594
+
+jobs:
+  validar:
+    name: Instalação, typecheck, testes, contrato e build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Commit fixado da API (contract/SOURCE.json)
+        id: api
+        run: echo "commit=$(node -p "require('./contract/SOURCE.json').commit")" >> "$GITHUB_OUTPUT"
+
+      - name: OpenAPI da API no commit fixado (só leitura)
+        uses: actions/checkout@v4
+        with:
+          repository: Nekkora-Operation/Nekkora-Platform-API
+          ref: ${{ steps.api.outputs.commit }}
+          path: .ci/api
+          sparse-checkout: api/openapi
+          persist-credentials: false
+
+      - name: Nekkora-lib em ../Nekkora-lib no commit fixado (npm ci roda o build da lib)
+        run: |
+          set -euo pipefail
+          git clone --quiet https://github.com/Nekkora-Operation/Nekkora-lib.git ../Nekkora-lib
+          git -C ../Nekkora-lib -c advice.detachedHead=false checkout --quiet "$NEKKORA_LIB_COMMIT"
+          test "$(git -C ../Nekkora-lib rev-parse HEAD)" = "$NEKKORA_LIB_COMMIT"
+          (cd ../Nekkora-lib && npm ci --no-audit --no-fund)
+
+      - name: Instalar dependências (lockfile)
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Testes (vitest)
+        run: npm test -- --reporter=default --reporter=json --outputFile=vitest-resultado.json
+
+      - name: Contagens do vitest (anotação pública do run)
+        if: always()
+        run: node scripts/ci-contagens.mjs vitest vitest-resultado.json
+
+      - name: Contrato (cópia = OpenAPI da API no commit fixado; tipos gerados atualizados)
+        env:
+          NEKKORA_API_REPO: .ci/api
+        run: npm run contract:check
+
+      - name: Build
+        run: npm run build
+
+  e2e-simulador:
+    name: E2E com a API simulada (navegador)
+    needs: validar
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Nekkora-lib em ../Nekkora-lib no commit fixado
+        run: |
+          set -euo pipefail
+          git clone --quiet https://github.com/Nekkora-Operation/Nekkora-lib.git ../Nekkora-lib
+          git -C ../Nekkora-lib -c advice.detachedHead=false checkout --quiet "$NEKKORA_LIB_COMMIT"
+          (cd ../Nekkora-lib && npm ci --no-audit --no-fund)
+      - run: npm ci --no-audit --no-fund
+      - name: Chromium do Playwright
+        run: npx playwright install --with-deps chromium
+      - name: E2E (e2e/, API simulada do contrato; sem repetição automática)
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: playwright-resultado.json
+        run: npx playwright test --retries=0 --reporter=list,json
+      - name: Contagens do E2E (anotação pública do run)
+        if: always()
+        run: node scripts/ci-contagens.mjs playwright playwright-resultado.json
+      - name: Evidência de falha (só de testes que falharam; dados sintéticos)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-simulador-falhas-${{ github.sha }}
+          path: test-results/
+          retention-days: 14
