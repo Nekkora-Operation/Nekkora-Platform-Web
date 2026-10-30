@@ -73,6 +73,7 @@ export function LinkAccountPage() {
   return (
     <Stack gap={5} className="pw-identity">
       <SectionHeader
+        as="h1"
         title="Vincular conta antiga"
         description="Se você entrava numa organização com uma conta própria dela (e-mail e senha daquela organização), vincule essa conta à sua identidade Nekkora para entrar por aqui."
       />
