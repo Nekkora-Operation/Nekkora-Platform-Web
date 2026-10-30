@@ -200,6 +200,48 @@ describe('revogar: sucesso', () => {
     expect(screen.getByText(/Somente consulta\./)).toBeInTheDocument();
   });
 
+  it('FRONT-V1-003 (no #12): "Pedir renovação" e "Pedir de novo" abrem sem quebrar com a data vazia; renovação avisa que a aprovação está indisponível; nenhum "Aprovar renovação"', async () => {
+    sessionFor('ana@nekkora.dev');
+    await openGrants();
+    expect(screen.queryByRole('button', { name: /^Aprovar renovação/ })).toBeNull();
+    const sent: unknown[] = [];
+    transport = (m, p) => {
+      if (m === 'POST' && p.endsWith('/renew')) {
+        sent.push(p);
+        return {
+          kind: 'status',
+          status: 202,
+          body: {
+            grantId: G('g1'),
+            clientMembershipId: stableUuid('cm-renovacao'),
+            workspaceId: stableUuid('ws-renovacao'),
+            status: 'ATIVA',
+            startsAt: '2026-10-01T00:00:00Z',
+            expiresAt: null,
+            nextReviewAt: '2026-11-15T23:59:59Z',
+            renewal: { requestedByMembershipId: stableUuid('m-ana'), requestedAt: '2026-10-30T10:00:00Z', nextReviewAt: '2026-12-31T23:59:59Z', expiresAt: null, justification: 'x' },
+          },
+        };
+      }
+      return null;
+    };
+    fireEvent.click(within(row(G('g1'))!).getByRole('button', { name: /^Pedir renovação/ }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText(/Aprovar a renovação ainda não está disponível nesta tela/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Enviar pedido' })).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText(/^Próxima revisão/), { target: { value: '2099-12-31' } });
+    fireEvent.change(within(dialog).getByLabelText(/^Justificativa/), { target: { value: 'Contrato renovado' } });
+    // o envio só é liberado depois de o registro persistente da operação estar pronto (resumo assíncrono)
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Enviar pedido' })).toBeEnabled());
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Enviar pedido' }));
+    expect(await screen.findByText(/Pedido de renovação registrado\. O acesso não muda/)).toBeInTheDocument();
+    expect(sent).toHaveLength(1);
+    // revogada: "Pedir de novo" também abre com a data vazia
+    fireEvent.click(within(row(G('g3'))!).getByRole('button', { name: /^Pedir de novo/ }));
+    const again = await screen.findByRole('alertdialog');
+    expect(within(again).getByRole('button', { name: 'Enviar pedido' })).toBeDisabled();
+  });
+
   it('concessão já revogada por outra pessoa depois da leitura: 204 = sucesso (idempotente), sem nova alteração', async () => {
     sessionFor('ana@nekkora.dev');
     await openGrants();

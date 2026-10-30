@@ -344,6 +344,7 @@ export function GrantsPage() {
           setDecisionNotice({ tone: 'warning', text: 'O resultado da última decisão não foi confirmado. Atualize a lista e confira antes de decidir de novo.' })
         }
         onUnauthenticated={expired}
+        onRefused={() => setRefresh((n) => n + 1)}
       />
       <RevokeGrantDialog
         org={org}
