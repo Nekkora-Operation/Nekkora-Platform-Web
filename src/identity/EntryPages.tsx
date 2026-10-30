@@ -8,7 +8,7 @@ import { readNavState } from '../app/notices';
 import { useOrganization } from '../app/organization';
 import { identityPath, IdentityFlowProvider } from '../auth/flow';
 import { peekInitialLinkToken } from '../auth/linkToken';
-import { commonMessage, SESSION_EXPIRED, type UserMessage } from '../auth/messages';
+import { commonMessage, SESSION_EXPIRED, SIGNED_OUT_UNCONFIRMED, type UserMessage } from '../auth/messages';
 import { orgPath } from '../auth/organization';
 import { ForgotPasswordPage } from '../pages/EmailRequestPage';
 import { ResetPasswordPage } from '../pages/ResetPasswordPage';
@@ -104,7 +104,9 @@ export function OrganizationEntryPage() {
         ? 'A sessão nesta organização foi encerrada ou trocada em outra aba.'
         : notice === 'signed-out'
           ? 'Você saiu da organização.'
-          : null;
+          : notice === 'signed-out-unconfirmed'
+            ? SIGNED_OUT_UNCONFIRMED
+            : null;
 
   if (probe.kind === 'session' && probe.restricted) return <Navigate to={identityPath.replaceFactor} replace />;
 

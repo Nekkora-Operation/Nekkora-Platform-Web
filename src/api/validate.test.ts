@@ -7,7 +7,7 @@ import contract from './generated/nekkora-api-v1.schemas.json' with { type: 'jso
 import { ApiError } from './http';
 import { getExecution, listExecutions, listWorkspaces } from './product';
 import { getMyPermissions } from './permissions';
-import { ContractViolation, isDateTime, readJson, schemaViolations, validated, violations } from './validate';
+import { ContractViolation, isDateTime, rawSchemaViolations, readJson, schemaViolations, validated, violations } from './validate';
 import { ajvValidate } from '../test/ajvContract';
 import * as fx from '../test/contractFixtures';
 
@@ -74,6 +74,12 @@ describe('validador', () => {
     expect(schemaViolations('IdentityEnrollmentConfirmation', challenge)).toEqual([]);
     expect(schemaViolations('IdentityEnrollmentConfirmation', { recoveryCodes: [], restricted: false }).map((v) => v.rule)).toEqual(['required csrfToken']);
     expect(schemaViolations('IdentityFactorReplacement', { recoveryCodes: ['A'], restricted: false })).toEqual([]);
+  });
+
+  it('mapa com propriedades declaradas: chaves do mapa não são extras no modo estrito', () => {
+    const schema = { type: 'object', properties: { total: { type: 'integer' } }, additionalProperties: { type: 'integer' } };
+    expect(rawSchemaViolations(schema, { total: 3, ok: 2, falhas: 1 }, true)).toEqual([]);
+    expect(rawSchemaViolations(schema, { total: 3, falhas: 'um' }, true)).toEqual([{ path: '$.falhas', rule: 'type integer' }]);
   });
 
   it('todos os esquemas usam só palavras-chave que o validador implementa', () => {

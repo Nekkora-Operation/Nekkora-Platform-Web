@@ -16,6 +16,8 @@ export interface Call {
 export type Reply =
   | { status: number; body?: unknown; headers?: Record<string, string> }
   | 'network'
+  /** Resposta do PROXY (502/503/504 sem o corpo da API): é transporte, não a API, e por isso não passa pelo contrato. */
+  | { gateway: 502 | 503 | 504 }
   /** Fica pendente até `release()` (testa corridas e resposta atrasada). */
   | { hold: Promise<{ status: number; body?: unknown }> };
 
@@ -62,6 +64,7 @@ export class RouteApi {
     if (!route) throw new Error(`rota não preparada no teste: ${method} ${path}`);
     let reply = route.handler(call, route.count++);
     if (reply === 'network') throw new TypeError('Failed to fetch');
+    if ('gateway' in reply) return new Response('<html>Bad Gateway</html>', { status: reply.gateway, headers: { 'Content-Type': 'text/html' } });
     if ('hold' in reply) reply = await reply.hold;
     const { status, body } = reply;
     const json = body === undefined ? null : JSON.stringify(body);
