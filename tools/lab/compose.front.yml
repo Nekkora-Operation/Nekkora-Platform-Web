@@ -5,7 +5,7 @@
 #   (NEKKORA_API_URL); Origin e cookies __Host- seguem a origem do Vite;
 # - cadastro web ligado (as demais chaves de identidade já vêm ligadas no compose E2E da API);
 # - e-mail pelo transporte de HOMOLOGAÇÃO: cada mensagem vira arquivo na caixa (volume exclusivo do projeto, dono nekkora,
-#   0700), sem envio externo; a leitura é pela ferramenta tools/lab/caixa.sh;
+#   0700), sem envio externo; a leitura é por `node tools/lab/lab.mjs <id> caixa`;
 # - armazenamento local dos artefatos recebidos (NEKKORA_ARTEFATOS_DIR, migration 028), volume do projeto;
 # - limites de memória (histórico de pressão de memória nas suítes pesadas).
 volumes:
