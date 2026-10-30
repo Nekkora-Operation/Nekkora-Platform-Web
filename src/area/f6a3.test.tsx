@@ -15,7 +15,7 @@ import { AppRoutes } from '../app/AppRoutes';
 import { csrfStore } from '../api/csrf';
 import { sessionMemory } from '../app/notices';
 import { revokeClientGrant } from '../api/admin';
-import { resetWriteStore, startWrite, writeEntry } from '../admin/writeStore';
+import { PreviouslyUncertain, resetWriteStore, startWrite, writeEntry } from '../admin/writeStore';
 
 const NOW = Date.UTC(2026, 9, 3, 12, 0, 0);
 const grants = `/o/${DEV_ORG}/administracao/concessoes`;
@@ -198,6 +198,46 @@ describe('revogar: sucesso', () => {
     expect(screen.queryByRole('columnheader', { name: 'Ações' })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Revogar/ })).toBeNull();
     expect(screen.getByText(/Somente consulta\./)).toBeInTheDocument();
+  });
+
+  it('FRONT-V1-002: "Pedir renovação" e "Pedir de novo" abrem sem quebrar com a data vazia; renovação avisa que a aprovação está indisponível; nenhum "Aprovar renovação"', async () => {
+    sessionFor('ana@nekkora.dev');
+    await openGrants();
+    expect(screen.queryByRole('button', { name: /^Aprovar renovação/ })).toBeNull();
+    const sent: unknown[] = [];
+    transport = (m, p) => {
+      if (m === 'POST' && p.endsWith('/renew')) {
+        sent.push(p);
+        return {
+          kind: 'status',
+          status: 202,
+          body: {
+            grantId: G('g1'),
+            clientMembershipId: stableUuid('cm-renovacao'),
+            workspaceId: stableUuid('ws-renovacao'),
+            status: 'ATIVA',
+            startsAt: '2026-10-01T00:00:00Z',
+            expiresAt: null,
+            nextReviewAt: '2026-11-15T23:59:59Z',
+            renewal: { requestedByMembershipId: stableUuid('m-ana'), requestedAt: '2026-10-30T10:00:00Z', nextReviewAt: '2026-12-31T23:59:59Z', expiresAt: null, justification: 'x' },
+          },
+        };
+      }
+      return null;
+    };
+    fireEvent.click(within(row(G('g1'))!).getByRole('button', { name: /^Pedir renovação/ }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText(/Aprovar a renovação ainda não está disponível nesta tela/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Enviar pedido' })).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText(/^Próxima revisão/), { target: { value: '2099-12-31' } });
+    fireEvent.change(within(dialog).getByLabelText(/^Justificativa/), { target: { value: 'Contrato renovado' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Enviar pedido' }));
+    expect(await screen.findByText(/Pedido de renovação registrado\. O acesso não muda/)).toBeInTheDocument();
+    expect(sent).toHaveLength(1);
+    // revogada: "Pedir de novo" também abre com a data vazia
+    fireEvent.click(within(row(G('g3'))!).getByRole('button', { name: /^Pedir de novo/ }));
+    const again = await screen.findByRole('alertdialog');
+    expect(within(again).getByRole('button', { name: 'Enviar pedido' })).toBeDisabled();
   });
 
   it('concessão já revogada por outra pessoa depois da leitura: 204 = sucesso (idempotente), sem nova alteração', async () => {
@@ -631,7 +671,7 @@ describe('resultado incerto (falhas de TRANSPORTE injetadas)', () => {
 });
 
 describe('sessão e respostas pendentes', () => {
-  it('revogação pendente que conclui DEPOIS da troca de sessão não aparece na sessão nova', async () => {
+  it('revogação pendente que conclui DEPOIS da troca de sessão não altera a sessão nova; a incerteza volta só pelo registro persistente', async () => {
     sessionFor('ana@nekkora.dev');
     const view = await openGrants();
     let release!: () => void;
@@ -642,12 +682,18 @@ describe('sessão e respostas pendentes', () => {
     view.unmount();
     act(() => csrfStore.clear());
     sessionFor('ana@nekkora.dev');
-    await openGrants();
+    const again = await openGrants();
     await act(async () => release());
     await settle();
-    expect(panel()).toBeNull();
-    expect(row(G('g1'))).not.toHaveTextContent('Resultado não confirmado');
-    expect(writeEntry(DEV_ORG, G('g1'), 'grant')).toBeUndefined();
+    // a conclusão atrasada da sessão anterior não cria nem altera registro da sessão nova
+    const late = writeEntry(DEV_ORG, G('g1'), 'grant');
+    expect(late === undefined || late.error instanceof PreviouslyUncertain).toBe(true);
+    // FRONT-V1-002: a MESMA pessoa, ao reler a lista, vê a incerteza vinda do registro persistente — sem reenvio
+    again.unmount();
+    renderAt(grants);
+    await screen.findByRole('region', { name: 'Lista de concessões' });
+    await waitFor(() => expect(writeEntry(DEV_ORG, G('g1'), 'grant')?.error).toBeInstanceOf(PreviouslyUncertain));
+    expect(revokes()).toHaveLength(1);
   });
 
   it('aviso de outra aba: sai da área, esquece o registro, e a conferência pendente para de ler', async () => {

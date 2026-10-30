@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Alert, Button, Checkbox, Input, RadioGroup, Stack, Text, Textarea } from 'nekkora-lib';
 import {
   approveClientGrant,
-  approveClientGrantRenewal,
   createClientGrant,
   requestClientGrantRenewal,
   reviewClientGrant,
@@ -12,17 +11,21 @@ import { StepUpDialog } from '../../components/StepUpDialog';
 import { DateTimeText } from '../product/shared';
 import { accessRefusal, orgStepUp } from './shared';
 
-export type GrantDecision = 'approve' | 'renew' | 'renew-approve' | 'review' | 'request-again';
+export type GrantDecision = 'approve' | 'renew' | 'review' | 'request-again';
 
-/** Ações de decisão por situação (além de revogar, que já existia). A API decide; a tela só oferece o que cabe. */
+/**
+ * Ações de decisão por situação (além de revogar, que já existia). A API decide; a tela só oferece o que cabe.
+ * Aprovar a RENOVAÇÃO não é oferecido (FRONT-V1-002, D-API-02): nenhuma leitura do contrato mostra o pedido pendente
+ * (valores e solicitante) a quem aprova, e aprovar valores digitados de memória não é uma decisão conferida.
+ */
 export function decisionsFor(g: ClientGrant): GrantDecision[] {
   switch (g.status) {
     case 'pending':
       return ['approve'];
     case 'active':
-      return ['review', 'renew', 'renew-approve'];
+      return ['review', 'renew'];
     case 'suspended':
-      return ['renew', 'renew-approve'];
+      return ['renew'];
     case 'revoked':
       return ['request-again'];
   }
@@ -31,7 +34,6 @@ export function decisionsFor(g: ClientGrant): GrantDecision[] {
 export const DECISION_LABEL: Record<GrantDecision, string> = {
   approve: 'Aprovar',
   renew: 'Pedir renovação',
-  'renew-approve': 'Aprovar renovação',
   review: 'Revisar',
   'request-again': 'Pedir de novo',
 };
@@ -49,9 +51,9 @@ const toDay = (iso: string | null) => {
  * Diálogos de decisão das concessões (024). Regras do contrato que a tela torna visíveis:
  * - quem PEDIU não aprova (403); a aprovação envia EXATAMENTE os valores pedidos, conferidos pela pessoa (diferentes: 409);
  * - KEEP sem data preserva o prazo atual (nunca vira "sem prazo"); data mais tarde estenderia o acesso: 409 (renovação);
- * - renovação é pedido (sem step-up, sem mudar o acesso) + aprovação de OUTRA pessoa (step-up).
- * Valores do pedido de renovação NÃO aparecem em nenhuma leitura do contrato (D-API-02): quem aprova digita os valores
- * combinados com quem pediu, e a API os confere.
+ * - renovação é pedido (sem step-up, sem mudar o acesso) + aprovação de OUTRA pessoa (step-up). A aprovação da
+ *   renovação fica INDISPONÍVEL nesta tela até a leitura do pedido existir (D-API-02).
+ * Recusa por conflito (estado mudou, pedido substituído ou já decidido): a lista é recarregada e nada é reenviado.
  */
 export function GrantDecisionDialog({
   org,
@@ -61,6 +63,7 @@ export function GrantDecisionDialog({
   onDone,
   onUncertain,
   onUnauthenticated,
+  onRefused,
 }: {
   org: string;
   grant: ClientGrant | null;
@@ -69,6 +72,8 @@ export function GrantDecisionDialog({
   onDone: (text: string) => void;
   onUncertain: () => void;
   onUnauthenticated: () => void;
+  /** A API recusou (ex.: 409 porque a concessão mudou): a tela relê a lista do servidor; a decisão não é reenviada. */
+  onRefused?: () => void;
 }) {
   const [nextReview, setNextReview] = useState('');
   const [expires, setExpires] = useState('');
@@ -98,12 +103,16 @@ export function GrantDecisionDialog({
     open: true,
     onClose,
     onUnauthenticated,
-    onOutcome: (k: string) => k === 'uncertain' && onUncertain(),
+    onOutcome: (k: string) => {
+      if (k === 'uncertain') onUncertain();
+      if (k === 'refused') onRefused?.();
+    },
     uncertainText: 'Não foi possível confirmar o resultado. Feche e atualize a lista antes de decidir de novo.',
   };
   const refusal = (e: unknown) =>
     accessRefusal(e, {
-      conflict: 'O estado da concessão não permite este ato, ou os valores conferidos não são os do pedido (ou a revisão estenderia o prazo).',
+      conflict:
+        'A concessão mudou desde a leitura (outro pedido, outra decisão ou mudança de estado), ou a revisão estenderia o prazo. A lista foi atualizada com o estado atual; confira antes de decidir de novo.',
       forbidden: 'O ato não foi permitido: quem pediu não pode aprovar, e as permissões ou a confirmação podem não valer mais.',
     });
 
@@ -147,44 +156,38 @@ export function GrantDecisionDialog({
     );
   }
 
-  if (decision === 'renew' || decision === 'renew-approve' || decision === 'request-again') {
-    const approving = decision === 'renew-approve';
+  if (decision === 'renew' || decision === 'request-again') {
     const again = decision === 'request-again';
-    const ready = future(nextReview) && expiryOk && (approving || again || justification.trim().length > 0) && (!approving || checked);
-    const values = { nextReviewAt: endOfDay(nextReview), ...(noExpiry || !expires ? {} : { expiresAt: endOfDay(expires) }) };
+    const ready = future(nextReview) && expiryOk && (again || justification.trim().length > 0);
+    // calculado só no envio: com a data ainda vazia, endOfDay daria data inválida (e toISOString lançaria na renderização)
+    const values = () => ({ nextReviewAt: endOfDay(nextReview), ...(noExpiry || !expires ? {} : { expiresAt: endOfDay(expires) }) });
     return (
       <StepUpDialog
         {...common}
-        title={approving ? `Aprovar a renovação de ${who}?` : again ? `Pedir de novo o acesso de ${who}?` : `Pedir a renovação de ${who}?`}
-        guard={{ operation: approving ? 'grant.renewal.approve' : again ? 'grant.request-again' : 'grant.renewal.request', target: grant.grantId }}
-        confirmLabel={approving ? 'Aprovar renovação' : 'Enviar pedido'}
+        title={again ? `Pedir de novo o acesso de ${who}?` : `Pedir a renovação de ${who}?`}
+        guard={{ operation: again ? 'grant.request-again' : 'grant.renewal.request', target: grant.grantId }}
+        confirmLabel="Enviar pedido"
         ready={ready}
-        stepUp={approving ? orgStepUp(org) : undefined}
         action={() =>
-          approving
-            ? approveClientGrantRenewal(org, grant.grantId, values)
-            : again
-              ? createClientGrant(org, { clientMembershipId: grant.externalAccount.clientMembershipId, workspaceId: grant.workspace.workspaceId, ...values })
-              : requestClientGrantRenewal(org, grant.grantId, { ...values, justification: justification.trim() })
+          again
+            ? createClientGrant(org, { clientMembershipId: grant.externalAccount.clientMembershipId, workspaceId: grant.workspace.workspaceId, ...values() })
+            : requestClientGrantRenewal(org, grant.grantId, { ...values(), justification: justification.trim() })
         }
         onDone={() =>
           onDone(
-            approving
-              ? 'Renovação aprovada com os valores do pedido.'
-              : again
-                ? 'Pedido de concessão criado. Ele precisa da aprovação de outra pessoa.'
-                : 'Pedido de renovação registrado. O acesso não muda até outra pessoa aprovar.',
+            again
+              ? 'Pedido de concessão criado. Ele precisa da aprovação de outra pessoa.'
+              : 'Pedido de renovação registrado. O acesso não muda até outra pessoa aprovar. A aprovação da renovação ainda não está disponível nesta tela.',
           )
         }
         refusalText={refusal}
       >
-        {approving ? (
+        <Text>{again ? 'Cria um pedido novo para a mesma conta e workspace.' : 'O acesso atual não muda até a aprovação de outra pessoa.'}</Text>
+        {!again && (
           <Alert tone="info" live="off">
-            A API não mostra os valores do pedido de renovação. Informe os valores combinados com quem pediu: se forem
-            diferentes dos pedidos, a aprovação é recusada sem efeito.
+            Aprovar a renovação ainda não está disponível nesta tela: a Platform não mostra o pedido pendente a quem
+            aprova. O pedido fica registrado.
           </Alert>
-        ) : (
-          <Text>{again ? 'Cria um pedido novo para a mesma conta e workspace.' : 'O acesso atual não muda até a aprovação de outra pessoa.'}</Text>
         )}
         <Input label="Próxima revisão" type="date" required fullWidth value={nextReview} onChange={(e) => setNextReview(e.target.value)} hint="Data futura." />
         <Checkbox label="Sem prazo de término" checked={noExpiry} onChange={(e) => setNoExpiry(e.target.checked)} />
@@ -192,7 +195,6 @@ export function GrantDecisionDialog({
         {decision === 'renew' && (
           <Textarea label="Justificativa" required fullWidth maxLength={2000} value={justification} onChange={(e) => setJustification(e.target.value)} />
         )}
-        {approving && <Checkbox label="Conferi os valores com quem pediu." checked={checked} onChange={(e) => setChecked(e.target.checked)} />}
       </StepUpDialog>
     );
   }
