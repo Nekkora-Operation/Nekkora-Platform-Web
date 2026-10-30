@@ -242,6 +242,27 @@ describe('revogar: sucesso', () => {
     expect(within(again).getByRole('button', { name: 'Enviar pedido' })).toBeDisabled();
   });
 
+  it('decisão com resultado desconhecido (504 do proxy): a linha não oferece decidir de novo até a pessoa usar "Atualizar"', async () => {
+    sessionFor('ana@nekkora.dev');
+    await openGrants();
+    let renews = 0;
+    transport = (m, p) => (m === 'POST' && p.endsWith('/renew') && ++renews ? { kind: 'gateway', status: 504 } : null);
+    fireEvent.click(within(row(G('g1'))!).getByRole('button', { name: /^Pedir renovação/ }));
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.change(within(dialog).getByLabelText(/^Próxima revisão/), { target: { value: '2099-12-31' } });
+    fireEvent.change(within(dialog).getByLabelText(/^Justificativa/), { target: { value: 'Contrato renovado' } });
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Enviar pedido' })).toBeEnabled());
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Enviar pedido' }));
+    expect(await screen.findByText(/O resultado da última decisão não foi confirmado/)).toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Cancelar' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    await waitFor(() => expect(row(G('g1'))).toHaveTextContent('Decisão não confirmada'));
+    expect(within(row(G('g1'))!).queryByRole('button', { name: /^Pedir renovação/ })).toBeNull();
+    expect(renews).toBe(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Atualizar' }));
+    await waitFor(() => expect(within(row(G('g1'))!).getByRole('button', { name: /^Pedir renovação/ })).toBeInTheDocument());
+  });
+
   it('concessão já revogada por outra pessoa depois da leitura: 204 = sucesso (idempotente), sem nova alteração', async () => {
     sessionFor('ana@nekkora.dev');
     await openGrants();
