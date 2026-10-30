@@ -56,7 +56,7 @@ jobs:
         run: npm test -- --reporter=default --reporter=json --outputFile=vitest-resultado.json
 
       - name: Contagens do vitest (anotação pública do run)
-        if: always()
+        if: always() && hashFiles('vitest-resultado.json') != ''
         run: node scripts/ci-contagens.mjs vitest vitest-resultado.json
 
       - name: Contrato (cópia = OpenAPI da API no commit fixado; tipos gerados atualizados)
@@ -87,7 +87,7 @@ jobs:
           PLAYWRIGHT_JSON_OUTPUT_NAME: playwright-resultado.json
         run: npx playwright test --retries=0 --reporter=list,json
       - name: Contagens do E2E (anotação pública do run)
-        if: always()
+        if: always() && hashFiles('playwright-resultado.json') != ''
         run: node scripts/ci-contagens.mjs playwright playwright-resultado.json
       - name: Evidência de falha (traces só de testes que falharam; dados sintéticos)
         if: failure()

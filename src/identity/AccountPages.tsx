@@ -412,6 +412,9 @@ export function ReplaceFactorPage() {
         </Alert>
       )}
 
+      {/* sem `guard` de propósito: começar a troca não troca nada (quem troca é a confirmação com o primeiro código do
+          autenticador novo, que trata o resultado desconhecido na própria tela); repetir o começo só substitui o pedido
+          pendente */}
       <StepUpDialog<string>
         open={confirming}
         title="Confirmar com o autenticador atual"

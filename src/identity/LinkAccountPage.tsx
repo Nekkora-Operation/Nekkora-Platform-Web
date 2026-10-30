@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router';
+import { Link as RouterLink, useNavigate } from 'react-router';
 import { Alert, Button, Card, CodeInput, Input, Link, SectionHeader, Stack, Text } from 'nekkora-lib';
 import { ApiError, isApiError } from '../api/http';
 import { confirmAccountLink, identityStepUp, startAccountLink } from '../api/identity';
@@ -31,6 +31,8 @@ export function LinkAccountPage() {
   const [error, setError] = useState<UserMessage | string | null>(null);
   const [pending, setPending] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  /** Vinculação com resultado desconhecido: não é oferecida de novo nesta tela (a pessoa confere a lista antes). */
+  const [uncertain, setUncertain] = useState(false);
   const inFlight = useRef(false);
 
   const prove = async (e: FormEvent) => {
@@ -77,6 +79,12 @@ export function LinkAccountPage() {
         title="Vincular conta antiga"
         description="Se você entrava numa organização com uma conta própria dela (e-mail e senha daquela organização), vincule essa conta à sua identidade Nekkora para entrar por aqui."
       />
+      {uncertain && step !== 'done' && (
+        <Alert tone="warning" title="Não foi possível confirmar se a conta foi vinculada.">
+          A vinculação pode ter acontecido. Confira a <Link as={RouterLink} to={identityPath.organizations}>lista de organizações</Link>{' '}
+          antes de tentar de novo.
+        </Alert>
+      )}
       {step === 'proof' && (
         <Card variant="outlined" padding="lg">
           <form className="pw-identity__form" onSubmit={prove} noValidate>
@@ -127,7 +135,9 @@ export function LinkAccountPage() {
             {errorView}
             <Text>A confirmação vale por 5 minutos. Depois disso, será preciso conferir a conta antiga de novo.</Text>
             <div className="pw-form__row">
-              <Button onClick={() => setConfirming(true)}>Vincular à minha identidade</Button>
+              <Button onClick={() => setConfirming(true)} disabled={uncertain}>
+                Vincular à minha identidade
+              </Button>
               <Button variant="ghost" onClick={() => setStep('proof')}>
                 Recomeçar
               </Button>
@@ -166,6 +176,7 @@ export function LinkAccountPage() {
         onUnauthenticated={expired}
         onOutcome={(k) => {
           if (k === 'refused') setStep('proof');
+          if (k === 'uncertain') setUncertain(true);
         }}
       >
         <Text>

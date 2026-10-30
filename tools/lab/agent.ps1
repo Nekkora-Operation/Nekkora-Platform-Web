@@ -23,9 +23,12 @@
     avisar     mostra à pessoa o que fazer agora (caixa de mensagem em processo separado)
     parar      encerra o Agent desta cópia
 
-  FRONT-V1-002: aprovar o pacote e iniciar a execução são atos LOCAIS da pessoa. Este script não os simula (nada de
-  teclas, cliques por cor, cópia de registros de aprovação ou alteração de estado): só prepara até o ponto de
-  intervenção e confere no log do Agent que o ato aconteceu. Nada chama /agent/api/v1 diretamente.
+  FRONT-V1-002: aprovar o pacote e iniciar a execução são atos LOCAIS da pessoa. Este script não os simula (nenhuma
+  tecla ou clique nesses atos, nada de cliques por cor, cópia de registros de aprovação ou alteração de estado): só
+  prepara até o ponto de intervenção e confere no log do Agent que o ato aconteceu. O que ele digita por teclado é só o
+  preparo: o código no diálogo de pareamento e os caminhos nos seletores de arquivo (pacote, Python, entrada, saída),
+  sempre com o foco conferido na janela certa antes de cada tecla — se o foco não estiver nela, o script para em vez de
+  digitar. Nada chama /agent/api/v1 diretamente.
 #>
 param(
     [Parameter(Mandatory)][string]$Id,
@@ -93,20 +96,29 @@ public static class FrontLabWin {
     }
     return false;
   }
+  public static bool IsForeground(IntPtr h) { return GetForegroundWindow() == h; }
 }
 "@
     }
 }
 
-function Choose([uint32]$pid0, [IntPtr]$dlg, [string]$keys, [string]$title, [string]$path) {
-    [FrontLabWin]::Focus($dlg) | Out-Null
+# Teclas só com o foco conferido: se outra janela (um aviso, a confirmação de aprovação, a pessoa) estiver na frente, o
+# script para — nunca digita às cegas onde um ENTER poderia acionar um ato da pessoa.
+function Send-To([IntPtr]$h, [string]$keys, [string]$what) {
+    if (-not [FrontLabWin]::IsForeground($h)) { throw "foco fora de '$what': nada foi digitado" }
     [System.Windows.Forms.SendKeys]::SendWait($keys)
+}
+
+function Choose([uint32]$pid0, [IntPtr]$dlg, [string]$keys, [string]$title, [string]$path) {
+    if (-not [FrontLabWin]::Focus($dlg)) { throw 'não foi possível focar a janela Execução local' }
+    Send-To $dlg $keys 'Execução local'
     $ch = Wait-For { $h = [FrontLabWin]::Find($pid0, $title); if ($h -ne [IntPtr]::Zero) { $h } } 20 "seletor '$title'"
-    [FrontLabWin]::Focus($ch) | Out-Null; Start-Sleep -Milliseconds 400
-    [System.Windows.Forms.SendKeys]::SendWait('^a')
-    [System.Windows.Forms.SendKeys]::SendWait(($path -replace '[+^%~(){}\[\]]', '{$0}'))
+    if (-not [FrontLabWin]::Focus($ch)) { throw "não foi possível focar o seletor '$title'" }
+    Start-Sleep -Milliseconds 400
+    Send-To $ch '^a' $title
+    Send-To $ch ($path -replace '[+^%~(){}\[\]]', '{$0}') $title
     Start-Sleep -Milliseconds 300
-    [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+    Send-To $ch '{ENTER}' $title
     Wait-For { [FrontLabWin]::Find($pid0, $title) -eq [IntPtr]::Zero } 20 "seletor '$title' fechado" | Out-Null
 }
 
@@ -163,14 +175,14 @@ switch ($Acao) {
         $proc = Wait-For { Agent-Window '' } 30 'janela do Agent'
         $pid0 = [uint32]$proc.Id
         if (-not [FrontLabWin]::Focus($proc.MainWindowHandle)) { throw 'não foi possível trazer a janela do Agent para a frente' }
-        [System.Windows.Forms.SendKeys]::SendWait('%a')
+        Send-To $proc.MainWindowHandle '%a' 'janela do Agent'
         $dlg = Wait-For { $h = [FrontLabWin]::Find($pid0, 'Parear com a Platform'); if ($h -ne [IntPtr]::Zero) { $h } } 20 'diálogo "Parear com a Platform" (Alt+A)'
         if (-not [FrontLabWin]::Focus($dlg)) { throw 'não foi possível focar o diálogo de pareamento' }
         Start-Sleep -Milliseconds 300
-        [System.Windows.Forms.SendKeys]::SendWait(($code -replace '[+^%~(){}\[\]]', '{$0}'))
+        Send-To $dlg ($code -replace '[+^%~(){}\[\]]', '{$0}') 'Parear com a Platform'
         $code = $null
         Start-Sleep -Milliseconds 300
-        [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+        Send-To $dlg '{ENTER}' 'Parear com a Platform'
         Write-Host 'código enviado ao diálogo de pareamento do Agent'
     }
     'abrir-execucao' {
@@ -182,8 +194,8 @@ switch ($Acao) {
         # a janela pode continuar aberta desde a execução anterior: nela, Alt+E é "Entrada", não "abrir"
         $dlg = [FrontLabWin]::Find($pid0, 'Execução local')
         if ($dlg -eq [IntPtr]::Zero) {
-            [FrontLabWin]::Focus($proc.MainWindowHandle) | Out-Null
-            [System.Windows.Forms.SendKeys]::SendWait('%e')
+            if (-not [FrontLabWin]::Focus($proc.MainWindowHandle)) { throw 'não foi possível trazer a janela do Agent para a frente' }
+            Send-To $proc.MainWindowHandle '%e' 'janela do Agent'
             $dlg = Wait-For { $h = [FrontLabWin]::Find($pid0, 'Execução local'); if ($h -ne [IntPtr]::Zero) { $h } } 20 'janela Execução local (Alt+E)'
         }
         Start-Sleep -Milliseconds 800

@@ -176,6 +176,22 @@ describe('organizações', () => {
     expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled();
   });
 
+  it.each([502, 503, 504] as const)('criação: %i do proxy sem corpo da API é resultado desconhecido, nunca "nada foi criado"', async (gateway) => {
+    session();
+    api.on('POST', '/api/v1/auth/step-up', 'identityStepUp', { status: 204 });
+    api.on('POST', '/api/v1/organizations', 'identityCreateOrganization', { gateway });
+    renderApp('/organizacoes/nova');
+    await user().type(await screen.findByLabelText(lbl('Nome da organização')), 'Acme');
+    await user().click(screen.getByRole('button', { name: 'Continuar' }));
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.change(within(dialog).getByLabelText(/Código do seu aplicativo autenticador/), { target: { value: '123456' } });
+    await user().click(within(dialog).getByRole('button', { name: 'Criar organização' }));
+    expect(await within(dialog).findByText(/A organização pode ter sido criada/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Nada foi criado/)).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Criar organização' })).toBeDisabled();
+    expect(api.sent('POST', '/api/v1/organizations')).toHaveLength(1);
+  });
+
   it('criação: step-up recusado não envia a criação', async () => {
     session();
     api.on('POST', '/api/v1/auth/step-up', 'identityStepUp', { status: 403, body: { error: 'forbidden' } });
@@ -197,6 +213,69 @@ describe('organizações', () => {
     await user().click(screen.getByRole('button', { name: 'Continuar' }));
     expect(await screen.findByText('Retire os espaços do começo e do fim.')).toBeInTheDocument();
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+});
+
+describe('vinculação de conta antiga', () => {
+  it('resultado desconhecido da vinculação: aviso fica na tela depois de fechar e "Vincular" não volta a ser oferecido', async () => {
+    session();
+    api.on('POST', '/api/v1/links/start', 'identityLinkStart', { status: 204 });
+    api.on('POST', '/api/v1/auth/step-up', 'identityStepUp', { status: 204 });
+    api.on('POST', '/api/v1/links/confirm', 'identityLinkConfirm', { gateway: 504 });
+    renderApp('/vincular-conta');
+    await user().type(await screen.findByLabelText(lbl('Identificador da organização')), ORG_A);
+    await user().type(screen.getByLabelText(lbl('Senha da conta antiga')), PASSWORD);
+    fireEvent.change(screen.getByLabelText(/Código do autenticador da conta antiga/), { target: { value: '123456' } });
+    await user().click(screen.getByRole('button', { name: 'Conferir conta antiga' }));
+    await user().click(await screen.findByRole('button', { name: 'Vincular à minha identidade' }));
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.change(within(dialog).getByLabelText(/Código do seu aplicativo autenticador/), { target: { value: '654321' } });
+    await user().click(within(dialog).getByRole('button', { name: 'Vincular' }));
+    expect(await within(dialog).findByText(/A conta pode ter sido vinculada/)).toBeInTheDocument();
+    await user().click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+    expect(await screen.findByText('Não foi possível confirmar se a conta foi vinculada.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Vincular à minha identidade' })).toBeDisabled();
+    expect(api.sent('POST', '/api/v1/links/confirm')).toHaveLength(1);
+  });
+});
+
+describe('saída', () => {
+  it('saída sem confirmação do servidor avisa que a sessão pode continuar; com 204, "Você saiu"', async () => {
+    session();
+    api.on('GET', '/api/v1/me/organizations', 'identityOrganizations', { status: 200, body: { organizations: [], canCreateOrganization: false } });
+    api.on('POST', '/api/v1/auth/logout', 'identityLogout', 'network');
+    const view = renderApp('/organizacoes');
+    await screen.findByText('Você ainda não participa de nenhuma organização.');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Sair' })[0]);
+    expect(await screen.findByText(/não foi possível confirmar o fim da sessão no servidor/)).toBeInTheDocument();
+    expect(screen.queryByText('Você saiu da sua conta.')).not.toBeInTheDocument();
+    view.unmount();
+
+    api.on('POST', '/api/v1/auth/logout', 'identityLogout', { status: 204 });
+    window.history.replaceState(null, '', '/');
+    renderApp('/organizacoes');
+    await screen.findByText('Você ainda não participa de nenhuma organização.');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Sair' })[0]);
+    expect(await screen.findByText('Você saiu da sua conta.')).toBeInTheDocument();
+  });
+});
+
+describe('outra aba', () => {
+  it('entrar numa organização em outra aba não tira esta da área de identidade; identidade nova ou saída tira', async () => {
+    session();
+    api.on('GET', '/api/v1/me/organizations', 'identityOrganizations', { status: 200, body: { organizations: [], canCreateOrganization: false } });
+    renderApp('/organizacoes');
+    expect(await screen.findByText('Você ainda não participa de nenhuma organização.')).toBeInTheDocument();
+    await waitFor(() => expect(csrfStore.identitySession()).toBe('id-csrf'));
+    const otherTab = new BroadcastChannel('nekkora-sessao');
+    otherTab.postMessage({ tipo: 'sessao-alterada', alcance: 'organizacao' });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(location()).toBe('/organizacoes');
+    expect(csrfStore.identitySession()).toBe('id-csrf');
+    otherTab.postMessage({ tipo: 'sessao-alterada' });
+    await waitFor(() => expect(location()).toBe('/entrar'));
+    expect(csrfStore.identitySession()).toBeUndefined();
+    otherTab.close();
   });
 });
 

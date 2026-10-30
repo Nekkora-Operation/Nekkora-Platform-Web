@@ -16,8 +16,10 @@ export interface Call {
 export type Reply =
   | { status: number; body?: unknown; headers?: Record<string, string> }
   | 'network'
+  /** Resposta do PROXY (502/503/504 sem o corpo da API): é transporte, não a API, e por isso não passa pelo contrato. */
+  | { gateway: 502 | 503 | 504 }
   /** Fica pendente até `release()` (testa corridas e resposta atrasada). */
-  | { hold: Promise<{ status: number; body?: unknown }> };
+  | { hold: Promise<{ status: number; body?: unknown } | { gateway: 502 | 503 | 504 }> };
 
 type Handler = (call: Call, n: number) => Reply;
 
@@ -63,6 +65,7 @@ export class RouteApi {
     let reply = route.handler(call, route.count++);
     if (reply === 'network') throw new TypeError('Failed to fetch');
     if ('hold' in reply) reply = await reply.hold;
+    if ('gateway' in reply) return new Response('<html>Bad Gateway</html>', { status: reply.gateway, headers: { 'Content-Type': 'text/html' } });
     const { status, body } = reply;
     const json = body === undefined ? null : JSON.stringify(body);
     const contentType = json === null ? null : 'application/json';

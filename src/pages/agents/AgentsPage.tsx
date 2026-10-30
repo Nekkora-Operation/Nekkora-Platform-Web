@@ -215,7 +215,8 @@ export function AgentsPage() {
       {code && (
         <OneTimeCode
           code={code.code}
-          onCancel={code.pairing ? () => cancelAgentCode(org, code.code.enrollmentId) : undefined}
+          // código de pareamento OU de rotação: os dois ficam em agent_enrollments e o cancelamento vale para qualquer um ainda não usado
+          onCancel={() => cancelAgentCode(org, code.code.enrollmentId)}
           onDone={() => {
             setCode(null);
             void load();
@@ -252,6 +253,8 @@ export function AgentsPage() {
           setPending(null);
           setAgentName('');
           setWorkerName('');
+          // o Worker escolhido passa a ter Agent e some das opções: não pode continuar selecionado, escondido
+          setWorkerId('');
           setCode({ code: c, pairing: true });
         }}
         onClose={() => setPending(null)}

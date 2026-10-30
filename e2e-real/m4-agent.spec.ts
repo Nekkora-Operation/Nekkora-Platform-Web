@@ -6,7 +6,8 @@ import { confirmStepUp, LAB, signUpAndEnroll, type Person } from './support/lab'
 
 /**
  * M4 (J12) contra a API REAL e o Agent REAL (empacotado, cópia do laboratório: tools/lab/agent.ps1). A execução local
- * (J13–J15), com os atos da pessoa no Agent, está em m4-execucao.spec.ts. O código de pareamento
+ * (J13–J15) não é feita aqui: aprovar o pacote e iniciar são atos da pessoa no Agent (sessão assistida, FRONT-V1-002,
+ * m4-execucao.spec.ts). O código de pareamento
  * é lido da tela e entregue ao Agent pela entrada padrão do script (nunca em arquivo). Fixture DECLARADA: limites da
  * organização (010) — a ativação operacional não tem ferramenta no laboratório (B2).
  */

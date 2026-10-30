@@ -10,7 +10,10 @@ export interface Polling<T> {
   error: unknown;
   /** Instante da última consulta bem-sucedida. */
   lastSuccessAt: number | undefined;
-  /** A última consulta falhou ou o dado passou de 2 intervalos sem renovação. */
+  /**
+   * A última consulta falhou, ou o acompanhamento automático continua (aba visível) e o dado passou de 2 intervalos sem
+   * renovação. Encerrado o acompanhamento, o dado é o da última consulta (mostrada), não "atrasado".
+   */
   stale: boolean;
   /** O acompanhamento automático continua (a regra `keepGoing` ainda pede). */
   following: boolean;
@@ -119,7 +122,7 @@ export function usePolling<T>(
     return () => window.clearInterval(t);
   }, [intervalMs]);
 
-  const stale = error !== undefined || (lastSuccessAt !== undefined && Date.now() - lastSuccessAt > 2 * intervalMs);
+  const stale = error !== undefined || (following && !paused && lastSuccessAt !== undefined && Date.now() - lastSuccessAt > 2 * intervalMs);
 
   return {
     data,

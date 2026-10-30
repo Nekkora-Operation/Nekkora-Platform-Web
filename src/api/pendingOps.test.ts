@@ -54,6 +54,30 @@ describe('registro de operações incertas (pendingOps)', () => {
     expect(await b.inspect(key)).toMatchObject({ state: 'unknown' });
   });
 
+  it('sem Web Locks: duas abas que gravam ao mesmo tempo — só fica quem ficou gravado; a outra não envia', async () => {
+    localStorage.clear();
+    const key = await opKey(scope);
+    const a = tab(localStorage, null);
+    const started = a.begin(key);
+    // a outra aba leu antes de esta gravar e gravou depois (corrida entre processos): a marca gravada é a dela
+    const mine = JSON.parse(localStorage.getItem(key)!);
+    localStorage.setItem(key, JSON.stringify({ ...mine, n: 'outra-aba' }));
+    expect(await started).toMatchObject({ ok: false, reason: 'busy' });
+    expect(JSON.parse(localStorage.getItem(key)!).n).toBe('outra-aba');
+  });
+
+  it('com Web Locks mas sem conseguir consultá-los, um envio vivo de outra aba não vira "desconhecido"', async () => {
+    localStorage.clear();
+    const locks = fakeLocks();
+    const key = await opKey(scope);
+    const a = tab(localStorage, locks);
+    expect((await a.begin(key)).ok).toBe(true);
+    const blind = { ...locks, query: async () => Promise.reject(new Error('query indisponível')) };
+    const b = tab(localStorage, blind as unknown as ReturnType<typeof fakeLocks>);
+    expect(await b.inspect(key)).toMatchObject({ state: 'pending' });
+    expect(JSON.parse(localStorage.getItem(key)!).s).toBe('pending');
+  });
+
   it('falha do armazenamento: begin recusa (quem chama não envia)', async () => {
     const broken = {
       getItem: () => null,

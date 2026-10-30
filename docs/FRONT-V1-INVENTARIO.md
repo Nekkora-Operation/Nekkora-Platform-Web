@@ -12,7 +12,7 @@ contra os commits citados.
 | API (contrato fixado) | `e04a57ceeb880de603252fcca4e3d7ccc16cc9d5` = `origin/main`. Fixado em `contract/SOURCE.json` (sha256 do OpenAPI `157bd545…`). |
 | Nekkora-lib | Checkout local `main` c4c479f, via `file:../Nekkora-lib`. `origin/main` tem a release 0.2.0 (0a29d95: contraste AA, Inter local), ainda não integrada (ver §7, B5). |
 | Agent / Studio | Referências ce30397 (Agent, em `agent-int`) e 14b30f7 (Studio). 14b30f7 é a `main` remota do Studio, mas ainda não foi buscado no clone local (ver B6). |
-| CI do frontend | Não há (`.github` ausente). O gate é `npm run check` local, com a lib resolvida pelo irmão `../Nekkora-lib` (README). |
+| CI do frontend | No início da missão não havia (`.github` ausente; o gate era `npm run check` local, com a lib resolvida pelo irmão `../Nekkora-lib`). Este mesmo PR acrescenta `.github/workflows/ci.yml`: typecheck, Vitest, contrato contra o OpenAPI da API no commit fixado, build e E2E com a API simulada. O CI **não** roda `e2e-real/` (API real, só no laboratório). |
 
 O working tree da API (`Nekkora-Platform-API`, branch `feat/email-real-homologacao`, atrasada e com arquivos não
 rastreados) e o `agent-int` (alteração local de outra sessão) **não foram tocados**. O contrato é lido por `git show` do
