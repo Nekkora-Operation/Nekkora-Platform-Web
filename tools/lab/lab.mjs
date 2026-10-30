@@ -16,6 +16,12 @@
  *                                                         (D-API-03). Imprime os ids em JSON. Concessões NÃO são criadas
  *                                                         aqui: criação e decisões passam pela API real. Registrada em
  *                                                         tools/lab/saidas/<id>/fixtures.txt
+ *   node tools/lab/lab.mjs <id> conta-antiga <e-mail>     FIXTURE DECLARADA (FRONT-V1-002, só laboratório descartável): cria
+ *                                                         uma organização com uma conta interna ANTIGA (sem identidade),
+ *                                                         só com senha (hash Argon2id gerado pelo PhcTool da própria API,
+ *                                                         senha sintética lida da ENTRADA PADRÃO). O autenticador da conta
+ *                                                         é cadastrado pelo fluxo real (entrada da organização). Imprime o
+ *                                                         id da organização. Registrada em fixtures.txt
  *   node tools/lab/lab.mjs <id> artefatos off|on          SÓ laboratório descartável (FRONT-V1-002): recria o serviço
  *                                                         platform sem armazenamento de artefatos (503) e depois volta.
  *                                                         Registrado em tools/lab/saidas/<id>/fixtures.txt
@@ -35,6 +41,27 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
+
+/** Espera GET /api/v1/csrf = 200 pelo nginx do laboratório (certificado do próprio laboratório). */
+async function waitApi(id) {
+  const { request } = await import('node:https');
+  const info = readFileSync(join(here, 'saidas', id, 'laboratorio.txt'), 'utf8');
+  const base = /^api=(.+)$/m.exec(info)[1].trim();
+  const ca = readFileSync(join(here, 'saidas', id, 'certificado-laboratorio.pem'));
+  for (let i = 0; i < 90; i++) {
+    const status = await new Promise((resolve) => {
+      const req = request(`${base}/api/v1/csrf`, { ca }, (res) => {
+        res.resume();
+        resolve(res.statusCode);
+      });
+      req.on('error', () => resolve(0));
+      req.end();
+    });
+    if (status === 200) return;
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  throw new Error('a API do laboratório não respondeu');
+}
 
 function env(id) {
   const file = join(homedir(), '.nekkora', 'front-lab', id, 'segredos.env');
@@ -138,12 +165,48 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       `${new Date().toISOString()} cliente+workspace do cliente+conta externa (sem concessão) org=${org} cliente=${ids.clientId} vinculo=${ids.clientMembershipId}\n`,
     );
     process.stdout.write(JSON.stringify(out));
+  } else if (cmd === 'conta-antiga') {
+    const e = env(id);
+    if (!/^ensaio-frontlab-/.test(e.FRONT_AMBIENTE ?? '')) throw new Error('recusado: só em laboratório descartável ensaio-frontlab-*');
+    const [email] = rest;
+    if (!/^[^\s@']+@[^\s@']+$/.test(email ?? '')) throw new Error('uso: conta-antiga <e-mail> (senha sintética na entrada padrão)');
+    const password = readFileSync(0, 'utf8').split(/\r?\n/)[0];
+    if (!password) throw new Error('senha sintética ausente na entrada padrão');
+    const target = join(e.LAB_API_REPO, 'api', 'nekkora-platform', 'target');
+    const phc = execFileSync(
+      'java',
+      [`-Dloader.path=${join(target, 'test-classes')}`, '-Dloader.main=com.nekkora.platform.auth.crypto.PhcTool', '-cp', join(target, 'nekkora-platform-0.1.0-SNAPSHOT.jar'), 'org.springframework.boot.loader.launch.PropertiesLauncher', '65536', '3'],
+      { input: `${password}\n`, encoding: 'utf8' },
+    ).trim();
+    if (!phc.startsWith('$argon2id$')) throw new Error('PhcTool não devolveu um PHC Argon2id');
+    const { randomUUID } = await import('node:crypto');
+    const org = randomUUID();
+    const user = randomUUID();
+    const tag = org.slice(0, 8);
+    const sql = [
+      'BEGIN;',
+      `INSERT INTO organizations (organization_id, name, status) VALUES ('${org}', 'Organização antiga ${tag}', 1);`,
+      `INSERT INTO users (user_id, organization_id, account_type, email, email_verified_at, status, display_name) VALUES ('${user}', '${org}', 1, '${email}', now(), 2, 'Conta antiga ${tag}');`,
+      `SELECT set_config('nekkora.organization_id', '${org}', true);`,
+      `INSERT INTO user_credentials (user_id, password_hash) VALUES ('${user}', '${phc}');`,
+      `SELECT set_config('nekkora.organization_id', '', true);`,
+      `INSERT INTO organization_memberships (organization_id, user_id, account_type, status) VALUES ('${org}', '${user}', 1, 2);`,
+      'COMMIT;',
+      '',
+    ].join('\n');
+    compose(id, ['exec', '-T', 'postgres', 'psql', '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-U', 'nekkora', '-d', 'nekkora'], { input: sql });
+    const { appendFileSync } = await import('node:fs');
+    appendFileSync(join(here, 'saidas', id, 'fixtures.txt'), `${new Date().toISOString()} conta antiga (organização + conta interna só com senha, sem MFA e sem identidade) org=${org}\n`);
+    process.stdout.write(org);
   } else if (cmd === 'artefatos') {
     const e = env(id);
     if (!/^ensaio-frontlab-/.test(e.FRONT_AMBIENTE ?? '')) throw new Error('recusado: só em laboratório descartável ensaio-frontlab-*');
     const mode = rest[0];
     if (mode !== 'on' && mode !== 'off') throw new Error('uso: artefatos on|off');
     compose(id, ['up', '-d', '--no-deps', '--wait', 'platform'], { stdio: ['ignore', 'inherit', 'inherit'] }, mode === 'off' ? ['compose.sem-artefatos.yml'] : []);
+    // o platform não tem healthcheck: espera a API responder pelo nginx (a chave TLS do nginx não existe mais por
+    // desenho, então ele NÃO é reiniciado aqui)
+    await waitApi(id);
     const { appendFileSync } = await import('node:fs');
     appendFileSync(join(here, 'saidas', id, 'fixtures.txt'), `${new Date().toISOString()} platform recriado ${mode === 'off' ? 'SEM' : 'COM'} armazenamento de artefatos
 `);
