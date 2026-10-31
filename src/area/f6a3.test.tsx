@@ -242,7 +242,7 @@ describe('revogar: sucesso', () => {
     expect(within(again).getByRole('button', { name: 'Enviar pedido' })).toBeDisabled();
   });
 
-  it('decisão com resultado desconhecido (504 do proxy): a linha não oferece decidir de novo até a pessoa usar "Atualizar"', async () => {
+  it('decisão com resultado desconhecido (504 do proxy): reler a lista não libera; só a liberação explícita, com o aviso de duplicidade', async () => {
     sessionFor('ana@nekkora.dev');
     await openGrants();
     let renews = 0;
@@ -259,8 +259,25 @@ describe('revogar: sucesso', () => {
     await waitFor(() => expect(row(G('g1'))).toHaveTextContent('Decisão não confirmada'));
     expect(within(row(G('g1'))!).queryByRole('button', { name: /^Pedir renovação/ })).toBeNull();
     expect(renews).toBe(1);
+    // "Atualizar" relê a lista (nova leitura completa) e a linha continua sem decisões
+    const reads = () => requests.filter((c) => c.method === 'GET' && c.path.includes('/client-grants')).length;
+    const before = reads();
     fireEvent.click(screen.getByRole('button', { name: 'Atualizar' }));
+    await waitFor(() => expect(reads()).toBeGreaterThan(before));
+    await waitFor(() => expect(row(G('g1'))).toHaveTextContent('Decisão não confirmada'));
+    expect(within(row(G('g1'))!).queryByRole('button', { name: /^Pedir renovação/ })).toBeNull();
+    // liberar exige confirmação com o aviso; cancelar mantém o bloqueio
+    fireEvent.click(within(row(G('g1'))!).getByRole('button', { name: /^Liberar nova decisão/ }));
+    let release = await screen.findByRole('alertdialog');
+    expect(release).toHaveTextContent('Não confirma o resultado anterior nem garante que não haverá duplicidade.');
+    fireEvent.click(within(release).getByRole('button', { name: 'Cancelar' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(within(row(G('g1'))!).queryByRole('button', { name: /^Pedir renovação/ })).toBeNull();
+    fireEvent.click(within(row(G('g1'))!).getByRole('button', { name: /^Liberar nova decisão/ }));
+    release = await screen.findByRole('alertdialog');
+    fireEvent.click(within(release).getByRole('button', { name: 'Liberar' }));
     await waitFor(() => expect(within(row(G('g1'))!).getByRole('button', { name: /^Pedir renovação/ })).toBeInTheDocument());
+    expect(renews).toBe(1);
   });
 
   it('concessão já revogada por outra pessoa depois da leitura: 204 = sucesso (idempotente), sem nova alteração', async () => {
