@@ -1,0 +1,20 @@
+.pw-code {
+  display: block;
+  padding: var(--nk-space-3);
+  border: 1px dashed var(--nk-color-border-strong);
+  border-radius: var(--nk-radius-md);
+  font-size: var(--nk-font-size-sm);
+  user-select: all;
+}
+
+.pw-run__dims {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--nk-space-3);
+}
+
+.pw-run__dims > * {
+  display: grid;
+  gap: var(--nk-space-2);
+  align-content: start;
+}
