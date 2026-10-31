@@ -12,3 +12,10 @@
 .pw-prod__cell { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
 .pw-prod__muted { font-size: var(--nk-font-size-xs); color: var(--nk-color-text-secondary); }
 .pw-prod__refreshing { font-size: var(--nk-font-size-xs); color: var(--nk-color-text-secondary); }
+
+.pw-prod__header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nk-space-2);
+}

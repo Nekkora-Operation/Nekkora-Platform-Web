@@ -106,9 +106,12 @@ export async function request<T = unknown>(path: string, options: RequestOptions
   const requestId = rawId && REQUEST_ID.test(rawId) ? rawId : undefined;
 
   if (res.ok) {
-    if (res.status === 204 || res.status === 202) return { status: res.status, data: undefined as T };
+    if (res.status === 204) return { status: res.status, data: undefined as T };
     try {
-      return { status: res.status, data: (await res.json()) as T };
+      // 202 pode vir sem corpo (pedidos uniformes) ou com corpo (ex.: pedido de renovação devolve a concessão)
+      const text = await res.text();
+      if (!text && res.status === 202) return { status: res.status, data: undefined as T };
+      return { status: res.status, data: JSON.parse(text) as T };
     } catch {
       throw new ApiError('unexpected', res.status, undefined, requestId);
     }

@@ -19,7 +19,9 @@ import {
   type WriteEntry,
 } from '../../admin/writeStore';
 import { useCursorList } from '../../hooks/useCursorList';
-import { DateTimeText, LoadErrorState, PageHeader, useExpiresOn } from '../product/shared';
+import { DateTimeText, LoadErrorState, PageHeader, RouteLink, useExpiresOn } from '../product/shared';
+import { orgPath } from '../../auth/organization';
+import type { MemberAccessNav } from '../access/MemberAccessPage';
 import { ACTION_LABEL, effectiveStatus, findMember, MEMBER_UNCERTAIN_COPY, MemberActionDialog, type ActionDialogState } from './memberActions';
 import { effectiveMfaConfigured, findMfa, MFA_UNCERTAIN_COPY, MfaResetDialog, mfaTarget, type MfaResetDialogState } from './mfaResetActions';
 import { UncertainPanel, type UncertainCopy } from './uncertainPanel';
@@ -193,7 +195,13 @@ export function MembersPage() {
       header: 'Pessoa',
       render: (m) => (
         <span className="pw-admin__person">
-          <span>{m.displayName}</span>
+          {canManage ? (
+            <RouteLink to={orgPath.memberAccess(org, m.userId)} state={{ displayName: m.displayName } satisfies MemberAccessNav} aria-label={`Acessos de ${m.displayName}`}>
+              {m.displayName}
+            </RouteLink>
+          ) : (
+            <span>{m.displayName}</span>
+          )}
           <span className="pw-prod__muted">{m.email}</span>
         </span>
       ),

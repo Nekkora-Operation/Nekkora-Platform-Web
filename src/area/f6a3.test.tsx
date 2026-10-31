@@ -188,7 +188,9 @@ describe('revogar: sucesso', () => {
     sessionFor('ana@nekkora.dev');
     const v = await openGrants();
     for (const k of ['g1', 'g2', 'g4', 'g5', 'g6']) expect(within(row(G(k))!).getByRole('button', { name: /^Revogar a concessão de / }), k).toBeInTheDocument();
-    expect(within(row(G('g3'))!).queryByRole('button')).toBeNull();
+    // revogada: sem "Revogar"; M2 (024) acrescenta só "Pedir de novo" (pedido novo, outra pessoa aprova)
+    expect(within(row(G('g3'))!).queryByRole('button', { name: /^Revogar/ })).toBeNull();
+    expect(within(row(G('g3'))!).getAllByRole('button').map((b) => b.textContent)).toEqual(['Pedir de novo']);
     v.unmount();
     transport = (m, p) => (m === 'GET' && p.endsWith('/me/permissions') ? { kind: 'status', status: 500, body: { error: 'internal_error' } } : null);
     renderAt(grants);
@@ -196,6 +198,86 @@ describe('revogar: sucesso', () => {
     expect(screen.queryByRole('columnheader', { name: 'Ações' })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Revogar/ })).toBeNull();
     expect(screen.getByText(/Somente consulta\./)).toBeInTheDocument();
+  });
+
+  it('FRONT-V1-003 (no #12): "Pedir renovação" e "Pedir de novo" abrem sem quebrar com a data vazia; renovação avisa que a aprovação está indisponível; nenhum "Aprovar renovação"', async () => {
+    sessionFor('ana@nekkora.dev');
+    await openGrants();
+    expect(screen.queryByRole('button', { name: /^Aprovar renovação/ })).toBeNull();
+    const sent: unknown[] = [];
+    transport = (m, p) => {
+      if (m === 'POST' && p.endsWith('/renew')) {
+        sent.push(p);
+        return {
+          kind: 'status',
+          status: 202,
+          body: {
+            grantId: G('g1'),
+            clientMembershipId: stableUuid('cm-renovacao'),
+            workspaceId: stableUuid('ws-renovacao'),
+            status: 'ATIVA',
+            startsAt: '2026-10-01T00:00:00Z',
+            expiresAt: null,
+            nextReviewAt: '2026-11-15T23:59:59Z',
+            renewal: { requestedByMembershipId: stableUuid('m-ana'), requestedAt: '2026-10-30T10:00:00Z', nextReviewAt: '2026-12-31T23:59:59Z', expiresAt: null, justification: 'x' },
+          },
+        };
+      }
+      return null;
+    };
+    fireEvent.click(within(row(G('g1'))!).getByRole('button', { name: /^Pedir renovação/ }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText(/Aprovar a renovação ainda não está disponível nesta tela/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Enviar pedido' })).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText(/^Próxima revisão/), { target: { value: '2099-12-31' } });
+    fireEvent.change(within(dialog).getByLabelText(/^Justificativa/), { target: { value: 'Contrato renovado' } });
+    // o envio só é liberado depois de o registro persistente da operação estar pronto (resumo assíncrono)
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Enviar pedido' })).toBeEnabled());
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Enviar pedido' }));
+    expect(await screen.findByText(/Pedido de renovação registrado\. O acesso não muda/)).toBeInTheDocument();
+    expect(sent).toHaveLength(1);
+    // revogada: "Pedir de novo" também abre com a data vazia
+    fireEvent.click(within(row(G('g3'))!).getByRole('button', { name: /^Pedir de novo/ }));
+    const again = await screen.findByRole('alertdialog');
+    expect(within(again).getByRole('button', { name: 'Enviar pedido' })).toBeDisabled();
+  });
+
+  it('decisão com resultado desconhecido (504 do proxy): reler a lista não libera; só a liberação explícita, com o aviso de duplicidade', async () => {
+    sessionFor('ana@nekkora.dev');
+    await openGrants();
+    let renews = 0;
+    transport = (m, p) => (m === 'POST' && p.endsWith('/renew') && ++renews ? { kind: 'gateway', status: 504 } : null);
+    fireEvent.click(within(row(G('g1'))!).getByRole('button', { name: /^Pedir renovação/ }));
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.change(within(dialog).getByLabelText(/^Próxima revisão/), { target: { value: '2099-12-31' } });
+    fireEvent.change(within(dialog).getByLabelText(/^Justificativa/), { target: { value: 'Contrato renovado' } });
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Enviar pedido' })).toBeEnabled());
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Enviar pedido' }));
+    expect(await screen.findByText(/O resultado da última decisão não foi confirmado/)).toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Cancelar' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    await waitFor(() => expect(row(G('g1'))).toHaveTextContent('Decisão não confirmada'));
+    expect(within(row(G('g1'))!).queryByRole('button', { name: /^Pedir renovação/ })).toBeNull();
+    expect(renews).toBe(1);
+    // "Atualizar" relê a lista (nova leitura completa) e a linha continua sem decisões
+    const reads = () => requests.filter((c) => c.method === 'GET' && c.path.includes('/client-grants')).length;
+    const before = reads();
+    fireEvent.click(screen.getByRole('button', { name: 'Atualizar' }));
+    await waitFor(() => expect(reads()).toBeGreaterThan(before));
+    await waitFor(() => expect(row(G('g1'))).toHaveTextContent('Decisão não confirmada'));
+    expect(within(row(G('g1'))!).queryByRole('button', { name: /^Pedir renovação/ })).toBeNull();
+    // liberar exige confirmação com o aviso; cancelar mantém o bloqueio
+    fireEvent.click(within(row(G('g1'))!).getByRole('button', { name: /^Liberar nova decisão/ }));
+    let release = await screen.findByRole('alertdialog');
+    expect(release).toHaveTextContent('Não confirma o resultado anterior nem garante que não haverá duplicidade.');
+    fireEvent.click(within(release).getByRole('button', { name: 'Cancelar' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(within(row(G('g1'))!).queryByRole('button', { name: /^Pedir renovação/ })).toBeNull();
+    fireEvent.click(within(row(G('g1'))!).getByRole('button', { name: /^Liberar nova decisão/ }));
+    release = await screen.findByRole('alertdialog');
+    fireEvent.click(within(release).getByRole('button', { name: 'Liberar' }));
+    await waitFor(() => expect(within(row(G('g1'))!).getByRole('button', { name: /^Pedir renovação/ })).toBeInTheDocument());
+    expect(renews).toBe(1);
   });
 
   it('concessão já revogada por outra pessoa depois da leitura: 204 = sucesso (idempotente), sem nova alteração', async () => {
