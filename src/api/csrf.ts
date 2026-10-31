@@ -6,11 +6,20 @@
 let pre: string | undefined;
 const challenge = new Map<string, string>();
 const session = new Map<string, string>();
+/** Entrada geral (identidade, fora de /o/{org}): desafio de login e sessão de identidade (cookie __Host-nekkora_id). */
+let identityChallenge: string | undefined;
+let identitySession: string | undefined;
 /**
  * Avisados a cada fronteira de sessão: nesta aba (login que emite sessão nova, logout, sessão expirada) ou em OUTRA aba
  * da mesma origem (`remote`). O cookie de sessão é um só por origem: a troca feita em outra aba vale para esta.
  */
-const boundaryListeners = new Set<(remote: boolean) => void>();
+const boundaryListeners = new Set<(remote: boolean, scope: SessionScope) => void>();
+
+/**
+ * Alcance da fronteira: `organization` = só a sessão de organização mudou (entrar numa organização emite outro cookie de
+ * organização; a sessão de identidade, cookie próprio, continua valendo); `all` = identidade nova, logout ou expiração.
+ */
+export type SessionScope = 'organization' | 'all';
 
 /**
  * Aviso entre abas (F6a-2-R2): só o fato "a sessão mudou", sem token, cookie nem identidade. Sem BroadcastChannel no
@@ -19,22 +28,32 @@ const boundaryListeners = new Set<(remote: boolean) => void>();
 const SESSION_CHANNEL = 'nekkora-sessao';
 const channel: BroadcastChannel | undefined = typeof BroadcastChannel === 'function' ? new BroadcastChannel(SESSION_CHANNEL) : undefined;
 
-const forget = () => {
+const forgetOrganization = () => {
   pre = undefined;
   challenge.clear();
   session.clear();
 };
 
-const boundary = (remote: boolean) => {
-  if (!remote) channel?.postMessage({ tipo: 'sessao-alterada' });
-  for (const l of boundaryListeners) l(remote);
+const forget = () => {
+  forgetOrganization();
+  identityChallenge = undefined;
+  identitySession = undefined;
+};
+
+const boundary = (remote: boolean, scope: SessionScope) => {
+  if (!remote) channel?.postMessage(scope === 'organization' ? { tipo: 'sessao-alterada', alcance: 'organizacao' } : { tipo: 'sessao-alterada' });
+  for (const l of boundaryListeners) l(remote, scope);
 };
 
 channel?.addEventListener('message', (e: MessageEvent) => {
-  if ((e.data as { tipo?: unknown } | null)?.tipo !== 'sessao-alterada') return;
-  // a sessão desta aba deixou de valer: esquece os tokens (sem reenviar o aviso) e avisa quem guarda estado da sessão
-  forget();
-  boundary(true);
+  const data = e.data as { tipo?: unknown; alcance?: unknown } | null;
+  if (data?.tipo !== 'sessao-alterada') return;
+  // a sessão desta aba deixou de valer: esquece os tokens (sem reenviar o aviso) e avisa quem guarda estado da sessão;
+  // só a de organização mudou → a identidade desta aba (desafio MFA em curso, sessão) continua
+  const scope: SessionScope = data.alcance === 'organizacao' ? 'organization' : 'all';
+  if (scope === 'organization') forgetOrganization();
+  else forget();
+  boundary(true, scope);
 });
 
 export const csrfStore = {
@@ -58,18 +77,37 @@ export const csrfStore = {
    */
   beginSession: (org: string, t: string) => {
     session.set(org, t);
-    boundary(false);
+    boundary(false, 'organization');
+  },
+  /** Desafio da entrada geral (5 min; perdido ao recarregar a página: só um novo login continua). */
+  identityChallenge: () => identityChallenge,
+  setIdentityChallenge: (t: string | undefined) => {
+    identityChallenge = t;
+  },
+  /** CSRF da sessão de identidade (memória; recuperado de GET /api/v1/me/session depois de recarregar). */
+  identitySession: () => identitySession,
+  setIdentitySession: (t: string | undefined) => {
+    identitySession = t;
+  },
+  /**
+   * Sessão de identidade NOVA (MFA verificado ou primeiro fator confirmado): fronteira de sessão. As sessões de
+   * organização desta origem passam a depender dela.
+   */
+  beginIdentitySession: (t: string) => {
+    identityChallenge = undefined;
+    identitySession = t;
+    boundary(false, 'all');
   },
   /** Esquece tudo (logout, sessão expirada, testes): também é fronteira de sessão. */
   clear: () => {
     forget();
-    boundary(false);
+    boundary(false, 'all');
   },
   /**
    * Estado mantido em memória que pertence a UMA sessão (ex.: registro de escritas, área autenticada) se zera nas
    * fronteiras. `remote` = a troca veio de outra aba.
    */
-  onSessionBoundary: (listener: (remote: boolean) => void) => {
+  onSessionBoundary: (listener: (remote: boolean, scope: SessionScope) => void) => {
     boundaryListeners.add(listener);
     return () => {
       boundaryListeners.delete(listener);

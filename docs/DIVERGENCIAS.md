@@ -18,6 +18,19 @@ de produto/API; até lá vale o comportamento descrito em "Frontend hoje".
 | D9 | Validação de política de senha com mensagem específica | `password-reset/confirm` responde 400 tanto para token inválido quanto para senha fora da política (12–128 code points) | A política é validada localmente antes do envio (mesmos limites, contagem por code point); um 400 é tratado como link inválido | Código de erro distinto para política |
 | D10 | Aviso "sessões encerradas" ao usar código de recuperação | `mfa/verify` com `recoveryCode` revoga as demais sessões da conta, sem informar | Aviso na área autenticada: "Você entrou com um código de recuperação" + orientação | — |
 
+**Atualização FRONT-V1-001 (contrato fixado em e04a57c):** a API passou a montar links (`MailTemplates`). D4 está
+resolvida pelos caminhos do contrato (`/cadastro/confirmar`, `/recuperar-senha`, `/o/{org}/recuperar-senha`,
+`/o/{org}/convite`); `reset-password` e `verify-email` ficaram só como compatibilidade.
+
+## Divergências encontradas contra a API real (FRONT-V1-001)
+
+Achadas no laboratório descartável (API e04a57c, `tools/lab/`). Encaminhadas à equipe da API; o frontend não altera a
+API e não afrouxa a validação.
+
+| # | Contrato | Comportamento real | Frontend hoje | Encaminhamento à API |
+|---|----------|--------------------|---------------|----------------------|
+| D-API-01 | `POST /api/v1/auth/mfa/enroll/confirm` 200: `oneOf [IdentityEnrollmentConfirmation, IdentityFactorReplacement]` | A resposta do modo desafio (`recoveryCodes`, `csrfToken`, `restricted:false`) satisfaz os DOIS ramos (nenhum fecha propriedades): pelo `oneOf`, toda resposta real seria inválida. Reproduzido em `src/api/validate.test.ts` (D-API-01) e no E2E J01, que antes da correção mostrava "Algo deu errado" | O cliente confere a resposta pelo esquema exato do modo que ELE pediu (desafio ou sessão), com o status documentado (`validatedAs`). Nenhuma validação foi desligada | Trocar `oneOf` por `anyOf` ou fechar os esquemas (`additionalProperties: false`). Aceite: `violations('identityConfirmMfaEnrollment', respostaReal)` vazio |
+
 ## Ambiente de desenvolvimento/E2E
 
 - Nesta fase o frontend roda contra a API simulada (`mock/`), que implementa o contrato **como ele é**, incluindo

@@ -19,7 +19,7 @@ export interface Me {
 
 // ------------------------------------------------------------------ CSRF de pré-autenticação
 
-async function preCsrf(fresh = false): Promise<string> {
+export async function preCsrf(fresh = false): Promise<string> {
   if (!fresh && csrfStore.pre()) return csrfStore.pre()!;
   const { data } = await request<{ csrfToken?: string }>('/api/v1/csrf');
   if (!data?.csrfToken) throw new ApiError('unexpected', 200);
@@ -31,7 +31,7 @@ async function preCsrf(fresh = false): Promise<string> {
  * Escrita de pré-autenticação. Se o token pré-autenticação expirou (30 min) a API responde 403: pede um novo
  * UMA vez e repete — rotação prevista no contrato, não uma regra de segurança nova.
  */
-async function preAuthPost<T>(path: string, body: unknown) {
+export async function preAuthPost<T>(path: string, body: unknown) {
   try {
     return await request<T>(path, { method: 'POST', body, csrf: await preCsrf() });
   } catch (e) {

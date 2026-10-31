@@ -28,6 +28,7 @@ export function commonMessage(error: unknown): UserMessage {
     case 'rate_limited':
       return { title: 'Muitas tentativas.', description: waitText(error.retryAfterSeconds), retryable: true };
     case 'service_unavailable':
+    case 'gateway':
       return {
         title: 'Serviço temporariamente indisponível.',
         description: 'Tente novamente em instantes.',
@@ -55,3 +56,8 @@ export function commonMessage(error: unknown): UserMessage {
 export const INVALID_CREDENTIALS = 'E-mail ou senha incorretos.';
 export const INVALID_CODE = 'Código inválido ou expirado. Confira e tente novamente.';
 export const SESSION_EXPIRED = 'Sua sessão expirou. Entre novamente para continuar.';
+/** Saída sem confirmação do servidor (rede ou erro): a memória desta aba foi limpa, a sessão pode continuar valendo. */
+export const SIGNED_OUT_UNCONFIRMED =
+  'Você saiu desta aba, mas não foi possível confirmar o fim da sessão no servidor. Se este computador é compartilhado, entre e saia de novo, ou feche o navegador.';
+/** Rota desligada pela chave da API (404): a funcionalidade não está disponível neste ambiente. */
+export const UNAVAILABLE = 'Este acesso não está disponível no momento. Se precisar entrar, procure quem administra a sua organização.';

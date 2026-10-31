@@ -226,6 +226,26 @@ export class ContractViolation extends ApiError {
   }
 }
 
+/** Violações de `data` contra um esquema nomeado de components.schemas (vazio = conforme). */
+export function schemaViolations(name: string, data: unknown, { strict = false } = {}): Violation[] {
+  const s = doc.schemas[name];
+  if (!s) throw new Error(`esquema desconhecido: ${name}`);
+  const out: Violation[] = [];
+  check(s, data, '$', strict, out);
+  return out;
+}
+
+/**
+ * Como `validated`, mas contra UM esquema nomeado — para respostas cujo `oneOf` do contrato é ambíguo e cujo ramo é
+ * determinado pela própria requisição (ver docs/DIVERGENCIAS.md, D-API-01). O status também precisa ser documentado.
+ */
+export function validatedAs<T>(operationId: OperationId, schemaName: string, data: unknown, status = 200): T {
+  if (!spec(operationId, status)) throw new ContractViolation(operationId, [{ path: '$', rule: `status ${status} não documentado` }], status);
+  const list = schemaViolations(schemaName, data);
+  if (list.length) throw new ContractViolation(operationId, list.slice(0, 20), status);
+  return data as T;
+}
+
 /** Devolve `data` tipado se estiver conforme; senão lança `ContractViolation` (código `unexpected`). */
 export function validated<T>(operationId: OperationId, data: unknown, status = 200): T {
   // o esquema é o do status RECEBIDO: sucesso não documentado (ex.: 201, 204) é violação, nunca dado tipado
