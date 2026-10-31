@@ -4,7 +4,7 @@ import { resetUserMfa } from '../../api/admin';
 import { stepUp } from '../../api/auth';
 import { isApiError } from '../../api/http';
 import type { Member, MfaResetReason } from '../../api/v1';
-import { NotApplied, rootError, sessionGuard, startWrite, type MfaEntry, type MfaTarget, type WriteEntry } from '../../admin/writeStore';
+import { NotApplied, registryRefusalText, rootError, sessionGuard, startWrite, type MfaEntry, type MfaTarget, type WriteEntry } from '../../admin/writeStore';
 import { findMemberById } from './memberActions';
 import type { FindResult, UncertainCopy } from './uncertainPanel';
 
@@ -36,6 +36,8 @@ export function effectiveMfaConfigured(m: Member, entry: WriteEntry | undefined)
  * API não diz o motivo (código, conta sem fator, CSRF…) e a interface não o atribui ao código TOTP.
  */
 export function mfaRefusalText(e: unknown, name: string): string {
+  const registry = registryRefusalText(e);
+  if (registry) return registry;
   const nothing = `Nada foi alterado na conta de ${name}.`;
   const cause = rootError(e);
   if (e instanceof NotApplied) {

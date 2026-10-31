@@ -109,6 +109,7 @@ function PasswordSection() {
       <StepUpDialog<void>
         open={confirming}
         title="Trocar a senha?"
+        guard={{ operation: 'identity.password.change' }}
         confirmLabel="Trocar senha"
         stepUp={identityStepUp}
         action={() => changeIdentityPassword(current, next)}
@@ -177,6 +178,7 @@ function RecoveryCodesSection() {
       <StepUpDialog<string[]>
         open={confirming}
         title="Gerar novos códigos de recuperação?"
+        guard={{ operation: 'identity.recovery-codes.regenerate' }}
         confirmLabel="Gerar códigos"
         stepUp={identityStepUp}
         action={regenerateRecoveryCodes}
@@ -409,6 +411,9 @@ export function ReplaceFactorPage() {
         </Alert>
       )}
 
+      {/* sem `guard` de propósito: começar a troca não troca nada (quem troca é a confirmação com o primeiro código do
+          autenticador novo, que trata o resultado desconhecido na própria tela); repetir o começo só substitui o pedido
+          pendente */}
       <StepUpDialog<string>
         open={confirming}
         title="Confirmar com o autenticador atual"

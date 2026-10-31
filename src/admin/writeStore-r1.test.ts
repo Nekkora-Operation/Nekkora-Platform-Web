@@ -9,12 +9,17 @@ import { beginCheck, clearSettled, finishCheck, resetWriteStore, sessionEpoch, s
 
 const ORG = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const t = (userId: string) => ({ userId, membershipId: `m-${userId}`, displayName: userId });
-const flush = () => new Promise<void>((r) => setTimeout(r, 0));
+// o envio passa antes pelo registro persistente (resumo SHA-256 e gravação, assíncronos): várias voltas do laço
+const flush = async () => {
+  for (let i = 0; i < 10; i++) await new Promise<void>((r) => setTimeout(r, 0));
+};
 
 function deferred() {
   let resolve!: () => void;
   let reject!: (e: unknown) => void;
   const promise = new Promise<void>((res, rej) => ((resolve = res), (reject = rej)));
+  // o envio só é chamado depois da gravação no registro persistente: a recusa pode chegar antes de quem a consome
+  promise.catch(() => {});
   return { promise, resolve, reject };
 }
 

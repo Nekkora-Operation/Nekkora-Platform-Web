@@ -172,6 +172,7 @@ export function LocalRunAuthorizations({
         <StepUpDialog
           open={creating}
           title={`Autorizar a execução local da versão ${version.versionNumber ?? ''}?`}
+          guard={{ operation: 'local-run.authorize', target: `${version.automationVersionId}|${workerId}` }}
           confirmLabel="Autorizar execução local"
           stepUp={orgStepUp(org)}
           action={() => createLocalRunAuthorization(org, workspaceId, { workerId, automationVersionId: version.automationVersionId, validUntil: untilDate!.toISOString() })}
@@ -202,6 +203,7 @@ export function LocalRunAuthorizations({
       <StepUpDialog
         open={!!revoking}
         title="Revogar esta autorização?"
+        guard={{ operation: 'local-run.revoke', target: revoking?.authorizationId }}
         confirmLabel="Revogar autorização"
         tone="danger"
         action={() => revokeLocalRunAuthorization(org, workspaceId, revoking!.authorizationId!)}

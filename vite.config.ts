@@ -12,7 +12,7 @@ const proxy = api ? { '/api': { target: api, secure: false } } : undefined;
 export default defineConfig({
   plugins: [react(), ...(api ? [] : [nekkoraMockApi()])],
   resolve: {
-    // A nekkora-lib vem de ../Nekkora-lib (link local): garante uma única cópia do React.
+    // Uma única cópia do React (a nekkora-lib declara react/react-dom como peer).
     dedupe: ['react', 'react-dom', 'react-router'],
   },
   server: {

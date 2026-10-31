@@ -128,17 +128,21 @@ describe('isolamento por sessão', () => {
     expect(screen.getByRole('button', { name: 'Suspender Caio Mendes' })).toBeInTheDocument();
   });
 
-  it('logout e nova entrada da MESMA pessoa: também não reaproveita', async () => {
+  it('logout e nova entrada da MESMA pessoa: a incerteza volta (registro persistente, FRONT-V1-002), sem reenviar', async () => {
+    // Regra nova (FRONT-V1-002, substitui a da F6a-2-R1 só para a MESMA pessoa na MESMA organização): o resultado
+    // desconhecido continua depois de sair e entrar de novo; outra pessoa segue sem ver nada (teste acima).
     sessionFor('ana@nekkora.dev');
     const view = await openMembers();
     await uncertainSuspend();
+    const sent = requests.filter((r) => isSuspend(r.method, r.path)).length;
     fireEvent.click(screen.getByRole('button', { name: 'Sair' }));
     await screen.findByText('Você saiu da sua conta.');
     view.unmount();
     sessionFor('ana@nekkora.dev');
     csrfStore.beginSession(DEV_ORG, 'sessao-nova'); // o login emite sessão nova (MfaPage → verifyMfa)
     await openMembers();
-    expect(panel()).toBeNull();
+    await waitFor(() => expect(panel()).not.toBeNull());
+    expect(requests.filter((r) => isSuspend(r.method, r.path)).length).toBe(sent);
   });
 
   it('escrita pendente que conclui DEPOIS da troca de sessão não aparece na sessão nova', async () => {

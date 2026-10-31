@@ -1,0 +1,7 @@
+# FRONT-V1-002 — SÓ laboratório descartável: recria o serviço platform SEM armazenamento de artefatos
+# (NEKKORA_ARTEFATOS_DIR em branco = ArtifactStore.NONE: as rotas de artefato respondem 503 e nada é gravado).
+# Usado por `node tools/lab/lab.mjs <id> artefatos off`; `artefatos on` volta à configuração normal.
+services:
+  platform:
+    environment:
+      NEKKORA_ARTEFATOS_DIR: ""
