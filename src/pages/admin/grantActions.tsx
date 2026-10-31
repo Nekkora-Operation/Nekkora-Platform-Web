@@ -3,7 +3,7 @@ import { Alert, ConfirmDialog, Stack, Text } from 'nekkora-lib';
 import { listClientGrants, revokeClientGrant } from '../../api/admin';
 import { isApiError } from '../../api/http';
 import type { ClientGrant, GrantStatus } from '../../api/v1';
-import { BUSY_ELSEWHERE_TEXT, isBusyElsewhere, startWrite, type GrantEntry, type GrantTarget, type WriteEntry } from '../../admin/writeStore';
+import { registryRefusalText, startWrite, type GrantEntry, type GrantTarget, type WriteEntry } from '../../admin/writeStore';
 import { GRANT_STATUS_LABEL } from './shared';
 import type { FindResult, UncertainCopy } from './uncertainPanel';
 
@@ -33,7 +33,8 @@ export function effectiveGrantStatus(g: ClientGrant, entry: WriteEntry | undefin
 
 /** Mensagem de recusa comprovada (status documentado). Sem detalhe que a API não deu. */
 export function grantRefusalText(e: unknown): string {
-  if (isBusyElsewhere(e)) return BUSY_ELSEWHERE_TEXT;
+  const registry = registryRefusalText(e);
+  if (registry) return registry;
   if (isApiError(e, 'not_found')) return 'Esta concessão não foi encontrada nesta organização. A lista pode estar desatualizada.';
   if (isApiError(e, 'rate_limited')) return 'Muitas tentativas em pouco tempo. Aguarde um pouco e tente de novo.';
   if (isApiError(e, 'invalid_request')) return 'O pedido não foi aceito. Atualize a lista e tente de novo.';

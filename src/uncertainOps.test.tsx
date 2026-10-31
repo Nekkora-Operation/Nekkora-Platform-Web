@@ -260,4 +260,15 @@ describe('resultado desconhecido persistente (FRONT-V1-002)', () => {
     expect(await within(dialog).findByText(/não permitiu registrar a operação antes do envio/)).toBeInTheDocument();
     expect(posts()).toBe(0);
   });
+
+  it('FRONT-V1-004: navegador sem Web Locks — o diálogo avisa antes e não deixa confirmar; nada é enviado', async () => {
+    setOperationRegistryForTest(createOperationRegistry({ storage: () => localStorage, locks: () => null, now: () => Date.now() }));
+    api.on('POST', `/api/v1/o/${ORG}/workspaces`, 'createWorkspace', 'network');
+    renderApp(`/o/${ORG}/workspaces`);
+    const dialog = await openCreate();
+    expect(await within(dialog).findByText(/não oferece bloqueio entre abas \(Web Locks\)/)).toBeInTheDocument();
+    expect(confirmButton(dialog)).toBeDisabled();
+    fireEvent.click(confirmButton(dialog));
+    expect(posts()).toBe(0);
+  });
 });
