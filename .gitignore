@@ -9,6 +9,7 @@ playwright-report/
 .env.*
 !.env.example
 tools/lab/saidas/
+.deps/
 .ci/
 vitest-resultado.json
 playwright-resultado.json

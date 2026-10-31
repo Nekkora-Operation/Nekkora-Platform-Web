@@ -1,4 +1,4 @@
-// Confere, antes de dev/build/test, se a Nekkora-lib ligada em node_modules (file:../Nekkora-lib) exporta tudo
+// Confere, antes de dev/build/test, se a Nekkora-lib instalada (tarball fixado em lib.lock.json) exporta tudo
 // o que o frontend importa. Sem isso, um build antigo ou outro branch da lib deixa a página em branco
 // ("does not provide an export named ...") sem aviso no terminal.
 import { spawnSync } from 'node:child_process';
@@ -13,7 +13,7 @@ function fail(lines) {
   process.exit(1);
 }
 
-if (!existsSync(link)) fail(['node_modules/nekkora-lib não existe. Rode "npm install" (a lib deve estar em ../Nekkora-lib).']);
+if (!existsSync(link)) fail(['node_modules/nekkora-lib não existe. Rode "npm run lib:prepare" e "npm ci" (lib fixada em lib.lock.json).']);
 const lib = realpathSync(link);
 
 // nomes importados de 'nekkora-lib' no código do app (sem os "type ...")
