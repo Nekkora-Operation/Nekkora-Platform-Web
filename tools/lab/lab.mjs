@@ -25,6 +25,12 @@
  *   node tools/lab/lab.mjs <id> canal-agent pausar|retomar  SÓ laboratório descartável (FRONT-V1-002, J14): pausa/retoma o
  *                                                         container agent-gateway — interrompe SÓ o canal Agent–API (o
  *                                                         navegador continua falando com a API). Registrado em fixtures.txt
+ *   node tools/lab/lab.mjs <id> api pausar|retomar        SÓ laboratório descartável (FRONT-V1-004): congela/descongela o
+ *                                                         container platform (docker pause). Um pedido que chega ao nginx
+ *                                                         com a API congelada fica no buffer do socket; o nginx responde
+ *                                                         504 no prazo dele (60 s) e a API processa o pedido ao voltar —
+ *                                                         erro de gateway DEPOIS do envio, sem simular resposta. Registrado
+ *                                                         em tools/lab/saidas/<id>/fixtures.txt
  *   node tools/lab/lab.mjs <id> artefatos off|on          SÓ laboratório descartável (FRONT-V1-002): recria o serviço
  *                                                         platform sem armazenamento de artefatos (503) e depois volta.
  *                                                         Registrado em tools/lab/saidas/<id>/fixtures.txt
@@ -211,6 +217,16 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     appendFileSync(join(here, 'saidas', id, 'fixtures.txt'), `${new Date().toISOString()} canal Agent–API ${mode === 'pausar' ? 'PAUSADO' : 'retomado'} (agent-gateway; navegador–API intacto)
 `);
     console.log(`canal do Agent ${mode === 'pausar' ? 'pausado' : 'retomado'}`);
+  } else if (cmd === 'api') {
+    const e = env(id);
+    if (!/^ensaio-frontlab-/.test(e.FRONT_AMBIENTE ?? '')) throw new Error('recusado: só em laboratório descartável ensaio-frontlab-*');
+    const mode = rest[0];
+    if (mode !== 'pausar' && mode !== 'retomar') throw new Error('uso: api pausar|retomar');
+    compose(id, [mode === 'pausar' ? 'pause' : 'unpause', 'platform'], { stdio: ['ignore', 'inherit', 'inherit'] });
+    const { appendFileSync } = await import('node:fs');
+    appendFileSync(join(here, 'saidas', id, 'fixtures.txt'), `${new Date().toISOString()} API (platform) ${mode === 'pausar' ? 'CONGELADA (docker pause)' : 'descongelada'}
+`);
+    console.log(`API ${mode === 'pausar' ? 'congelada' : 'descongelada'}`);
   } else if (cmd === 'artefatos') {
     const e = env(id);
     if (!/^ensaio-frontlab-/.test(e.FRONT_AMBIENTE ?? '')) throw new Error('recusado: só em laboratório descartável ensaio-frontlab-*');

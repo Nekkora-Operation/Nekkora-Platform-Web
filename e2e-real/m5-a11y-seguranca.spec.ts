@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Response } from '@playwright/test';
 import { confirmStepUp, LAB, signUpAndEnroll } from './support/lab';
 
 /**
@@ -92,31 +92,72 @@ test('J17/J18: telas reais com teclado, zoom 200%, viewports, recarga, links dir
   expect(outline).not.toMatch(/^none 0px none$/);
 
   // ---------------- J17: axe (com contraste) e sem rolagem horizontal, em três larguras e com zoom 200%
-  const pages = [
-    ['organizações', '/organizacoes'],
-    ['início da organização', `/o/${org}`],
-    ['workspace', workspaceUrl.replace(/^https?:\/\/[^/]+/, '')],
-    ['versão', versionUrl.replace(/^https?:\/\/[^/]+/, '')],
-    ['agents', `/o/${org}/agents`],
-    ['workers', `/o/${org}/workers`],
-    ['supervisão', `/o/${org}/supervisao`],
-    ['convites', `/o/${org}/administracao/convites`],
-    ['concessões', `/o/${org}/administracao/concessoes`],
-    ['conta', '/conta'],
-  ] as const;
+  // FRONT-V1-004: cada tela só é auditada CARREGADA — o título dela, nenhum "Carregando…" e nenhum aviso de erro ou de
+  // limite na área principal — e sem NENHUMA resposta 429 da API durante a visita (do carregamento ao fim do axe). Uma
+  // visita com 429 não conta como aprovada: espera o Retry-After e repete a visita UMA vez; se repetir, o teste falha.
+  const pages: [string, string, string | RegExp][] = [
+    ['organizações', '/organizacoes', 'Suas organizações'],
+    ['início da organização', `/o/${org}`, /^Olá, /],
+    ['workspace', workspaceUrl.replace(/^https?:\/\/[^/]+/, ''), 'Operações'],
+    ['versão', versionUrl.replace(/^https?:\/\/[^/]+/, ''), /Biografias da Wikipédia — versão 1/],
+    ['agents', `/o/${org}/agents`, 'Agents'],
+    ['workers', `/o/${org}/workers`, 'Workers'],
+    ['supervisão', `/o/${org}/supervisao`, 'Supervisão'],
+    ['convites', `/o/${org}/administracao/convites`, 'Convites'],
+    ['concessões', `/o/${org}/administracao/concessoes`, 'Concessões'],
+    ['conta', '/conta', 'Segurança da conta'],
+  ];
+  const report = (line: string) => appendFileSync(`tools/lab/saidas/${LAB}/a11y-telas.txt`, `${new Date().toISOString()} ${line}\n`);
+  const NOT_LOADED = /Carregando|Muitas tentativas|Não foi possível (carregar|consultar)|indisponíve(l|is)|Tente de novo em/i;
+  const approved: string[] = [];
   for (const [viewport, size] of [
     ['desktop', { width: 1280, height: 800 }],
     ['zoom 200% (1280 px a 200%)', { width: 640, height: 400 }],
     ['celular', { width: 390, height: 844 }],
   ] as const) {
     await page.setViewportSize(size);
-    for (const [label, path] of pages) {
-      await page.goto(path);
-      await expect(page.getByRole("heading", { level: 1 }).first(), `título h1 em ${label} — ${viewport}`).toBeVisible();
-      await page.waitForLoadState('networkidle');
-      await audit(page, `${label} — ${viewport}`);
+    for (const [label, path, heading] of pages) {
+      const name = `${label} — ${viewport}`;
+      let done = false;
+      for (let visit = 1; visit <= 2 && !done; visit++) {
+        const limited: number[] = [];
+        const on429 = (r: Response) => {
+          if (r.status() === 429 && new URL(r.url()).pathname.startsWith('/api/')) limited.push(Number(r.headers()['retry-after'] ?? '10'));
+        };
+        page.on('response', on429);
+        try {
+          // ritmo: a varredura inteira são ~30 telas seguidas, e o limitador de leituras da API responde 429
+          await page.waitForTimeout(1_500);
+          await page.goto(path);
+          const titled = await page
+            .getByRole('heading', { level: 1, name: heading })
+            .waitFor({ state: 'visible', timeout: 15_000 })
+            .then(
+              () => true,
+              () => false,
+            );
+          await page.waitForLoadState('networkidle');
+          const shown = (await page.locator('main').innerText().catch(() => '')).replace(/\s+/g, ' ');
+          const notLoaded = titled ? NOT_LOADED.exec(shown)?.[0] : `sem o título esperado (${shown.slice(0, 80)})`;
+          if (!limited.length && !notLoaded) {
+            await audit(page, name);
+            if (!limited.length) {
+              approved.push(name);
+              report(`APROVADA ${name} (visita ${visit}, sem 429)`);
+              done = true;
+              continue;
+            }
+          }
+          report(`NÃO CONTA ${name} (visita ${visit}): ${limited.length} resposta(s) 429${notLoaded ? `; tela mostrava "${notLoaded}"` : ''}`);
+          if (visit === 1) await page.waitForTimeout((Math.max(10, ...limited) + 1) * 1000);
+        } finally {
+          page.off('response', on429);
+        }
+      }
+      expect(done, `${name}: não foi possível auditar a tela carregada e sem 429`).toBe(true);
     }
   }
+  expect(approved).toHaveLength(pages.length * 3);
   await page.setViewportSize({ width: 1280, height: 800 });
 
   // ---------------- J17: recarga, link direto em aba nova (mesmo navegador) e voltar/avançar

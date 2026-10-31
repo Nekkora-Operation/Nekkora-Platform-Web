@@ -14,8 +14,11 @@ import { confirmStepUp, LAB, signUpAndEnroll, type Person } from './support/lab'
  * Cada ponto aparece numa caixa de mensagem na tela e em tools/lab/saidas/<id>/intervencoes.txt.
  *
  * Execuções:
- *   A (J13 + J14): sucesso. Durante a execução: (a) SÓ navegador–API cai (contexto offline) e volta; (b) SÓ Agent–API cai
- *     (agent-gateway pausado) e volta. Prova: uma execução, eventos sem sequência repetida, desfecho e histórico.
+ *   A (J13 + J14): sucesso. A supervisão é aberta ANTES do início, com a lista vazia, e recebe a execução sem recarregar.
+ *     Durante a execução: (b) SÓ Agent–API cai (agent-gateway pausado) e volta — o teste FALHA se algum ACK passar pelo
+ *     canal pausado, se a execução já tiver terminado na retomada, ou se a entrega não retomar (ACK depois da retomada
+ *     além do último antes da pausa); (a) SÓ navegador–API cai (contexto offline) e volta. Prova final: entrega completa,
+ *     ACKs sem duplicata e crescentes, e a tela com a sequência contínua 1..N dos eventos entregues (FRONT-V1-004).
  *   B (J15): cancelamento local, reportado pelo supervisor.
  *   C (J15): desfecho desconhecido em reprodução segura (como a C6 do AGENT-PLATFORM-002): Agent encerrado à força e o
  *     processo da execução encerrado com ele fora; reaberto, o Agent reconcilia, nada é relançado.
@@ -54,6 +57,13 @@ const agentLog = () => {
   }
 };
 const count = (pattern: RegExp) => (agentLog().match(new RegExp(pattern.source, 'g')) ?? []).length;
+/** Confirmações de entrega da API no log do Agent (relógio UTC desta máquina; nanossegundos cortados em ms). */
+const acks = () =>
+  [...agentLog().matchAll(/^(\S+) INFO PLATFORM_ACK execution=\S+ stored_through=(\d+) settled_through=(\d+) stored=(\d+) duplicates=(\d+)/gm)].map((m) => ({
+    t: Date.parse(m[1].replace(/(\.\d{3})\d*Z$/, '$1Z')),
+    through: Number(m[2]),
+    dup: Number(m[5]),
+  }));
 const step = (text: string) => {
   const line = `${new Date().toISOString()} ${text}`;
   console.log(line);
@@ -188,21 +198,61 @@ test('J13–J15: execução real supervisionada, quedas de canal, cancelamento l
   let detail = '';
   if (etapas.includes('A')) {
     runs++;
-    // ---------------- A: J13 + J14
+    // ---------------- A: J13 + J14 (FRONT-V1-004: lista vazia que recebe a execução; J14b que falha sem reconexão)
+    // Supervisão aberta ANTES do início: a lista está vazia e recebe a execução sozinha (sem recarregar nem "Atualizar")
+    await page.goto(`/o/${org}/supervisao`);
+    await expect(page.getByText('Nenhuma execução local registrada.')).toBeVisible();
+    const listUrl = page.url();
+    const rows = page.getByRole('region', { name: 'Execuções locais' }).getByRole('link');
+    const registered0 = count(/PLATFORM_RUN_REGISTERED/);
     await startByPerson('A (sucesso)');
-    // J14b: SÓ Agent–API, logo depois do início, com a execução em curso (o navegador continua falando com a API)
+    await expect.poll(() => count(/PLATFORM_RUN_REGISTERED/), { timeout: 120_000, intervals: [1_000] }).toBeGreaterThan(registered0);
+
+    // J14b: SÓ Agent–API, com a execução em curso (o navegador continua falando com a API)
     const finished0 = count(/EXEC_FINISHED/);
-    const conn0 = count(/PLATFORM_CONNECTED/);
+    const acksBefore = acks();
     lab('canal-agent', 'pausar');
-    step(`J14b: canal Agent–API pausado (agent-gateway); navegador–API intacto; execução em curso: ${count(/EXEC_FINISHED/) === finished0}`);
+    const pausedAt = Date.now();
+    step(`J14b: canal Agent–API pausado (agent-gateway); navegador–API intacto; execução em curso: ${count(/EXEC_FINISHED/) === finished0}; ACKs até aqui: ${acksBefore.length}`);
+    let runningAtResume = false;
+    let resumeStartedAt = 0;
     try {
-      await openNewestRun(page, org, 1);
-      await expect(page.getByText('Os dados podem estar desatualizados.')).toHaveCount(0);
-      await page.waitForTimeout(15_000);
+      // a lista aberta antes do início recebe a execução já registrada, sem navegação
+      await expect.poll(() => rows.count(), { timeout: 120_000, intervals: [2_000] }).toBe(1);
+      expect(page.url(), 'a lista recebeu a execução sem navegar').toBe(listUrl);
+      step(`supervisão: lista vazia recebeu a execução sem recarregar; linha: ${(await rows.first().innerText()).replace(/\s+/g, ' ')}`);
+      await page.waitForTimeout(20_000);
     } finally {
+      runningAtResume = count(/EXEC_FINISHED/) === finished0;
+      // a janela da pausa fecha quando o retorno COMEÇA: um ACK pode chegar antes de o comando terminar
+      resumeStartedAt = Date.now();
       lab('canal-agent', 'retomar');
     }
-    step(`J14b: canal retomado; execução ainda em curso: ${count(/EXEC_FINISHED/) === finished0}; desconexões no log do Agent: ${count(/PLATFORM_DISCONNECTED/)}`);
+    const resumedAt = resumeStartedAt;
+    const lastBefore = acksBefore.at(-1)?.through ?? 0;
+    // 1 s de folga depois da pausa: confirmação que já estava a caminho quando o canal foi pausado
+    const inPause = acks().filter((a) => a.t > pausedAt + 1_000 && a.t < resumedAt);
+    step(`J14b: canal retomado; execução ainda em curso na retomada: ${runningAtResume}; ACKs durante a pausa: ${inPause.length}`);
+    // a queda foi real: nenhuma confirmação de entrega passou pelo canal pausado
+    expect(inPause, 'nenhum ACK do canal Agent–API durante a pausa').toHaveLength(0);
+    expect(runningAtResume, 'a execução ainda estava em curso quando o canal voltou (a retomada da entrega é exercida)').toBe(true);
+    // reconexão e retomada da entrega: um ACK DEPOIS da retomada que avança além do último antes da pausa
+    await expect
+      .poll(() => acks().filter((a) => a.t >= resumedAt - 1_000 && a.through > lastBefore).length, { timeout: 180_000, intervals: [2_000] })
+      .toBeGreaterThan(0);
+    const firstAfter = acks().find((a) => a.t >= resumedAt - 1_000 && a.through > lastBefore)!;
+    step(`J14b: entrega retomada em ${new Date(firstAfter.t).toISOString()} (stored_through ${lastBefore} → ${firstAfter.through})`);
+
+    // detalhe: estado em execução e eventos chegando sem recarregar
+    await rows.first().click();
+    await expect(page.getByRole('heading', { name: 'Execução local' })).toBeVisible();
+    const detailUrl = page.url();
+    const seen0 = (await eventSequences(page)).length;
+    if (count(/EXEC_FINISHED/) === finished0) {
+      await expect(page.locator('main')).toContainText('Em execução');
+      await expect.poll(async () => (await eventSequences(page)).length, { timeout: 60_000, intervals: [3_000] }).toBeGreaterThan(seen0);
+      step(`detalhe: em execução; eventos na tela ${seen0} → ${(await eventSequences(page)).length} sem recarregar`);
+    } else step(`detalhe: a execução terminou antes da abertura do detalhe (eventos na tela: ${seen0})`);
 
     // J14a: SÓ navegador–API (o Agent continua falando com a API)
     const reportsBeforeOffline = count(/PLATFORM_REPORT/);
@@ -212,17 +262,23 @@ test('J13–J15: execução real supervisionada, quedas de canal, cancelamento l
     await context.setOffline(false);
     await expect(page.getByText('Os dados podem estar desatualizados.')).toHaveCount(0, { timeout: 60_000 });
     step(`J14a: navegador de volta; relatórios do Agent durante a queda do navegador: ${count(/PLATFORM_REPORT/) - reportsBeforeOffline}`);
-    await expect.poll(() => count(/PLATFORM_CONNECTED/), { timeout: 300_000, intervals: [5_000] }).toBeGreaterThanOrEqual(conn0);
 
-    // desfecho de A
+    // desfecho de A: tudo entregue, sem duplicata, sequência contínua na tela até o último evento entregue
+    await expect.poll(() => count(/PLATFORM_DELIVERY_COMPLETED/), { timeout: 30 * 60_000, intervals: [5_000] }).toBeGreaterThan(0);
+    const settled = Number(/PLATFORM_DELIVERY_COMPLETED execution=\S+ settled=(\d+)/.exec(agentLog().split('\n').filter((l) => l.includes('PLATFORM_DELIVERY_COMPLETED')).at(-1) ?? '')?.[1]);
+    const all = acks();
+    expect(all.every((a) => a.dup === 0), 'nenhuma duplicata confirmada pela API').toBe(true);
+    expect(all.every((a, i) => i === 0 || a.through > all[i - 1].through), 'stored_through sempre crescente').toBe(true);
     await expect(page.getByText('Acompanhamento automático encerrado: nada pendente.')).toBeVisible({ timeout: 30 * 60_000 });
+    expect(page.url(), 'o detalhe acompanhou até o fim sem navegar').toBe(detailUrl);
     detail = (await page.locator('main').innerText()).replace(/\s+/g, ' ');
     step(`A detalhe: ${detail.slice(0, 900)}`);
     expect(detail).toMatch(/Concluída com sucesso/);
     expect(detail).toMatch(/Desfecho Conhecido/i);
-    const seqA = await eventSequences(page);
-    expect(seqA.length).toBeGreaterThan(0);
-    expect(new Set(seqA).size).toBe(seqA.length); // nenhuma sequência repetida depois das quedas
+    const seqA = (await eventSequences(page)).sort((x, y) => x - y);
+    const expected = Array.from({ length: Math.min(settled, 2_000) }, (_, i) => i + 1);
+    expect(seqA, `eventos na tela = 1..${expected.length} (entregues pelo Agent: ${settled})`).toEqual(expected);
+    step(`A: ${settled} eventos entregues; tela com a sequência contínua 1..${seqA.length}; ACKs ${all.length}, sem duplicata`);
     await page.goto(`/o/${org}/supervisao`);
     await expect(page.getByRole('region', { name: 'Execuções locais' }).getByRole('link')).toHaveCount(1); // nenhuma nova execução
   }
@@ -241,6 +297,10 @@ test('J13–J15: execução real supervisionada, quedas de canal, cancelamento l
   }
 
   // ---------------- C: desfecho desconhecido (reprodução segura)
+  if (!etapas.includes('C')) {
+    step(`J13–J15 org=${org} (etapas ${etapas.join(',')})`);
+    return;
+  }
   runs++;
   const finishedC = count(/EXEC_FINISHED/);
   await startByPerson('C (desfecho desconhecido: o laboratório vai derrubar o Agent depois do início)');
