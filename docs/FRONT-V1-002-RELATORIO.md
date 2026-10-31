@@ -1,8 +1,8 @@
 # FRONT-V1-002 — correções, integração e fechamento da homologação (30/10/2026)
 
 > **Atualização FRONT-V1-004 (31/10/2026).** A §0.5 é o estado atual: garantias de incerteza fechadas, caminhos
-> alterados revalidados no laboratório descartável `frontlab-004`, a que código pertence cada evidência e o que continua
-> pendente. As §0.1–0.4 são o registro da FRONT-V1-003 (onde a §0.5 revê algo, ela vale). As seções 1–11 continuam
+> alterados revalidados no laboratório descartável `frontlab-004` (inclusive a sessão assistida com o Agent real), a que
+> código pertence cada evidência e o que continua pendente. As §0.1–0.4 são o registro da FRONT-V1-003 (onde a §0.5 revê algo, ela vale). As seções 1–11 continuam
 > valendo como registro da FRONT-V1-002; onde citam HEADs ou runs, eram os daquele momento.
 
 ## 0. FRONT-V1-003 — estado para revisão
@@ -66,7 +66,7 @@ PR do #12). As duas correções foram levadas à base (#10) e subiram pela pilha
 | Resultado desconhecido persistente, sem expiração silenciosa | Concluído | Frontend | §0.1; #15 |
 | CI de cada candidato | Concluído | Frontend | §0.2 |
 | Jornadas | Demonstradas conforme a matriz de evidências (§2); **J09 parcial**, com aprovação da renovação e primeira concessão pela interface dependentes da API; ativação operacional não demonstrada neste laboratório | Frontend | §2 e regressão final (§11), API real |
-| J13–J15 com Agent real | Demonstradas com o código ANTERIOR à revisão (§0.4). No candidato final (§0.5): gateway e acessibilidade revalidados; supervisão e J14b **pendentes da sessão assistida** (atos da pessoa no Agent) | Frontend + pessoa no Agent | §3; §0.5 |
+| J13–J15 com Agent real | Demonstradas com o código ANTERIOR à revisão (§0.4). No candidato final (§0.5): gateway, acessibilidade, supervisão e J14b revalidados (sessão assistida, rodada 6); B (cancelamento) e C (desfecho desconhecido) não repetidos — fora dos caminhos alterados | Frontend + pessoa no Agent | §3; §0.5 |
 | D-API-01 confirmação do MFA | Bloqueado (sem candidato; medida temporária estrita no frontend) | Equipe da API | [issue #37](https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/37); `docs/encaminhamentos/API-D-API-01-*.md` |
 | D-API-02 leitura do pedido de renovação (prioridade); J09 completa | Bloqueado | Equipe da API | [issue #38](https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/38); `docs/encaminhamentos/API-D-API-02-*.md`; J09 parcial em `e2e-real/m2-concessoes.spec.ts` |
 | D-API-03 leitura dos vínculos; primeira concessão pela tela (não é a jornada completa de clientes externos) | Bloqueado | Equipe da API | [issue #39](https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/39); `docs/encaminhamentos/API-D-API-03-*.md` |
@@ -118,7 +118,7 @@ O que os specs da API real afirmam e o que só foi observado (sem repetir provas
 Endurecimento desses specs (h1 específico e ausência de "Muitas tentativas" antes de cada axe, com ritmo; reconexão com
 `>` e desconexão durante a pausa; asserções de processo e histórico) fica para a próxima sessão de laboratório, junto
 das telas afetadas pela revisão: supervisão (lista e detalhe), envio de pacote, confirmações com step-up. (Feito na
-FRONT-V1-004, §0.5; a sessão assistida da supervisão e do J14b continua pendente.)
+FRONT-V1-004, §0.5, inclusive a sessão assistida da supervisão e do J14b.)
 
 ### 0.5 FRONT-V1-004 — garantias de incerteza fechadas e caminhos alterados revalidados (31/10/2026)
 
@@ -160,7 +160,7 @@ ferramentas e documentação).
 | Step-up (convite) | `e2e-real/m6-gateway.spec.ts`: depois do step-up aceito, o POST do convite chega ao nginx com a API congelada; 504 em 60 s | diálogo em "resultado não confirmado", POST único (504), confirmação bloqueada, nada repetido em 15 s nem depois da recarga (registro persistente com "liberar" explícito), nenhuma frase afirmando ausência de efeito. Efeito real: **não aplicado** (a API, descongelada, não processou o pedido cuja conexão o nginx já tinha fechado; a lista ficou vazia) |
 | Upload do pacote | mesmo spec: PUT do pacote com a API congelada; 504 | "O envio foi interrompido ou ficou sem resposta… Os bytes podem ter chegado", PUT único (504), envio e seletor bloqueados, nada repetido. Efeito real: **aplicado** — "Conferir a versão" mostrou "a Platform tem o pacote com o mesmo SHA-256" |
 | Acessibilidade | `e2e-real/m5-a11y-seguranca.spec.ts` endurecido | 30/30 telas×larguras aprovadas só carregadas e sem 429 (`a11y-telas.txt`). Duas visitas com 429 **não contaram** (versão, que mostrava o título genérico "Automação — versão 1", e workers no celular) e foram refeitas uma vez depois do Retry-After. A 1ª rodada do spec endurecido falhou por um defeito do próprio spec (título ausente lançava em vez de contar como não carregada), corrigido antes da rodada aprovada |
-| Supervisão (lista vazia que recebe a execução; estados e eventos) e J14b | `e2e-real/m4-execucao.spec.ts` endurecido (etapa A) | **pendente: sessão assistida.** Aprovar o pacote e clicar em "Iniciar" no Agent são atos da pessoa; o spec prepara até lá e confere o log do Agent. Tudo pronto em `frontlab-004` (Agent `ce30397`, Python do Framework, entrada da J14) |
+| Supervisão (lista vazia que recebe a execução; estados e eventos) e J14b | `e2e-real/m4-execucao.spec.ts` endurecido (etapa A), sessão assistida em 31/10/2026 (a pessoa aprovou o pacote uma vez e clicou em "Iniciar" a cada rodada; nada simulado) | **aprovado na rodada 6** (`m4-execucao-6.log`, exit 0): canal Agent–API pausado 10 s com a execução em curso, **0 ACK durante a pausa**, execução **ainda em curso na retomada**, entrega retomada logo depois (stored_through 3 → 12); a lista aberta vazia antes do início recebeu a execução sem recarregar; o detalhe mostrou "Em execução" com eventos chegando (1165 → 1589); J14a com a execução em curso (aviso de desatualizado offline, some na volta); 3323 eventos entregues, 85 ACKs sem duplicata e crescentes, tela com a sequência contínua 1..2000 (limite do histórico longo); desfecho na tela = estado final real do Agent |
 
 Nos 504 provocados, o efeito real variou (convite não aplicado, pacote aplicado). A tela não sabe qual dos dois aconteceu,
 e por isso não pode afirmar nenhum deles: mantém o resultado desconhecido até a pessoa conferir.
@@ -171,8 +171,28 @@ e por isso não pode afirmar nenhum deles: mantém o resultado desconhecido até
 |---------|--------|-----------|
 | Antes da revisão (FRONT-V1-002) | HEADs da §0.2 e da regressão final (§11) | jornadas J01–J18 no `frontlab-001`; J13–J15 com o Agent real (`sessao-j13-j15-*.log`) |
 | Depois da revisão FRONT-V1-003, antes da FRONT-V1-004 | `ea11737` … `d982933` | só CI (16 runs, no bloco de estado de cada PR naquele momento); nenhuma prova de laboratório |
-| Candidato final (FRONT-V1-004) | #10 `08c1706` · #11 `e69d480` · #12 `f844d1c` · #13 `73e7155` · #14 `f65469c` · #15 `7de65f3` · #16 `79982b7` · #17 HEAD deste relatório | CI no bloco de estado de cada PR; Vitest 10× e corrida entre abas (acima); `frontlab-004`: gateway e acessibilidade (acima) |
-| Pendente no candidato final | — | supervisão e J14b com o Agent real (sessão assistida) |
+| Candidato final (FRONT-V1-004) | #10 `08c1706` · #11 `e69d480` · #12 `f844d1c` · #13 `73e7155` · #14 `f65469c` · #15 `7de65f3` · #16 `79982b7` · #17 HEAD deste relatório | CI no bloco de estado de cada PR; Vitest 10× e corrida entre abas (acima); `frontlab-004`: gateway, acessibilidade, supervisão e J14b com o Agent real (acima; sessão assistida abaixo) |
+
+**Sessão assistida (31/10/2026, `frontlab-004`, Agent `ce30397`) — as seis rodadas, inclusive as que falharam.** O código
+da aplicação foi o mesmo em todas (`8c8bc8e`); as rodadas 2 a 6 reaproveitaram a pasta de dados do Agent da 1ª
+(`agent-dados-202610311100`: a aprovação do pacote nesta máquina continua; o pareamento é refeito).
+
+| Rodada | Resultado | Causa / mudança antes da seguinte |
+|--------|-----------|-----------------------------------|
+| 1 | falhou: "execução ainda em curso na retomada" = falso | defeito do spec: a espera pela lista DENTRO da pausa a fez durar 38 s e a execução de 21 itens (~31 s) terminou antes da retomada. A guarda contra o caso trivial funcionou. Pausa passou a 10 s fixos; lista conferida depois |
+| 2 | J14b aprovado (em curso na retomada, 0 ACK na pausa, 5 → 12); falhou em "nenhuma duplicata" | defeito do spec: com a pasta reaproveitada, os ACKs lidos incluíam os da rodada 1 (`duplicates=5` na retomada daquela execução, já terminada). Leitura do log restrita ao trecho da etapa — o mesmo valia para `PLATFORM_DELIVERY_COMPLETED`, que passaria trivialmente |
+| 3 | falhou: aviso de desatualizado ausente no J14a | a execução terminou antes da abertura do detalhe (a lista levou ~18 s, o ritmo da tela); com o acompanhamento encerrado a tela corretamente não avisa desatualizado. O detalhe "em execução" e o J14a passaram a ser **exigidos** com a execução em curso (antes o detalhe era pulado), e a entrada ficou mais longa: `entrada-j14-longa.csv` (declarada em `fixtures.txt`) |
+| 4 | tudo aprovado até o desfecho; falhou em "Concluída com sucesso" | a tela mostrou "Falhou", fiel ao `FAILED` do Agent (AGT-EXE-022): a automação recusou 2 itens (`DADO_OBRIGATORIO_VAZIO:occupation`; a conferência prévia pelo HTML bruto não reproduz a leitura do navegador). Lista sem os dois: `entrada-j14-longa2.csv` |
+| 5 | tudo aprovado até o desfecho; falhou em "Concluída com sucesso" | "Falhou" de novo: Joaquim Nabuco, gravado na planilha da rodada 4, recusado na 5 — leitura intermitente do pacote. Por decisão da pessoa, a asserção final passou a exigir que a tela mostre o estado final REAL do Agent (SUCCEEDED → "Concluída com sucesso", FAILED → "Falhou"; estado sem texto mapeado falha) |
+| 6 | **aprovado** (exit 0) | estado final `FAILED` (Joaquim Nabuco recusado de novo), tela "Supervisor: Falhou"; demais resultados na tabela acima |
+
+**Achado para o time do Studio/Framework (não é do frontend):** com páginas vivas da pt.wikipedia, a leitura de
+"Ocupação" pelo pacote `pacote-studio-real` é intermitente — o mesmo item (Joaquim Nabuco) foi gravado numa execução e
+recusado por `DADO_OBRIGATORIO_VAZIO:occupation` em duas outras (conferido pelas URLs gravadas em
+`planilha.xlsx-output.json`, não pela ordem das transações). Uma execução da automação que deveria ter sucesso termina
+em `COMPLETED_WITH_FAILURES`. Não foi aberta issue (sem autorização para isso); fica registrado aqui para encaminhar.
+"Concluída com sucesso" com a entrada longa não foi mostrado no candidato final; com a entrada de 21 itens, as
+rodadas 1–3 terminaram em `SUCCEEDED` no Agent.
 
 **Limitações e lacunas que continuam:**
 

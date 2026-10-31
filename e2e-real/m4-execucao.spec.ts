@@ -30,7 +30,9 @@ const PKG_DIR = resolve(LABDIR, 'pacote-studio-real');
 const PYTHON = process.env.FRONT_LAB_PYTHON ?? resolve('..', 'front-v1-002-framework', '.venv', 'Scripts', 'python.exe');
 // 22 biografias distintas com as linhas da ficha que a automação do Studio lê (Nome completo, Nascimento, Nacionalidade,
 // Ocupação); a 1ª lista parou por dados da Wikipédia e linhas repetidas são recusadas pela planilha (SINK_REJECTED)
-const INPUT = resolve(LABDIR, 'entrada-j14.csv');
+// FRONT_LAB_ENTRADA: lista mais longa (declarada em fixtures.txt) quando a execução A precisa durar o bastante para
+// pausa, lista, detalhe e J14a acontecerem com ela em curso
+const INPUT = resolve(LABDIR, process.env.FRONT_LAB_ENTRADA ?? 'entrada-j14.csv');
 const OUT = resolve(LABDIR, 'saida-execucoes');
 const WAIT_PERSON = 45 * 60_000;
 // dados novos do Agent para esta sessão, numa pasta própria (as anteriores ficam como estão, como evidência)
@@ -58,8 +60,11 @@ const agentLog = () => {
 };
 const count = (pattern: RegExp) => (agentLog().match(new RegExp(pattern.source, 'g')) ?? []).length;
 /** Confirmações de entrega da API no log do Agent (relógio UTC desta máquina; nanossegundos cortados em ms). */
+// trecho do log a partir do início da etapa: com FRONT_LAB_AGENT_DADOS o log traz as execuções de sessões anteriores
+let logFrom = 0;
+const runLog = () => agentLog().slice(logFrom);
 const acks = () =>
-  [...agentLog().matchAll(/^(\S+) INFO PLATFORM_ACK execution=\S+ stored_through=(\d+) settled_through=(\d+) stored=(\d+) duplicates=(\d+)/gm)].map((m) => ({
+  [...runLog().matchAll(/^(\S+) INFO PLATFORM_ACK execution=\S+ stored_through=(\d+) settled_through=(\d+) stored=(\d+) duplicates=(\d+)/gm)].map((m) => ({
     t: Date.parse(m[1].replace(/(\.\d{3})\d*Z$/, '$1Z')),
     through: Number(m[2]),
     dup: Number(m[5]),
@@ -205,6 +210,7 @@ test('J13–J15: execução real supervisionada, quedas de canal, cancelamento l
     const listUrl = page.url();
     const rows = page.getByRole('region', { name: 'Execuções locais' }).getByRole('link');
     const registered0 = count(/PLATFORM_RUN_REGISTERED/);
+    logFrom = agentLog().length;
     await startByPerson('A (sucesso)');
     await expect.poll(() => count(/PLATFORM_RUN_REGISTERED/), { timeout: 120_000, intervals: [1_000] }).toBeGreaterThan(registered0);
 
@@ -217,11 +223,9 @@ test('J13–J15: execução real supervisionada, quedas de canal, cancelamento l
     let runningAtResume = false;
     let resumeStartedAt = 0;
     try {
-      // a lista aberta antes do início recebe a execução já registrada, sem navegação
-      await expect.poll(() => rows.count(), { timeout: 120_000, intervals: [2_000] }).toBe(1);
-      expect(page.url(), 'a lista recebeu a execução sem navegar').toBe(listUrl);
-      step(`supervisão: lista vazia recebeu a execução sem recarregar; linha: ${(await rows.first().innerText()).replace(/\s+/g, ' ')}`);
-      await page.waitForTimeout(20_000);
+      // pausa curta e fixa: a execução A dura ~30 s e precisa seguir em curso quando o canal voltar (na 1ª rodada da
+      // FRONT-V1-004 a espera pela lista dentro da pausa a fez durar 38 s e a execução terminou antes da retomada)
+      await page.waitForTimeout(10_000);
     } finally {
       runningAtResume = count(/EXEC_FINISHED/) === finished0;
       // a janela da pausa fecha quando o retorno COMEÇA: um ACK pode chegar antes de o comando terminar
@@ -236,6 +240,10 @@ test('J13–J15: execução real supervisionada, quedas de canal, cancelamento l
     // a queda foi real: nenhuma confirmação de entrega passou pelo canal pausado
     expect(inPause, 'nenhum ACK do canal Agent–API durante a pausa').toHaveLength(0);
     expect(runningAtResume, 'a execução ainda estava em curso quando o canal voltou (a retomada da entrega é exercida)').toBe(true);
+    // a lista aberta antes do início recebe a execução, sem navegação
+    await expect.poll(() => rows.count(), { timeout: 120_000, intervals: [2_000] }).toBe(1);
+    expect(page.url(), 'a lista recebeu a execução sem navegar').toBe(listUrl);
+    step(`supervisão: lista vazia recebeu a execução sem recarregar; linha: ${(await rows.first().innerText()).replace(/\s+/g, ' ')}`);
     // reconexão e retomada da entrega: um ACK DEPOIS da retomada que avança além do último antes da pausa
     await expect
       .poll(() => acks().filter((a) => a.t >= resumedAt - 1_000 && a.through > lastBefore).length, { timeout: 180_000, intervals: [2_000] })
@@ -248,14 +256,16 @@ test('J13–J15: execução real supervisionada, quedas de canal, cancelamento l
     await expect(page.getByRole('heading', { name: 'Execução local' })).toBeVisible();
     const detailUrl = page.url();
     const seen0 = (await eventSequences(page)).length;
-    if (count(/EXEC_FINISHED/) === finished0) {
-      await expect(page.locator('main')).toContainText('Em execução');
-      await expect.poll(async () => (await eventSequences(page)).length, { timeout: 60_000, intervals: [3_000] }).toBeGreaterThan(seen0);
-      step(`detalhe: em execução; eventos na tela ${seen0} → ${(await eventSequences(page)).length} sem recarregar`);
-    } else step(`detalhe: a execução terminou antes da abertura do detalhe (eventos na tela: ${seen0})`);
+    // exigido, não pulado: com a execução já terminada o detalhe não prova estado em curso nem eventos chegando
+    expect(count(/EXEC_FINISHED/), 'a execução ainda está em curso na abertura do detalhe').toBe(finished0);
+    await expect(page.locator('main')).toContainText('Em execução');
+    await expect.poll(async () => (await eventSequences(page)).length, { timeout: 60_000, intervals: [3_000] }).toBeGreaterThan(seen0);
+    step(`detalhe: em execução; eventos na tela ${seen0} → ${(await eventSequences(page)).length} sem recarregar`);
 
     // J14a: SÓ navegador–API (o Agent continua falando com a API)
     const reportsBeforeOffline = count(/PLATFORM_REPORT/);
+    // o aviso de desatualizado só existe enquanto o detalhe acompanha (FRONT-V1-003): a queda precisa pegar a execução em curso
+    expect(count(/EXEC_FINISHED/), 'a execução ainda está em curso quando o navegador cai').toBe(finished0);
     step(`J14a: navegador offline (canal Agent–API intacto); execução em curso: ${count(/EXEC_FINISHED/) === finished0}`);
     await context.setOffline(true);
     await expect(page.getByText('Os dados podem estar desatualizados.')).toBeVisible({ timeout: 60_000 });
@@ -264,8 +274,8 @@ test('J13–J15: execução real supervisionada, quedas de canal, cancelamento l
     step(`J14a: navegador de volta; relatórios do Agent durante a queda do navegador: ${count(/PLATFORM_REPORT/) - reportsBeforeOffline}`);
 
     // desfecho de A: tudo entregue, sem duplicata, sequência contínua na tela até o último evento entregue
-    await expect.poll(() => count(/PLATFORM_DELIVERY_COMPLETED/), { timeout: 30 * 60_000, intervals: [5_000] }).toBeGreaterThan(0);
-    const settled = Number(/PLATFORM_DELIVERY_COMPLETED execution=\S+ settled=(\d+)/.exec(agentLog().split('\n').filter((l) => l.includes('PLATFORM_DELIVERY_COMPLETED')).at(-1) ?? '')?.[1]);
+    await expect.poll(() => (runLog().match(/PLATFORM_DELIVERY_COMPLETED/g) ?? []).length, { timeout: 30 * 60_000, intervals: [5_000] }).toBeGreaterThan(0);
+    const settled = Number(/PLATFORM_DELIVERY_COMPLETED execution=\S+ settled=(\d+)/.exec(runLog().split('\n').filter((l) => l.includes('PLATFORM_DELIVERY_COMPLETED')).at(-1) ?? '')?.[1]);
     const all = acks();
     expect(all.every((a) => a.dup === 0), 'nenhuma duplicata confirmada pela API').toBe(true);
     expect(all.every((a, i) => i === 0 || a.through > all[i - 1].through), 'stored_through sempre crescente').toBe(true);
@@ -273,7 +283,13 @@ test('J13–J15: execução real supervisionada, quedas de canal, cancelamento l
     expect(page.url(), 'o detalhe acompanhou até o fim sem navegar').toBe(detailUrl);
     detail = (await page.locator('main').innerText()).replace(/\s+/g, ' ');
     step(`A detalhe: ${detail.slice(0, 900)}`);
-    expect(detail).toMatch(/Concluída com sucesso/);
+    // a tela mostra o desfecho REAL do Agent (a automação, com páginas vivas da Wikipédia, pode recusar itens e falhar:
+    // rodadas 4 e 5 da FRONT-V1-004); estado sem texto mapeado faz o teste falhar
+    const finalState = /EXEC_FINISHED state=(\w+)/.exec(runLog())?.[1];
+    const screenText: Record<string, string> = { SUCCEEDED: 'Supervisor: Concluída com sucesso', FAILED: 'Supervisor: Falhou' };
+    expect(finalState && screenText[finalState], `estado final do Agent com texto esperado na tela (${finalState})`).toBeTruthy();
+    expect(detail).toContain(screenText[finalState!]);
+    step(`A: estado final no Agent ${finalState}; tela "${screenText[finalState!]}"`);
     expect(detail).toMatch(/Desfecho Conhecido/i);
     const seqA = (await eventSequences(page)).sort((x, y) => x - y);
     const expected = Array.from({ length: Math.min(settled, 2_000) }, (_, i) => i + 1);
