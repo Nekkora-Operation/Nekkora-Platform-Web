@@ -7,7 +7,7 @@ import contract from './generated/nekkora-api-v1.schemas.json' with { type: 'jso
 import { ApiError } from './http';
 import { getExecution, listExecutions, listWorkspaces } from './product';
 import { getMyPermissions } from './permissions';
-import { ContractViolation, isDateTime, readJson, validated, violations } from './validate';
+import { ContractViolation, isDateTime, readJson, rawSchemaViolations, validated, violations } from './validate';
 import { ajvValidate } from '../test/ajvContract';
 import * as fx from '../test/contractFixtures';
 
@@ -60,9 +60,22 @@ describe('validador', () => {
     expect(violations('getExecution', fx.executionDetail, { strict: true })).toEqual([]);
   });
 
+  it('maximum e mapas (additionalProperties com esquema) dos contratos do Agent', () => {
+    const bad = (op: Parameters<typeof violations>[0], data: unknown) => violations(op, data).map((v) => `${v.path} ${v.rule}`);
+    const run = { runId: fx.IDS.org, supervisor: { state: 'RUNNING', counts: { ok: 2, falhas: 'tres' } } };
+    expect(bad('getAgentRun', run)).toEqual(['$.supervisor.counts.falhas type integer']);
+    expect(bad('getAgentRun', { ...run, supervisor: { state: 'RUNNING', counts: { ok: 2 } } })).toEqual([]);
+  });
+
+  it('mapa com propriedades declaradas: chaves do mapa não são extras no modo estrito', () => {
+    const schema = { type: 'object', properties: { total: { type: 'integer' } }, additionalProperties: { type: 'integer' } };
+    expect(rawSchemaViolations(schema, { total: 3, ok: 2, falhas: 1 }, true)).toEqual([]);
+    expect(rawSchemaViolations(schema, { total: 3, falhas: 'um' }, true)).toEqual([{ path: '$.falhas', rule: 'type integer' }]);
+  });
+
   it('todos os esquemas usam só palavras-chave que o validador implementa', () => {
     const supported = new Set(['type', 'enum', 'required', 'properties', 'additionalProperties', 'items', 'minItems', 'maxItems',
-      'uniqueItems', 'minimum', 'minLength', 'maxLength', 'pattern', 'format', '$ref', 'oneOf', 'anyOf', 'allOf', 'not', 'default']);
+      'uniqueItems', 'minimum', 'maximum', 'minLength', 'maxLength', 'pattern', 'format', '$ref', 'oneOf', 'anyOf', 'allOf', 'not', 'default']);
     const found = new Set<string>();
     const walk = (s: unknown) => {
       if (Array.isArray(s)) return s.forEach(walk);
@@ -76,7 +89,7 @@ describe('validador', () => {
     walk(Object.values(contract.schemas));
     walk(Object.values(contract.operations).flatMap((o) => Object.values(o.responses).map((r) => r.schema)));
     expect([...found].filter((k) => !supported.has(k))).toEqual([]);
-    expect(Object.keys(contract.operations)).toHaveLength(38); // todas as operações do OpenAPI (GET e POST)
+    expect(Object.keys(contract.operations)).toHaveLength(95); // todas as operações do OpenAPI (GET, POST, PUT, PATCH e DELETE) em e04a57c
   });
 
   it('validated: erro "unexpected" que leva só caminhos e regras, nunca valores', () => {
