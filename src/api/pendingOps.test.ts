@@ -42,28 +42,24 @@ describe('registro de operações incertas (pendingOps)', () => {
     expect(await after.inspect(key)).toBeNull();
   });
 
-  it('sem Web Locks: o sinal do envio em curso decide; sinal parado vira desconhecido', async () => {
-    localStorage.clear();
-    const clock = { t: 5_000_000 };
-    const key = await opKey(scope);
-    const a = tab(localStorage, null, clock);
-    const b = tab(localStorage, null, clock);
-    expect((await a.begin(key)).ok).toBe(true);
-    expect(await b.begin(key)).toMatchObject({ ok: false, reason: 'busy' });
-    clock.t += 60_000; // a aba dona parou de sinalizar
-    expect(await b.inspect(key)).toMatchObject({ state: 'unknown' });
-  });
-
-  it('sem Web Locks: duas abas que gravam ao mesmo tempo — só fica quem ficou gravado; a outra não envia', async () => {
+  it('FRONT-V1-004: sem Web Locks nenhum envio protegido começa (sem exclusão entre abas) e nada é gravado', async () => {
     localStorage.clear();
     const key = await opKey(scope);
     const a = tab(localStorage, null);
-    const started = a.begin(key);
-    // a outra aba leu antes de esta gravar e gravou depois (corrida entre processos): a marca gravada é a dela
-    const mine = JSON.parse(localStorage.getItem(key)!);
-    localStorage.setItem(key, JSON.stringify({ ...mine, n: 'outra-aba' }));
-    expect(await started).toMatchObject({ ok: false, reason: 'busy' });
-    expect(JSON.parse(localStorage.getItem(key)!).n).toBe('outra-aba');
+    const b = tab(localStorage, null);
+    expect(a.exclusive()).toBe(false);
+    expect(await a.begin(key)).toMatchObject({ ok: false, reason: 'no-locks' });
+    expect(await b.begin(key)).toMatchObject({ ok: false, reason: 'no-locks' });
+    expect(localStorage.getItem(key)).toBeNull();
+    // incerteza já registrada (gravada quando havia Web Locks) continua visível e bloqueando
+    const withLocks = tab(localStorage, fakeLocks());
+    const begun = await withLocks.begin(key);
+    if (begun.ok) begun.finish('unknown');
+    expect(await a.inspect(key)).toMatchObject({ state: 'unknown' });
+    // um envio em curso sem dono possível (nenhum começa sem Web Locks) é de tentativa interrompida: desconhecido
+    const key2 = await opKey({ ...scope, operation: 'automation.create' });
+    localStorage.setItem(key2, JSON.stringify({ v: 1, s: 'pending', at: 1, exp: 0 }));
+    expect(await a.inspect(key2)).toMatchObject({ state: 'unknown' });
   });
 
   it('com Web Locks mas sem conseguir consultá-los, um envio vivo de outra aba não vira "desconhecido"', async () => {
@@ -91,7 +87,7 @@ describe('registro de operações incertas (pendingOps)', () => {
     } as Storage;
     const reg = tab(broken, fakeLocks());
     expect(await reg.begin(await opKey(scope))).toMatchObject({ ok: false, reason: 'storage' });
-    const none = createOperationRegistry({ storage: () => null, locks: () => null, now: () => 0 });
+    const none = createOperationRegistry({ storage: () => null, locks: () => fakeLocks(), now: () => 0 });
     expect(await none.begin(await opKey(scope))).toMatchObject({ ok: false, reason: 'storage' });
   });
 

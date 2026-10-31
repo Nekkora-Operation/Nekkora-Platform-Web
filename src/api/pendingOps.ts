@@ -4,8 +4,10 @@
  *
  * O que fica guardado (localStorage, um item por operação) é o MÍNIMO e não identifica nada em claro:
  *   chave  = `nk.op.1.` + SHA-256(versão | sujeito | organização | operação | alvo)  (hex, 32 primeiros caracteres)
- *   valor  = { v: 1, s: estado, at: quando, exp: limpeza (só confirmado/recusado; 0 = nunca), hb?: sinal do envio em curso }
+ *   valor  = { v: 1, s: estado, at: quando, exp: limpeza (só confirmado/recusado; 0 = nunca) }
  * Sem senha, TOTP, token, código de recuperação ou de pareamento, ZIP, corpo da requisição, nome, e-mail ou id em claro.
+ * Não estar em claro NÃO é anonimização: o resumo não tem segredo, e quem tem acesso a este navegador pode testar valores
+ * candidatos contra as chaves (ex.: o e-mail de um convite, ver InvitationsPage).
  * O sujeito é o vínculo da organização (membershipId) ou, na identidade, um resumo do CSRF da sessão de identidade
  * (nunca o CSRF): outra pessoa ou outra organização calcula outra chave e não encontra o registro anterior.
  *
@@ -16,9 +18,11 @@
  * confirmação; o prazo nunca libera uma nova tentativa. Liberar também não confirma nada: só permite enviar de novo.
  * Confirmado e recusado (que não bloqueiam nada) somem em 10 min.
  *
- * Concorrência entre abas: Web Locks (`navigator.locks`) quando houver — quem envia segura o lock da chave até o fim;
- * sem Web Locks, o sinal `hb` renovado durante o envio. O registro NÃO substitui idempotência nem reconciliação no
- * servidor: só impede que este navegador repita sem a pessoa decidir.
+ * Concorrência entre abas: Web Locks (`navigator.locks`) — quem envia segura o lock da chave até o fim. SEM Web Locks o
+ * envio protegido NÃO começa (`no-locks`, FRONT-V1-004): o localStorage não tem leitura-e-gravação atômica entre abas
+ * (o padrão HTML não exige exclusão entre processos), e marca + espera + conferência só funcionava quando a gravação de
+ * uma aba chegava à outra antes do fim da espera, o que nenhum navegador garante. O registro NÃO substitui idempotência
+ * nem reconciliação no servidor: só impede que este navegador repita sem a pessoa decidir.
  */
 
 export type OpState = 'pending' | 'confirmed' | 'refused' | 'unknown';
@@ -45,14 +49,18 @@ interface StoredOp {
   s: OpState;
   at: number;
   exp: number;
-  hb?: number;
-  /** Sem Web Locks: marca de quem gravou o `pending` (conferida depois de gravar; ganha quem ficou gravado). */
-  n?: string;
 }
+
+/** `no-locks`: o navegador não oferece Web Locks; nada é gravado nem enviado (sem exclusão comprovada entre abas). */
+export type BeginRefusal = 'busy' | 'unknown' | 'storage' | 'no-locks';
+
+/** Texto único para o bloqueio sem Web Locks (diálogos e escritas administrativas). */
+export const NO_TAB_LOCK_TEXT =
+  'Este navegador não oferece bloqueio entre abas (Web Locks). Para não arriscar um envio duplicado entre abas, esta operação fica indisponível aqui e nada foi enviado. Use um navegador atualizado.';
 
 export type BeginResult =
   | { ok: true; finish: (state: 'confirmed' | 'refused' | 'unknown' | 'not-sent') => void }
-  | { ok: false; reason: 'busy' | 'unknown' | 'storage'; at?: number };
+  | { ok: false; reason: BeginRefusal; at?: number };
 
 interface LockManagerLike {
   request(name: string, options: { ifAvailable: boolean }, cb: (lock: unknown) => Promise<void> | void): Promise<unknown>;
@@ -63,14 +71,7 @@ export interface RegistryDeps {
   storage: () => Storage | null;
   locks: () => LockManagerLike | null;
   now: () => number;
-  /**
-   * Sem Web Locks: espera entre gravar a marca e conferi-la (dá tempo de a gravação de outra aba chegar). Padrão: 25–75 ms
-   * aleatórios. Os testes de componente usam espera imediata (o teste do próprio registro usa a real).
-   */
-  settle?: () => Promise<void>;
 }
-
-const defaultSettle = () => new Promise<void>((r) => setTimeout(r, 25 + Math.floor(Math.random() * 50)));
 
 const PREFIX = 'nk.op.1.';
 const MINUTE = 60_000;
@@ -79,8 +80,6 @@ export const UNKNOWN_REVIEW = 72 * 60 * MINUTE;
 const SETTLED_TTL = 10 * MINUTE;
 /** `exp` de incerteza e de envio em curso: nunca expiram sozinhos. */
 const NEVER = 0;
-const HEARTBEAT = 5_000;
-const HEARTBEAT_STALE = 20_000;
 
 async function sha256Hex(text: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
@@ -94,11 +93,15 @@ export async function opKey(scope: OpScope): Promise<string> {
 }
 
 /**
- * Sujeito da identidade: resumo do CSRF da sessão (o CSRF em si nunca é gravado). LIMITAÇÃO ACEITA (revisão do #15): o
- * CSRF muda a cada sessão de identidade, e a API (e04a57c) não expõe um identificador estável da identidade a esta
- * interface. Uma incerteza registrada na área de identidade (criar organização, aceitar convite, vincular conta, novos
- * códigos de recuperação) deixa de ser encontrada depois de sair e entrar de novo; a tela avisa na hora e orienta a
- * conferir a lista antes de repetir. Na área da organização o sujeito é o vínculo (membershipId), estável.
+ * Sujeito da identidade: resumo do CSRF da sessão (o CSRF em si nunca é gravado).
+ *
+ * LACUNA ABERTA (FRONT-V1-004), não limitação aceita: a garantia é por pessoa, mas a API (e04a57c) não expõe um
+ * identificador estável da identidade (`IdentitySessionState` só tem `restricted` e `csrfToken`). A proteção da área de
+ * identidade (criar organização, aceitar convite, vincular conta, novos códigos de recuperação, trocar a senha)
+ * sobrevive à recarga e às abas da MESMA sessão de identidade, mas NÃO à troca da sessão (sair e entrar, expiração):
+ * a chave muda e a incerteza deixa de ser encontrada. A tela avisa isso na hora. E-mail não é usado como substituto
+ * (dado pessoal e testável contra o resumo). Correção pedida: Nekkora-Platform-API#40 (D-API-04). Na área da
+ * organização o sujeito é o vínculo (membershipId), estável.
  */
 export async function identitySubject(csrf: string): Promise<string> {
   return `i:${(await sha256Hex(`nk-op-subject/1|${csrf}`)).slice(0, 32)}`;
@@ -106,7 +109,7 @@ export async function identitySubject(csrf: string): Promise<string> {
 
 export function createOperationRegistry(deps: RegistryDeps) {
   const listeners = new Set<() => void>();
-  /** Chaves com envio em curso NESTA aba (o lock também cobre, mas sem Web Locks é o que vale para a própria aba). */
+  /** Chaves com envio em curso NESTA aba (pedidos repetidos na mesma aba antes de o lock responder). */
   const local = new Set<string>();
   const emit = () => listeners.forEach((l) => l());
 
@@ -172,40 +175,43 @@ export function createOperationRegistry(deps: RegistryDeps) {
     if (op.s !== 'pending') return { state: op.s, at: op.at };
     if (local.has(key)) return { state: 'pending', at: op.at };
     const held = await heldElsewhere(key);
-    // com Web Locks não há batimento gravado: sem conseguir consultar os locks, o envio é tratado como vivo (nunca vira
-    // "desconhecido" por falta de informação; `begin` continua barrado pelo próprio lock)
-    const alive = held ?? (deps.locks() ? true : op.hb !== undefined && now - op.hb < HEARTBEAT_STALE);
+    // sem conseguir consultar os locks, o envio é tratado como vivo (nunca vira "desconhecido" por falta de informação;
+    // `begin` continua barrado pelo próprio lock). Sem Web Locks nenhum envio desta origem começa: o `pending` é de uma
+    // tentativa interrompida e vira desconhecido
+    const alive = held ?? !!deps.locks();
     if (alive) return { state: 'pending', at: op.at };
     write(key, unknownAt(op.at));
     return { state: 'unknown', at: op.at, old: now - op.at > UNKNOWN_REVIEW };
   }
 
+  /** Há exclusão entre abas neste navegador (Web Locks)? Sem ela, `begin` recusa com `no-locks`. */
+  const exclusive = () => !!deps.locks();
+
   /**
    * Antes do envio: trava a chave nesta aba e entre abas, recusa se houver incerteza registrada ou envio em curso, e
-   * GRAVA `pending` antes de devolver. Sem conseguir gravar: `storage` — quem chama não envia.
+   * GRAVA `pending` antes de devolver. Sem conseguir gravar: `storage`; sem Web Locks: `no-locks` — quem chama não envia.
    */
   async function begin(key: string): Promise<BeginResult> {
+    const locks = deps.locks();
+    if (!locks) return { ok: false, reason: 'no-locks' };
     if (local.has(key)) return { ok: false, reason: 'busy' };
     local.add(key);
     let releaseLock: (() => void) | null = null;
-    const locks = deps.locks();
-    if (locks) {
-      const got = await new Promise<boolean>((resolve) => {
-        locks
-          .request(key, { ifAvailable: true }, (lock) => {
-            if (!lock) {
-              resolve(false);
-              return;
-            }
-            resolve(true);
-            return new Promise<void>((done) => (releaseLock = done));
-          })
-          .catch(() => resolve(false));
-      });
-      if (!got) {
-        local.delete(key);
-        return { ok: false, reason: 'busy' };
-      }
+    const got = await new Promise<boolean>((resolve) => {
+      locks
+        .request(key, { ifAvailable: true }, (lock) => {
+          if (!lock) {
+            resolve(false);
+            return;
+          }
+          resolve(true);
+          return new Promise<void>((done) => (releaseLock = done));
+        })
+        .catch(() => resolve(false));
+    });
+    if (!got) {
+      local.delete(key);
+      return { ok: false, reason: 'busy' };
     }
     const fail = (reason: 'busy' | 'unknown' | 'storage', at?: number): BeginResult => {
       local.delete(key);
@@ -217,35 +223,19 @@ export function createOperationRegistry(deps: RegistryDeps) {
     if (current && !expired(current, now)) {
       if (current.s === 'unknown') return fail('unknown', current.at);
       if (current.s === 'pending') {
-        // com Web Locks o lock foi obtido: o dono anterior morreu no meio do envio
-        const alive = !locks && current.hb !== undefined && now - current.hb < HEARTBEAT_STALE;
-        if (alive) return fail('busy', current.at);
+        // o lock foi obtido: o dono anterior morreu no meio do envio
         write(key, unknownAt(current.at));
         return fail('unknown', current.at);
       }
     }
-    // sem Web Locks, ler-e-gravar não é atômico entre abas: cada aba grava sua marca, espera um instante e confere;
-    // fica quem ficou gravado (melhor esforço — os navegadores atuais têm Web Locks; limitação registrada)
-    const mark = locks ? undefined : Math.random().toString(36).slice(2);
-    if (!write(key, { v: 1, s: 'pending', at: now, exp: NEVER, ...(locks ? {} : { hb: now, n: mark }) })) return fail('storage');
-    if (!locks) {
-      await (deps.settle ?? defaultSettle)();
-      if (readRaw(key)?.n !== mark) return fail('busy', now);
-    }
+    if (!write(key, { v: 1, s: 'pending', at: now, exp: NEVER })) return fail('storage');
     emit();
-    const beat = locks
-      ? null
-      : setInterval(() => {
-          const op = readRaw(key);
-          if (op?.s === 'pending') write(key, { ...op, hb: deps.now() });
-        }, HEARTBEAT);
     let finished = false;
     return {
       ok: true,
       finish: (state) => {
         if (finished) return;
         finished = true;
-        if (beat) clearInterval(beat);
         const at = deps.now();
         if (state === 'not-sent') write(key, null);
         else if (state === 'unknown') write(key, unknownAt(now));
@@ -304,7 +294,7 @@ export function createOperationRegistry(deps: RegistryDeps) {
     };
   }
 
-  return { inspect, begin, acknowledge, sweep, subscribe };
+  return { inspect, begin, acknowledge, sweep, subscribe, exclusive };
 }
 
 export type OperationRegistry = ReturnType<typeof createOperationRegistry>;

@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { csrfStore } from '../api/csrf';
 import { isApiError } from '../api/http';
-import { operations, opKey } from '../api/pendingOps';
+import { NO_TAB_LOCK_TEXT, operations, opKey } from '../api/pendingOps';
 import type { GrantStatus, Member } from '../api/v1';
 
 /**
@@ -176,6 +176,21 @@ export function isBusyElsewhere(e: unknown): boolean {
   return e instanceof NotApplied && e.cause instanceof BusyElsewhere;
 }
 
+/** O navegador não oferece Web Locks: sem exclusão entre abas, nada foi enviado (FRONT-V1-004). */
+export class NoTabLock extends Error {
+  constructor() {
+    super('sem Web Locks');
+    this.name = 'NoTabLock';
+  }
+}
+
+/** Recusa do próprio registro (outra aba enviando, ou navegador sem Web Locks), com o texto a mostrar; senão `null`. */
+export function registryRefusalText(e: unknown): string | null {
+  if (isBusyElsewhere(e)) return BUSY_ELSEWHERE_TEXT;
+  if (e instanceof NotApplied && e.cause instanceof NoTabLock) return NO_TAB_LOCK_TEXT;
+  return null;
+}
+
 export class NotApplied extends Error {
   constructor(
     readonly stage: 'step-up' | 'session' | 'registry',
@@ -227,7 +242,7 @@ function persisted(org: string, action: WriteAction, target: WriteTarget, send: 
     const begun = await operations().begin(key);
     if (!begun.ok) {
       if (begun.reason === 'unknown') throw new PreviouslyUncertain(begun.at);
-      throw new NotApplied('registry', begun.reason === 'busy' ? new BusyElsewhere() : new Error(begun.reason));
+      throw new NotApplied('registry', begun.reason === 'busy' ? new BusyElsewhere() : begun.reason === 'no-locks' ? new NoTabLock() : new Error(begun.reason));
     }
     try {
       await send();
