@@ -1,6 +1,11 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router';
+import { createAutomation } from '../../api/lifecycle';
+import { useWorkspacePermissions } from '../../area/useWorkspacePermissions';
+import { StepUpDialog } from '../../components/StepUpDialog';
+import { accessRefusal } from '../access/shared';
 import { Link as RouterLink, useParams } from 'react-router';
-import { Card, DescriptionList, Heading, Link, LoadMore, Stack, StateView, Table, type TableColumn } from 'nekkora-lib';
+import { Alert, Button, Card, Input, DescriptionList, Heading, Link, LoadMore, Stack, StateView, Table, type TableColumn } from 'nekkora-lib';
 import { isApiError } from '../../api/http';
 import { getWorkspace, listAutomations } from '../../api/product';
 import type { Automation } from '../../api/v1';
@@ -19,7 +24,13 @@ export function WorkspaceDetailPage() {
 
 /** Detalhe do workspace (L02) e suas automações (L03, paginadas por cursor). */
 function WorkspaceDetail({ workspaceId }: { workspaceId: string }) {
-  const { org } = useSession();
+  const { org, expired } = useSession();
+  const navigate = useNavigate();
+  const perms = useWorkspacePermissions(workspaceId);
+  const canManage = perms.status === 'ready' && perms.has('automation.manage');
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [createUncertain, setCreateUncertain] = useState(false);
   const back = useBackTarget(orgPath.workspaces(org));
   const backState = useBackState();
   const [refresh, setRefresh] = useState(0);
@@ -77,7 +88,41 @@ function WorkspaceDetail({ workspaceId }: { workspaceId: string }) {
 
   return (
     <Stack gap={6}>
-      <PageHeader title={w.name} subtitle="Workspace" back={backLink} onRefresh={onRefresh} refreshing={workspace.refreshing} />
+      <PageHeader
+        title={w.name}
+        subtitle="Workspace"
+        back={backLink}
+        onRefresh={onRefresh}
+        refreshing={workspace.refreshing}
+        actions={
+          canManage && w.status === 'active' ? (
+            <Button size="sm" leftIcon="plus" disabled={createUncertain} onClick={() => setCreating(true)}>
+              Criar automação
+            </Button>
+          ) : undefined
+        }
+      />
+      {createUncertain && <Alert tone="warning">Não foi possível confirmar se a automação foi criada. Atualize a lista antes de criar de novo.</Alert>}
+      <StepUpDialog
+        open={creating}
+        title="Criar automação"
+        confirmLabel="Criar automação"
+        ready={newName.trim().length > 0 && [...newName.trim()].length <= 80}
+        action={() => createAutomation(org, w.workspaceId, newName.trim())}
+        onDone={(a) => {
+          setCreating(false);
+          setNewName('');
+          if (a.automationId) navigate(orgPath.automation(org, a.automationId));
+          else onRefresh();
+        }}
+        onClose={() => setCreating(false)}
+        refusalText={(e) => accessRefusal(e, { conflict: 'O workspace não está ativo.', notFound: 'Você não tem acesso a este workspace para criar automações.' })}
+        uncertainText="Não foi possível confirmar se a automação foi criada. Feche e atualize a lista antes de tentar de novo."
+        onUnauthenticated={expired}
+        onOutcome={(k) => k === 'uncertain' && setCreateUncertain(true)}
+      >
+        <Input label="Nome da automação" required fullWidth maxLength={80} value={newName} onChange={(e) => setNewName(e.target.value)} hint="Até 80 caracteres." />
+      </StepUpDialog>
       <Card variant="surface" padding="lg">
         <Stack gap={4}>
           <DescriptionList

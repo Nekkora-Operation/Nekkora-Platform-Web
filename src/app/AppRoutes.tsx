@@ -22,6 +22,7 @@ import { AutomationDetailPage } from '../pages/product/AutomationDetailPage';
 import { ExecutionDetailPage } from '../pages/product/ExecutionDetailPage';
 import { WorkspaceDetailPage } from '../pages/product/WorkspaceDetailPage';
 import { WorkspacesPage } from '../pages/product/WorkspacesPage';
+import { VersionPage } from '../pages/product/VersionPage';
 import { InternalHome } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { MfaPage } from '../pages/MfaPage';
@@ -76,6 +77,7 @@ export function AppRoutes() {
           <Route path="workspaces" element={<WorkspacesPage />} />
           <Route path="workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
           <Route path="automacoes/:automationId" element={<AutomationDetailPage />} />
+          <Route path="versoes/:versionId" element={<VersionPage />} />
           {/* F6a-1: administração, só leitura; o acesso de cada tela é decidido pela API (403 → estado próprio) */}
           <Route path="administracao/membros" element={<MembersPage />} />
           <Route path="administracao/clientes" element={<ClientsPage />} />
