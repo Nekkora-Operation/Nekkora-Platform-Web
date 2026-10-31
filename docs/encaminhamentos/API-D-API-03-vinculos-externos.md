@@ -33,3 +33,12 @@ organização.
 2. Sem a permissão: 403; cliente de outra organização: lista vazia ou 404 conforme a regra geral.
 3. Frontend: tela "Nova concessão" com seletores alimentados por essas leituras; J09 deixa de precisar do primeiro
    pedido pela API.
+
+## Acompanhamento (FRONT-V1-003, 30/10/2026)
+
+Sem candidato (`origin/main` = `e04a57c`). Entrega esperada: leitura autorizada e PAGINADA dos vínculos externos
+existentes. Quando existir, o frontend cria a PRIMEIRA concessão pela interface, escolhendo conta e workspace a partir
+dessas leituras (o J09 deixa de criar o primeiro pedido pela API). A criação e a entrada completa de novos clientes
+externos continuam sendo uma entrega distinta.
+
+**Issue na API (aberta em 30/10/2026, FRONT-V1-003):** https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/39

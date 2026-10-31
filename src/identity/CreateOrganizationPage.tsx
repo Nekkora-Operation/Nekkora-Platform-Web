@@ -56,7 +56,7 @@ export function CreateOrganizationPage() {
 
   return (
     <Stack gap={5} className="pw-identity">
-      <SectionHeader title="Criar organização" description="Você será a administradora ou o administrador da nova organização." />
+      <SectionHeader as="h1" title="Criar organização" description="Você será a administradora ou o administrador da nova organização." />
       {uncertain && (
         <Alert tone="warning" title="Não foi possível confirmar se a organização foi criada.">
           A criação pode ter acontecido. Confira a <Link as={RouterLink} to={identityPath.organizations}>lista de organizações</Link>{' '}

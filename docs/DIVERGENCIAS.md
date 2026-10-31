@@ -1,4 +1,11 @@
-# Divergências entre a UX planejada e o contrato real da API (Authentication V1)
+# Divergências entre a UX planejada e o contrato real da API
+
+> **Situação em 30/10/2026 (FRONT-V1-002).** A seção "Authentication V1" (D1–D10) é **HISTÓRICA**: foi escrita na fase
+> em que o frontend rodava só contra a API simulada (`mock/`), antes da entrada geral por identidade. Fica como registro
+> das decisões; não descreve o estado atual da integração. O estado atual está em "Divergências encontradas contra a
+> API real" e nos encaminhamentos de `docs/encaminhamentos/`.
+
+## Histórico — Authentication V1 (fase da API simulada)
 
 Referência: contrato 8.7 do `nekkora-platform-api` (rotas em `web/Routes.java`, `AuthController`, `AuthService`),
 decisões 8.1/8.6/8.7/8.10. Regra seguida: **o frontend representa o contrato como ele é**. Nenhuma regra foi
@@ -29,11 +36,13 @@ API e não afrouxa a validação.
 
 | # | Contrato | Comportamento real | Frontend hoje | Encaminhamento à API |
 |---|----------|--------------------|---------------|----------------------|
-| D-API-01 | `POST /api/v1/auth/mfa/enroll/confirm` 200: `oneOf [IdentityEnrollmentConfirmation, IdentityFactorReplacement]` | A resposta do modo desafio (`recoveryCodes`, `csrfToken`, `restricted:false`) satisfaz os DOIS ramos (nenhum fecha propriedades): pelo `oneOf`, toda resposta real seria inválida. Reproduzido em `src/api/validate.test.ts` (D-API-01) e no E2E J01, que antes da correção mostrava "Algo deu errado" | O cliente confere a resposta pelo esquema exato do modo que ELE pediu (desafio ou sessão), com o status documentado (`validatedAs`). Nenhuma validação foi desligada | Trocar `oneOf` por `anyOf` ou fechar os esquemas (`additionalProperties: false`). Aceite: `violations('identityConfirmMfaEnrollment', respostaReal)` vazio |
-| D-API-02 | Aprovação da renovação exige `nextReviewAt`/`expiresAt` IGUAIS aos do pedido (409 se diferentes) | Os valores do pedido só voltam na resposta da escrita (`GrantState.renewal`); nenhuma LEITURA os expõe (`ClientGrant` da lista não tem `renewal` nem solicitante). A pessoa que aprova, em outra sessão, não vê o que foi pedido | O diálogo "Aprovar renovação" pede os valores combinados com quem pediu e explica que a API os confere; nada é inferido | Expor `renewal` (valores, solicitante, quando) na leitura das concessões. Aceite: a tela pré-preenche e mostra o pedido |
-| D-API-03 | Concessão nova exige `clientMembershipId` | Não há rota para listar os vínculos (contas externas) de um cliente; clientes e contas externas também não são criados por rota humana | Pedido novo só a partir de uma concessão existente ("Pedir de novo", mesma conta e workspace). Cadastro de cliente externo NÃO foi inventado | Rota de leitura dos vínculos de cliente (e a jornada externa completa, fora desta missão) |
+| D-API-01 (`docs/encaminhamentos/API-D-API-01-confirmacao-fator.md`) | `POST /api/v1/auth/mfa/enroll/confirm` 200: `oneOf [IdentityEnrollmentConfirmation, IdentityFactorReplacement]` | A resposta do modo desafio (`recoveryCodes`, `csrfToken`, `restricted:false`) satisfaz os DOIS ramos (nenhum fecha propriedades): pelo `oneOf`, toda resposta real seria inválida. Reproduzido em `src/api/validate.test.ts` (D-API-01) e no E2E J01, que antes da correção mostrava "Algo deu errado" | O cliente confere a resposta pelo esquema exato do modo que ELE pediu (desafio ou sessão), com o status documentado (`validatedAs`). Nenhuma validação foi desligada | Trocar `oneOf` por `anyOf` ou fechar os esquemas (`additionalProperties: false`). Aceite: `violations('identityConfirmMfaEnrollment', respostaReal)` vazio |
+| D-API-02 | Aprovação da renovação exige `nextReviewAt`/`expiresAt` IGUAIS aos do pedido (409 se diferentes) | Os valores do pedido só voltam na resposta da escrita (`GrantState.renewal`); nenhuma LEITURA os expõe (`ClientGrant` da lista não tem `renewal` nem solicitante). A pessoa que aprova, em outra sessão, não vê o que foi pedido | **FRONT-V1-002:** aprovação da renovação **INDISPONÍVEL** (a ação não é oferecida). O fluxo da FRONT-V1-001 ("digite os valores combinados") foi retirado. O pedido de renovação continua | Ver `docs/encaminhamentos/API-D-API-02-renovacao-invisivel.md` |
+| D-API-03 (`docs/encaminhamentos/API-D-API-03-vinculos-externos.md`) | Concessão nova exige `clientMembershipId` | Não há rota para listar os vínculos (contas externas) de um cliente; clientes e contas externas também não são criados por rota humana | Pedido novo só a partir de uma concessão existente ("Pedir de novo", mesma conta e workspace). Cadastro de cliente externo NÃO foi inventado | Rota de leitura dos vínculos de cliente (e a jornada externa completa, fora desta missão) |
 
-## Ambiente de desenvolvimento/E2E
+Nenhuma das três tinha candidato da API em 30/10/2026 (`origin/main` = `e04a57ceeb880de603252fcca4e3d7ccc16cc9d5`).
+
+## Ambiente de desenvolvimento/E2E (histórico da fase simulada; o laboratório real está em `tools/lab/`)
 
 - Nesta fase o frontend roda contra a API simulada (`mock/`), que implementa o contrato **como ele é**, incluindo
   as divergências acima: sem rota de reenvio (404), 400 único para links, 401 genérico no login, MFA obrigatório.

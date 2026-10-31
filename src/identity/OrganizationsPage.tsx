@@ -97,7 +97,7 @@ export function OrganizationsPage() {
   return (
     <Stack gap={5} className="pw-identity">
       <div className="pw-identity__header">
-        <SectionHeader title="Suas organizações" description="Escolha a organização em que deseja trabalhar. Você pode trocar a qualquer momento." />
+        <SectionHeader as="h1" title="Suas organizações" description="Escolha a organização em que deseja trabalhar. Você pode trocar a qualquer momento." />
         {canCreateOrganization && (
           <Button onClick={() => navigate(identityPath.newOrganization)} leftIcon="plus">
             Criar organização
