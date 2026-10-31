@@ -280,6 +280,33 @@ describe('revogar: sucesso', () => {
     expect(renews).toBe(1);
   });
 
+  it('FRONT-V1-004: a decisão incerta continua bloqueada depois de recarregar (registro persistente); só a liberação explícita solta', async () => {
+    sessionFor('ana@nekkora.dev');
+    const first = await openGrants();
+    let renews = 0;
+    transport = (m, p) => (m === 'POST' && p.endsWith('/renew') && ++renews ? { kind: 'gateway', status: 504 } : null);
+    fireEvent.click(within(row(G('g1'))!).getByRole('button', { name: /^Pedir renovação/ }));
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.change(within(dialog).getByLabelText(/^Próxima revisão/), { target: { value: '2099-12-31' } });
+    fireEvent.change(within(dialog).getByLabelText(/^Justificativa/), { target: { value: 'Contrato renovado' } });
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Enviar pedido' })).toBeEnabled());
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Enviar pedido' }));
+    expect(await screen.findByText(/O resultado da última decisão não foi confirmado/)).toBeInTheDocument();
+    // "recarga": a tela some (estado local perdido) e volta a ser montada com o mesmo armazenamento
+    first.unmount();
+    resetWriteStore();
+    await openGrants();
+    await waitFor(() => expect(row(G('g1'))).toHaveTextContent('Decisão não confirmada'));
+    expect(within(row(G('g1'))!).queryByRole('button', { name: /^Pedir renovação/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Atualizar' }));
+    await settle();
+    await waitFor(() => expect(row(G('g1'))).toHaveTextContent('Decisão não confirmada'));
+    fireEvent.click(within(row(G('g1'))!).getByRole('button', { name: /^Liberar nova decisão/ }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Liberar' }));
+    await waitFor(() => expect(within(row(G('g1'))!).getByRole('button', { name: /^Pedir renovação/ })).toBeInTheDocument());
+    expect(renews).toBe(1);
+  });
+
   it('concessão já revogada por outra pessoa depois da leitura: 204 = sucesso (idempotente), sem nova alteração', async () => {
     sessionFor('ana@nekkora.dev');
     await openGrants();

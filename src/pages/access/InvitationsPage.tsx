@@ -186,9 +186,11 @@ export function InvitationsPage() {
       <StepUpDialog
         open={pending?.kind === 'issue'}
         title={pending?.kind === 'issue' ? `Convidar ${pending.email}?` : ''}
-        // alvo = e-mail convidado, só como parte do resumo da chave (nunca em claro). Limitação aceita (revisão do #15): quem
-        // tem acesso a este navegador e conhece o vínculo e a organização pode testar se um e-mail candidato foi convidado
-        // daqui; o registro fica no armazenamento local do próprio navegador de quem convidou
+        // alvo = e-mail convidado, só como parte do resumo da chave. LIMITAÇÃO DE PRIVACIDADE (FRONT-V1-004): não estar em
+        // claro NÃO é anonimização — o resumo é SHA-256 sem segredo, e quem tem acesso a este navegador e conhece o vínculo e
+        // a organização pode testar e-mails candidatos contra as chaves e descobrir quem foi convidado daqui com resultado
+        // desconhecido (os registros confirmados/recusados somem em 10 min; os incertos ficam até a pessoa liberar). Não há
+        // id do convite antes do envio; a alternativa sem e-mail perderia a proteção por convidado
         guard={{ operation: 'invitation.issue', target: pending?.kind === 'issue' ? pending.email.trim().toLowerCase() : undefined }}
         confirmLabel="Enviar convite"
         stepUp={orgStepUp(org)}

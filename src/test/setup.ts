@@ -3,6 +3,7 @@ import { configure } from '@testing-library/react';
 import { beforeEach } from 'vitest';
 import { setPersistentSubjectForTest } from '../admin/writeStore';
 import { browserDeps, createOperationRegistry, setOperationRegistryForTest } from '../api/pendingOps';
+import { fakeLocks } from './fakeLocks';
 
 // Margem de espera (FRONT-V1-002): com a suíte inteira em paralelo (~15 workers jsdom numa máquina já ocupada) a
 // renderização depois de uma resposta passou de 1 s em testes de f5, flows e f6a*; isolados, todos passam. Não é
@@ -13,8 +14,10 @@ configure({ asyncUtilTimeout: 3_000 });
 beforeEach(() => {
   if (typeof window === 'undefined') return; // testes do simulador rodam em node
   window.localStorage.clear();
-  // jsdom não tem Web Locks: o registro usa o modo sem locks; a espera aleatória desse modo (tempo de outra aba gravar)
-  // fica imediata aqui, para os testes não dependerem do relógio — pendingOps.test.ts prova o modo com a espera real
-  setOperationRegistryForTest(createOperationRegistry({ ...browserDeps, settle: () => Promise.resolve() }));
+  // jsdom não tem Web Locks, e sem eles o registro não deixa enviar (FRONT-V1-004). Aqui todas as "abas" estão no mesmo
+  // processo JS, onde um gerenciador em memória é exclusão de verdade; a exclusão entre abas reais do navegador é provada
+  // em e2e/corrida-abas.spec.ts (Chromium, com e sem Web Locks)
+  const locks = fakeLocks();
+  setOperationRegistryForTest(createOperationRegistry({ ...browserDeps, locks: () => locks }));
   setPersistentSubjectForTest('m:teste-do-registro');
 });

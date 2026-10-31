@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, CodeInput, ConfirmDialog, Stack } from 'nekkora-lib';
 import { ApiError, isApiError } from '../api/http';
-import { operations, opKey, type OpView } from '../api/pendingOps';
+import { NO_TAB_LOCK_TEXT, operations, opKey, type OpView } from '../api/pendingOps';
 import { useOperationScope } from './operationScope';
 
 const TOTP_DIGITS = 6;
@@ -55,7 +55,19 @@ export interface StepUpDialogProps<T> {
 }
 
 /** Registro da operação, como o diálogo o vê. */
-type OpRecord = { status: 'idle' } | { status: 'ready'; key: string; view: OpView | null } | { status: 'unavailable' };
+type OpRecord =
+  | { status: 'idle' }
+  | { status: 'ready'; key: string; view: OpView | null }
+  | { status: 'unavailable' }
+  /** Sem Web Locks: sem exclusão entre abas, o envio protegido não começa (FRONT-V1-004). */
+  | { status: 'no-locks' };
+
+/**
+ * Área de identidade: o registro é por sessão, não por pessoa (lacuna aberta, Nekkora-Platform-API#40). A pessoa sabe
+ * disso na hora em que a incerteza aparece.
+ */
+const IDENTITY_SESSION_ONLY =
+  'Este aviso vale nesta sessão (recarregar ou abrir outra aba não o apaga), mas não aparece mais depois de sair e entrar de novo: confira o resultado antes de repetir.';
 
 const timeOf = (at: number) => new Date(at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 
@@ -89,6 +101,10 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
   useEffect(() => {
     if (!open || !operation) {
       setRecord({ status: 'idle' });
+      return;
+    }
+    if (!operations().exclusive()) {
+      setRecord({ status: 'no-locks' });
       return;
     }
     let current = true;
@@ -137,6 +153,7 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
           setNotice(
             'Este navegador não permitiu registrar a operação antes do envio. Para não arriscar uma repetição sem saber o resultado, nada foi enviado. Libere o armazenamento deste site e tente de novo.',
           );
+        else if (begun.reason === 'no-locks') setRecord({ status: 'no-locks' });
         else setRecord({ status: 'ready', key: record.key, view: { state: begun.reason === 'busy' ? 'pending' : 'unknown', at: begun.at ?? Date.now() } });
         return;
       }
@@ -200,6 +217,7 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
         {guard && outcome?.kind !== 'uncertain' && (
           <RecordNotice
             record={record}
+            identityArea={!scope.org}
             uncertainText={uncertainText}
             onAcknowledge={() => {
               if (record.status === 'ready') operations().acknowledge(record.key);
@@ -209,6 +227,7 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
         {outcome?.kind === 'uncertain' ? (
           <Alert tone="warning" live="off" title="Resultado não confirmado">
             Nada será repetido automaticamente. Feche e confira o estado atual antes de decidir.
+            {guard && !scope.org && <> {IDENTITY_SESSION_ONLY}</>}
           </Alert>
         ) : (
           needsCode &&
@@ -229,8 +248,24 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
 }
 
 /** O que o registro diz sobre esta operação antes de confirmar. */
-function RecordNotice({ record, uncertainText, onAcknowledge }: { record: OpRecord; uncertainText: string; onAcknowledge: () => void }) {
+function RecordNotice({
+  record,
+  identityArea,
+  uncertainText,
+  onAcknowledge,
+}: {
+  record: OpRecord;
+  identityArea: boolean;
+  uncertainText: string;
+  onAcknowledge: () => void;
+}) {
   if (record.status === 'idle') return null;
+  if (record.status === 'no-locks')
+    return (
+      <Alert tone="warning" live="polite" title="Operação indisponível neste navegador">
+        {NO_TAB_LOCK_TEXT}
+      </Alert>
+    );
   if (record.status === 'unavailable')
     return (
       <Alert tone="info" live="polite">
@@ -254,6 +289,7 @@ function RecordNotice({ record, uncertainText, onAcknowledge }: { record: OpReco
             resultado numa lista não comprova que nada foi feito.
           </span>
           {view.old && <span>Este registro tem mais de 72 horas e continua sem confirmação: o tempo não resolve a dúvida.</span>}
+          {identityArea && <span>{IDENTITY_SESSION_ONLY}</span>}
           <span>
             Liberar permite enviar de novo. Não confirma o resultado da tentativa anterior nem garante que não haverá duplicidade.
           </span>

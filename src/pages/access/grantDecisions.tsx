@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, Checkbox, Input, RadioGroup, Stack, Text, Textarea } from 'nekkora-lib';
 import {
   approveClientGrant,
@@ -7,7 +7,9 @@ import {
   reviewClientGrant,
 } from '../../api/access';
 import type { ClientGrant } from '../../api/v1';
+import { operations, opKey } from '../../api/pendingOps';
 import { StepUpDialog } from '../../components/StepUpDialog';
+import { useOperationScope } from '../../components/operationScope';
 import { DateTimeText } from '../product/shared';
 import { accessRefusal, orgStepUp } from './shared';
 
@@ -256,6 +258,53 @@ export function GrantDecisionDialog({
       <Textarea label="Observações (opcional)" fullWidth maxLength={2000} value={notes} onChange={(e) => setNotes(e.target.value)} />
     </StepUpDialog>
   );
+}
+
+/** Operações de decisão protegidas pelo registro (as mesmas chaves dos `guard` acima). */
+const DECISION_OPERATIONS = ['grant.approve', 'grant.review', 'grant.renewal.request', 'grant.request-again'] as const;
+
+/**
+ * Concessões com decisão de resultado desconhecido (ou ainda em envio) no registro persistente (FRONT-V1-004): vale
+ * depois de recarregar e em outra aba. Reler a lista não muda nada aqui; `release` é a decisão explícita da pessoa e
+ * libera os registros desconhecidos daquela concessão (um envio em curso não é liberado).
+ */
+export function useRecordedDecisions(grantIds: readonly string[]) {
+  const scope = useOperationScope();
+  const [blocked, setBlocked] = useState<ReadonlySet<string>>(new Set());
+  const ids = grantIds.join(',');
+  useEffect(() => {
+    let current = true;
+    const refresh = async () => {
+      const subject = await scope.subject();
+      if (!subject || !current) return;
+      const next = new Set<string>();
+      for (const grantId of ids ? ids.split(',') : []) {
+        for (const operation of DECISION_OPERATIONS) {
+          const view = await operations().inspect(await opKey({ subject, org: scope.org, operation, target: grantId }));
+          if (view?.state === 'unknown' || view?.state === 'pending') next.add(grantId);
+        }
+      }
+      if (current) setBlocked(next);
+    };
+    void refresh();
+    const stop = operations().subscribe(() => void refresh());
+    return () => {
+      current = false;
+      stop();
+    };
+  }, [ids, scope]);
+  const release = useCallback(
+    async (grantId: string) => {
+      const subject = await scope.subject();
+      if (!subject) return;
+      for (const operation of DECISION_OPERATIONS) {
+        const key = await opKey({ subject, org: scope.org, operation, target: grantId });
+        if ((await operations().inspect(key))?.state === 'unknown') operations().acknowledge(key);
+      }
+    },
+    [scope],
+  );
+  return { blocked, release };
 }
 
 /** Botões de decisão de uma linha (o diálogo é único, na página). */
