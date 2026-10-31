@@ -1,8 +1,9 @@
 # FRONT-V1-002 — correções, integração e fechamento da homologação (30/10/2026)
 
-> **Atualização FRONT-V1-003 (30/10/2026).** A seção 0 abaixo é o estado atual para revisão: PRs, HEADs, checks e
-> pendências. As seções 1–11 continuam valendo como registro da FRONT-V1-002; onde citam HEADs ou runs, eram os daquele
-> momento (os HEADs mudaram depois: ver a seção 0).
+> **Atualização FRONT-V1-004 (31/10/2026).** A §0.5 é o estado atual: garantias de incerteza fechadas, caminhos
+> alterados revalidados no laboratório descartável `frontlab-004`, a que código pertence cada evidência e o que continua
+> pendente. As §0.1–0.4 são o registro da FRONT-V1-003 (onde a §0.5 revê algo, ela vale). As seções 1–11 continuam
+> valendo como registro da FRONT-V1-002; onde citam HEADs ou runs, eram os daquele momento.
 
 ## 0. FRONT-V1-003 — estado para revisão
 
@@ -65,10 +66,11 @@ PR do #12). As duas correções foram levadas à base (#10) e subiram pela pilha
 | Resultado desconhecido persistente, sem expiração silenciosa | Concluído | Frontend | §0.1; #15 |
 | CI de cada candidato | Concluído | Frontend | §0.2 |
 | Jornadas | Demonstradas conforme a matriz de evidências (§2); **J09 parcial**, com aprovação da renovação e primeira concessão pela interface dependentes da API; ativação operacional não demonstrada neste laboratório | Frontend | §2 e regressão final (§11), API real |
-| J13–J15 com Agent real | Demonstradas com o código ANTERIOR à revisão (§0.4): a supervisão e o script do laboratório mudaram depois; conferir só as telas afetadas na próxima sessão de laboratório | Frontend + pessoa no Agent | §3; §0.4 |
+| J13–J15 com Agent real | Demonstradas com o código ANTERIOR à revisão (§0.4). No candidato final (§0.5): gateway e acessibilidade revalidados; supervisão e J14b **pendentes da sessão assistida** (atos da pessoa no Agent) | Frontend + pessoa no Agent | §3; §0.5 |
 | D-API-01 confirmação do MFA | Bloqueado (sem candidato; medida temporária estrita no frontend) | Equipe da API | [issue #37](https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/37); `docs/encaminhamentos/API-D-API-01-*.md` |
 | D-API-02 leitura do pedido de renovação (prioridade); J09 completa | Bloqueado | Equipe da API | [issue #38](https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/38); `docs/encaminhamentos/API-D-API-02-*.md`; J09 parcial em `e2e-real/m2-concessoes.spec.ts` |
 | D-API-03 leitura dos vínculos; primeira concessão pela tela (não é a jornada completa de clientes externos) | Bloqueado | Equipe da API | [issue #39](https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/39); `docs/encaminhamentos/API-D-API-03-*.md` |
+| D-API-04 identificador estável da identidade (incerteza depois de nova sessão de identidade) | Lacuna aberta no #15 até a correção integrada | Equipe da API | [issue #40](https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/40); `docs/encaminhamentos/API-D-API-04-*.md`; §0.5 |
 | Ativação operacional da organização | Não demonstrada neste laboratório (a fixture de capacidade não a substitui) | API/operação (B2) | `docs/FRONT-V1-INVENTARIO.md` §7 |
 | LIB-01 (`Field`, `Input type="file"`) | Encaminhado | Equipe da Nekkora-lib | `docs/encaminhamentos/LIB-01-*.md` |
 | AGENT-01 (aprovação sem teclado; build marcado; venv dos testes) | Encaminhado | Equipe do Agent | `docs/encaminhamentos/AGENT-01-*.md` |
@@ -90,16 +92,16 @@ pertencem àqueles commits; os do candidato novo de cada PR estão no bloco de e
 | #14 | `tools/lab/agent.ps1` deste PR aprovava o pacote e iniciava a execução por teclas (atos da pessoa) | sai a versão do #17 (só prepara e confere o log); toda tecla restante só com o foco conferido na janela certa |
 | #11 | entrar numa organização em outra aba tirava esta da área de identidade (e de um desafio MFA em curso) | aviso entre abas com alcance (organização × tudo) |
 | #11 | vinculação incerta perdia o aviso ao fechar; "Sair" sem confirmação do servidor dizia "Você saiu" | aviso persistente e "Vincular" bloqueado; aviso de saída não confirmada |
-| #12 | decisão de concessão incerta deixava decidir de novo na mesma linha | "Decisão não confirmada" até "Atualizar" |
+| #12 | decisão de concessão incerta deixava decidir de novo na mesma linha | "Decisão não confirmada" até "Atualizar" (revisto na FRONT-V1-004: reler não libera; só a pessoa, §0.5) |
 | #13 | 413 do proxy caía em incerto; seletor de arquivo reabria o envio incerto; sem SHA-256 local a conferência dizia "não tem o pacote" | 413 é recusa com o motivo; seletor bloqueado; conferência mostra o SHA-256 da Platform |
 | #14 | aviso "desatualizado, próxima tentativa automática" depois de o acompanhamento acabar; lista parava de consultar quando vazia; detalhe relia todo o histórico a cada 10 s; "Conhecido" em verde | só desatualiza enquanto acompanha; lista sempre a cada 30 s; eventos relidos só quando o histórico muda; tom neutro; rotação cancelável; Worker escolhido reiniciado |
-| #15 | teste do 502 passava por acaso; sem Web Locks não havia exclusão entre abas; com locks sem `query()`, envio vivo virava desconhecido; "em curso em outra aba" parecia recusa | teste com resposta real de proxy; marca conferida depois de gravar; vivo sem informação; aviso próprio |
+| #15 | teste do 502 passava por acaso; sem Web Locks não havia exclusão entre abas; com locks sem `query()`, envio vivo virava desconhecido; "em curso em outra aba" parecia recusa | teste com resposta real de proxy; marca conferida depois de gravar (revisto na FRONT-V1-004: não garante exclusão; sem Web Locks o envio não começa, §0.5); vivo sem informação; aviso próprio |
 | #10, #16 | validador com mapa + propriedades; proteções do `subir.sh` puladas por SIGPIPE; anotação de contagens sem arquivos que não carregaram | corrigidos (ver commits) |
 | #17 | relatório afirmava mais do que os specs (ver abaixo); caminhos e uma frase de encaminhamento desatualizados | texto corrigido |
 
-Limitações aceitas, registradas no código: o sujeito do registro na área de identidade é o resumo do CSRF da sessão (a
-API em `e04a57c` não expõe identificador estável), então uma incerteza de lá não é encontrada depois de sair e entrar;
-o alvo do convite é o e-mail, só dentro do resumo da chave. Um 400 na confirmação do cadastro continua "link inválido":
+Registrado no código na FRONT-V1-003 como "limitações aceitas" — **revisto na FRONT-V1-004 (§0.5)**: o sujeito da área
+de identidade pelo resumo do CSRF é uma **lacuna aberta** (API #40), não limitação aceita; o e-mail do convite dentro do
+resumo da chave é uma **limitação de privacidade** (resumo sem segredo não é anonimização). Um 400 na confirmação do cadastro continua "link inválido":
 as regras locais são as mesmas da API (`PasswordPolicy`, nome), conferido no código da API.
 
 O que os specs da API real afirmam e o que só foi observado (sem repetir provas; o laboratório continua parado):
@@ -115,7 +117,77 @@ O que os specs da API real afirmam e o que só foi observado (sem repetir provas
 
 Endurecimento desses specs (h1 específico e ausência de "Muitas tentativas" antes de cada axe, com ritmo; reconexão com
 `>` e desconexão durante a pausa; asserções de processo e histórico) fica para a próxima sessão de laboratório, junto
-das telas afetadas pela revisão: supervisão (lista e detalhe), envio de pacote, confirmações com step-up.
+das telas afetadas pela revisão: supervisão (lista e detalhe), envio de pacote, confirmações com step-up. (Feito na
+FRONT-V1-004, §0.5; a sessão assistida da supervisão e do J14b continua pendente.)
+
+### 0.5 FRONT-V1-004 — garantias de incerteza fechadas e caminhos alterados revalidados (31/10/2026)
+
+**Correções (cada uma na branch mais baixa afetada, levada pela pilha por merge comum):**
+
+| PR | Achado | Correção | Prova |
+|----|--------|----------|-------|
+| #12 (`c5f2b04`) | "Atualizar" liberava a decisão de concessão com resultado desconhecido; o contrato não liga o estado da concessão a uma tentativa (sem id de operação, versão ou autor da decisão), então nenhuma releitura é evidência conclusiva | a linha só volta a oferecer decisões por "Liberar nova decisão", com confirmação e o aviso de possível duplicidade; reler a lista não libera | `src/area/f6a3.test.tsx` (504 do proxy → Atualizar relê e continua bloqueado → cancelar mantém → liberar) |
+| #15 (`4c237c2`) | o mesmo bloqueio vivia só na tela | vem também do registro persistente: sobrevive à recarga e a outra aba; a liberação explícita solta os registros daquela concessão | `src/area/f6a3.test.tsx` (recarga; teste falha sem o registro) |
+| #15 | sem Web Locks, marca + espera aleatória + conferência no `localStorage` não garante exclusão entre abas | **bloqueio seguro**: sem Web Locks, `begin()` recusa (`no-locks`), nada é gravado nem enviado e o diálogo avisa antes de confirmar; ações administrativas recusam com o mesmo texto | `e2e/corrida-abas.spec.ts` (abaixo); `src/api/pendingOps.test.ts`; `src/uncertainOps.test.tsx` |
+| #15 | sujeito da identidade = resumo do CSRF, tratado como "limitação aceita" | passa a **lacuna aberta**; a tela da área de identidade diz que o aviso vale na sessão (recarga e abas) e não depois de sair e entrar; e-mail não é usado como substituto | [Nekkora-Platform-API#40](https://github.com/Nekkora-Operation/Nekkora-Platform-API/issues/40) (D-API-04); `docs/encaminhamentos/API-D-API-04-identidade-estavel.md` |
+| #10 (`08c1706`) | falha intermitente de `f5.test.tsx` só com a suíte inteira (3 em 21; 0 em 12 isolado; travamento de 3,1 s contra ~0,4 s) | a escrita da URL dos filtros de execuções roda no efeito de layout: com `useEffect`, uma navegação que chegasse com o efeito pendente era desfeita pelo `replace` com a URL antiga | 10 suítes inteiras seguidas no topo da pilha (`8c8bc8e`), 428/428 em todas |
+| #17 (`e54b012`) | specs da API real afirmavam menos do que o relatório dizia | `m6-gateway` novo; `m5` só audita tela carregada e sem 429; `m4-execucao` com lista vazia e J14b que falha | abaixo |
+
+**Exclusão entre abas — prova dirigida** (`e2e/corrida-abas.spec.ts`, API simulada, Chromium; duas abas da mesma pessoa,
+mesma operação, disparo agendado para o mesmo instante do relógio nas duas):
+
+| Código | Ambiente | Rodadas | Envios por rodada |
+|--------|----------|---------|-------------------|
+| antes (`338e777`, marca + espera) | sem Web Locks | 20 | 1 em todas |
+| depois (`4c237c2`) | com Web Locks | 20 | 1 em todas (asserção) |
+| depois (`4c237c2`) | sem Web Locks | 20 | 0 em todas; as duas abas mostram o motivo (asserção) |
+
+As 20 rodadas com um envio no mecanismo antigo **não** provam exclusão: o padrão HTML não dá leitura-e-gravação atômica
+ao `localStorage` entre processos, e o resultado dependia de a gravação de uma aba chegar à outra antes do fim da espera
+(25–75 ms). Por isso o bloqueio. Um primeiro diagnóstico contou 0 envios por erro do próprio contador (rota
+`/organizations/` em vez de `/o/`); foi descartado e o log ficou marcado como inválido. Os testes de componente usam um
+gerenciador de locks em memória (todas as "abas" no mesmo processo JS, onde a exclusão é real), não a espera imediata,
+e não são apresentados como prova de concorrência entre abas.
+
+**Laboratório descartável `frontlab-004`** (API `e04a57c`, migrations 001–028, `https://localhost:55895`, subido em
+31/10/2026 04:46 UTC; o `frontlab-001` continua parado e preservado). Fixtures declaradas em `fixtures.txt`: limites da
+organização (010), pacotes e entrada da J14 copiados do `frontlab-001` (sha256 em `pacotes_sha256.txt`), API congelada e
+descongelada pelos testes de gateway. Código da aplicação: o de `8c8bc8e` (o `e54b012` e este relatório só mudam specs,
+ferramentas e documentação).
+
+| Caminho | Prova | Resultado |
+|---------|-------|-----------|
+| Step-up (convite) | `e2e-real/m6-gateway.spec.ts`: depois do step-up aceito, o POST do convite chega ao nginx com a API congelada; 504 em 60 s | diálogo em "resultado não confirmado", POST único (504), confirmação bloqueada, nada repetido em 15 s nem depois da recarga (registro persistente com "liberar" explícito), nenhuma frase afirmando ausência de efeito. Efeito real: **não aplicado** (a API, descongelada, não processou o pedido cuja conexão o nginx já tinha fechado; a lista ficou vazia) |
+| Upload do pacote | mesmo spec: PUT do pacote com a API congelada; 504 | "O envio foi interrompido ou ficou sem resposta… Os bytes podem ter chegado", PUT único (504), envio e seletor bloqueados, nada repetido. Efeito real: **aplicado** — "Conferir a versão" mostrou "a Platform tem o pacote com o mesmo SHA-256" |
+| Acessibilidade | `e2e-real/m5-a11y-seguranca.spec.ts` endurecido | 30/30 telas×larguras aprovadas só carregadas e sem 429 (`a11y-telas.txt`). Duas visitas com 429 **não contaram** (versão, que mostrava o título genérico "Automação — versão 1", e workers no celular) e foram refeitas uma vez depois do Retry-After. A 1ª rodada do spec endurecido falhou por um defeito do próprio spec (título ausente lançava em vez de contar como não carregada), corrigido antes da rodada aprovada |
+| Supervisão (lista vazia que recebe a execução; estados e eventos) e J14b | `e2e-real/m4-execucao.spec.ts` endurecido (etapa A) | **pendente: sessão assistida.** Aprovar o pacote e clicar em "Iniciar" no Agent são atos da pessoa; o spec prepara até lá e confere o log do Agent. Tudo pronto em `frontlab-004` (Agent `ce30397`, Python do Framework, entrada da J14) |
+
+Nos 504 provocados, o efeito real variou (convite não aplicado, pacote aplicado). A tela não sabe qual dos dois aconteceu,
+e por isso não pode afirmar nenhum deles: mantém o resultado desconhecido até a pessoa conferir.
+
+**Evidências — a que código pertencem:**
+
+| Momento | Código | Evidência |
+|---------|--------|-----------|
+| Antes da revisão (FRONT-V1-002) | HEADs da §0.2 e da regressão final (§11) | jornadas J01–J18 no `frontlab-001`; J13–J15 com o Agent real (`sessao-j13-j15-*.log`) |
+| Depois da revisão FRONT-V1-003, antes da FRONT-V1-004 | `ea11737` … `d982933` | só CI (16 runs, no bloco de estado de cada PR naquele momento); nenhuma prova de laboratório |
+| Candidato final (FRONT-V1-004) | #10 `08c1706` · #11 `e69d480` · #12 `f844d1c` · #13 `73e7155` · #14 `f65469c` · #15 `7de65f3` · #16 `79982b7` · #17 HEAD deste relatório | CI no bloco de estado de cada PR; Vitest 10× e corrida entre abas (acima); `frontlab-004`: gateway e acessibilidade (acima) |
+| Pendente no candidato final | — | supervisão e J14b com o Agent real (sessão assistida) |
+
+**Limitações e lacunas que continuam:**
+
+- **Identidade (lacuna aberta, não aceita):** na área de identidade a proteção vale para a recarga e as abas da mesma
+  sessão de identidade, não para uma nova sessão (sair e entrar, expiração). Fica explícita no #15 até a correção da
+  API (#40) ser integrada.
+- **Privacidade do registro:** as chaves são SHA-256 sem segredo. Não estar em claro não é anonimização: quem tem acesso
+  ao navegador e conhece o vínculo e a organização pode testar e-mails candidatos contra as chaves dos convites com
+  resultado desconhecido (os incertos ficam até a pessoa liberar).
+- **Navegador sem Web Locks:** as operações protegidas ficam indisponíveis (com o motivo na tela) até haver solução
+  adequada; os navegadores atuais têm Web Locks.
+- **Decisões de concessão:** sem evidência conclusiva no contrato, só a pessoa libera.
+
+API: #37, #38, #39 e #40 seguem com a equipe da API, numa missão própria; nada foi implementado na API por este time.
+
 
 
 Continuação da FRONT-V1-001 sobre as cinco branches existentes. Sem merge, sem produção, sem ambientes preservados,
