@@ -27,6 +27,8 @@ export const orgPath = {
   resendVerification: (org: string) => `/o/${org}/resend-verification`,
   verifyEmail: (org: string) => `/o/${org}/verify-email`,
   home: (org: string) => `/o/${org}`,
+  /** Reentrada pela identidade (troca por gesto explícito). */
+  entry: (org: string) => `/o/${org}/entrar`,
   /** Área interna (F4): lista de execuções. */
   executions: (org: string) => `/o/${org}/execucoes`,
   /** F5: leituras de detalhe (os identificadores vão codificados no caminho). */

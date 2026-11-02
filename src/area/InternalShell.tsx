@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Link as RouterLink, Outlet, useLocation } from 'react-router';
-import { Alert, AppShell, Button, Logo, Text, type AppNavGroup } from 'nekkora-lib';
+import { Alert, AppShell, Button, Link, Logo, Text, type AppNavGroup } from 'nekkora-lib';
 import { isApiError } from '../api/http';
 import { getMyPermissions } from '../api/permissions';
 import type { MyPermissions, PermissionCode } from '../api/v1';
+import { identityPath } from '../auth/flow';
 import { orgPath, shortOrganizationId } from '../auth/organization';
 import { useSession } from './session';
 import { useVisibleWorkspaces, type VisibleWorkspaces } from './useVisibleWorkspaces';
@@ -159,6 +160,9 @@ export function InternalShell() {
         }
         actions={
           <div className="pw-shell__account">
+            <Link as={RouterLink} to={identityPath.organizations} size="sm" variant="subtle">
+              Trocar organização
+            </Link>
             <span className="pw-shell__name">{me.displayName}</span>
             <Button variant="ghost" size="sm" leftIcon="arrow-right" loading={signingOut} onClick={() => void signOut()}>
               Sair

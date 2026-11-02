@@ -1,5 +1,6 @@
 import { createContext, Fragment, useContext } from 'react';
 import { Outlet, useParams } from 'react-router';
+import { OrganizationFlowProvider } from '../auth/flow';
 import { isValidOrganizationId } from '../auth/organization';
 import { OrganizationNotFoundPage } from '../pages/StatusPages';
 
@@ -22,9 +23,11 @@ export function OrganizationRoute() {
   const org = orgId.toLowerCase();
   return (
     <OrganizationContext.Provider value={org}>
-      <Fragment key={org}>
-        <Outlet />
-      </Fragment>
+      <OrganizationFlowProvider org={org}>
+        <Fragment key={org}>
+          <Outlet />
+        </Fragment>
+      </OrganizationFlowProvider>
     </OrganizationContext.Provider>
   );
 }

@@ -1,11 +1,11 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { Link as RouterLink } from 'react-router';
-import { Button, Input, Link, StateView } from 'nekkora-lib';
-import { requestEmailVerification, requestPasswordReset } from '../api/auth';
+import { Alert, Button, Input, Link, StateView } from 'nekkora-lib';
+import { requestEmailVerification } from '../api/auth';
+import { ApiError } from '../api/http';
 import { AuthScreen } from '../app/AuthScreen';
-import { useOrganization } from '../app/organization';
-import { commonMessage, type UserMessage } from '../auth/messages';
-import { orgPath } from '../auth/organization';
+import { useAuthFlow } from '../auth/flow';
+import { commonMessage, UNAVAILABLE, type UserMessage } from '../auth/messages';
 import { ErrorAlert } from './ErrorAlert';
 
 interface Copy {
@@ -38,8 +38,10 @@ const COPY: Record<'password' | 'verification', Copy> = {
  * (a API responde 202 em todos os casos). Só erros de transporte (rede, indisponibilidade) aparecem.
  */
 function EmailRequestPage({ kind }: { kind: 'password' | 'verification' }) {
-  const org = useOrganization();
+  const flow = useAuthFlow();
+  const org = flow.org;
   const copy = COPY[kind];
+  const [unavailable, setUnavailable] = useState(false);
   const [email, setEmail] = useState('');
   const [pending, setPending] = useState(false);
   const [sent, setSent] = useState(false);
@@ -53,12 +55,14 @@ function EmailRequestPage({ kind }: { kind: 'password' | 'verification' }) {
     setPending(true);
     setError(null);
     try {
-      await (kind === 'password' ? requestPasswordReset(org, email.trim()) : requestEmailVerification(org, email.trim()));
+      if (kind === 'password') await flow.requestPasswordReset(email.trim());
+      else if (org) await requestEmailVerification(org, email.trim());
       setSent(true);
     } catch (e) {
       // 400 (entrada malformada) não diz nada sobre a conta: mesma resposta genérica
       const message = commonMessage(e);
       if ((e as { code?: string })?.code === 'invalid_request') setSent(true);
+      else if (flow.kind === 'identity' && e instanceof ApiError && e.status === 404) setUnavailable(true);
       else setError(message);
     } finally {
       inFlight.current = false;
@@ -67,7 +71,7 @@ function EmailRequestPage({ kind }: { kind: 'password' | 'verification' }) {
   };
 
   const backToLogin = (
-    <Link as={RouterLink} to={orgPath.login(org)} variant="subtle" leftIcon="arrow-left">
+    <Link as={RouterLink} to={flow.paths.login} variant="subtle" leftIcon="arrow-left">
       Voltar para o login
     </Link>
   );
@@ -98,6 +102,7 @@ function EmailRequestPage({ kind }: { kind: 'password' | 'verification' }) {
 
   return (
     <AuthScreen org={org} icon={kind === 'password' ? 'lock' : 'mail'} title={copy.title} description={copy.description} actions={backToLogin}>
+      {unavailable && <Alert tone="warning">{UNAVAILABLE}</Alert>}
       {error && <ErrorAlert message={error} />}
       <form className="pw-form" onSubmit={submit}>
         <Input
@@ -122,7 +127,7 @@ function EmailRequestPage({ kind }: { kind: 'password' | 'verification' }) {
   );
 }
 
-/** /o/{org}/forgot-password */
+/** /recuperar-senha (identidade, sem token) e /o/{org}/forgot-password */
 export function ForgotPasswordPage() {
   return <EmailRequestPage kind="password" />;
 }

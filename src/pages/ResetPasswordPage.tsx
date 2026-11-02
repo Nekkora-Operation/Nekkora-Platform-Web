@@ -1,24 +1,24 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router';
 import { Button, Input, Link, StateView } from 'nekkora-lib';
-import { confirmPasswordReset } from '../api/auth';
 import { isApiError } from '../api/http';
 import { AuthScreen } from '../app/AuthScreen';
-import { useOrganization } from '../app/organization';
+import { useAuthFlow } from '../auth/flow';
 import { consumeInitialLinkToken } from '../auth/linkToken';
 import { commonMessage, type UserMessage } from '../auth/messages';
-import { orgPath } from '../auth/organization';
 import { meetsPasswordPolicy, PASSWORD_MAX, PASSWORD_MIN, passwordLength } from '../auth/passwordPolicy';
 import { ErrorAlert } from './ErrorAlert';
 
 type State = 'form' | 'success' | 'invalid';
 
 /**
- * /o/{org}/reset-password#token=… — abre direto pelo link do e-mail (sem login). O token fica só em memória
- * (já foi removido da URL na carga da página) e nunca é exibido.
+ * /recuperar-senha#token=… (identidade) e /o/{org}/recuperar-senha#token=… (conta de organização; também o caminho
+ * antigo /o/{org}/reset-password) — abre direto pelo link do e-mail (sem login). O token fica só em memória (já foi
+ * removido da URL na carga da página), nunca é exibido e só é enviado quando a pessoa salva a senha.
  */
 export function ResetPasswordPage() {
-  const org = useOrganization();
+  const flow = useAuthFlow();
+  const org = flow.org;
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [token] = useState(() => consumeInitialLinkToken(pathname));
@@ -42,7 +42,7 @@ export function ResetPasswordPage() {
     setPending(true);
     setError(null);
     try {
-      await confirmPasswordReset(org, token, password);
+      await flow.confirmPasswordReset(token, password);
       setPassword('');
       setConfirmation('');
       setState('success');
@@ -64,7 +64,7 @@ export function ResetPasswordPage() {
           title="Solicite uma nova redefinição de senha."
           description="O link pode ter expirado, já ter sido usado ou estar incompleto."
           actions={
-            <Button fullWidth onClick={() => navigate(orgPath.forgotPassword(org), { replace: true })}>
+            <Button fullWidth onClick={() => navigate(flow.paths.forgotPassword, { replace: true })}>
               Solicitar novo link
             </Button>
           }
@@ -81,7 +81,7 @@ export function ResetPasswordPage() {
           title="Agora você pode entrar usando sua nova senha."
           description="Por segurança, as sessões abertas foram encerradas. O código do autenticador continua sendo pedido."
           actions={
-            <Button fullWidth onClick={() => navigate(orgPath.login(org), { replace: true })}>
+            <Button fullWidth onClick={() => navigate(flow.paths.login, { replace: true })}>
               Voltar para o login
             </Button>
           }
@@ -100,7 +100,7 @@ export function ResetPasswordPage() {
       title="Crie uma nova senha"
       description="Escolha uma senha longa, que você não use em outros serviços."
       actions={
-        <Link as={RouterLink} to={orgPath.login(org)} variant="subtle" leftIcon="arrow-left">
+        <Link as={RouterLink} to={flow.paths.login} variant="subtle" leftIcon="arrow-left">
           Voltar para o login
         </Link>
       }

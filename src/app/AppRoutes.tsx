@@ -1,5 +1,13 @@
-import { Route, Routes } from 'react-router';
+import { Outlet, Route, Routes } from 'react-router';
 import { features } from '../config';
+import { IdentityFlowProvider } from '../auth/flow';
+import { AccountPage, ReplaceFactorPage } from '../identity/AccountPages';
+import { CreateOrganizationPage } from '../identity/CreateOrganizationPage';
+import { OrganizationEntryPage, RecoverPasswordRoute, RootPage } from '../identity/EntryPages';
+import { IdentityArea } from '../identity/IdentityArea';
+import { LinkAccountPage } from '../identity/LinkAccountPage';
+import { OrganizationsPage } from '../identity/OrganizationsPage';
+import { SignupConfirmPage, SignupPage } from '../identity/SignupPages';
 import { ForgotPasswordPage, ResendVerificationPage } from '../pages/EmailRequestPage';
 import { AuthenticatedArea } from '../area/AuthenticatedArea';
 import { ClientsPage } from '../pages/admin/ClientsPage';
@@ -19,13 +27,42 @@ import { NoOrganizationPage, NotFoundInOrganizationPage } from '../pages/StatusP
 import { VerifyEmailPage } from '../pages/VerifyEmailPage';
 import { OrganizationRoute } from './organization';
 
+/** Telas de entrada da identidade (mesmas páginas da entrada por organização, com o fluxo da identidade). */
+function IdentityFlowOutlet() {
+  return (
+    <IdentityFlowProvider>
+      <Outlet />
+    </IdentityFlowProvider>
+  );
+}
+
 /**
- * Todas as rotas vivem sob /o/:orgId. Sem organização na URL → estado controlado (V1 não resolve de outra
- * forma). Nada de cadastro público, login corporativo ou "manter conectado".
+ * Duas portas de entrada, como a API:
+ * - identidade Nekkora (fora de /o/{org}): cadastro, entrada geral, organizações, criação, vinculação e segurança da
+ *   conta; a troca dá a sessão de organização;
+ * - /o/:orgId: área da organização (sessão de organização) e a entrada antiga por conta de organização não vinculada.
+ * Os caminhos dos links de e-mail são contrato da API: /cadastro/confirmar, /recuperar-senha, /o/{org}/recuperar-senha e
+ * /o/{org}/convite. Nada de login corporativo nem "manter conectado".
  */
 export function AppRoutes() {
   return (
     <Routes>
+      <Route path="/" element={<RootPage />} />
+      <Route element={<IdentityFlowOutlet />}>
+        <Route path="/entrar" element={<LoginPage />} />
+        <Route path="/entrar/verificacao" element={<MfaPage />} />
+        <Route path="/entrar/configurar-autenticador" element={<MfaSetupPage />} />
+      </Route>
+      <Route path="/recuperar-senha" element={<RecoverPasswordRoute />} />
+      <Route path="/cadastro" element={<SignupPage />} />
+      <Route path="/cadastro/confirmar" element={<SignupConfirmPage />} />
+      <Route element={<IdentityArea />}>
+        <Route path="/organizacoes" element={<OrganizationsPage />} />
+        <Route path="/organizacoes/nova" element={<CreateOrganizationPage />} />
+        <Route path="/conta" element={<AccountPage />} />
+        <Route path="/conta/fator" element={<ReplaceFactorPage />} />
+        <Route path="/vincular-conta" element={<LinkAccountPage />} />
+      </Route>
       <Route path="/o/:orgId" element={<OrganizationRoute />}>
         {/* área autenticada: o portão carrega /me e só monta as rotas internas para conta interna */}
         <Route element={<AuthenticatedArea />}>
@@ -45,6 +82,9 @@ export function AppRoutes() {
         <Route path="mfa/setup" element={<MfaSetupPage />} />
         <Route path="forgot-password" element={<ForgotPasswordPage />} />
         <Route path="reset-password" element={<ResetPasswordPage />} />
+        {/* caminho do link do e-mail (contrato da API); reset-password fica como compatibilidade */}
+        <Route path="recuperar-senha" element={<ResetPasswordPage />} />
+        <Route path="entrar" element={<OrganizationEntryPage />} />
         <Route path="verify-email" element={<VerifyEmailPage />} />
         {features.resendVerification && <Route path="resend-verification" element={<ResendVerificationPage />} />}
         <Route path="*" element={<NotFoundInOrganizationPage />} />
