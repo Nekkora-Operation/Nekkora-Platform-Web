@@ -560,7 +560,14 @@ export class MockApi {
         if (!s) return error(401, 'unauthenticated');
         s.lastSeenAt = this.now();
         const a = this.accounts.get(s.userId)!;
-        return json(200, { accountType: a.accountType, displayName: a.displayName, email: a.email, organizationId: a.org });
+        return json(200, {
+          accountType: a.accountType,
+          displayName: a.displayName,
+          email: a.email,
+          organizationId: a.org,
+          // 022: a simulação só tem organizações já ativadas pela operação
+          organizationActivationState: 'ATIVADA',
+        });
       }
 
       case 'GET /auth/csrf': {

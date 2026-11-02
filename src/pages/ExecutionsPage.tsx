@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { Alert, Badge, Button, Card, Checkbox, Fieldset, Grid, Input, LoadMore, Select, Stack, StateView, Table, Text, type TableColumn } from 'nekkora-lib';
 import { isApiError } from '../api/http';
@@ -127,12 +127,16 @@ export function ExecutionsPage() {
 
   // A ordem importa: a detecção de mudança externa roda antes da escrita, para nunca comparar a URL antiga com a
   // que acabou de ser pedida no mesmo ciclo.
-  useEffect(() => {
+  // Efeitos de layout (FRONT-V1-004): rodam na própria confirmação da renderização. Com useEffect, uma navegação que
+  // chegasse entre a renderização e o efeito (ex.: clique logo depois de abrir) fazia o efeito pendente rodar com a URL
+  // ANTIGA e o `replace` da escrita apagava a navegação nova (filtro voltava ao anterior). Visto como falha intermitente
+  // de f5.test.tsx ("troca do filtro de automação com respostas fora de ordem") com a suíte inteira em paralelo.
+  useLayoutEffect(() => {
     const current = searchParams.toString();
     if (written.current !== null && current !== written.current) setFilters(filtersFromUrl(searchParams));
   }, [searchParams]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const next = filtersToUrl(filters).toString();
     written.current = next;
     if (next !== searchParams.toString()) setSearchParams(new URLSearchParams(next), { replace: true });

@@ -32,6 +32,7 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
+    testTimeout: 15_000,
     css: false,
     include: ['src/**/*.test.{ts,tsx}', 'mock/**/*.test.ts'],
   },
