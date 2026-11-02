@@ -1,5 +1,13 @@
 # FRONT-V1-001 — relatório de entrega (30/10/2026)
 
+> **HISTÓRICO.** Este é o relatório da FRONT-V1-001, mantido como registro. O estado atual, as provas da FRONT-V1-002 e
+> as correções deste texto estão em [`FRONT-V1-002-RELATORIO.md`](FRONT-V1-002-RELATORIO.md). Correções feitas aqui:
+> (1) a suíte simulada NÃO teve 80/80 numa rodada: foram 79/80 na primeira rodada e 6/6 no arquivo alterado depois (o
+> 80/80 numa rodada única é da FRONT-V1-002, com a lib 0.2.0); (2) "tudo contra a API real" vale para as jornadas
+> listadas como API real; estados raros foram provados por testes de componente com respostas de contrato, e há
+> fixtures declaradas (limites da organização e limpeza do Redis entre rodadas); (3) o Agent 7986e84 era ancestral de
+> ce30397, o que não prova equivalência — a FRONT-V1-002 usa um build do próprio ce30397.
+
 O frontend da Platform passou a cobrir a jornada real: cadastro → confirmação → MFA → organização → acessos →
 automação publicada → Agent pareado → autorização local → supervisão. Tudo foi feito contra a API **real**, fixada em
 e04a57c, num laboratório descartável. Sem merge e sem produção.
@@ -61,7 +69,7 @@ Situação resumida:
 | **Agent real** (build 7986e84, ancestral de ce30397; cópia em `tools/lab/saidas/<id>/agent-app`) | J12: pareamento pelo código exibido na tela, Agent Ativo/Conectado com heartbeat, Worker no workspace, autorização vigente para a impressão `5664f1a5…`. J13: §2.1 |
 | **Fixtures declaradas** | (1) limites da organização (010, `lab.mjs limites`), porque a ativação operacional não tem ferramenta no laboratório (B2); (2) Redis do laboratório zerado entre rodadas (`lab.mjs limpar-redis`, registrado). Nenhuma identidade, organização, versão, autorização ou execução foi semeada |
 | **Testes de componente** (respostas por rota conferidas contra o contrato em modo estrito) | estados raros: desfecho desconhecido, histórico incompleto, expurgo, etapas indisponíveis, 503/403, resultado desconhecido na criação, step-up recusado, chaves desligadas |
-| **API simulada** (suíte legada 8.7, `npm run e2e`) | regressão das telas anteriores: 80/80 depois da atualização do teste da raiz |
+| **API simulada** (suíte legada 8.7, `npm run e2e`) | regressão das telas anteriores: 79/80 na primeira rodada (a regra da raiz mudou de propósito); depois de atualizar o teste, 6/6 no arquivo alterado — não houve rodada completa 80/80 nesta missão |
 
 ### 2.1 J13 — execução local com o Agent real
 

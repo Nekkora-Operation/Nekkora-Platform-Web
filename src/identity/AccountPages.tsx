@@ -203,7 +203,7 @@ export function AccountPage() {
   const navigate = useNavigate();
   return (
     <Stack gap={5} className="pw-identity">
-      <SectionHeader title="Segurança da conta" description="Senha, códigos de recuperação e autenticador da sua identidade Nekkora. Valem para todas as suas organizações." />
+      <SectionHeader as="h1" title="Segurança da conta" description="Senha, códigos de recuperação e autenticador da sua identidade Nekkora. Valem para todas as suas organizações." />
       <PasswordSection />
       <RecoveryCodesSection />
       <Card variant="outlined" padding="lg">
@@ -306,6 +306,7 @@ export function ReplaceFactorPage() {
   return (
     <Stack gap={5} className="pw-identity">
       <SectionHeader
+        as="h1"
         title="Trocar o aplicativo autenticador"
         description={
           restricted

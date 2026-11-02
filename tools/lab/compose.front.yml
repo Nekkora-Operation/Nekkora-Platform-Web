@@ -8,9 +8,12 @@
 #   0700), sem envio externo; a leitura é por `node tools/lab/lab.mjs <id> caixa`;
 # - armazenamento local dos artefatos recebidos (NEKKORA_ARTEFATOS_DIR, migration 028), volume do projeto;
 # - limites de memória (histórico de pressão de memória nas suítes pesadas).
+# - banco num volume NOMEADO do projeto (PLATFORM-LOCAL-001): `docker compose stop`/`start` e a recriação de um container
+#   preservam os dados; só uma remoção explícita do volume os apaga.
 volumes:
   artefatos: {}
   caixa: {}
+  pgdados: {}
 
 services:
   platform:
@@ -31,5 +34,7 @@ services:
     mem_limit: 640m
   postgres:
     mem_limit: 768m
+    volumes:
+      - pgdados:/var/lib/postgresql/data
   redis:
     mem_limit: 128m

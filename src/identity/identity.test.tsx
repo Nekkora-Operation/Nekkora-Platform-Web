@@ -280,6 +280,44 @@ describe('outra aba', () => {
 });
 
 describe('sessão de organização nascida da identidade', () => {
+  const area = () => {
+    api.on('GET', `/api/v1/o/${ORG_A}/me`, 'getMe', {
+      status: 200,
+      body: { accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: ORG_A, organizationActivationState: 'AGUARDANDO_ATIVACAO' },
+    });
+    api.on('GET', `/api/v1/o/${ORG_A}/me/permissions`, 'getMyPermissions', {
+      status: 200,
+      body: { organizationId: ORG_A, membershipId: ORG_A, organization: { roles: [], permissions: [] }, allWorkspaces: { permissions: [] }, hasWorkspaceAssignments: false },
+    });
+    api.on('GET', `/api/v1/o/${ORG_A}/workspaces`, 'listWorkspaces', { status: 200, body: { items: [], nextCursor: null } });
+  };
+
+  it('a área mostra o NOME da organização aberta, lido da lista da identidade (PLATFORM-LOCAL-001)', async () => {
+    area();
+    api.on('GET', '/api/v1/me/organizations', 'identityOrganizations', {
+      status: 200,
+      body: {
+        organizations: [
+          { organizationId: '1b2c3d4e-5f60-4a1b-8c2d-3e4f5a6b7c8d', name: 'Outra', roles: ['ORG_ADMIN'], activationState: 'ATIVADA' },
+          { organizationId: ORG_A, name: 'Acme', roles: ['ORG_ADMIN'], activationState: 'AGUARDANDO_ATIVACAO' },
+        ],
+        canCreateOrganization: true,
+      },
+    });
+    renderApp(`/o/${ORG_A}`);
+    expect(await screen.findByLabelText('Organização aberta: Acme')).toHaveTextContent('Acme');
+    expect(screen.getByText('Organização Acme')).toBeInTheDocument();
+    expect(screen.queryByText('Outra')).not.toBeInTheDocument();
+  });
+
+  it('sem a lista da identidade (entrada antiga ou falha), a área mantém o identificador abreviado', async () => {
+    area();
+    api.on('GET', '/api/v1/me/organizations', 'identityOrganizations', { status: 401, body: { error: 'unauthenticated' } });
+    renderApp(`/o/${ORG_A}`);
+    expect(await screen.findByLabelText(/^Organização aberta: 0a6e1f9c/)).toBeInTheDocument();
+    expect(screen.queryByText(/Acme/)).not.toBeInTheDocument();
+  });
+
   it('401 na área da organização com identidade válida leva à reentrada explícita (sem troca automática)', async () => {
     session();
     api.on('GET', `/api/v1/o/${ORG_A}/me`, 'getMe', { status: 401, body: { error: 'unauthenticated' } });

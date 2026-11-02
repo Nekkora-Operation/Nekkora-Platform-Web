@@ -3,6 +3,7 @@ import { Link as RouterLink, Outlet, useLocation } from 'react-router';
 import { Alert, AppShell, Button, Link, Logo, Text, type AppNavGroup } from 'nekkora-lib';
 import { isApiError } from '../api/http';
 import { getMyPermissions } from '../api/permissions';
+import { myOrganizations } from '../api/identity';
 import type { MyPermissions, PermissionCode } from '../api/v1';
 import { identityPath } from '../auth/flow';
 import { OperationScopeProvider, type OperationScopeValue } from '../components/operationScope';
@@ -85,6 +86,22 @@ function titleFor(pathname: string, org: string): string {
  */
 export function InternalShell() {
   const { org, me, expired, signOut, signingOut } = useSession();
+  // Nome da organização aberta (PLATFORM-LOCAL-001): a sessão de organização não traz o nome (D1/D7), mas a lista da
+  // identidade traz. Sem sessão de identidade (entrada antiga por organização) ou em erro, fica o identificador abreviado.
+  const [orgName, setOrgName] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    let alive = true;
+    setOrgName(undefined);
+    myOrganizations()
+      .then((list) => {
+        if (alive) setOrgName(list.organizations.find((o) => o.organizationId === org)?.name);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [org]);
+  const orgLabel = orgName ?? shortOrganizationId(org);
   const { pathname } = useLocation();
   const [permissions, setPermissions] = useState<PermissionsState>({ status: 'loading' });
   const generation = useRef(0);
@@ -199,6 +216,9 @@ export function InternalShell() {
         }
         actions={
           <div className="pw-shell__account">
+            <span className="pw-shell__org" title={org} aria-label={`Organização aberta: ${orgLabel}`}>
+              {orgLabel}
+            </span>
             <Link as={RouterLink} to={identityPath.organizations} size="sm" variant="subtle">
               Trocar organização
             </Link>
@@ -213,7 +233,7 @@ export function InternalShell() {
             <span className="pw-shell__footer-name">{me.displayName}</span>
             <span className="pw-shell__footer-email">{me.email}</span>
             <span className="pw-shell__footer-org" title={org}>
-              Organização {shortOrganizationId(org)}
+              Organização {orgLabel}
             </span>
             {access && <span className="pw-shell__footer-access">{access}</span>}
           </div>

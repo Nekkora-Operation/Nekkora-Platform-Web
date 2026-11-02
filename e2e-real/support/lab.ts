@@ -58,8 +58,7 @@ export async function identitySignIn(page: Page, email: string, password = PASSW
 }
 
 /** Cadastro completo pelo navegador: pedido → mensagem da caixa → confirmação → entrada → primeiro fator. */
-export async function signUpAndEnroll(page: Page, journey: string): Promise<Person> {
-  const email = syntheticEmail(journey);
+export async function signUpAndEnroll(page: Page, journey: string, email = syntheticEmail(journey)): Promise<Person> {
   const name = `Pessoa ${journey.toUpperCase()}`;
   await page.goto('/cadastro');
   await page.getByRole('textbox', { name: /E-mail/ }).fill(email);
