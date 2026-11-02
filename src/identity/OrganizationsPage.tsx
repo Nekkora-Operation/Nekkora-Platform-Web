@@ -7,6 +7,7 @@ import { identityPath } from '../auth/flow';
 import { commonMessage, UNAVAILABLE, type UserMessage } from '../auth/messages';
 import { orgPath, shortOrganizationId } from '../auth/organization';
 import { ErrorAlert } from '../pages/ErrorAlert';
+import { pendingInvitation } from './AcceptInvitationPage';
 import { useIdentityArea } from './IdentityArea';
 import { activationLabel, ROLE_LABEL } from './labels';
 import './identity.css';
@@ -91,6 +92,7 @@ export function OrganizationsPage() {
     );
 
   const { organizations, canCreateOrganization } = state.data;
+  const invitation = pendingInvitation.peek();
 
   return (
     <Stack gap={5} className="pw-identity">
@@ -102,6 +104,19 @@ export function OrganizationsPage() {
           </Button>
         )}
       </div>
+
+      {invitation && (
+        <Alert tone="info" title="Você abriu um convite nesta aba.">
+          <Stack gap={2}>
+            <span>Continue para aceitar o convite da organização {shortOrganizationId(invitation.org)}.</span>
+            <span>
+              <Button size="sm" onClick={() => navigate(orgPath.invitation(invitation.org))}>
+                Continuar o aceite
+              </Button>
+            </span>
+          </Stack>
+        </Alert>
+      )}
 
       {organizations.length === 0 ? (
         <StateView

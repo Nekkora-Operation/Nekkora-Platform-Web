@@ -40,6 +40,11 @@ export const orgPath = {
   members: (org: string) => `/o/${org}/administracao/membros`,
   clients: (org: string) => `/o/${org}/administracao/clientes`,
   grants: (org: string) => `/o/${org}/administracao/concessoes`,
+  /** M2: acessos (convites, papéis, vínculo, auditoria) e convite recebido. */
+  memberAccess: (org: string, userId: string) => `/o/${org}/administracao/membros/${encodeURIComponent(userId)}`,
+  invitations: (org: string) => `/o/${org}/administracao/convites`,
+  accessEvents: (org: string) => `/o/${org}/administracao/auditoria`,
+  invitation: (org: string) => `/o/${org}/convite`,
 };
 
 /**

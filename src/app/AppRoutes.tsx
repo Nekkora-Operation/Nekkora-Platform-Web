@@ -1,6 +1,10 @@
 import { Outlet, Route, Routes } from 'react-router';
 import { features } from '../config';
 import { IdentityFlowProvider } from '../auth/flow';
+import { AcceptInvitationPage } from '../identity/AcceptInvitationPage';
+import { AccessEventsPage } from '../pages/access/AccessEventsPage';
+import { InvitationsPage } from '../pages/access/InvitationsPage';
+import { MemberAccessPage } from '../pages/access/MemberAccessPage';
 import { AccountPage, ReplaceFactorPage } from '../identity/AccountPages';
 import { CreateOrganizationPage } from '../identity/CreateOrganizationPage';
 import { OrganizationEntryPage, RecoverPasswordRoute, RootPage } from '../identity/EntryPages';
@@ -76,6 +80,10 @@ export function AppRoutes() {
           <Route path="administracao/membros" element={<MembersPage />} />
           <Route path="administracao/clientes" element={<ClientsPage />} />
           <Route path="administracao/concessoes" element={<GrantsPage />} />
+          {/* M2: acessos */}
+          <Route path="administracao/membros/:userId" element={<MemberAccessPage />} />
+          <Route path="administracao/convites" element={<InvitationsPage />} />
+          <Route path="administracao/auditoria" element={<AccessEventsPage />} />
         </Route>
         <Route path="login" element={<LoginPage />} />
         <Route path="mfa" element={<MfaPage />} />
@@ -85,6 +93,8 @@ export function AppRoutes() {
         {/* caminho do link do e-mail (contrato da API); reset-password fica como compatibilidade */}
         <Route path="recuperar-senha" element={<ResetPasswordPage />} />
         <Route path="entrar" element={<OrganizationEntryPage />} />
+        {/* link do e-mail de convite (contrato da API): aceite pela identidade, fora da sessão de organização */}
+        <Route path="convite" element={<AcceptInvitationPage />} />
         <Route path="verify-email" element={<VerifyEmailPage />} />
         {features.resendVerification && <Route path="resend-verification" element={<ResendVerificationPage />} />}
         <Route path="*" element={<NotFoundInOrganizationPage />} />

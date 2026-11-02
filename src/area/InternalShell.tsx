@@ -33,12 +33,14 @@ export function useInternalArea(): InternalArea {
 const MAIN_ID = 'conteudo';
 
 /** Seção da área interna a que o endereço pertence (menu ativo e título do topo). */
-function sectionOf(pathname: string, org: string): 'inicio' | 'execucoes' | 'workspaces' | 'membros' | 'clientes' | 'concessoes' | null {
+function sectionOf(pathname: string, org: string): 'inicio' | 'execucoes' | 'workspaces' | 'membros' | 'clientes' | 'concessoes' | 'convites' | 'auditoria' | null {
   if (pathname === orgPath.home(org)) return 'inicio';
   const rest = pathname.slice(orgPath.home(org).length);
   if (rest === '/execucoes' || rest.startsWith('/execucoes/')) return 'execucoes';
   if (rest === '/workspaces' || rest.startsWith('/workspaces/') || rest.startsWith('/automacoes/')) return 'workspaces';
-  if (rest === '/administracao/membros') return 'membros';
+  if (rest === '/administracao/membros' || rest.startsWith('/administracao/membros/')) return 'membros';
+  if (rest === '/administracao/convites') return 'convites';
+  if (rest === '/administracao/auditoria') return 'auditoria';
   if (rest === '/administracao/clientes') return 'clientes';
   if (rest === '/administracao/concessoes') return 'concessoes';
   return null;
@@ -53,6 +55,9 @@ function titleFor(pathname: string, org: string): string {
   if (rest === '/workspaces') return 'Workspaces';
   if (rest.startsWith('/automacoes/')) return 'Automação';
   if (rest === '/administracao/membros') return 'Membros';
+  if (rest.startsWith('/administracao/membros/')) return 'Acessos do membro';
+  if (rest === '/administracao/convites') return 'Convites';
+  if (rest === '/administracao/auditoria') return 'Auditoria de acessos';
   if (rest === '/administracao/clientes') return 'Clientes';
   if (rest === '/administracao/concessoes') return 'Concessões';
   return 'Início';
@@ -128,10 +133,13 @@ export function InternalShell() {
     const has = (p: PermissionCode) => permissions.data.organization.permissions.includes(p);
     const admin: AppNavGroup['items'] = [];
     if (has('org.manage')) admin.push({ id: 'membros', label: 'Membros', href: orgPath.members(org), icon: 'users', active: section === 'membros' });
+    if (has('org.manage')) admin.push({ id: 'convites', label: 'Convites', href: orgPath.invitations(org), icon: 'mail', active: section === 'convites' });
     if (has('org.manage') || has('external_access.manage'))
       admin.push({ id: 'clientes', label: 'Clientes', href: orgPath.clients(org), icon: 'building', active: section === 'clientes' });
     if (has('external_access.manage'))
       admin.push({ id: 'concessoes', label: 'Concessões', href: orgPath.grants(org), icon: 'key', active: section === 'concessoes' });
+    if (has('org.manage'))
+      admin.push({ id: 'auditoria', label: 'Auditoria de acessos', href: orgPath.accessEvents(org), icon: 'file', active: section === 'auditoria' });
     if (admin.length) nav.push({ id: 'administracao', label: 'Administração', items: admin });
   }
 

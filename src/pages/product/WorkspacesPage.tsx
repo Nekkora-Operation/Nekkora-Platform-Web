@@ -1,5 +1,10 @@
 import { useState } from 'react';
-import { LoadMore, Stack, StateView, Table, type TableColumn } from 'nekkora-lib';
+import { useNavigate } from 'react-router';
+import { Alert, Button, Input, LoadMore, Stack, StateView, Table, Textarea, type TableColumn } from 'nekkora-lib';
+import { createWorkspace } from '../../api/access';
+import { useInternalArea } from '../../area/InternalShell';
+import { StepUpDialog } from '../../components/StepUpDialog';
+import { accessRefusal } from '../access/shared';
 import { isApiError } from '../../api/http';
 import { listWorkspaces } from '../../api/product';
 import type { Workspace } from '../../api/v1';
@@ -15,7 +20,15 @@ const PAGE = 25;
  * ordem do contrato (48 primeiros pontos de código do nome + id). Sem total: "carregar mais" até o fim.
  */
 export function WorkspacesPage() {
-  const { org } = useSession();
+  const { org, expired } = useSession();
+  const navigate = useNavigate();
+  const { permissions, reloadWorkspaces } = useInternalArea();
+  const canCreate = permissions.status === 'ready' && permissions.data.organization.permissions.includes('workspace.lifecycle');
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [uncertain, setUncertain] = useState(false);
+  const nameOk = name.trim().length > 0 && [...name.trim()].length <= 80 && [...description].length <= 500;
   const backState = useBackState();
   const [refresh, setRefresh] = useState(0);
   const list = useCursorList<Workspace>((cursor) => listWorkspaces(org, { limit: PAGE, cursor }), (w) => w.workspaceId, [org, refresh]);
@@ -39,7 +52,47 @@ export function WorkspacesPage() {
 
   return (
     <Stack gap={5}>
-      <PageHeader title="Workspaces" subtitle="Os workspaces que você pode consultar nesta organização." onRefresh={() => setRefresh((n) => n + 1)} refreshing={list.status === 'loading' && refresh > 0} />
+      <PageHeader
+        title="Workspaces"
+        subtitle="Os workspaces que você pode consultar nesta organização."
+        onRefresh={() => setRefresh((n) => n + 1)}
+        refreshing={list.status === 'loading' && refresh > 0}
+        actions={
+          canCreate ? (
+            <Button size="sm" leftIcon="plus" disabled={uncertain} onClick={() => setCreating(true)}>
+              Criar workspace
+            </Button>
+          ) : undefined
+        }
+      />
+      {uncertain && (
+        <Alert tone="warning" title="Não foi possível confirmar se o workspace foi criado.">
+          Atualize a lista e confira antes de criar de novo.
+        </Alert>
+      )}
+      <StepUpDialog
+        open={creating}
+        title="Criar workspace"
+        confirmLabel="Criar workspace"
+        ready={nameOk}
+        action={() => createWorkspace(org, name.trim(), description.trim() || undefined)}
+        onDone={(w) => {
+          setCreating(false);
+          setName('');
+          setDescription('');
+          reloadWorkspaces();
+          if (w.workspaceId) navigate(orgPath.workspace(org, w.workspaceId));
+          else setRefresh((n) => n + 1);
+        }}
+        onClose={() => setCreating(false)}
+        refusalText={(e) => accessRefusal(e, { forbidden: 'Você não tem permissão para criar workspaces nesta organização.' })}
+        uncertainText="Não foi possível confirmar se o workspace foi criado. Feche e atualize a lista antes de tentar de novo."
+        onUnauthenticated={expired}
+        onOutcome={(k) => k === 'uncertain' && setUncertain(true)}
+      >
+        <Input label="Nome" required fullWidth maxLength={80} value={name} onChange={(e) => setName(e.target.value)} hint="Até 80 caracteres." />
+        <Textarea label="Descrição (opcional)" fullWidth maxLength={500} value={description} onChange={(e) => setDescription(e.target.value)} />
+      </StepUpDialog>
       {list.status === 'loading' ? (
         <StateView status="loading" title="Carregando workspaces…" />
       ) : list.status === 'error' ? (

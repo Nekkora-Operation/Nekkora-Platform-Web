@@ -68,12 +68,15 @@ export function PageHeader({
   back,
   onRefresh,
   refreshing,
+  actions,
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
   back?: { to: string; label: string };
   onRefresh?: () => void;
   refreshing?: boolean;
+  /** Ações da página (ex.: criar), ao lado de "Atualizar". */
+  actions?: ReactNode;
 }) {
   return (
     <header className="pw-prod__header">
@@ -93,10 +96,15 @@ export function PageHeader({
             </Text>
           )}
         </div>
-        {onRefresh && (
-          <Button variant="secondary" size="sm" leftIcon="refresh" loading={refreshing} onClick={onRefresh}>
-            Atualizar
-          </Button>
+        {(onRefresh || actions) && (
+          <div className="pw-prod__header-actions">
+            {actions}
+            {onRefresh && (
+              <Button variant="secondary" size="sm" leftIcon="refresh" loading={refreshing} onClick={onRefresh}>
+                Atualizar
+              </Button>
+            )}
+          </div>
         )}
       </div>
     </header>
