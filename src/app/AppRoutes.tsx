@@ -23,6 +23,9 @@ import { ExecutionDetailPage } from '../pages/product/ExecutionDetailPage';
 import { WorkspaceDetailPage } from '../pages/product/WorkspaceDetailPage';
 import { WorkspacesPage } from '../pages/product/WorkspacesPage';
 import { VersionPage } from '../pages/product/VersionPage';
+import { AgentsPage } from '../pages/agents/AgentsPage';
+import { WorkersPage } from '../pages/agents/WorkersPage';
+import { AgentRunPage, AgentRunsPage } from '../pages/agents/supervision';
 import { InternalHome } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { MfaPage } from '../pages/MfaPage';
@@ -78,6 +81,11 @@ export function AppRoutes() {
           <Route path="workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
           <Route path="automacoes/:automationId" element={<AutomationDetailPage />} />
           <Route path="versoes/:versionId" element={<VersionPage />} />
+          {/* M4: execução local e supervisão */}
+          <Route path="agents" element={<AgentsPage />} />
+          <Route path="workers" element={<WorkersPage />} />
+          <Route path="supervisao" element={<AgentRunsPage />} />
+          <Route path="supervisao/:runId" element={<AgentRunPage />} />
           {/* F6a-1: administração, só leitura; o acesso de cada tela é decidido pela API (403 → estado próprio) */}
           <Route path="administracao/membros" element={<MembersPage />} />
           <Route path="administracao/clientes" element={<ClientsPage />} />

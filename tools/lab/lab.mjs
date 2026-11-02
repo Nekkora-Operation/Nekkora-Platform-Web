@@ -5,6 +5,11 @@
  *   node tools/lab/lab.mjs <id> caixa                     lista as mensagens da caixa de homologação (sem tokens)
  *   node tools/lab/lab.mjs <id> token <TIPO> <e-mail>     token da mensagem MAIS RECENTE do tipo para o destinatário
  *   node tools/lab/lab.mjs <id> compose <args...>         docker compose do projeto (ex.: ps, logs platform)
+ *   node tools/lab/lab.mjs <id> limites <org> <e-mail>   FIXTURE DECLARADA (só laboratório descartável): grava os limites da
+ *                                                         organização (010, recursos 1–5) — a ativação operacional não tem
+ *                                                         ferramenta no laboratório (bloqueio B2). O mesmo modelo do
+ *                                                         laboratório do Agent (ciclo.py, "fixture declarada 2"). Registrada
+ *                                                         em tools/lab/saidas/<id>/fixtures.txt
  *   node tools/lab/lab.mjs <id> limpar-redis              SÓ laboratório descartável: zera o Redis do projeto (limitadores
  *                                                         R9/R9b/R11 etc. e CSRF de pré-autenticação) entre rodadas.
  *                                                         Nunca é chamado pelos testes; cada uso fica registrado na
@@ -81,6 +86,24 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const t = latestToken(id, rest[0], rest[1]);
     if (!t) process.exit(1);
     process.stdout.write(t);
+  } else if (cmd === 'limites') {
+    const e = env(id);
+    if (!/^ensaio-frontlab-/.test(e.FRONT_AMBIENTE ?? '')) throw new Error('recusado: só em laboratório descartável ensaio-frontlab-*');
+    const [org, email] = rest;
+    if (!/^[0-9a-f-]{36}$/.test(org ?? '') || !/^[^\s@']+@[^\s@']+$/.test(email ?? '')) throw new Error('uso: limites <org uuid> <e-mail da identidade administradora>');
+    const user = `(SELECT u.user_id FROM users u JOIN identity_users iu ON iu.user_id = u.user_id JOIN identities i ON i.identity_id = iu.identity_id WHERE lower(i.email) = lower('${email}') AND u.organization_id = '${org}')`;
+    const rows = [1, 2, 3, 4, 5]
+      .map(
+        (c) =>
+          `INSERT INTO organization_resource_limit_revisions (organization_id, resource_code, revision_number, effective_from, limit_mode, limit_value, provisioned_by_user_id) ` +
+          `VALUES ('${org}', ${c}, (SELECT coalesce(max(revision_number), 0) + 1 FROM organization_resource_limit_revisions WHERE organization_id = '${org}' AND resource_code = ${c}), clock_timestamp(), 2, NULL, ${user});`,
+      )
+      .join('\n');
+    const sql = `BEGIN;\nSELECT set_config('nekkora.organization_id', '${org}', true);\n${rows}\nCOMMIT;\n`;
+    compose(id, ['exec', '-T', 'postgres', 'psql', '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-U', 'nekkora', '-d', 'nekkora'], { input: sql });
+    const { appendFileSync } = await import('node:fs');
+    appendFileSync(join(here, 'saidas', id, 'fixtures.txt'), `${new Date().toISOString()} limites 010 (recursos 1-5, modo 2) org=${org}\n`);
+    console.log('limites gravados (fixture declarada; registrada em fixtures.txt)');
   } else if (cmd === 'limpar-redis') {
     const e = env(id);
     if (!/^ensaio-frontlab-/.test(e.FRONT_AMBIENTE ?? '')) throw new Error('recusado: só em laboratório descartável ensaio-frontlab-*');
