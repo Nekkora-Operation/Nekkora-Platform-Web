@@ -13,6 +13,8 @@ import '../pages/HomePage.css';
 
 export interface IdentityAreaContext {
   restricted: boolean;
+  /** A identidade tem autenticação em duas etapas ativa (API 029: é opcional; sem ela, a senha confirma as ações sensíveis). */
+  mfaEnabled: boolean;
   /** 401 numa leitura da identidade: a sessão caiu (expirou, foi revogada ou encerrada). */
   expired: () => void;
   /** A sessão continua, mas a restrição pode ter mudado (ex.: fator trocado). */
@@ -31,7 +33,7 @@ export function useIdentityArea(): IdentityAreaContext {
 
 type State =
   | { kind: 'loading' }
-  | { kind: 'ready'; restricted: boolean }
+  | { kind: 'ready'; restricted: boolean; mfaEnabled: boolean }
   | { kind: 'anonymous' }
   | { kind: 'unavailable' }
   | { kind: 'error'; message: UserMessage };
@@ -42,6 +44,7 @@ function titleFor(pathname: string): string {
   if (pathname === identityPath.newOrganization) return 'Nova organização';
   if (pathname === identityPath.organizations) return 'Organizações';
   if (pathname === identityPath.replaceFactor) return 'Autenticador';
+  if (pathname === identityPath.activateMfa) return 'Autenticação em duas etapas';
   if (pathname === identityPath.account) return 'Segurança da conta';
   if (pathname === identityPath.linkAccount) return 'Vincular conta de organização';
   return 'Identidade Nekkora';
@@ -65,9 +68,9 @@ export function IdentityArea() {
 
   const load = useCallback(async () => {
     try {
-      const { restricted } = await identitySession();
+      const { restricted, mfaEnabled } = await identitySession();
       sessionMemory.markActive();
-      setState({ kind: 'ready', restricted });
+      setState({ kind: 'ready', restricted, mfaEnabled });
     } catch (e) {
       if (isApiError(e, 'unauthenticated')) setState({ kind: 'anonymous' });
       else if (e instanceof ApiError && e.status === 404) setState({ kind: 'unavailable' });
@@ -160,6 +163,7 @@ export function IdentityArea() {
 
   const context: IdentityAreaContext = {
     restricted: state.restricted,
+    mfaEnabled: state.mfaEnabled,
     expired,
     reload: load,
     signOut,

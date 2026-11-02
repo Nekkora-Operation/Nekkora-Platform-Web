@@ -35,7 +35,7 @@ function area(opts: { activation?: 'AGUARDANDO_ATIVACAO' | 'ATIVADA'; perms?: st
   const perms = opts.perms ?? [];
   api.on('GET', `/api/v1/o/${ORG}/me`, 'getMe', {
     status: 200,
-    body: { accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: ORG, organizationActivationState: opts.activation ?? 'ATIVADA' },
+    body: { accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: ORG, organizationActivationState: opts.activation ?? 'ATIVADA', stepUpMethod: 'totp' },
   });
   api.on('GET', `/api/v1/o/${ORG}/me/permissions`, 'getMyPermissions', {
     status: 200,
@@ -71,7 +71,7 @@ const execution = {
 };
 
 describe('entrada geral (área da identidade)', () => {
-  const session = () => api.on('GET', '/api/v1/me/session', 'identitySessionState', { status: 200, body: { restricted: false, csrfToken: 'id-csrf' } });
+  const session = () => api.on('GET', '/api/v1/me/session', 'identitySessionState', { status: 200, body: { restricted: false, csrfToken: 'id-csrf', mfaEnabled: true, stepUpMethod: 'totp' } });
 
   it('sem organização: orientação curta e "Criar minha primeira organização"', async () => {
     session();

@@ -42,7 +42,8 @@ export function LoginPage() {
     setError(null);
     try {
       const next = await flow.login(email.trim(), password);
-      navigate(next === 'mfa' ? flow.paths.mfa : flow.paths.mfaSetup);
+      if (next === 'signed-in') navigate(flow.home(false), { replace: true });
+      else navigate(next === 'mfa' ? flow.paths.mfa : flow.paths.mfaSetup);
     } catch (e) {
       // 401 (ou 400 de entrada inválida) = mensagem genérica: não revela se o e-mail existe nem o estado da conta
       if (isApiError(e, 'unauthenticated', 'invalid_request')) {

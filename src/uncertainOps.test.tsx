@@ -32,7 +32,7 @@ function session(org: string, membershipId: string) {
   csrfStore.setSession(org, 'ses');
   api.on('GET', `/api/v1/o/${org}/me`, 'getMe', {
     status: 200,
-    body: { accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: org, organizationActivationState: 'ATIVADA' },
+    body: { accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: org, organizationActivationState: 'ATIVADA', stepUpMethod: 'totp' },
   });
   api.on('GET', `/api/v1/o/${org}/me/permissions`, 'getMyPermissions', {
     status: 200,
