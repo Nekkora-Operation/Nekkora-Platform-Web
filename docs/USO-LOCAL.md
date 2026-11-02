@@ -191,8 +191,84 @@ projeto. Cada código do autenticador vale uma vez: para entrar de novo logo em 
 5. Pare e suba o ambiente (seção 7). Depois, entre de novo em <http://localhost:5173/entrar> com o mesmo e-mail, a mesma
    senha e o código do autenticador. A organização continua na lista.
 
-A ativação da organização, as concessões e a execução remota **não** fazem parte deste percurso. Uma organização nova
-fica em "Aguardando ativação".
+As concessões e a execução remota **não** fazem parte deste percurso. Uma organização nova fica em "Aguardando ativação"
+até a **operação** ativá-la (próxima seção).
+
+---
+
+## Ativação pelo operador (laboratório)
+
+**O que é da tela e o que é do operador.** Pela tela, você cria a organização e vê o estado dela: **Aguardando
+ativação** ou **Ativada**. Não existe botão de ativação, e isso é proposital. A ativação define a capacidade de execução:
+quantos Workers, quantas execuções simultâneas e quantas pendentes. Ela é um ato da **operação da Nekkora**, feito pela
+CLI real dos operadores (`ativar-organizacao`, migration 022). A ativação é auditada com o operador, o certificado, a conta
+responsável, o motivo e os limites. No laboratório, você faz o papel da operação no terminal, separado da sua conta
+pessoal: a sua conta **nunca** vira operadora.
+
+Enquanto a organização aguarda ativação, pessoas, workspaces e automações já podem ser preparados. Nenhum Worker pode
+ser registrado: o código de pareamento de um Agent com Worker novo é recusado. Depois da ativação, ele passa a ser emitido.
+
+### Pré-requisito (uma vez por ambiente)
+
+```bash
+cd ~/nekkora-local/Nekkora-Platform-Web
+bash tools/lab/local.sh subir                 # o ambiente precisa estar no ar
+bash tools/lab/local.sh operador preparar     # ~2 min na primeira vez (compila a imagem do job de operação)
+```
+
+O `preparar` monta, sobre o ambiente **já instalado e com os seus dados**, o mesmo desenho da homologação descartável
+da API (`ops/homologacao`):
+
+1. **Job de operação**: imagem de `api/e2e/Dockerfile.operacao`, construída da cópia da API. Ela tem a CLI real e a
+   ferramenta da homologação.
+2. **TLS no PostgreSQL**:
+   - certificado do servidor (nome `postgres`) emitido por uma CA do laboratório;
+   - CA **operacional** separada, a única que vale para certificados de operador.
+3. **Regras novas no `pg_hba`**, à frente das linhas atuais, que não mudam:
+   - os papéis `op_*` só entram por **certificado de cliente** (CN = papel), com TLS e só do job de operação;
+   - senha, socket local e qualquer outro endereço são recusados.
+   O container do PostgreSQL é recriado com o **mesmo volume de dados**; o script confere o volume antes e depois. A API,
+   o portal e o gateway reiniciam, e você precisa entrar de novo.
+4. **Operadores**: o papel do banco cria `op_lab_cad` e `op_lab_atv`, membros só de `nekkora_ops_mfa`.
+   - `op_lab_cad` é o primeiro operador: o cadastro operacional começa por ele (bootstrap da 016);
+   - `op_lab_atv` é cadastrado pelas funções da 016, com o certificado do `op_lab_cad`;
+   - só depois o `op_lab_atv` recebe `nekkora_org_activation`.
+5. **Conta responsável do operador**: uma conta própria do operador, `operador-…@operacao.frontlab.test`, com
+   organização própria.
+   - Ela é criada pelo fluxo real: cadastro, mensagem da caixa local, autenticador. Não é a sua conta.
+   - O código de vínculo é emitido na sessão dela, e a CLI vincula a conta (`vincular-conta`).
+
+**Segredos fora do Git.** Chaves das CAs, a senha do serviço `nekkora_ops_ca` e o estado da conta do operador (e-mail,
+senha e chave do autenticador) ficam só em `~/.nekkora/front-lab/frontlab-local/operador/` (0700). As credenciais de
+operador (PKCS#12 de **15 minutos**) ficam só no volume `nekkora-frontlab-local_operadores`. Cada ato emite uma
+credencial nova. A saída mostra só ids e resultados.
+
+**Limite declarado** (o mesmo da homologação descartável): o certificado do operador é emitido pela biblioteca real
+(`EmissorCertificados`), com a CA operacional do laboratório, mas a autenticação do operador no IdP é a do **IdP
+simulado** da ferramenta de homologação (`FerramentaHomologacao`/`IdpSimulado`, código de teste). Sem IdP real, não há
+outra forma, e por isso o operador local só funciona em ambiente `ensaio-*`. Os certificados das CAs do laboratório
+valem 1 ano.
+
+### Ativar uma organização
+
+1. Na tela, crie a organização e confira o selo **Aguardando ativação**.
+2. No terminal, veja o identificador dela e ative com limites **explícitos**: Workers, execuções simultâneas,
+   execuções pendentes e motivo.
+
+   ```bash
+   bash tools/lab/local.sh operador estado       # nome | organização | estado, e os últimos atos (somente leitura)
+   bash tools/lab/local.sh ativar <organização> 2 1 10 "laboratório: exploração local"
+   # organizacao=<id> resultado=OK evento=<id> motivo=- limites_aplicados=trabalhadores=2,simultaneas=1,pendentes=10,...
+   ```
+
+   Repetir dá `resultado=RECUSA motivo=JA_ATIVADA`, sem efeito. Para mudar a capacidade depois, use
+   `bash tools/lab/local.sh operador revisar <organização> <workers> <simultaneas> <pendentes> <motivo>`.
+3. Volte ao navegador e recarregue **Suas organizações**: o selo passa a **Ativada**. Na organização, **Agents → Parear
+   novo Agent** com um Worker novo agora gera o código de uso único. Antes da ativação, a tela dizia que a organização
+   ainda não tinha capacidade para registrar Workers.
+
+O `operador estado` mostra a auditoria de cada ato, OK ou RECUSA, com o operador e o motivo. O registro completo fica em
+`ops_activation.activation_events`: certificado, conta responsável e as 5 revisões de limite.
 
 ---
 
@@ -229,6 +305,7 @@ este ambiente:
 cd ~/nekkora-local/Nekkora-Platform-Web
 bash tools/lab/local.sh parar
 node tools/lab/lab.mjs frontlab-local compose down -v      # containers, rede e volumes DESTE projeto
+docker volume rm nekkora-frontlab-local_operadores 2>/dev/null   # só se o operador local foi preparado
 rm -rf ~/.nekkora/front-lab/frontlab-local tools/lab/saidas/frontlab-local
 ```
 

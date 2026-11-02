@@ -14,6 +14,13 @@
 #   bash tools/lab/local.sh link <e-mail>              mostra NESTE terminal o link da última confirmação de cadastro
 #   bash tools/lab/local.sh parar                      para tudo SEM apagar dados (docker compose stop)
 #
+# Operação da Nekkora no laboratório (NÃO é da tela; PLATFORM-LOCAL-002, tools/lab/operador.sh):
+#   bash tools/lab/local.sh operador preparar          uma vez: operador local da ativação (TLS do banco, CA operacional,
+#                                                      papéis op_lab_*, conta responsável do operador), dados preservados
+#   bash tools/lab/local.sh operador estado            organizações, estado de ativação e últimos atos (somente leitura)
+#   bash tools/lab/local.sh ativar <org> <workers> <simultaneas> <pendentes> <motivo...>
+#                                                      ativa a organização pela CLI real (ativar-organizacao, 022)
+#
 # Variáveis (opcionais): LOCAL_ID (padrão frontlab-local), LOCAL_PORTA (47443), LOCAL_PG_PORTA (47432),
 # LOCAL_REDE (10.251.80). As portas padrão ficam ABAIXO de 49152: no Windows, o Hyper-V reserva blocos da faixa dinâmica
 # (49152–65535), e essas reservas mudam a cada reinício (`netsh int ipv4 show excludedportrange protocol=tcp`).
@@ -32,6 +39,11 @@ carregar() {
     [ -f "$SEG/segredos.env" ] || falha "ambiente $ID não instalado (rode: bash tools/lab/local.sh instalar <copia da API>)"
     set -a; . "$SEG/segredos.env"; set +a
     COMPOSE=(docker compose -f "$LAB_API_REPO/api/e2e/compose.e2e.yml" -f "$AQUI/compose.front.yml")
+    # com o operador local preparado, o PostgreSQL é o da sobreposição (TLS e regras dos operadores)
+    if [ -f "$SEG/operador/preparado" ]; then
+        export OPERADOR_DIR="$(cygpath -m "$SEG/operador" 2>/dev/null || echo "$SEG/operador")"
+        COMPOSE+=(-f "$AQUI/compose.operador.yml")
+    fi
 }
 docker_ok() { docker info >/dev/null 2>&1 || falha "o Docker não responde: abra o Docker Desktop e espere 'Engine running'"; }
 base() { sed -n 's/^api=//p' "$SAIDA/laboratorio.txt"; }
@@ -83,13 +95,21 @@ link)
     [ -n "${1:-}" ] || falha "uso: local.sh link <e-mail>"
     node tools/lab/lab.mjs "$ID" link "$1"
     ;;
+operador)
+    docker_ok
+    bash "$AQUI/operador.sh" "$ID" "$@"
+    ;;
+ativar)
+    docker_ok
+    bash "$AQUI/operador.sh" "$ID" ativar "$@"
+    ;;
 parar)
     docker_ok; carregar
     "${COMPOSE[@]}" stop
     echo "parado. Dados preservados (banco no volume ${E2E_PROJETO}_pgdados). Para voltar: bash tools/lab/local.sh subir"
     ;;
 *)
-    sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,/^set -euo/{/^set -euo/!p}' "$0" | sed 's/^# \{0,1\}//'
     exit 2
     ;;
 esac

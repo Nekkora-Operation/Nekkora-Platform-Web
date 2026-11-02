@@ -8,8 +8,10 @@
  *                                                         terminal (uso local, PLATFORM-LOCAL-001; nunca gravado)
  *   node tools/lab/lab.mjs <id> compose <args...>         docker compose do projeto (ex.: ps, logs platform)
  *   node tools/lab/lab.mjs <id> limites <org> <e-mail>   FIXTURE DECLARADA (só laboratório descartável): grava os limites da
- *                                                         organização (010, recursos 1–5) — a ativação operacional não tem
- *                                                         ferramenta no laboratório (bloqueio B2). O mesmo modelo do
+ *                                                         organização (010, recursos 1–5), da época em que a ativação
+ *                                                         operacional não tinha ferramenta no laboratório (bloqueio B2).
+ *                                                         Hoje, preferir a ativação REAL (tools/lab/operador.sh,
+ *                                                         PLATFORM-LOCAL-002); esta fixture fica para as suítes antigas. O mesmo modelo do
  *                                                         laboratório do Agent (ciclo.py, "fixture declarada 2"). Registrada
  *                                                         em tools/lab/saidas/<id>/fixtures.txt
  *   node tools/lab/lab.mjs <id> cliente <org>            FIXTURE DECLARADA (FRONT-V1-002, só laboratório descartável): cria
