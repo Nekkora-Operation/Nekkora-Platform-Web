@@ -1,5 +1,7 @@
 .pw-shell__title { margin: 0; }
 .pw-shell__account { display: flex; align-items: center; gap: var(--nk-space-3); }
+/* nome da organização aberta: sempre visível, cortado com reticências em telas estreitas */
+.pw-shell__org { max-width: 18rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--nk-font-weight-semibold); color: var(--nk-color-text); }
 .pw-shell__name { font-size: var(--nk-font-size-sm); color: var(--nk-color-text-secondary); }
 .pw-shell__footer { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .pw-shell__footer-name { color: var(--nk-color-text); font-weight: var(--nk-font-weight-semibold); }
@@ -11,4 +13,5 @@
 
 @media (max-width: 640px) {
   .pw-shell__name { display: none; }
+  .pw-shell__org { max-width: 9rem; }
 }

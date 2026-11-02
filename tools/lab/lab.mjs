@@ -4,6 +4,8 @@
  *
  *   node tools/lab/lab.mjs <id> caixa                     lista as mensagens da caixa de homologação (sem tokens)
  *   node tools/lab/lab.mjs <id> token <TIPO> <e-mail>     token da mensagem MAIS RECENTE do tipo para o destinatário
+ *   node tools/lab/lab.mjs <id> link <e-mail>             link da última confirmação de cadastro do destinatário, só no
+ *                                                         terminal (uso local, PLATFORM-LOCAL-001; nunca gravado)
  *   node tools/lab/lab.mjs <id> compose <args...>         docker compose do projeto (ex.: ps, logs platform)
  *   node tools/lab/lab.mjs <id> limites <org> <e-mail>   FIXTURE DECLARADA (só laboratório descartável): grava os limites da
  *                                                         organização (010, recursos 1–5) — a ativação operacional não tem
@@ -131,6 +133,19 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const t = latestToken(id, rest[0], rest[1]);
     if (!t) process.exit(1);
     process.stdout.write(t);
+  } else if (cmd === 'link') {
+    // PLATFORM-LOCAL-001: o link da última confirmação de cadastro, montado como o da mensagem (rota do frontend +
+    // token no fragmento). Só vai para ESTE terminal; nunca é gravado.
+    const email = rest[0];
+    if (!/^[^\s@']+@[^\s@']+$/.test(email ?? '')) throw new Error('uso: link <e-mail>');
+    const token = latestToken(id, 'IDENTITY_SIGNUP_CONFIRMATION', email);
+    if (!token) {
+      console.error(`nenhuma confirmação de cadastro para ${email} na caixa (confira o e-mail digitado ou rode "caixa")`);
+      process.exit(1);
+    }
+    const info = readFileSync(join(here, 'saidas', id, 'laboratorio.txt'), 'utf8');
+    const origem = /^origem_publica=(.+)$/m.exec(info)[1].trim();
+    console.log(`${origem}/cadastro/confirmar#token=${token}`);
   } else if (cmd === 'limites') {
     const e = env(id);
     if (!/^ensaio-frontlab-/.test(e.FRONT_AMBIENTE ?? '')) throw new Error('recusado: só em laboratório descartável ensaio-frontlab-*');
