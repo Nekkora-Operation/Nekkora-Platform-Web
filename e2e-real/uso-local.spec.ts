@@ -111,7 +111,7 @@ test('passos 1 a 4: cadastro, confirmação pela caixa local, MFA, organização
   writeFileSync(estado, JSON.stringify({ email, senha, chave, nome, organizacao }), { mode: 0o600 });
 
   // 3. organização com confirmação de segurança (step-up)
-  await page.getByRole('button', { name: 'Criar organização' }).first().click();
+  await page.getByRole('button', { name: /^Criar (minha primeira )?organização$/ }).first().click();
   await expect(page).toHaveURL(/\/organizacoes\/nova$/);
   await page.getByLabel('Nome da organização').fill(organizacao);
   await page.getByRole('button', { name: 'Continuar' }).click();

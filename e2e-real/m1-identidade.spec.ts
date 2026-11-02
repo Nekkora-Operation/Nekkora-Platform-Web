@@ -13,7 +13,7 @@ test('J01 + J06: cadastro → confirmação pela caixa → entrada → primeiro 
   await expect(page.getByText('Você ainda não participa de nenhuma organização.')).toBeVisible();
 
   // criação com step-up
-  await page.getByRole('button', { name: 'Criar organização' }).first().click();
+  await page.getByRole('button', { name: /^Criar (minha primeira )?organização$/ }).first().click();
   await expect(page).toHaveURL(/\/organizacoes\/nova$/);
   const orgName = `Ensaio J01 ${Date.now().toString(36)}`;
   await page.getByLabel('Nome da organização').fill(orgName);

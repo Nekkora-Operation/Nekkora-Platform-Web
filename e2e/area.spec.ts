@@ -83,7 +83,8 @@ test('ORG_ADMIN: acesso global, P02 nunca chamada, período padrão indicado; ax
   await expect(rows(page)).toHaveCount(25);
   expect(urls.some((u) => u.includes('/me/permissions/workspaces'))).toBe(false);
   expect(urls.filter((u) => /\/me\/permissions$/.test(u))).toHaveLength(1);
-  const from = new URL(executionsRequests(urls)[0], BASE).searchParams.get('from');
+  // a página inicial também lê as execuções recentes (sem período); o período padrão é o da lista de execuções
+  const from = executionsRequests(urls).map((u) => new URL(u, BASE).searchParams.get('from')).find((f) => f !== null) ?? null;
   expect(from).toMatch(/Z$/);
   await audit(page, 'execucoes-desktop');
 });
@@ -98,7 +99,7 @@ test('acesso limitado (VIEWER em Atendimento) e conta sem workspaces', async ({ 
 
   const none = await account({ displayName: 'Sem Acesso E2E' });
   await enter(page, none, 'Sem Acesso E2E');
-  await expect(page.getByText('Nenhum workspace visível para você.')).toBeVisible();
+  await expect(page.getByText('Nenhum workspace visível para você.', { exact: true })).toBeVisible();
   await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Execuções' }).click();
   await expect(page.getByText('Você ainda não tem acesso a nenhum workspace.')).toBeVisible();
 });
