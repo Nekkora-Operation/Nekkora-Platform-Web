@@ -50,7 +50,7 @@ beforeEach(() => {
   api = new RouteApi().install();
   api.on('GET', `/api/v1/o/${ORG}/me`, 'getMe', {
     status: 200,
-    body: { accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: ORG, organizationActivationState: 'ATIVADA' },
+    body: { accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: ORG, organizationActivationState: 'ATIVADA', stepUpMethod: 'totp' },
   });
   api.on('GET', `/api/v1/o/${ORG}/me/permissions`, 'getMyPermissions', {
     status: 200,

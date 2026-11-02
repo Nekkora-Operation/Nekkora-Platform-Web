@@ -9,6 +9,7 @@ import { identityPath } from '../auth/flow';
 import { OperationScopeProvider, type OperationScopeValue } from '../components/operationScope';
 import { setPersistentScope } from '../admin/writeStore';
 import { orgPath, shortOrganizationId } from '../auth/organization';
+import { VersionFooter } from '../components/VersionInfo';
 import { useSession } from './session';
 import { useVisibleWorkspaces, type VisibleWorkspaces } from './useVisibleWorkspaces';
 import './InternalShell.css';
@@ -16,6 +17,8 @@ import './InternalShell.css';
 export type PermissionsState = { status: 'loading' } | { status: 'ready'; data: MyPermissions } | { status: 'error' };
 
 export interface InternalArea {
+  /** Nome da organização aberta: `undefined` enquanto carrega; `null` se não foi possível obtê-lo. */
+  organizationName: string | null | undefined;
   permissions: PermissionsState;
   workspaces: VisibleWorkspaces;
   reloadWorkspaces: () => void;
@@ -36,7 +39,7 @@ export function useInternalArea(): InternalArea {
 const MAIN_ID = 'conteudo';
 
 /** Seção da área interna a que o endereço pertence (menu ativo e título do topo). */
-function sectionOf(pathname: string, org: string): 'inicio' | 'execucoes' | 'workspaces' | 'membros' | 'clientes' | 'concessoes' | 'convites' | 'auditoria' | 'agents' | 'workers' | 'supervisao' | null {
+function sectionOf(pathname: string, org: string): 'inicio' | 'conta' | 'execucoes' | 'workspaces' | 'membros' | 'clientes' | 'concessoes' | 'convites' | 'auditoria' | 'agents' | 'workers' | 'supervisao' | null {
   if (pathname === orgPath.home(org)) return 'inicio';
   const rest = pathname.slice(orgPath.home(org).length);
   if (rest === '/execucoes' || rest.startsWith('/execucoes/')) return 'execucoes';
@@ -49,6 +52,7 @@ function sectionOf(pathname: string, org: string): 'inicio' | 'execucoes' | 'wor
   if (rest === '/administracao/auditoria') return 'auditoria';
   if (rest === '/administracao/clientes') return 'clientes';
   if (rest === '/administracao/concessoes') return 'concessoes';
+  if (rest === '/conta') return 'conta';
   return null;
 }
 
@@ -71,6 +75,7 @@ function titleFor(pathname: string, org: string): string {
   if (rest === '/administracao/auditoria') return 'Auditoria de acessos';
   if (rest === '/administracao/clientes') return 'Clientes';
   if (rest === '/administracao/concessoes') return 'Concessões';
+  if (rest === '/conta') return 'Minha conta';
   return 'Início';
 }
 
@@ -88,15 +93,17 @@ export function InternalShell() {
   const { org, me, expired, signOut, signingOut } = useSession();
   // Nome da organização aberta (PLATFORM-LOCAL-001): a sessão de organização não traz o nome (D1/D7), mas a lista da
   // identidade traz. Sem sessão de identidade (entrada antiga por organização) ou em erro, fica o identificador abreviado.
-  const [orgName, setOrgName] = useState<string | undefined>(undefined);
+  const [orgName, setOrgName] = useState<string | null | undefined>(undefined);
   useEffect(() => {
     let alive = true;
     setOrgName(undefined);
     myOrganizations()
       .then((list) => {
-        if (alive) setOrgName(list.organizations.find((o) => o.organizationId === org)?.name);
+        if (alive) setOrgName(list.organizations.find((o) => o.organizationId === org)?.name ?? null);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (alive) setOrgName(null);
+      });
     return () => {
       alive = false;
     };
@@ -172,6 +179,11 @@ export function InternalShell() {
           : []),
       ],
     },
+    {
+      id: 'conta',
+      label: 'Conta',
+      items: [{ id: 'minha-conta', label: 'Minha conta', href: orgPath.account(org), icon: 'user', active: section === 'conta' }],
+    },
   ];
   // Administração (F6a-1): itens pela P01 — membros com org.manage; clientes com org.manage OU external_access.manage;
   // concessões com external_access.manage. Sem P01 (carregando ou em erro) o grupo não aparece; o endereço direto
@@ -200,7 +212,7 @@ export function InternalShell() {
       : null;
 
   return (
-    <InternalContext.Provider value={{ permissions, workspaces, reloadWorkspaces, loadMoreWorkspaces, restartWorkspaces }}>
+    <InternalContext.Provider value={{ organizationName: orgName, permissions, workspaces, reloadWorkspaces, loadMoreWorkspaces, restartWorkspaces }}>
       <OperationScopeProvider value={operationScope}>
       <AppShell
         className="pw-shell"
@@ -222,7 +234,9 @@ export function InternalShell() {
             <Link as={RouterLink} to={identityPath.organizations} size="sm" variant="subtle">
               Trocar organização
             </Link>
-            <span className="pw-shell__name">{me.displayName}</span>
+            <Link as={RouterLink} to={orgPath.account(org)} size="sm" variant="subtle" className="pw-shell__name" aria-label={`Minha conta (${me.displayName})`}>
+              {me.displayName}
+            </Link>
             <Button variant="ghost" size="sm" leftIcon="arrow-right" loading={signingOut} onClick={() => void signOut()}>
               Sair
             </Button>
@@ -231,11 +245,11 @@ export function InternalShell() {
         sidebarFooter={
           <div className="pw-shell__footer">
             <span className="pw-shell__footer-name">{me.displayName}</span>
-            <span className="pw-shell__footer-email">{me.email}</span>
             <span className="pw-shell__footer-org" title={org}>
               Organização {orgLabel}
             </span>
             {access && <span className="pw-shell__footer-access">{access}</span>}
+            <VersionFooter />
           </div>
         }
       >

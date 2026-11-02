@@ -8,6 +8,7 @@
  * __Host-nekkora_session) nasce da troca e serve as rotas /api/v1/o/{org}/…. Os tokens CSRF ficam só em memória.
  */
 import { csrfStore } from './csrf';
+import { stepUpMethods, type StepUpMethod } from './stepUpMethod';
 import { preAuthPost } from './auth';
 import { ApiError, isApiError, request, type RequestOptions } from './http';
 import { validated, validatedAs, type OperationId } from './validate';
@@ -18,8 +19,12 @@ export type IdentityOrganizationList = S['IdentityOrganizationList'];
 export type IdentityOrganization = IdentityOrganizationList['organizations'][number];
 export type OrganizationActivationState = S['OrganizationActivationState'];
 
-/** Próximo passo depois da senha: a entrada geral sempre exige o segundo fator. */
-export type IdentityNextStep = 'mfa' | 'mfa-setup';
+/**
+ * Próximo passo depois da senha. `signed-in` (API 029): a identidade nunca ativou a autenticação em duas etapas e a
+ * sessão já foi emitida, sem QR. `mfa`: o código do autenticador. `mfa-setup`: só para quem já teve fator e o perdeu
+ * (reset operacional) — o cadastro continua obrigatório no login.
+ */
+export type IdentityNextStep = 'mfa' | 'mfa-setup' | 'signed-in';
 
 async function send<T>(operationId: OperationId, path: string, options: RequestOptions = {}): Promise<T> {
   const { status, data } = await request<unknown>(path, options);
@@ -54,6 +59,11 @@ export async function resendSignupConfirmation(email: string): Promise<void> {
 export async function identityLogin(email: string, password: string): Promise<IdentityNextStep> {
   const data = await preAuth<S['LoginResponse']>('identityLogin', '/api/v1/auth/login', { email, password });
   csrfStore.setPre(undefined);
+  if (data.status === 'authenticated') {
+    csrfStore.beginIdentitySession(data.csrfToken);
+    stepUpMethods.set(undefined, 'password');
+    return 'signed-in';
+  }
   csrfStore.setIdentityChallenge(data.csrfToken);
   return data.status === 'mfa_required' ? 'mfa' : 'mfa-setup';
 }
@@ -65,11 +75,21 @@ function challengeCsrf(): string {
   return t;
 }
 
-/** Sessão de identidade atual: restrita ou não, e o CSRF dela (recarregar a página não perde a sessão). */
-export async function identitySession(): Promise<{ restricted: boolean }> {
+/** Estado da sessão de identidade, como a API informou. */
+export interface IdentitySessionInfo {
+  restricted: boolean;
+  /** A identidade tem autenticação em duas etapas ativa. */
+  mfaEnabled: boolean;
+  /** Como esta sessão confirma ações sensíveis: código do autenticador ou senha (só sem autenticação em duas etapas). */
+  stepUpMethod: StepUpMethod;
+}
+
+/** Sessão de identidade atual: restrita ou não, o fator e o CSRF dela (recarregar a página não perde a sessão). */
+export async function identitySession(): Promise<IdentitySessionInfo> {
   const data = await send<S['IdentitySessionState']>('identitySessionState', '/api/v1/me/session');
   csrfStore.setIdentitySession(data.csrfToken);
-  return { restricted: data.restricted };
+  stepUpMethods.set(undefined, data.stepUpMethod);
+  return { restricted: data.restricted, mfaEnabled: data.mfaEnabled, stepUpMethod: stepUpMethods.get() };
 }
 
 export async function identityCsrf(): Promise<string> {
@@ -135,14 +155,50 @@ export async function identityLogout(): Promise<void> {
     await send('identityLogout', '/api/v1/auth/logout', { method: 'POST', csrf });
   } finally {
     csrfStore.clear();
+    stepUpMethods.clear();
   }
 }
 
-/** Step-up da sessão de identidade: TOTP do fator da identidade, vale 5 min só nesta sessão. Só o 204 confirma. */
-export async function identityStepUp(code: string): Promise<void> {
+/**
+ * Step-up da sessão de identidade, vale 5 min só nesta sessão. Só o 204 confirma. Com autenticação em duas etapas: o
+ * TOTP. Sem ela (API 029, `stepUpMethod: password`): o mesmo argumento é a SENHA, reconfirmada em
+ * POST /api/v1/auth/password-confirm — a API recusa a senha de quem tem fator.
+ */
+export async function identityStepUp(secret: string): Promise<void> {
   const csrf = await identityCsrf();
-  const res = await request('/api/v1/auth/step-up', { method: 'POST', body: { code }, csrf });
+  const res =
+    stepUpMethods.get() === 'password'
+      ? await request('/api/v1/auth/password-confirm', { method: 'POST', body: { password: secret }, csrf })
+      : await request('/api/v1/auth/step-up', { method: 'POST', body: { code: secret }, csrf });
   if (res.status !== 204) throw new ApiError('unexpected', res.status);
+}
+
+/**
+ * Ativação voluntária da autenticação em duas etapas (API 029), passo 1: depois da senha reconfirmada (identityStepUp
+ * com a senha), o fator pendente e a URI otpauth. O segredo chega uma vez.
+ */
+export async function startMfaActivation(): Promise<string> {
+  const data = await send<S['OtpauthUri']>('identityMfaActivationStart', '/api/v1/auth/mfa/activate/start', { method: 'POST', csrf: await identityCsrf() });
+  if (!data.otpauthUri.startsWith('otpauth://')) throw new ApiError('unexpected', 200);
+  return data.otpauthUri;
+}
+
+/**
+ * Passo 2: o código do autenticador novo. A API revoga TODAS as sessões (inclusive esta e as de organização nascidas
+ * dela) e emite a sessão nova com o fator, no cookie; aqui a memória passa a usar o CSRF novo. Códigos de recuperação:
+ * uma única vez.
+ */
+export async function confirmMfaActivation(code: string): Promise<string[]> {
+  const data = await send<S['MfaActivated']>('identityMfaActivationConfirm', '/api/v1/auth/mfa/activate/confirm', {
+    method: 'POST',
+    body: { code },
+    csrf: await identityCsrf(),
+  });
+  csrfStore.clear();
+  csrfStore.beginIdentitySession(data.csrfToken);
+  stepUpMethods.clear();
+  stepUpMethods.set(undefined, 'totp');
+  return data.recoveryCodes;
 }
 
 /** Troca de senha (step-up recente). Senha atual errada, sem step-up ou sessão restrita: 403. Demais sessões revogadas. */

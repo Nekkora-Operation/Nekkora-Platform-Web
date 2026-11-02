@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Alert, CodeInput, ConfirmDialog, RadioGroup, Stack, Text } from 'nekkora-lib';
+import { Alert, CodeInput, ConfirmDialog, Input, RadioGroup, Stack, Text } from 'nekkora-lib';
+import { stepUpMethods } from '../../api/stepUpMethod';
 import { resetUserMfa } from '../../api/admin';
 import { stepUp } from '../../api/auth';
 import { isApiError } from '../../api/http';
@@ -117,8 +118,11 @@ export function MfaResetDialog({
   const t = dialog?.target;
   const name = t?.displayName ?? '';
 
+  // API 029: sessão sem autenticação em duas etapas confirma com a senha (stepUp chama a rota da senha)
+  const byPassword = stepUpMethods.get(org) === 'password';
+  const secretReady = byPassword ? code.length > 0 : code.length === TOTP_DIGITS;
   const confirm = () => {
-    if (!dialog || !reason || code.length !== TOTP_DIGITS) return;
+    if (!dialog || !reason || !secretReady) return;
     const { target } = dialog;
     const typed = code;
     const chosen = reason;
@@ -152,7 +156,7 @@ export function MfaResetDialog({
       confirmLabel={dialog?.retry ? 'Redefinir de novo' : 'Redefinir MFA'}
       tone="danger"
       busy={busy}
-      confirmDisabled={!reason || code.length !== TOTP_DIGITS || mine?.phase === 'uncertain' || mine?.phase === 'done'}
+      confirmDisabled={!reason || !secretReady || mine?.phase === 'uncertain' || mine?.phase === 'done'}
       error={error}
       onConfirm={confirm}
       onCancel={() => {
@@ -198,14 +202,27 @@ export function MfaResetDialog({
             required
             disabled={busy}
           />
-          <CodeInput
-            label="Código do seu aplicativo autenticador"
-            hint="Confirma a sua identidade imediatamente antes da redefinição. Códigos de recuperação não são aceitos aqui."
-            length={TOTP_DIGITS}
-            value={code}
-            onValueChange={setCode}
-            disabled={busy}
-          />
+          {byPassword ? (
+            <Input
+              label="Sua senha"
+              type="password"
+              autoComplete="current-password"
+              fullWidth
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              disabled={busy}
+              hint="A sua conta não usa autenticação em duas etapas: a senha confirma a sua identidade imediatamente antes da redefinição."
+            />
+          ) : (
+            <CodeInput
+              label="Código do seu aplicativo autenticador"
+              hint="Confirma a sua identidade imediatamente antes da redefinição. Códigos de recuperação não são aceitos aqui."
+              length={TOTP_DIGITS}
+              value={code}
+              onValueChange={setCode}
+              disabled={busy}
+            />
+          )}
         </Stack>
       )}
     </ConfirmDialog>

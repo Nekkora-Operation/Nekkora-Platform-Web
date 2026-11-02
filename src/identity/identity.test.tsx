@@ -27,7 +27,7 @@ beforeEach(() => {
 });
 
 const session = (restricted = false) =>
-  api.on('GET', '/api/v1/me/session', 'identitySessionState', { status: 200, body: { restricted, csrfToken: 'id-csrf' } });
+  api.on('GET', '/api/v1/me/session', 'identitySessionState', { status: 200, body: { restricted, csrfToken: 'id-csrf', mfaEnabled: true, stepUpMethod: 'totp' } });
 
 describe('cadastro', () => {
   it('cadastro desligado (404) aparece como indisponível, nunca como criação nem erro de credencial', async () => {
@@ -283,7 +283,7 @@ describe('sessão de organização nascida da identidade', () => {
   const area = () => {
     api.on('GET', `/api/v1/o/${ORG_A}/me`, 'getMe', {
       status: 200,
-      body: { accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: ORG_A, organizationActivationState: 'AGUARDANDO_ATIVACAO' },
+      body: { accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: ORG_A, organizationActivationState: 'AGUARDANDO_ATIVACAO', stepUpMethod: 'totp' },
     });
     api.on('GET', `/api/v1/o/${ORG_A}/me/permissions`, 'getMyPermissions', {
       status: 200,

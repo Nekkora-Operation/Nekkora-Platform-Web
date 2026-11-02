@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { Authenticator } from '../mock/totp';
-import { LAB, readAuthenticator, readRecoveryCodes } from './support/lab';
+import { activateMfa, LAB, readAuthenticator, readRecoveryCodes } from './support/lab';
 
 /**
  * PLATFORM-LOCAL-001 — o percurso do guia docs/USO-LOCAL.md, pela interface, com a API real e a caixa local.
@@ -92,26 +92,33 @@ test('passos 1 a 4: cadastro, confirmação pela caixa local, MFA, organização
   await page.getByRole('textbox', { name: /E-mail/ }).fill(email);
   await page.getByLabel(/^Senha/).fill(senha);
   await page.getByLabel(/^Senha/).press('Enter');
-  await expect(page).toHaveURL(/\/entrar\/configurar-autenticador$/);
-  await page.getByRole('button', { name: 'Configurar autenticador' }).click();
-  await expect(page.getByRole('heading', { name: 'Configure o autenticador' })).toBeVisible();
-  await expect(page.getByRole('img', { name: /QR/i }).first()).toBeVisible();
-  const auth = await readAuthenticator(page);
-  await page.getByRole('button', { name: 'Já adicionei a conta' }).click();
-  await page.getByLabel(/Código do autenticador/).fill(await auth.next());
-  await expect(page.getByRole('heading', { name: 'Guarde seus códigos de recuperação' })).toBeVisible();
-  await readRecoveryCodes(page);
-  await page.getByLabel('Guardei meus códigos de recuperação em um local seguro.').check();
-  await page.getByRole('button', { name: 'Continuar' }).click();
-  await expect(page.getByRole('heading', { name: 'Tudo pronto' })).toBeVisible();
-  await page.getByRole('button', { name: 'Continuar' }).click();
-  await expect(page).toHaveURL(/\/organizacoes$/);
+  // API ate a 028: o primeiro login exige o autenticador. API 029+: entra so com a senha e o autenticador e ATIVADO pela
+  // pessoa em Seguranca da conta (este passo ativa, para o passo 5 conferir a entrada com MFA depois de reiniciar)
+  await page.waitForURL(/\/(entrar\/configurar-autenticador|organizacoes)$/);
+  let auth: Authenticator;
+  if (/\/organizacoes$/.test(page.url())) {
+    ({ auth } = await activateMfa(page, senha));
+  } else {
+    await page.getByRole('button', { name: 'Configurar autenticador' }).click();
+    await expect(page.getByRole('heading', { name: 'Configure o autenticador' })).toBeVisible();
+    await expect(page.getByRole('img', { name: /QR/i }).first()).toBeVisible();
+    auth = await readAuthenticator(page);
+    await page.getByRole('button', { name: 'Já adicionei a conta' }).click();
+    await page.getByLabel(/Código do autenticador/).fill(await auth.next());
+    await expect(page.getByRole('heading', { name: 'Guarde seus códigos de recuperação' })).toBeVisible();
+    await readRecoveryCodes(page);
+    await page.getByLabel('Guardei meus códigos de recuperação em um local seguro.').check();
+    await page.getByRole('button', { name: 'Continuar' }).click();
+    await expect(page.getByRole('heading', { name: 'Tudo pronto' })).toBeVisible();
+    await page.getByRole('button', { name: 'Continuar' }).click();
+    await expect(page).toHaveURL(/\/organizacoes$/);
+  }
   await expect(page.getByText('Você ainda não participa de nenhuma organização.')).toBeVisible();
   const chave = (auth as unknown as { secret: string }).secret; // a chave manual exibida na tela, só no arquivo de estado
   writeFileSync(estado, JSON.stringify({ email, senha, chave, nome, organizacao }), { mode: 0o600 });
 
   // 3. organização com confirmação de segurança (step-up)
-  await page.getByRole('button', { name: 'Criar organização' }).first().click();
+  await page.getByRole('button', { name: /^Criar (minha primeira )?organização$/ }).first().click();
   await expect(page).toHaveURL(/\/organizacoes\/nova$/);
   await page.getByLabel('Nome da organização').fill(organizacao);
   await page.getByRole('button', { name: 'Continuar' }).click();

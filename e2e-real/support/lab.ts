@@ -77,7 +77,13 @@ export async function signUpAndEnroll(page: Page, journey: string, email = synth
   await page.getByRole('button', { name: 'Entrar' }).click();
 
   await identitySignIn(page, email);
-  await expect(page).toHaveURL(/\/entrar\/configurar-autenticador$/);
+  // API ate a 028: o primeiro login exige o cadastro do autenticador. API 029+ (segundo fator opcional): o login ja entra
+  // e o autenticador e ATIVADO pela pessoa em Seguranca da conta, com a senha reconfirmada
+  await page.waitForURL(/\/(entrar\/configurar-autenticador|organizacoes)$/);
+  if (/\/organizacoes$/.test(page.url())) {
+    const { auth, recoveryCodes } = await activateMfa(page, PASSWORD);
+    return { email, password: PASSWORD, name, auth, recoveryCodes };
+  }
   await page.getByRole('button', { name: 'Configurar autenticador' }).click();
   await expect(page.getByRole('heading', { name: 'Configure o autenticador' })).toBeVisible();
   const auth = await readAuthenticator(page);
@@ -91,6 +97,61 @@ export async function signUpAndEnroll(page: Page, journey: string, email = synth
   await page.getByRole('button', { name: 'Continuar' }).click();
   await expect(page).toHaveURL(/\/organizacoes$/);
   return { email, password: PASSWORD, name, auth, recoveryCodes };
+}
+
+/** Pessoa sem autenticação em duas etapas (API 029): só e-mail, senha e nome. */
+export interface PersonWithoutMfa {
+  email: string;
+  password: string;
+  name: string;
+}
+
+/** Cadastro pelo navegador SEM ativar a autenticação em duas etapas (API 029): termina nas organizações. */
+export async function signUpWithoutMfa(page: Page, journey: string, email = syntheticEmail(journey)): Promise<PersonWithoutMfa> {
+  const name = `Pessoa ${journey.toUpperCase()}`;
+  await page.goto('/cadastro');
+  await page.getByRole('textbox', { name: /E-mail/ }).fill(email);
+  await page.getByRole('button', { name: 'Continuar' }).click();
+  await expect(page.getByRole('heading', { name: 'Confira seu e-mail' })).toBeVisible();
+  const token = await waitToken('IDENTITY_SIGNUP_CONFIRMATION', email);
+  await page.goto(`/cadastro/confirmar#token=${token}`);
+  await page.getByLabel(/^Nome\*?$/).fill(name);
+  await page.getByLabel(/^Senha\*?$/).fill(PASSWORD);
+  await page.getByLabel(/^Confirmar senha\*?$/).fill(PASSWORD);
+  await page.getByRole('button', { name: 'Concluir cadastro' }).click();
+  await expect(page.getByRole('heading', { name: 'Cadastro concluído' })).toBeVisible();
+  await page.getByRole('button', { name: 'Entrar' }).click();
+  await identitySignIn(page, email);
+  await expect(page).toHaveURL(/\/organizacoes$/);
+  return { email, password: PASSWORD, name };
+}
+
+/** Ativação voluntária pela tela (API 029), a partir de qualquer página da identidade: senha, QR, código, códigos. */
+export async function activateMfa(page: Page, password: string): Promise<{ auth: Authenticator; recoveryCodes: string[] }> {
+  await page.goto('/conta');
+  await page.getByRole('button', { name: 'Ativar autenticação em duas etapas' }).click();
+  await page.getByRole('button', { name: 'Começar' }).click();
+  await confirmPassword(page, password, 'Continuar');
+  await expect(page.getByLabel('QR Code para configurar o aplicativo autenticador')).toBeVisible();
+  const auth = await readAuthenticator(page);
+  await page.getByRole('button', { name: 'Já adicionei a conta' }).click();
+  await page.getByLabel(/Código do aplicativo autenticador/).fill(await auth.next());
+  await expect(page.getByText('Guarde estes códigos agora.')).toBeVisible();
+  const recoveryCodes = await readRecoveryCodes(page);
+  await page.getByLabel('Guardei meus códigos de recuperação em um local seguro.').check();
+  await page.getByRole('button', { name: 'Concluir' }).click();
+  await expect(page.getByText('Autenticação em duas etapas ativada.')).toBeVisible();
+  await page.getByRole('button', { name: 'Continuar' }).click();
+  await expect(page).toHaveURL(/\/organizacoes$/);
+  return { auth, recoveryCodes };
+}
+
+/** Confirma um diálogo de ação sensível com a SENHA (sessão sem autenticação em duas etapas, API 029). */
+export async function confirmPassword(page: Page, password: string, confirmLabel: string) {
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog.getByLabel('Código do seu aplicativo autenticador')).toHaveCount(0);
+  await dialog.getByLabel(/^Sua senha/).fill(password);
+  await dialog.getByRole('button', { name: confirmLabel }).click();
 }
 
 /** Entrada completa com TOTP (pessoa já cadastrada). */

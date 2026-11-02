@@ -5,7 +5,7 @@ import { AcceptInvitationPage } from '../identity/AcceptInvitationPage';
 import { AccessEventsPage } from '../pages/access/AccessEventsPage';
 import { InvitationsPage } from '../pages/access/InvitationsPage';
 import { MemberAccessPage } from '../pages/access/MemberAccessPage';
-import { AccountPage, ReplaceFactorPage } from '../identity/AccountPages';
+import { AccountPage, ActivateMfaPage, ReplaceFactorPage } from '../identity/AccountPages';
 import { CreateOrganizationPage } from '../identity/CreateOrganizationPage';
 import { OrganizationEntryPage, RecoverPasswordRoute, RootPage } from '../identity/EntryPages';
 import { IdentityArea } from '../identity/IdentityArea';
@@ -26,7 +26,7 @@ import { VersionPage } from '../pages/product/VersionPage';
 import { AgentsPage } from '../pages/agents/AgentsPage';
 import { WorkersPage } from '../pages/agents/WorkersPage';
 import { AgentRunPage, AgentRunsPage } from '../pages/agents/supervision';
-import { InternalHome } from '../pages/HomePage';
+import { InternalHome, OrgAccountPage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { MfaPage } from '../pages/MfaPage';
 import { MfaSetupPage } from '../pages/MfaSetupPage';
@@ -69,12 +69,14 @@ export function AppRoutes() {
         <Route path="/organizacoes/nova" element={<CreateOrganizationPage />} />
         <Route path="/conta" element={<AccountPage />} />
         <Route path="/conta/fator" element={<ReplaceFactorPage />} />
+        <Route path="/conta/ativar-autenticacao" element={<ActivateMfaPage />} />
         <Route path="/vincular-conta" element={<LinkAccountPage />} />
       </Route>
       <Route path="/o/:orgId" element={<OrganizationRoute />}>
         {/* área autenticada: o portão carrega /me e só monta as rotas internas para conta interna */}
         <Route element={<AuthenticatedArea />}>
           <Route index element={<InternalHome />} />
+          <Route path="conta" element={<OrgAccountPage />} />
           <Route path="execucoes" element={<ExecutionsPage />} />
           <Route path="execucoes/:executionId" element={<ExecutionDetailPage />} />
           <Route path="workspaces" element={<WorkspacesPage />} />

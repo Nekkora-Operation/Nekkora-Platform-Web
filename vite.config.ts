@@ -1,4 +1,5 @@
 /// <reference types="vitest/config" />
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -13,7 +14,34 @@ const api = process.env.NEKKORA_API_URL;
 const ca = process.env.NEKKORA_API_CA ? readFileSync(process.env.NEKKORA_API_CA, 'utf8') : undefined;
 const proxy = api ? { '/api': ca ? { target: api, secure: true, ca } : { target: api, secure: false } } : undefined;
 
+// Versão em execução (PLATFORM-LOCAL-002): commit e branch do Web lidos do git no início do Vite/build, a Nekkora-lib
+// fixada (lib.lock.json) e o commit da API informado pelo runner local (NEKKORA_API_COMMIT). Só identificação para a
+// pessoa saber o que está testando; nada disso decide acesso. Sem git (pacote copiado): "desconhecida".
+function git(args: string[]): string | null {
+  try {
+    return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null;
+  } catch {
+    return null;
+  }
+}
+function libVersion(): string | null {
+  try {
+    const l = JSON.parse(readFileSync('lib.lock.json', 'utf8')) as { version?: string; commit?: string };
+    return l.version ? `${l.version} (${(l.commit ?? '').slice(0, 7)})` : null;
+  } catch {
+    return null;
+  }
+}
+const buildInfo = {
+  webCommit: process.env.NEKKORA_WEB_COMMIT ?? git(['rev-parse', '--short=7', 'HEAD']),
+  webBranch: process.env.NEKKORA_WEB_BRANCH ?? git(['rev-parse', '--abbrev-ref', 'HEAD']),
+  webDirty: process.env.NEKKORA_WEB_COMMIT ? false : (git(['status', '--porcelain', '--untracked-files=no']) ?? '') !== '',
+  apiCommit: process.env.NEKKORA_API_COMMIT ? process.env.NEKKORA_API_COMMIT.slice(0, 7) : null,
+  lib: libVersion(),
+};
+
 export default defineConfig({
+  define: { __NEKKORA_BUILD__: JSON.stringify(buildInfo) },
   plugins: [react(), ...(api ? [] : [nekkoraMockApi()])],
   resolve: {
     // Uma única cópia do React (a nekkora-lib declara react/react-dom como peer).

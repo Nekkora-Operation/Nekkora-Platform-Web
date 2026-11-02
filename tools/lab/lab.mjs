@@ -8,8 +8,10 @@
  *                                                         terminal (uso local, PLATFORM-LOCAL-001; nunca gravado)
  *   node tools/lab/lab.mjs <id> compose <args...>         docker compose do projeto (ex.: ps, logs platform)
  *   node tools/lab/lab.mjs <id> limites <org> <e-mail>   FIXTURE DECLARADA (só laboratório descartável): grava os limites da
- *                                                         organização (010, recursos 1–5) — a ativação operacional não tem
- *                                                         ferramenta no laboratório (bloqueio B2). O mesmo modelo do
+ *                                                         organização (010, recursos 1–5), da época em que a ativação
+ *                                                         operacional não tinha ferramenta no laboratório (bloqueio B2).
+ *                                                         Hoje, preferir a ativação REAL (tools/lab/operador.sh,
+ *                                                         PLATFORM-LOCAL-002); esta fixture fica para as suítes antigas. O mesmo modelo do
  *                                                         laboratório do Agent (ciclo.py, "fixture declarada 2"). Registrada
  *                                                         em tools/lab/saidas/<id>/fixtures.txt
  *   node tools/lab/lab.mjs <id> cliente <org>            FIXTURE DECLARADA (FRONT-V1-002, só laboratório descartável): cria
@@ -106,7 +108,7 @@ export function mailbox(id) {
     .map((line) => {
       const [arquivo, json] = line.split('\t');
       const m = JSON.parse(json);
-      return { arquivo, tipo: m.tipo, destinatario: m.destinatario, token: m.token ?? null };
+      return { arquivo, tipo: m.tipo, destinatario: m.destinatario, organizacao: m.organizacao ?? null, token: m.token ?? null };
     });
 }
 
@@ -146,6 +148,19 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const info = readFileSync(join(here, 'saidas', id, 'laboratorio.txt'), 'utf8');
     const origem = /^origem_publica=(.+)$/m.exec(info)[1].trim();
     console.log(`${origem}/cadastro/confirmar#token=${token}`);
+  } else if (cmd === 'convite') {
+    // PLATFORM-LOCAL-002: o link do último convite para o e-mail, montado como o da mensagem (rota do frontend da
+    // organização + token no fragmento). Só vai para ESTE terminal; nunca é gravado.
+    const email = rest[0];
+    if (!/^[^\s@']+@[^\s@']+$/.test(email ?? '')) throw new Error('uso: convite <e-mail>');
+    const m = mailbox(id).filter((x) => x.tipo === 'ORG_INVITATION' && x.destinatario?.toLowerCase() === email.toLowerCase()).at(-1);
+    if (!m?.token || !/^[0-9a-f-]{36}$/.test(m.organizacao ?? '')) {
+      console.error(`nenhum convite para ${email} na caixa (confira o e-mail digitado ou rode "caixa")`);
+      process.exit(1);
+    }
+    const info = readFileSync(join(here, 'saidas', id, 'laboratorio.txt'), 'utf8');
+    const origem = /^origem_publica=(.+)$/m.exec(info)[1].trim();
+    console.log(`${origem}/o/${m.organizacao}/convite#token=${m.token}`);
   } else if (cmd === 'limites') {
     const e = env(id);
     if (!/^ensaio-frontlab-/.test(e.FRONT_AMBIENTE ?? '')) throw new Error('recusado: só em laboratório descartável ensaio-frontlab-*');

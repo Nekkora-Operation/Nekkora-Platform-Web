@@ -27,14 +27,14 @@ beforeEach(() => {
   vi.unstubAllGlobals();
   api = new RouteApi().install();
   api.on('GET', '/api/v1/csrf', 'getPreAuthCsrf', { status: 200, body: { csrfToken: 'pre' } });
-  api.on('GET', '/api/v1/me/session', 'identitySessionState', { status: 200, body: { restricted: false, csrfToken: 'id' } });
+  api.on('GET', '/api/v1/me/session', 'identitySessionState', { status: 200, body: { restricted: false, csrfToken: 'id', mfaEnabled: true, stepUpMethod: 'totp' } });
   api.on('GET', '/api/v1/me/organizations', 'identityOrganizations', {
     status: 200,
     body: { organizations: [{ organizationId: ORG, name: 'Acme', roles: ['ORG_ADMIN'], activationState: 'AGUARDANDO_ATIVACAO' }], canCreateOrganization: true },
   });
   api.on('GET', `/api/v1/o/${ORG}/me`, 'getMe', {
     status: 200,
-    body: { accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: ORG, organizationActivationState: 'ATIVADA' },
+    body: { accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: ORG, organizationActivationState: 'ATIVADA', stepUpMethod: 'totp' },
   });
   api.on('GET', `/api/v1/o/${ORG}/me/permissions`, 'getMyPermissions', {
     status: 200,

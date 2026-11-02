@@ -5,9 +5,11 @@ import { isApiError } from '../api/http';
 import {
   changeIdentityPassword,
   confirmIdentityEnrollment,
+  confirmMfaActivation,
   identityStepUp,
   regenerateRecoveryCodes,
   startIdentityEnrollment,
+  startMfaActivation,
 } from '../api/identity';
 import { identityPath } from '../auth/flow';
 import { commonMessage, INVALID_CODE, type UserMessage } from '../auth/messages';
@@ -20,7 +22,7 @@ import { useIdentityArea } from './IdentityArea';
 import './identity.css';
 
 /** Códigos recebidos uma única vez: exibidos até a pessoa confirmar que guardou; depois saem da memória. */
-function CodesOnce({ codes, onDone }: { codes: string[]; onDone: () => void }) {
+function CodesOnce({ codes, onDone, first = false }: { codes: string[]; onDone: () => void; first?: boolean }) {
   const [stored, setStored] = useState(false);
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => e.preventDefault();
@@ -30,7 +32,7 @@ function CodesOnce({ codes, onDone }: { codes: string[]; onDone: () => void }) {
   return (
     <Stack gap={3}>
       <Alert tone="warning" title="Guarde estes códigos agora.">
-        Eles não serão exibidos de novo. Os códigos anteriores deixaram de valer.
+        Eles não serão exibidos de novo.{first ? '' : ' Os códigos anteriores deixaram de valer.'}
       </Alert>
       <RecoveryCodesPanel codes={codes} context="Identidade Nekkora" />
       <Checkbox label="Guardei meus códigos de recuperação em um local seguro." checked={stored} onChange={(e) => setStored(e.target.checked)} />
@@ -44,7 +46,7 @@ function CodesOnce({ codes, onDone }: { codes: string[]; onDone: () => void }) {
 }
 
 function PasswordSection() {
-  const { expired } = useIdentityArea();
+  const { expired, mfaEnabled } = useIdentityArea();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -69,7 +71,11 @@ function PasswordSection() {
   return (
     <Card variant="outlined" padding="lg">
       <Stack gap={4}>
-        <SectionHeader as="h2" title="Senha" description="Trocar a senha encerra as suas outras sessões. O autenticador continua o mesmo." />
+        <SectionHeader
+          as="h2"
+          title="Senha"
+          description={mfaEnabled ? 'Trocar a senha encerra as suas outras sessões. O autenticador continua o mesmo.' : 'Trocar a senha encerra as suas outras sessões.'}
+        />
         {done && <Alert tone="success">Senha alterada. As outras sessões foram encerradas e você recebeu um aviso por e-mail.</Alert>}
         {uncertain && (
           <Alert tone="warning" title="Não foi possível confirmar a troca de senha.">
@@ -198,12 +204,38 @@ function RecoveryCodesSection() {
   );
 }
 
-/** /conta — segurança da identidade (senha, códigos de recuperação, autenticador). */
+/**
+ * /conta — segurança da identidade. Com autenticação em duas etapas: senha, códigos de recuperação e autenticador. Sem
+ * ela (API 029: é opcional): senha e o convite para ativar — até lá, a senha confirma as ações sensíveis.
+ */
 export function AccountPage() {
   const navigate = useNavigate();
+  const { mfaEnabled } = useIdentityArea();
+  if (!mfaEnabled)
+    return (
+      <Stack gap={5} className="pw-identity">
+        <SectionHeader as="h1" title="Segurança da conta" description="Senha e autenticação em duas etapas da sua identidade Nekkora. Valem para todas as suas organizações." />
+        <Card variant="outlined" padding="lg">
+          <Stack gap={3}>
+            <SectionHeader as="h2" title="Autenticação em duas etapas" description="Desativada. Hoje a sua senha confirma as ações sensíveis, como criar organização ou convidar pessoas." />
+            <Text>
+              Com a autenticação em duas etapas, além da senha você usa um código do aplicativo autenticador do celular para
+              entrar e para as ações sensíveis. Depois de ativada, ela passa a ser exigida sempre.
+            </Text>
+            <div>
+              <Button leftIcon="shield" onClick={() => navigate(identityPath.activateMfa)}>
+                Ativar autenticação em duas etapas
+              </Button>
+            </div>
+          </Stack>
+        </Card>
+        <PasswordSection />
+      </Stack>
+    );
   return (
     <Stack gap={5} className="pw-identity">
       <SectionHeader as="h1" title="Segurança da conta" description="Senha, códigos de recuperação e autenticador da sua identidade Nekkora. Valem para todas as suas organizações." />
+      <Alert tone="success">A autenticação em duas etapas está ativa: o código do autenticador é pedido ao entrar e nas ações sensíveis.</Alert>
       <PasswordSection />
       <RecoveryCodesSection />
       <Card variant="outlined" padding="lg">
@@ -432,6 +464,204 @@ export function ReplaceFactorPage() {
         onUnauthenticated={expired}
       >
         <Text>Para trocar o autenticador, confirme com o código do autenticador que você usa hoje.</Text>
+      </StepUpDialog>
+    </Stack>
+  );
+}
+
+type ActivationStep = 'intro' | 'configure' | 'confirm' | 'codes' | 'done';
+
+/**
+ * /conta/ativar-autenticacao — ativação voluntária da autenticação em duas etapas (API 029). A senha reconfirmada
+ * imediatamente antes autoriza gerar o fator; o primeiro código do autenticador confirma. A API encerra TODAS as sessões
+ * anteriores (inclusive as de organização) e emite a sessão nova, já com o fator: a partir daí o código é pedido sempre.
+ */
+export function ActivateMfaPage() {
+  const { mfaEnabled, expired, reload } = useIdentityArea();
+  const navigate = useNavigate();
+  const [step, setStep] = useState<ActivationStep>('intro');
+  const [otpauth, setOtpauth] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const [codes, setCodes] = useState<string[] | null>(null);
+  const [fieldError, setFieldError] = useState<string | undefined>();
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const inFlight = useRef(false);
+  useEffect(
+    () => () => {
+      setOtpauth(null);
+      setCodes(null);
+    },
+    [],
+  );
+
+  const confirm = async (value = code) => {
+    if (inFlight.current) return;
+    if (!/^\d{6}$/.test(value)) {
+      setFieldError('Digite os 6 dígitos exibidos no aplicativo.');
+      return;
+    }
+    inFlight.current = true;
+    setPending(true);
+    setFieldError(undefined);
+    setError(null);
+    try {
+      const received = await confirmMfaActivation(value);
+      setOtpauth(null);
+      setCodes(received);
+      setStep('codes');
+    } catch (e) {
+      if (isApiError(e, 'unauthenticated')) return expired();
+      if (isApiError(e, 'forbidden', 'invalid_request')) {
+        setFieldError(INVALID_CODE);
+        setCode('');
+      } else {
+        // sem resposta: a ativação pode ter acontecido — não reenviar; conferir entrando de novo
+        setError(
+          'Não foi possível confirmar se a autenticação em duas etapas foi ativada. Não tente de novo agora: saia e entre de novo. Se o código for pedido, ela foi ativada.',
+        );
+      }
+    } finally {
+      inFlight.current = false;
+      setPending(false);
+    }
+  };
+
+  if (mfaEnabled && step === 'intro')
+    return (
+      <Stack gap={5} className="pw-identity">
+        <SectionHeader as="h1" title="Autenticação em duas etapas" />
+        <Alert tone="success">A autenticação em duas etapas já está ativa nesta conta.</Alert>
+        <div>
+          <Button variant="secondary" onClick={() => navigate(identityPath.account)}>
+            Voltar para Segurança da conta
+          </Button>
+        </div>
+      </Stack>
+    );
+
+  return (
+    <Stack gap={5} className="pw-identity">
+      <SectionHeader as="h1" title="Ativar autenticação em duas etapas" description="Um código do aplicativo autenticador do celular passa a ser pedido ao entrar e nas ações sensíveis." />
+      {error && <Alert tone="danger">{error}</Alert>}
+
+      {step === 'intro' && (
+        <Card variant="outlined" padding="lg">
+          <Stack gap={3}>
+            <Text>
+              Você vai precisar de um aplicativo autenticador no celular. Ao concluir: as suas outras sessões são encerradas,
+              você recebe códigos de recuperação (exibidos uma única vez) e, a partir daí, o código do aplicativo é exigido
+              sempre — a senha sozinha não basta mais.
+            </Text>
+            <div>
+              <Button leftIcon="smartphone" onClick={() => setConfirming(true)}>
+                Começar
+              </Button>
+            </div>
+          </Stack>
+        </Card>
+      )}
+
+      {step === 'configure' && otpauth && (
+        <Card variant="outlined" padding="lg">
+          <Stack gap={3}>
+            <Text>No aplicativo autenticador, adicione uma conta e escaneie o QR Code.</Text>
+            <div className="pw-center">
+              <QrCode value={otpauth} label="QR Code para configurar o aplicativo autenticador" size={196} />
+            </div>
+            {manualKeyFromOtpauth(otpauth) && (
+              <Text as="p" variant="code" className="pw-key" aria-label={`Chave de configuração: ${manualKeyFromOtpauth(otpauth)}`}>
+                {manualKeyFromOtpauth(otpauth)}
+              </Text>
+            )}
+            <div>
+              <Button rightIcon="arrow-right" onClick={() => setStep('confirm')}>
+                Já adicionei a conta
+              </Button>
+            </div>
+          </Stack>
+        </Card>
+      )}
+
+      {step === 'confirm' && (
+        <Card variant="outlined" padding="lg">
+          <form
+            className="pw-identity__form"
+            onSubmit={(e: FormEvent) => {
+              e.preventDefault();
+              void confirm();
+            }}
+          >
+            <CodeInput
+              label="Código do aplicativo autenticador"
+              length={6}
+              autoFocus
+              value={code}
+              onValueChange={(v) => {
+                setCode(v);
+                if (fieldError && v.length < 6) setFieldError(undefined);
+              }}
+              onComplete={(v) => void confirm(v)}
+              error={fieldError}
+              readOnly={pending}
+            />
+            <div className="pw-form__row">
+              <Button type="submit" loading={pending}>
+                Ativar
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => setStep('configure')}>
+                Voltar para o QR Code
+              </Button>
+            </div>
+          </form>
+        </Card>
+      )}
+
+      {step === 'codes' && codes && (
+        <CodesOnce
+          codes={codes}
+          first
+          onDone={() => {
+            setCodes(null);
+            setStep('done');
+            void reload(); // a sessão nova já tem o fator: a área passa a mostrar o que a API responder
+          }}
+        />
+      )}
+
+      {step === 'done' && (
+        <Alert tone="success" title="Autenticação em duas etapas ativada.">
+          <Stack gap={2}>
+            <span>A partir de agora, o código do aplicativo é pedido ao entrar e nas ações sensíveis. As outras sessões foram encerradas.</span>
+            <span>
+              <Button size="sm" onClick={() => navigate(identityPath.organizations)}>
+                Continuar
+              </Button>
+            </span>
+          </Stack>
+        </Alert>
+      )}
+
+      {/* sem `guard`: começar não ativa nada (quem ativa é o primeiro código do autenticador); repetir só substitui o
+          pedido pendente */}
+      <StepUpDialog<string>
+        open={confirming}
+        title="Confirme a sua senha"
+        confirmLabel="Continuar"
+        stepUp={identityStepUp}
+        action={startMfaActivation}
+        onDone={(uri) => {
+          setConfirming(false);
+          setOtpauth(uri);
+          setStep('configure');
+        }}
+        onClose={() => setConfirming(false)}
+        refusalText={() => 'Não foi possível começar a ativação. Tente de novo.'}
+        uncertainText="Não foi possível confirmar. Nada foi ativado ainda: feche e comece de novo."
+        onUnauthenticated={expired}
+      >
+        <Text>Para gerar o QR Code, confirme que é você.</Text>
       </StepUpDialog>
     </Stack>
   );

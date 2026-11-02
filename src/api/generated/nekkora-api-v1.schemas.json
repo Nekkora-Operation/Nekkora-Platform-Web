@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "157bd545b9d7ff3e0b0f0052ad7e78e3cbec3d4ece04c2ffc9a5a14b2ccf5b30",
+  "openapiSha256": "ad05e202a1a7186e2edfa09ff26583e15e0b0be429f4bfe18c8af7f78e7c78cb",
   "schemas": {
     "Error": {
       "type": "object",
@@ -1031,7 +1031,8 @@
           "type": "string",
           "enum": [
             "mfa_required",
-            "mfa_enrollment_required"
+            "mfa_enrollment_required",
+            "authenticated"
           ]
         },
         "csrfToken": {
@@ -1178,7 +1179,9 @@
       "type": "object",
       "required": [
         "restricted",
-        "csrfToken"
+        "csrfToken",
+        "mfaEnabled",
+        "stepUpMethod"
       ],
       "properties": {
         "restricted": {
@@ -1186,6 +1189,56 @@
         },
         "csrfToken": {
           "type": "string"
+        },
+        "mfaEnabled": {
+          "type": "boolean"
+        },
+        "stepUpMethod": {
+          "$ref": "#/components/schemas/StepUpMethod"
+        }
+      }
+    },
+    "StepUpMethod": {
+      "type": "string",
+      "enum": [
+        "totp",
+        "password"
+      ]
+    },
+    "PasswordConfirmRequest": {
+      "type": "object",
+      "required": [
+        "password"
+      ],
+      "properties": {
+        "password": {
+          "type": "string",
+          "format": "password"
+        }
+      }
+    },
+    "MfaActivated": {
+      "type": "object",
+      "required": [
+        "recoveryCodes",
+        "csrfToken",
+        "restricted"
+      ],
+      "properties": {
+        "recoveryCodes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "csrfToken": {
+          "type": "string"
+        },
+        "restricted": {
+          "type": "boolean",
+          "enum": [
+            false
+          ]
         }
       }
     },
@@ -2030,7 +2083,8 @@
         "displayName",
         "email",
         "organizationId",
-        "organizationActivationState"
+        "organizationActivationState",
+        "stepUpMethod"
       ],
       "properties": {
         "accountType": {
@@ -2052,6 +2106,9 @@
         },
         "organizationActivationState": {
           "$ref": "#/components/schemas/OrganizationActivationState"
+        },
+        "stepUpMethod": {
+          "$ref": "#/components/schemas/StepUpMethod"
         }
       }
     },
@@ -3576,6 +3633,40 @@
         }
       }
     },
+    "orgPasswordConfirm": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/auth/password-confirm",
+      "responses": {
+        "204": {
+          "contentType": null,
+          "schema": null
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
     "logout": {
       "method": "POST",
       "path": "/api/v1/o/{org}/auth/logout",
@@ -4086,6 +4177,142 @@
         "204": {
           "contentType": null,
           "schema": null
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "identityPasswordConfirm": {
+      "method": "POST",
+      "path": "/api/v1/auth/password-confirm",
+      "responses": {
+        "204": {
+          "contentType": null,
+          "schema": null
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "identityMfaActivationStart": {
+      "method": "POST",
+      "path": "/api/v1/auth/mfa/activate/start",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/OtpauthUri"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "identityMfaActivationConfirm": {
+      "method": "POST",
+      "path": "/api/v1/auth/mfa/activate/confirm",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/MfaActivated"
+          }
         },
         "400": {
           "contentType": "application/json",

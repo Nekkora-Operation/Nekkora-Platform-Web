@@ -2,6 +2,7 @@
  * Contrato de autenticação da Platform (docs/relatorios/2026-09-26-decisoes-8-6-8-7-8-10.md, §5.3), mapeado
  * sem inventar estados. Toda decisão de acesso é da API; aqui só se envia, recebe e interpreta.
  */
+import { stepUpMethods } from './stepUpMethod';
 import { csrfStore } from './csrf';
 import { ApiError, isApiError, request } from './http';
 
@@ -15,6 +16,8 @@ export interface Me {
   displayName: string;
   email: string;
   organizationId: string;
+  /** Ciclo de ativação da organização (022); ausente numa API anterior ao campo. */
+  organizationActivationState?: 'AGUARDANDO_ATIVACAO' | 'ATIVADA';
 }
 
 // ------------------------------------------------------------------ CSRF de pré-autenticação
@@ -100,6 +103,8 @@ export async function verifyMfa(org: string, secondFactor: { code: string } | { 
 /** Quem está autenticado — a API é a autoridade (401 = sem sessão válida: expirada, revogada ou inexistente). */
 export async function me(org: string): Promise<Me> {
   const { data } = await request<Me>(`${base(org)}/me`);
+  // API 029: como esta sessão de organização confirma ações sensíveis (ausente = código do autenticador)
+  stepUpMethods.set(org, (data as { stepUpMethod?: unknown } | undefined)?.stepUpMethod);
   return data;
 }
 
@@ -121,7 +126,11 @@ export async function sessionCsrf(org: string): Promise<string> {
 export async function stepUp(org: string, code: string, { beforeSend }: { beforeSend?: () => void } = {}): Promise<void> {
   const csrf = await sessionCsrf(org);
   beforeSend?.(); // F6a-4-R1: última conferência de quem chama DEPOIS da espera pelo CSRF e ANTES de o POST sair
-  const res = await request(`${base(org)}/auth/mfa/step-up`, { method: 'POST', body: { code }, csrf });
+  // API 029: sessão vinculada sem autenticação em duas etapas — o argumento é a SENHA, reconfirmada nesta sessão
+  const res =
+    stepUpMethods.get(org) === 'password'
+      ? await request(`${base(org)}/auth/password-confirm`, { method: 'POST', body: { password: code }, csrf })
+      : await request(`${base(org)}/auth/mfa/step-up`, { method: 'POST', body: { code }, csrf });
   if (res.status !== 204) throw new ApiError('unexpected', res.status);
 }
 

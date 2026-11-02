@@ -98,7 +98,7 @@ describe('validador', () => {
     walk(Object.values(contract.schemas));
     walk(Object.values(contract.operations).flatMap((o) => Object.values(o.responses).map((r) => r.schema)));
     expect([...found].filter((k) => !supported.has(k))).toEqual([]);
-    expect(Object.keys(contract.operations)).toHaveLength(95); // todas as operações do OpenAPI (GET, POST, PUT, PATCH e DELETE) em e04a57c
+    expect(Object.keys(contract.operations)).toHaveLength(99); // todas as operações do OpenAPI (GET, POST, PUT, PATCH e DELETE) em e04a57c
   });
 
   it('validated: erro "unexpected" que leva só caminhos e regras, nunca valores', () => {

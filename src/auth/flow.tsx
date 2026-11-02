@@ -16,7 +16,8 @@ export interface AuthFlow {
   kind: 'identity' | 'organization';
   /** Organização exibida no contexto da tela (só na entrada por organização). */
   org?: string;
-  login(email: string, password: string): Promise<'mfa' | 'mfa-setup'>;
+  /** `signed-in` (API 029, só na identidade): sessão emitida só com a senha, sem segundo fator. */
+  login(email: string, password: string): Promise<'mfa' | 'mfa-setup' | 'signed-in'>;
   hasChallenge(): boolean;
   clearChallenge(): void;
   startEnrollment(): Promise<string>;
@@ -47,6 +48,8 @@ export const identityPath = {
   account: '/conta',
   /** Troca do fator: obrigatória na sessão restrita. */
   replaceFactor: '/conta/fator',
+  /** API 029: ativação voluntária da autenticação em duas etapas. */
+  activateMfa: '/conta/ativar-autenticacao',
   linkAccount: '/vincular-conta',
 };
 

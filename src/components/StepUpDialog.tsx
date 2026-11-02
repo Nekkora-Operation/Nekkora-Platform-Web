@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, Button, CodeInput, ConfirmDialog, Stack } from 'nekkora-lib';
+import { Alert, Button, CodeInput, ConfirmDialog, Input, Stack } from 'nekkora-lib';
 import { ApiError, isApiError } from '../api/http';
 import { NO_TAB_LOCK_TEXT, operations, opKey, type OpView } from '../api/pendingOps';
+import { stepUpMethods } from '../api/stepUpMethod';
 import { useOperationScope } from './operationScope';
 
 const TOTP_DIGITS = 6;
@@ -135,12 +136,15 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
   }, []);
 
   const needsCode = !!stepUp;
+  // API 029: sem autenticação em duas etapas, a sessão confirma com a SENHA (o cliente chama a rota certa)
+  const byPassword = needsCode && stepUpMethods.get(scope.org) === 'password';
+  const secretReady = !needsCode || (byPassword ? code.length > 0 : code.length === TOTP_DIGITS);
   const recorded = record.status === 'ready' ? record.view : null;
   const blockedByRecord = !!guard && (record.status !== 'ready' || recorded?.state === 'unknown' || recorded?.state === 'pending');
   const confirm = async () => {
-    if ((needsCode && code.length !== TOTP_DIGITS) || !ready || outcome?.kind === 'uncertain' || blockedByRecord) return;
+    if (!secretReady || !ready || outcome?.kind === 'uncertain' || blockedByRecord) return;
     const typed = code;
-    setCode(''); // código de uso único: sai da tela assim que é usado
+    setCode(''); // código (ou senha) sai da tela assim que é usado
     setOutcome(null);
     setNotice(null);
     // registro ANTES de qualquer envio: trava esta e as outras abas e sobrevive a uma interrupção no meio
@@ -172,7 +176,9 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
           kind: 'refused-identity',
           text: isApiError(e, 'rate_limited')
             ? 'Muitas tentativas em pouco tempo. Aguarde um pouco antes de tentar de novo. Nada foi feito.'
-            : 'Não foi possível confirmar sua identidade com este código. Confira o código atual do aplicativo. Nada foi feito.',
+            : byPassword
+              ? 'Não foi possível confirmar sua identidade com esta senha. Confira a senha e tente de novo. Nada foi feito.'
+              : 'Não foi possível confirmar sua identidade com este código. Confira o código atual do aplicativo. Nada foi feito.',
         });
         return;
       }
@@ -203,7 +209,7 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
       confirmLabel={confirmLabel}
       tone={tone}
       busy={busy}
-      confirmDisabled={!ready || (needsCode && code.length !== TOTP_DIGITS) || outcome?.kind === 'uncertain' || blockedByRecord}
+      confirmDisabled={!ready || !secretReady || outcome?.kind === 'uncertain' || blockedByRecord}
       error={outcome?.text ?? notice ?? undefined}
       onConfirm={confirm}
       onCancel={() => {
@@ -231,7 +237,19 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
           </Alert>
         ) : (
           needsCode &&
-          !blockedByRecord && (
+          !blockedByRecord &&
+          (byPassword ? (
+            <Input
+              label="Sua senha"
+              type="password"
+              autoComplete="current-password"
+              fullWidth
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              disabled={busy}
+              hint="A sua conta não usa autenticação em duas etapas: a senha confirma a sua identidade imediatamente antes do ato. Você pode ativar a autenticação em duas etapas em Segurança da conta."
+            />
+          ) : (
           <CodeInput
             label="Código do seu aplicativo autenticador"
             hint="Confirma a sua identidade imediatamente antes do ato. Códigos de recuperação não são aceitos aqui."
@@ -240,7 +258,7 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
             onValueChange={setCode}
             disabled={busy}
           />
-          )
+          ))
         )}
       </Stack>
     </ConfirmDialog>
