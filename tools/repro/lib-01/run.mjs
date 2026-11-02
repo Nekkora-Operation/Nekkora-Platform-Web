@@ -1,0 +1,12 @@
+import { chromium } from '@playwright/test';
+const b = await chromium.launch();
+const p = await b.newPage();
+const logs = [];
+p.on('console', (m) => logs.push(`console.${m.type()}: ${m.text().slice(0, 300)}`));
+p.on('pageerror', (e) => logs.push(`pageerror: ${e.message.slice(0, 300)}`));
+await p.goto('http://localhost:5199/tools/repro/lib-01/index.html');
+await p.getByLabel('Arquivo').setInputFiles({ name: 'pacote.zip', mimeType: 'application/zip', buffer: Buffer.from('PK') });
+await p.waitForTimeout(500);
+const files = await p.getByLabel('Arquivo').evaluate((i) => i.files.length);
+console.log(JSON.stringify({ out: await p.evaluate(() => window.__out), filesAfter: files, logs }, null, 1));
+await b.close();

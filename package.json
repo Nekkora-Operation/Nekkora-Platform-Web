@@ -12,6 +12,8 @@
     "test": "vitest run",
     "e2e": "playwright test",
     "check": "npm run typecheck && npm test && npm run contract:check && npm run build",
+    "lib:prepare": "node scripts/lib.mjs prepare",
+    "lib:verify": "node scripts/lib.mjs verify",
     "predev": "node scripts/check-lib.mjs",
     "prebuild": "node scripts/check-lib.mjs",
     "pretest": "node scripts/check-lib.mjs",
@@ -20,7 +22,7 @@
     "contract:sync": "node scripts/contract.mjs sync"
   },
   "dependencies": {
-    "nekkora-lib": "file:../Nekkora-lib",
+    "nekkora-lib": "file:.deps/pack/nekkora-lib-0.2.0.tgz",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router": "^7.9.0"

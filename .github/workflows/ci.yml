@@ -1,13 +1,12 @@
-# CI do frontend para as branches da pilha FRONT-V1 que ainda resolvem a Nekkora-lib por file:../Nekkora-lib
-# (FRONT-V1-003). Prepara ../Nekkora-lib no commit fixado abaixo (o mesmo usado na FRONT-V1-001), depois: npm ci,
-# typecheck, testes, contrato contra o commit fixado da API, build e E2E com a API SIMULADA. A partir do PR que fixa a
-# lib 0.2.0 (feat/front-v1-002-lib-ci) o workflow é substituído pelo da lib por tarball. Os E2E de e2e-real/ (API real,
-# Agent real, Windows) não rodam aqui.
+# CI do frontend (FRONT-V1-002). Instalação reproduzível (lib fixada por commit e sha256; package-lock com integridade),
+# typecheck, testes, conferência do contrato contra o commit fixado da API, build e E2E com a API SIMULADA.
+# Os E2E de e2e-real/ (API real, e-mail capturado, Agent real) dependem do laboratório Windows e NÃO rodam aqui.
 name: CI
 
 on:
   pull_request:
   push:
+    # branches da FRONT-V1: o CI roda também antes de o PR existir (o resultado vale para o HEAD empurrado)
     branches: [main, 'feat/front-v1-*']
   workflow_dispatch:
 
@@ -18,10 +17,6 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  # Nekkora-lib usada por estas branches (file:../Nekkora-lib), fixada por commit
-  NEKKORA_LIB_COMMIT: c4c479f55c96f5c3fc3e202e08ba71a01f058594
-
 jobs:
   validar:
     name: Instalação, typecheck, testes, contrato e build
@@ -29,6 +24,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -47,15 +43,10 @@ jobs:
           sparse-checkout: api/openapi
           persist-credentials: false
 
-      - name: Nekkora-lib em ../Nekkora-lib no commit fixado (npm ci roda o build da lib)
-        run: |
-          set -euo pipefail
-          git clone --quiet https://github.com/Nekkora-Operation/Nekkora-lib.git ../Nekkora-lib
-          git -C ../Nekkora-lib -c advice.detachedHead=false checkout --quiet "$NEKKORA_LIB_COMMIT"
-          test "$(git -C ../Nekkora-lib rev-parse HEAD)" = "$NEKKORA_LIB_COMMIT"
-          (cd ../Nekkora-lib && npm ci --no-audit --no-fund)
+      - name: Nekkora-lib fixada (lib.lock.json) — checkout isolado, build, pacote e sha256
+        run: node scripts/lib.mjs prepare
 
-      - name: Instalar dependências (lockfile)
+      - name: Instalar dependências (lockfile; integridade da lib conferida pelo npm)
         run: npm ci --no-audit --no-fund
 
       - name: Typecheck
@@ -87,12 +78,7 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - name: Nekkora-lib em ../Nekkora-lib no commit fixado
-        run: |
-          set -euo pipefail
-          git clone --quiet https://github.com/Nekkora-Operation/Nekkora-lib.git ../Nekkora-lib
-          git -C ../Nekkora-lib -c advice.detachedHead=false checkout --quiet "$NEKKORA_LIB_COMMIT"
-          (cd ../Nekkora-lib && npm ci --no-audit --no-fund)
+      - run: node scripts/lib.mjs prepare
       - run: npm ci --no-audit --no-fund
       - name: Chromium do Playwright
         run: npx playwright install --with-deps chromium
@@ -103,7 +89,7 @@ jobs:
       - name: Contagens do E2E (anotação pública do run)
         if: always() && hashFiles('playwright-resultado.json') != ''
         run: node scripts/ci-contagens.mjs playwright playwright-resultado.json
-      - name: Evidência de falha (só de testes que falharam; dados sintéticos)
+      - name: Evidência de falha (traces só de testes que falharam; dados sintéticos)
         if: failure()
         uses: actions/upload-artifact@v4
         with:
