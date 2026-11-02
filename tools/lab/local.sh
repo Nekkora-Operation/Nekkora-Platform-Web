@@ -65,6 +65,8 @@ front)
     [ "$(api_status)" = "200" ] || falha "a API não responde em $(base) (rode: bash tools/lab/local.sh subir)"
     cd "$RAIZ"
     # o Vite confere o certificado do laboratório (sem desligar a verificação TLS)
+    # versão em execução mostrada na interface: o commit da API instalada neste laboratório
+    NEKKORA_API_COMMIT="$(sed -n 's/^api_commit=//p' "$SAIDA/laboratorio.txt" | head -1)" \
     NEKKORA_API_URL="$(base)" NEKKORA_API_CA="$SAIDA/certificado-laboratorio.pem" npm run dev
     ;;
 estado)
