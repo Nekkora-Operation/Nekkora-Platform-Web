@@ -35,7 +35,8 @@ test('ativação pela CLI real dos operadores: Aguardando ativação → Ativada
   const nome = `Organização de teste ${tag}`;
 
   // 1. a pessoa cria a organização pela interface; ela nasce aguardando ativação
-  await page.getByRole('button', { name: 'Criar organização' }).first().click();
+  // a entrada geral sem organização oferece "Criar minha primeira organização" (página inicial nova)
+  await page.getByRole('button', { name: 'Criar minha primeira organização' }).click();
   await page.getByLabel(/^Nome da organização/).fill(nome);
   await page.getByRole('button', { name: 'Continuar' }).click();
   await confirmStepUp(page, ana, 'Criar organização');

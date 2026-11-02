@@ -139,14 +139,24 @@ if (cmd === 'criar') {
   }
   exigir('confirmação (link da caixa local)', await http('POST', '/api/v1/signup/confirm', { body: { token, password: conta.senha, displayName: conta.nome }, csrf: await pre() }), 204);
   const login = exigir('entrada (senha)', await http('POST', '/api/v1/auth/login', { body: { email: conta.email, password: conta.senha }, csrf: await pre() }), 200);
-  if (login.status !== 'mfa_enrollment_required') {
+  // a conta do operador SEMPRE tem autenticador. API ate a 028: o primeiro login exige o cadastro (desafio). API 029+
+  // (segundo fator opcional): o login ja abre a sessao e o autenticador e ATIVADO pela sessao, com a senha reconfirmada
+  let conf;
+  if (login.status === 'authenticated') {
+    exigir('senha reconfirmada (ativação)', await http('POST', '/api/v1/auth/password-confirm', { body: { password: conta.senha }, csrf: login.csrfToken }), 204);
+    const uri = exigir('autenticador (início da ativação)', await http('POST', '/api/v1/auth/mfa/activate/start', { csrf: login.csrfToken }), 200).otpauthUri;
+    conta.chave = new URL(uri).searchParams.get('secret');
+    salvar(conta); // a chave é gravada ANTES da confirmação: sem ela a conta ficaria inacessível
+    conf = exigir('autenticador (ativação)', await http('POST', '/api/v1/auth/mfa/activate/confirm', { body: { code: await codigo(conta) }, csrf: login.csrfToken }), 200);
+  } else if (login.status === 'mfa_enrollment_required') {
+    const uri = exigir('autenticador (início)', await http('POST', '/api/v1/auth/mfa/enroll/start', { csrf: login.csrfToken }), 200).otpauthUri;
+    conta.chave = new URL(uri).searchParams.get('secret');
+    salvar(conta); // a chave é gravada ANTES da confirmação: sem ela a conta ficaria inacessível
+    conf = exigir('autenticador (confirmação)', await http('POST', '/api/v1/auth/mfa/enroll/confirm', { body: { code: await codigo(conta) }, csrf: login.csrfToken }), 200);
+  } else {
     console.error(`entrada: passo seguinte inesperado (${login.status})`);
     process.exit(3);
   }
-  const uri = exigir('autenticador (início)', await http('POST', '/api/v1/auth/mfa/enroll/start', { csrf: login.csrfToken }), 200).otpauthUri;
-  conta.chave = new URL(uri).searchParams.get('secret');
-  salvar(conta); // a chave é gravada ANTES da confirmação: sem ela a conta ficaria inacessível
-  const conf = exigir('autenticador (confirmação)', await http('POST', '/api/v1/auth/mfa/enroll/confirm', { body: { code: await codigo(conta) }, csrf: login.csrfToken }), 200);
   conta.recuperacao = conf.recoveryCodes;
   salvar(conta);
   exigir('confirmação de segurança (step-up)', await http('POST', '/api/v1/auth/step-up', { body: { code: await codigo(conta) }, csrf: conf.csrfToken }), 204);
