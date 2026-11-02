@@ -19,3 +19,31 @@
   align-items: center;
   gap: var(--nk-space-2);
 }
+
+.pw-hash {
+  font-family: var(--nk-font-mono);
+  font-size: var(--nk-font-size-xs);
+}
+
+.pw-upload {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nk-space-2);
+}
+
+.pw-upload progress {
+  flex: 1 1 200px;
+  min-width: 120px;
+}
+
+.pw-file {
+  max-width: 100%;
+  color: var(--nk-color-text);
+  font: inherit;
+}
+
+.pw-file:focus-visible {
+  outline: 2px solid var(--nk-color-accent);
+  outline-offset: 2px;
+}
