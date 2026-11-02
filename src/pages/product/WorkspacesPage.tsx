@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { Alert, Button, Input, LoadMore, Stack, StateView, Table, Textarea, type TableColumn } from 'nekkora-lib';
 import { createWorkspace } from '../../api/access';
 import { useInternalArea } from '../../area/InternalShell';
@@ -24,11 +24,18 @@ export function WorkspacesPage() {
   const navigate = useNavigate();
   const { permissions, reloadWorkspaces } = useInternalArea();
   const canCreate = permissions.status === 'ready' && permissions.data.organization.permissions.includes('workspace.lifecycle');
+  // "Criar primeiro workspace" na página inicial chega com o pedido de abrir o diálogo (só se a P01 permitir)
+  const openRequested = (useLocation().state as { openCreate?: boolean } | null)?.openCreate === true;
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [uncertain, setUncertain] = useState(false);
   const nameOk = name.trim().length > 0 && [...name.trim()].length <= 80 && [...description].length <= 500;
+  const [openHandled, setOpenHandled] = useState(false);
+  if (openRequested && !openHandled && permissions.status !== 'loading') {
+    setOpenHandled(true);
+    if (canCreate && !creating) setCreating(true);
+  }
   const backState = useBackState();
   const [refresh, setRefresh] = useState(0);
   const list = useCursorList<Workspace>((cursor) => listWorkspaces(org, { limit: PAGE, cursor }), (w) => w.workspaceId, [org, refresh]);

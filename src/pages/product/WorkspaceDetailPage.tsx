@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { createAutomation } from '../../api/lifecycle';
 import { useWorkspacePermissions } from '../../area/useWorkspacePermissions';
 import { StepUpDialog } from '../../components/StepUpDialog';
@@ -29,7 +29,14 @@ function WorkspaceDetail({ workspaceId }: { workspaceId: string }) {
   const navigate = useNavigate();
   const perms = useWorkspacePermissions(workspaceId);
   const canManage = perms.status === 'ready' && perms.has('automation.manage');
+  // "Criar primeira automação" na página inicial chega com o pedido de abrir o diálogo (só se a permissão efetiva permitir)
+  const openRequested = (useLocation().state as { openCreate?: boolean } | null)?.openCreate === true;
   const [creating, setCreating] = useState(false);
+  const [openHandled, setOpenHandled] = useState(false);
+  if (openRequested && !openHandled && perms.status !== 'loading') {
+    setOpenHandled(true);
+    if (canManage) setCreating(true);
+  }
   const [newName, setNewName] = useState('');
   const [createUncertain, setCreateUncertain] = useState(false);
   const back = useBackTarget(orgPath.workspaces(org));

@@ -7,6 +7,7 @@ import { identityLogout, identitySession } from '../api/identity';
 import { sessionMemory, type NavState } from '../app/notices';
 import { identityPath } from '../auth/flow';
 import { commonMessage, UNAVAILABLE, type UserMessage } from '../auth/messages';
+import { VersionFooter } from '../components/VersionInfo';
 import '../area/InternalShell.css';
 import '../pages/HomePage.css';
 
@@ -190,6 +191,7 @@ export function IdentityArea() {
           <div className="pw-shell__footer">
             <span className="pw-shell__footer-name">Identidade Nekkora</span>
             <span className="pw-shell__footer-access">{state.restricted ? 'Sessão restrita à troca do autenticador' : 'Sessão de identidade'}</span>
+            <VersionFooter />
           </div>
         }
       >

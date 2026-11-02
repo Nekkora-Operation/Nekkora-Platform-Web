@@ -15,6 +15,8 @@ export interface Me {
   displayName: string;
   email: string;
   organizationId: string;
+  /** Ciclo de ativação da organização (022); ausente numa API anterior ao campo. */
+  organizationActivationState?: 'AGUARDANDO_ATIVACAO' | 'ATIVADA';
 }
 
 // ------------------------------------------------------------------ CSRF de pré-autenticação

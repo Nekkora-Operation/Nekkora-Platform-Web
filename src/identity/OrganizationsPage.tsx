@@ -5,7 +5,7 @@ import { ApiError, isApiError } from '../api/http';
 import { enterOrganization, myOrganizations, type IdentityOrganization, type IdentityOrganizationList } from '../api/identity';
 import { identityPath } from '../auth/flow';
 import { commonMessage, UNAVAILABLE, type UserMessage } from '../auth/messages';
-import { orgPath, shortOrganizationId } from '../auth/organization';
+import { orgPath } from '../auth/organization';
 import { ErrorAlert } from '../pages/ErrorAlert';
 import { pendingInvitation } from './AcceptInvitationPage';
 import { useIdentityArea } from './IdentityArea';
@@ -98,8 +98,8 @@ export function OrganizationsPage() {
     <Stack gap={5} className="pw-identity">
       <div className="pw-identity__header">
         <SectionHeader as="h1" title="Suas organizações" description="Escolha a organização em que deseja trabalhar. Você pode trocar a qualquer momento." />
-        {canCreateOrganization && (
-          <Button onClick={() => navigate(identityPath.newOrganization)} leftIcon="plus">
+        {canCreateOrganization && organizations.length > 0 && (
+          <Button onClick={() => navigate(identityPath.newOrganization)} leftIcon="plus" variant="secondary">
             Criar organização
           </Button>
         )}
@@ -108,7 +108,7 @@ export function OrganizationsPage() {
       {invitation && (
         <Alert tone="info" title="Você abriu um convite nesta aba.">
           <Stack gap={2}>
-            <span>Continue para aceitar o convite da organização {shortOrganizationId(invitation.org)}.</span>
+            <span>Continue para aceitar o convite que você recebeu por e-mail.</span>
             <span>
               <Button size="sm" onClick={() => navigate(orgPath.invitation(invitation.org))}>
                 Continuar o aceite
@@ -125,14 +125,14 @@ export function OrganizationsPage() {
           title="Você ainda não participa de nenhuma organização."
           description={
             canCreateOrganization
-              ? 'Crie uma organização ou peça a quem administra uma organização que envie um convite para o seu e-mail.'
+              ? 'Uma organização reúne as pessoas, os workspaces e as automações da sua empresa. Crie a sua para começar, ou peça a quem administra uma organização que envie um convite para o seu e-mail.'
               : 'Peça a quem administra uma organização que envie um convite para o seu e-mail. O link do convite traz você de volta para cá.'
           }
           actions={
             <>
               {canCreateOrganization && (
                 <Button onClick={() => navigate(identityPath.newOrganization)} leftIcon="plus">
-                  Criar organização
+                  Criar minha primeira organização
                 </Button>
               )}
               <Link as={RouterLink} to={identityPath.linkAccount}>
@@ -155,8 +155,6 @@ export function OrganizationsPage() {
                         {o.name}
                       </Text>
                       <Text variant="body-sm" color="secondary">
-                        <span title={o.organizationId}>{shortOrganizationId(o.organizationId)}</span>
-                        {' · '}
                         {o.roles.length ? o.roles.map((r) => ROLE_LABEL[r] ?? r).join(', ') : 'Sem papel na organização'}
                       </Text>
                       <div className="pw-identity__badges">
