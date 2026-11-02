@@ -128,7 +128,7 @@ atualizar)
     FIXADO="$(sed -n 's/.*"commit": *"\([0-9a-f]\{40\}\)".*/\1/p' "$RAIZ/contract/SOURCE.json")"
     [ "$COMMIT_NOVO" = "$FIXADO" ] || falha "cópia da API em $COMMIT_NOVO; o contrato deste frontend está fixado em $FIXADO (revisão incompatível)"
     psql_adm() { "${COMPOSE[@]}" exec -T postgres psql -X -At -v ON_ERROR_STOP=1 -U nekkora -d nekkora "$@"; }
-    "${COMPOSE[@]}" start postgres
+    "${COMPOSE[@]}" start postgres redis   # o redis também: depois de "parar", sem ele a API responde 503 e o TLS não confirma
     for i in $(seq 1 60); do
         "${COMPOSE[@]}" exec -T postgres pg_isready -q -U nekkora -d nekkora 2>/dev/null && break
         [ "$i" -lt 60 ] || falha "PostgreSQL não respondeu"
