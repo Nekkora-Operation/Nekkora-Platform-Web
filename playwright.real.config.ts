@@ -17,6 +17,11 @@ const api = process.env.NEKKORA_API_URL ?? (existsSync(info) ? /^api=(.+)$/m.exe
 if (!api) throw new Error(`laboratório ${lab} sem ${info}: suba com tools/lab/subir.sh ou defina NEKKORA_API_URL`);
 process.env.FRONT_LAB_ID = lab;
 
+// porta do Vite do laboratório (FRONT_PORTA; padrão 5173): um laboratório com outra origem pública (FRONT_ORIGEM) usa a
+// sua, para nunca reaproveitar o Vite de outro laboratório na 5173
+const porta = process.env.FRONT_PORTA ?? '5173';
+const ca = `tools/lab/saidas/${lab}/certificado-laboratorio.pem`;
+
 const chromium = process.env.PW_CHROMIUM;
 const launchOptions = chromium && existsSync(chromium) ? { executablePath: chromium } : {};
 
@@ -29,7 +34,7 @@ export default defineConfig({
   retries: 0,
   reporter: [['list']],
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: `http://localhost:${porta}`,
     locale: 'pt-BR',
     trace: 'off',
     screenshot: 'off',
@@ -38,10 +43,11 @@ export default defineConfig({
   },
   projects: [{ name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 720 }, launchOptions } }],
   webServer: {
-    command: 'npx vite --port 5173 --strictPort',
-    url: 'http://localhost:5173',
+    command: `npx vite --port ${porta} --strictPort`,
+    url: `http://localhost:${porta}`,
     reuseExistingServer: true,
-    env: { NEKKORA_API_URL: api },
+    // com o certificado do laboratório, o Vite confere o TLS do repasse (sem ele, o comportamento anterior)
+    env: { NEKKORA_API_URL: api, ...(existsSync(ca) ? { NEKKORA_API_CA: ca } : {}) },
     timeout: 120_000,
   },
 });
