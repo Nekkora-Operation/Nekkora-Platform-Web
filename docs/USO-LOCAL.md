@@ -5,12 +5,11 @@ e-mail locais. Nada sai da máquina: sem Microsoft 365, sem AWS e sem envio para
 
 - **Terminal:** use o **Git Bash** em todos os comandos (Menu Iniciar → "Git Bash"). Os scripts do laboratório são Bash.
   O PowerShell não serve para estes comandos.
-- **Frontend:** o candidato cumulativo da pilha #10–#17, na branch `feat/front-v1-002-provas` (PR #17). O código
-  validado é o commit `8f65200`; commits posteriores só de documentação não mudam o resultado. As telas ainda **não
-  estão na `main`**: não clone a `main` do frontend.
-- **API:** `Nekkora-Platform-API` no commit `e04a57ceeb880de603252fcca4e3d7ccc16cc9d5`, que é a `main` atual. O
-  contrato do frontend está fixado nesse commit (`contract/SOURCE.json`), e o runner recusa outro.
-- **Validação:** cada comando foi executado e conferido no Windows 11 em 2026-11-02 (seção 8).
+- **Frontend:** a revisão do frontend que você tem na pasta. A interface mostra qual é, no rodapé do menu ("Web
+  <commit> · candidata (branch …) · API <commit>"); fora da `main` ela aparece como **candidata**.
+- **API:** a revisão em que o contrato do frontend está fixado (`contract/SOURCE.json`). O runner recusa outra, na
+  instalação e na atualização: as duas pastas andam juntas.
+- **Validação:** cada comando foi executado e conferido no Windows 11 em 2026-11-02 (seções 8 e 9).
 
 Daqui em diante, `~` é a sua pasta de usuário (`C:\Users\nicol`). O guia instala tudo em `~/nekkora-local`.
 
@@ -168,31 +167,49 @@ Copie o link exibido (`http://localhost:5173/cadastro/confirmar#token=…`) e ab
 cole em arquivos, issues ou evidências. A mensagem pode levar alguns segundos para chegar; se o `link` disser
 "nenhuma confirmação", espere e repita.
 
-**O autenticador.** No primeiro acesso, a tela "Configure o autenticador" mostra um QR e a chave manual. Leia o QR com o
-seu aplicativo (Microsoft Authenticator, Google Authenticator, 1Password etc.) e digite o código de 6 dígitos. Em
-seguida, a tela mostra os **códigos de recuperação** uma única vez. Guarde-os fora do Git e fora de qualquer pasta do
-projeto. Cada código do autenticador vale uma vez: para entrar de novo logo em seguida, espere o próximo código.
+**A autenticação em duas etapas é opcional** (API com a migration 029). Depois de confirmar o e-mail, você entra só com
+a senha, sem QR. Enquanto ela estiver desativada, as ações sensíveis (criar organização, convidar, mudar papéis,
+publicar, credenciais do Agent etc.) pedem a **senha de novo**, imediatamente antes do ato.
+
+**Para ativar:** Segurança da conta → **Ativar autenticação em duas etapas** → confirme a senha → leia o QR com o seu
+aplicativo (Microsoft Authenticator, Google Authenticator, 1Password etc.) → digite o código de 6 dígitos. A tela mostra
+os **códigos de recuperação** uma única vez: guarde-os fora do Git e fora de qualquer pasta do projeto. A ativação
+encerra as suas outras sessões. A partir daí, o código é pedido sempre, ao entrar e nas ações sensíveis, e a senha
+sozinha não basta mais. Cada código vale uma vez: para usar outro logo em seguida, espere o próximo.
+
+Quem já tinha o autenticador (contas criadas antes da 029) continua exatamente como antes. A recuperação de senha não
+remove o autenticador.
 
 ---
 
-## 6. O percurso
+## 6. O roteiro de exploração
 
-1. Em <http://localhost:5173/cadastro>, informe o e-mail e clique em **Continuar**. A tela "Confira seu e-mail" aparece.
-   Rode `bash tools/lab/local.sh link <seu e-mail>`.
-2. Abra o link. Em "Conclua seu cadastro", informe nome e senha. Em **Entrar**, digite e-mail e senha, configure o
-   autenticador e guarde os códigos. Você chega em **Suas organizações**, com "Você ainda não participa de nenhuma
-   organização."
-3. Clique em **Criar organização**, informe o nome e clique em **Continuar**. A confirmação de segurança pede o código do
-   autenticador. Depois de concluir, a organização aparece **uma vez** na lista, com o nome informado e o selo
-   **Aguardando ativação**.
-4. No cartão da organização, clique em **Entrar em <nome>**. O nome da organização aberta aparece no topo, à esquerda de
-   "Trocar organização", e no rodapé do menu. **Trocar organização** volta à lista, e **Sair** encerra a sessão e leva a
-   "Você saiu da sua conta."
-5. Pare e suba o ambiente (seção 7). Depois, entre de novo em <http://localhost:5173/entrar> com o mesmo e-mail, a mesma
-   senha e o código do autenticador. A organização continua na lista.
+O que é **da tela** você faz no navegador. O que é **do operador** (a operação da Nekkora) é um comando no terminal,
+na seção seguinte: no seu computador, você faz os dois papéis.
 
-As concessões e a execução remota **não** fazem parte deste percurso. Uma organização nova fica em "Aguardando ativação"
-até a **operação** ativá-la (próxima seção).
+1. **Entrar (tela).** Cadastro em <http://localhost:5173/cadastro> → `bash tools/lab/local.sh link <seu e-mail>` →
+   abra o link → nome e senha → **Entrar**. Sem autenticação em duas etapas, você chega direto à entrada geral; com ela,
+   o código é pedido (seção 5).
+2. **Criar a organização (tela).** Sem organização, a entrada geral mostra **Criar minha primeira organização**. Informe
+   o nome → **Continuar** → confirme com a senha (ou com o código, se ativou). A organização aparece com o selo
+   **Aguardando ativação** e o botão **Entrar em <nome>**.
+3. **Reconhecer a ativação (tela).** Dentro da organização, o início explica: enquanto aguarda ativação, nenhum Worker é
+   registrado e nenhuma automação executa; quem ativa é a operação da Nekkora, não a tela. Você já pode preparar pessoas,
+   workspaces e automações.
+4. **Ativar (operador).** Seção "Ativação pelo operador": `bash tools/lab/local.sh operador preparar` (uma vez) e
+   `bash tools/lab/local.sh ativar <org> 2 1 10 "laboratório: exploração local"`. Recarregue: o selo vira **Ativada**.
+5. **Criar o primeiro workspace (tela).** No início da organização, **Criar primeiro workspace** (não pede
+   confirmação extra). Sem automações, o início passa a oferecer **Criar primeira automação**.
+6. **Convidar uma segunda pessoa (tela).** Administração → Convites: e-mail, papel (por exemplo **Operação** num
+   workspace) → **Convidar** → confirme com a senha ou o código. Em outro navegador (ou janela anônima), cadastre a segunda
+   pessoa com o e-mail convidado, rode `bash tools/lab/local.sh convite <e-mail dela>` e abra o link exibido (ele vale
+   uma vez; não o cole em arquivos) → **Aceitar convite** → confirme com a senha ou o código dela.
+7. **Conferir o papel dela (tela).** Administração → Membros → **Acessos de <nome>**: os papéis ativos e o escopo.
+8. **Parar sem perder dados.** `Ctrl+C` no terminal do frontend e `bash tools/lab/local.sh parar` (seção 7). Na volta,
+   `subir` e `front`: a conta, o autenticador (se ativou), as organizações e a ativação continuam.
+
+Identificadores técnicos não aparecem no início: os dados da conta ficam em **Minha conta** (dentro da organização) e
+em **Segurança da conta** (na identidade).
 
 ---
 
@@ -296,6 +313,34 @@ bash tools/lab/local.sh front     # frontend em http://localhost:5173 (segundo t
 - **Diagnóstico.** `node tools/lab/lab.mjs frontlab-local compose logs --tail 50 platform` mostra o log da API. O log
   não traz senhas, tokens nem cookies.
 
+### Atualizar o ambiente para uma revisão nova (sem reinstalar)
+
+Quando uma revisão nova for integrada (por exemplo, depois do merge dos PRs), leve as **duas** pastas juntas e rode o
+`atualizar`. Ele não apaga nada: faz uma cópia de segurança do banco, aplica **só** as migrations que o banco ainda não
+tem, pelo mesmo migrador da instalação (com as mesmas janelas de privilégio e a retirada conferida), e sobe a API nova.
+
+```bash
+cd ~/nekkora-local/Nekkora-Platform-Web
+bash tools/lab/local.sh parar                         # se estiver no ar (Ctrl+C no front antes)
+git fetch origin && git checkout <branch ou main> && git pull --ff-only
+npm run lib:prepare && npm ci
+# a cópia da API na revisão em que o contrato deste frontend está fixado
+API=$(sed -n 's/.*"commit": *"\([0-9a-f]\{40\}\)".*/\1/p' contract/SOURCE.json)
+git -C ../Nekkora-Platform-API fetch origin && git -C ../Nekkora-Platform-API checkout --detach "$API"
+bash tools/lab/local.sh atualizar ../Nekkora-Platform-API
+bash tools/lab/local.sh front
+```
+
+- **Recusas que protegem os dados:** cópia da API com alterações locais, revisão diferente da fixada no contrato,
+  migration já aplicada que mudou ou sumiu na revisão nova, banco sem o marcador de inicialização completa. Em qualquer
+  delas, nada é alterado.
+- **Cópia de segurança:** `~/.nekkora/front-lab/frontlab-local/copias/antes-de-<versão>-<data>.dump` (formato do
+  `pg_dump`). Fica só neste computador, fora do Git: ela contém os seus dados.
+- **Registro:** `tools/lab/saidas/frontlab-local/atualizacoes.txt` (data, commit da API, versões) e o log do migrador
+  em `atualizacao-<versão>.txt`.
+- **Se o migrador falhar:** a API fica parada e o banco continua na versão anterior (cada migration é uma transação). O
+  caminho de volta é restaurar a cópia de segurança, que é destrutivo; peça ajuda antes.
+
 ### Fora do caminho normal: apagar o ambiente (destrutivo)
 
 Só quando quiser recomeçar do zero. **Este comando apaga a conta, o MFA, as organizações e a caixa.** Ele remove só
@@ -337,3 +382,15 @@ pela interface, sem SQL, sem fixture e sem chamada direta à API. O link vem do 
 ("Organização e6a3122e…29a3"), e não o nome. A causa estava no frontend: a sessão de organização não traz o nome
 (D1/D7), mas a lista da identidade traz. A área interna agora lê o nome dessa lista. Sem sessão de identidade, como na
 entrada antiga por organização, ela mantém o identificador abreviado.
+
+## 9. Validação da atualização e do MFA opcional (2026-11-02)
+
+Ambientes descartáveis próprios (`frontlab-ensaio-atualiza`, `frontlab-ensaio-mfa`), contas `@frontlab.test` e
+`@ensaio.nekkora.test`, caixa local. Nenhum dado do `frontlab-local` foi lido ou alterado.
+
+| Prova | Resultado |
+|---|---|
+| Ambiente instalado na revisão anterior (frontend `4943b4b`, API `e04a57c`, banco 028) com conta COM autenticador e organização → `atualizar` para a API `40b1e1c` | cópia de segurança de 1,3 MB; só a 029 aplicada, janela de SUPERUSER com retirada `0\|0\|0`; marcador `versao=029`; 1 identidade, 1 fator ativo, 10 códigos e 1 organização antes e depois |
+| A mesma conta depois da atualização (`uso-local.spec.ts`, passo 5) | entra com senha **e código**; a organização continua |
+| MFA opcional e roteiro (`mfa-opcional.spec.ts`) | conta sem autenticador entra sem QR; ação sensível sem confirmação: 403; organização e convite com a senha; a segunda pessoa (sem autenticador) aceita com a senha; papel conferido; ativação voluntária; a entrada seguinte pede o código e a senha não substitui mais |
+| Ativação real (`ativacao-operador.spec.ts`, API 029) | Aguardando ativação → CLI `ativar-organizacao` com `op_lab_atv`, certificado e limites 2/1/10 → Ativada; repetição `JA_ATIVADA`; Worker novo passa a ser aceito |
