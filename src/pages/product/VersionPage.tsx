@@ -420,6 +420,7 @@ export function VersionPage() {
       <StepUpDialog<LifecycleVersion>
         open={publishing}
         title={`Publicar a versão ${data.versionNumber ?? ''}?`}
+        guard={{ operation: 'version.publish', target: versionId }}
         confirmLabel="Publicar"
         ready={checked && !fpMismatch}
         stepUp={orgStepUp(org)}

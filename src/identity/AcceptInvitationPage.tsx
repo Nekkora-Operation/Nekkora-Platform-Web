@@ -164,6 +164,7 @@ export function AcceptInvitationPage() {
       <StepUpDialog<string>
         open={confirming}
         title="Aceitar o convite?"
+        guard={{ operation: 'invitation.accept', target: org }}
         confirmLabel="Aceitar"
         stepUp={identityStepUp}
         action={() => acceptInvitation(org, token)}

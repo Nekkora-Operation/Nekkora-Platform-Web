@@ -3,7 +3,7 @@ import { Alert, ConfirmDialog, Stack, Text } from 'nekkora-lib';
 import { listMembers, reactivateUser, suspendUser } from '../../api/admin';
 import { isApiError } from '../../api/http';
 import type { Member } from '../../api/v1';
-import { startWrite, type MemberEntry, type WriteAction, type WriteEntry } from '../../admin/writeStore';
+import { registryRefusalText, startWrite, type MemberEntry, type WriteAction, type WriteEntry } from '../../admin/writeStore';
 import type { FindResult, UncertainCopy } from './uncertainPanel';
 import { ACCOUNT_STATUS_LABEL } from './shared';
 
@@ -26,6 +26,8 @@ export function effectiveStatus(m: Member, entry: WriteEntry | undefined): Membe
 
 /** Mensagem de recusa comprovada (status documentado). Sem detalhe que a API não deu. */
 export function refusalText(e: unknown): string {
+  const registry = registryRefusalText(e);
+  if (registry) return registry;
   if (isApiError(e, 'not_found')) return 'Este membro não foi encontrado nesta organização. A lista pode estar desatualizada.';
   if (isApiError(e, 'rate_limited')) return 'Muitas tentativas em pouco tempo. Aguarde um pouco e tente de novo.';
   if (isApiError(e, 'invalid_request')) return 'O pedido não foi aceito. Atualize a lista e tente de novo.';

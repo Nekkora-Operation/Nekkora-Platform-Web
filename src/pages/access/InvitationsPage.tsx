@@ -186,6 +186,12 @@ export function InvitationsPage() {
       <StepUpDialog
         open={pending?.kind === 'issue'}
         title={pending?.kind === 'issue' ? `Convidar ${pending.email}?` : ''}
+        // alvo = e-mail convidado, só como parte do resumo da chave. LIMITAÇÃO DE PRIVACIDADE (FRONT-V1-004): não estar em
+        // claro NÃO é anonimização — o resumo é SHA-256 sem segredo, e quem tem acesso a este navegador e conhece o vínculo e
+        // a organização pode testar e-mails candidatos contra as chaves e descobrir quem foi convidado daqui com resultado
+        // desconhecido (os registros confirmados/recusados somem em 10 min; os incertos ficam até a pessoa liberar). Não há
+        // id do convite antes do envio; a alternativa sem e-mail perderia a proteção por convidado
+        guard={{ operation: 'invitation.issue', target: pending?.kind === 'issue' ? pending.email.trim().toLowerCase() : undefined }}
         confirmLabel="Enviar convite"
         stepUp={orgStepUp(org)}
         action={() => (pending?.kind === 'issue' ? issueInvitation(org, pending.email, pending.role || undefined, pending.workspaceId || undefined) : Promise.reject())}
@@ -207,6 +213,7 @@ export function InvitationsPage() {
       <StepUpDialog
         open={pending?.kind === 'resend'}
         title={pending?.kind === 'resend' ? `Reenviar o convite para ${pending.invitation.email}?` : ''}
+        guard={{ operation: 'invitation.resend', target: pending?.kind === 'resend' ? pending.invitation.invitationId : undefined }}
         confirmLabel="Reenviar"
         stepUp={orgStepUp(org)}
         action={() => (pending?.kind === 'resend' ? resendInvitation(org, pending.invitation.invitationId) : Promise.reject())}
@@ -223,6 +230,7 @@ export function InvitationsPage() {
       <StepUpDialog
         open={pending?.kind === 'revoke'}
         title={pending?.kind === 'revoke' ? `Revogar o convite para ${pending.invitation.email}?` : ''}
+        guard={{ operation: 'invitation.revoke', target: pending?.kind === 'revoke' ? pending.invitation.invitationId : undefined }}
         confirmLabel="Revogar convite"
         tone="danger"
         action={() => (pending?.kind === 'revoke' ? revokeInvitation(org, pending.invitation.invitationId) : Promise.reject())}

@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Card, ConfirmDialog, Grid, Select, Stack, StateView, StatusRegion, Table, Text, type TableColumn } from 'nekkora-lib';
-import { GrantDecisionButtons, GrantDecisionDialog, type GrantDecision } from '../access/grantDecisions';
+import { GrantDecisionButtons, GrantDecisionDialog, useRecordedDecisions, type GrantDecision } from '../access/grantDecisions';
 import { listClientGrants, listClients } from '../../api/admin';
 import { isApiError } from '../../api/http';
 import type { ClientGrant, GrantStatus } from '../../api/v1';
 import { useInternalArea } from '../../area/InternalShell';
 import { useSession } from '../../area/session';
 import { orgPath } from '../../auth/organization';
-import { clearSettled, dismissWrite, isGrantEntry, useWriteEntries, writeEntry, type GrantEntry } from '../../admin/writeStore';
+import { clearSettled, dismissWrite, isGrantEntry, restoreUncertain, useWriteEntries, writeEntry, type GrantEntry } from '../../admin/writeStore';
 import { useCursorList } from '../../hooks/useCursorList';
 import { useResource } from '../../hooks/useResource';
 import { DateTimeText, errorOf, LoadErrorState, PageHeader, RouteLink, useExpiresOn } from '../product/shared';
@@ -54,6 +54,7 @@ const CLIENT_OPTIONS_LIMIT = 100;
 export function GrantsPage() {
   const { org, expired } = useSession();
   const { workspaces, permissions } = useInternalArea();
+  const membershipId = permissions.status === 'ready' ? permissions.data.membershipId : null;
   const filters = useUrlFilters<GrantStatus>({ statuses: GRANT_STATUS_ORDER, ids: ['cliente', 'workspace'] });
   const clientId = filters.ids.cliente;
   const workspaceId = filters.ids.workspace;
@@ -72,6 +73,10 @@ export function GrantsPage() {
   );
   const clients = useResource(() => listClients(org, { limit: CLIENT_OPTIONS_LIMIT }), [org]);
   useExpiresOn(list.error, errorOf(clients));
+  // incerteza persistente (recarga, outra aba) volta para as linhas lidas (FRONT-V1-002)
+  useEffect(() => {
+    void restoreUncertain(org, list.items.map((g) => ({ target: grantTarget(g), actions: ['revoke'] })));
+  }, [org, list.items, membershipId]);
   const listDenied = useAccessDenied(list);
   /**
    * Conferência recusada (403): acesso negado até uma NOVA leitura iniciada EXPLICITAMENTE pela pessoa ("Verificar
@@ -110,9 +115,12 @@ export function GrantsPage() {
    * Concessões com decisão de resultado desconhecido (FRONT-V1-004): os botões de decisão da linha só voltam por decisão
    * EXPLÍCITA da pessoa ("Liberar nova decisão", com o aviso de possível duplicidade). Reler a lista, por "Atualizar" ou
    * sozinha, não libera: o contrato (e04a57c) não liga o estado da concessão a uma tentativa (sem id de operação, versão
-   * ou autor da decisão), então nenhuma leitura comprova se a decisão anterior foi aplicada.
+   * ou autor da decisão), então nenhuma leitura comprova se a decisão anterior foi aplicada. O registro persistente
+   * mantém o bloqueio depois de recarregar e em outra aba.
    */
-  const [uncertainDecisions, setUncertainDecisions] = useState<ReadonlySet<string>>(new Set());
+  const [uncertainHere, setUncertainDecisions] = useState<ReadonlySet<string>>(new Set());
+  const recorded = useRecordedDecisions(list.items.map((g) => g.grantId));
+  const uncertainDecisions = { has: (id: string) => uncertainHere.has(id) || recorded.blocked.has(id) };
   /** Concessão cuja liberação a pessoa pediu e ainda não confirmou. */
   const [releasing, setReleasing] = useState<ClientGrant | null>(null);
 
@@ -270,7 +278,7 @@ export function GrantsPage() {
           copy={GRANT_UNCERTAIN_COPY}
           find={(e, interrupted) => findGrant(org, e, interrupted)}
           onRetry={retryFrom}
-          onDismiss={(e) => dismissWrite(org, e.target.grantId, 'grant')}
+          onDismiss={(e) => dismissWrite(org, e.target.grantId, 'grant', { acknowledge: true })}
           onUnauthenticated={expired}
           onForbidden={() => setCheckDenied(true)}
         />
@@ -380,12 +388,14 @@ export function GrantsPage() {
         confirmLabel="Liberar"
         onConfirm={() => {
           const id = releasing?.grantId;
-          if (id)
+          if (id) {
             setUncertainDecisions((s) => {
               const next = new Set(s);
               next.delete(id);
               return next;
             });
+            void recorded.release(id);
+          }
           setReleasing(null);
         }}
         onCancel={() => setReleasing(null)}

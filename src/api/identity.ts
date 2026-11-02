@@ -72,7 +72,7 @@ export async function identitySession(): Promise<{ restricted: boolean }> {
   return { restricted: data.restricted };
 }
 
-async function identityCsrf(): Promise<string> {
+export async function identityCsrf(): Promise<string> {
   const cached = csrfStore.identitySession();
   if (cached) return cached;
   await identitySession();

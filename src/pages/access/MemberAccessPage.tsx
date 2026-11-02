@@ -196,6 +196,7 @@ export function MemberAccessPage() {
       <StepUpDialog
         open={pending?.kind === 'assign'}
         title={pending?.kind === 'assign' ? `Atribuir ${ROLE_LABEL[pending.role]} a ${name}?` : ''}
+        guard={{ operation: 'role.assign', target: pending?.kind === 'assign' ? `${userId}|${pending.role}|${pending.workspaceId ?? ''}` : undefined }}
         confirmLabel="Atribuir papel"
         stepUp={orgStepUp(org)}
         action={() => (pending?.kind === 'assign' ? assignRole(org, userId, pending.role, pending.workspaceId) : Promise.reject())}
@@ -216,6 +217,7 @@ export function MemberAccessPage() {
       <StepUpDialog
         open={pending?.kind === 'replace'}
         title={pending?.kind === 'replace' ? `Mudar ${ROLE_LABEL[pending.assignment.role]} para ${ROLE_LABEL[pending.role]}?` : ''}
+        guard={{ operation: 'role.replace', target: pending?.kind === 'replace' ? pending.assignment.assignmentId : undefined }}
         confirmLabel="Mudar papel"
         stepUp={orgStepUp(org)}
         action={() => (pending?.kind === 'replace' ? replaceRole(org, pending.assignment.assignmentId, pending.role) : Promise.reject())}
@@ -232,6 +234,7 @@ export function MemberAccessPage() {
       <StepUpDialog
         open={pending?.kind === 'revoke'}
         title={pending?.kind === 'revoke' ? `Revogar ${ROLE_LABEL[pending.assignment.role]} de ${name}?` : ''}
+        guard={{ operation: 'role.revoke', target: pending?.kind === 'revoke' ? pending.assignment.assignmentId : undefined }}
         confirmLabel="Revogar papel"
         tone="danger"
         action={() => (pending?.kind === 'revoke' ? revokeRole(org, pending.assignment.assignmentId) : Promise.reject())}
@@ -248,6 +251,7 @@ export function MemberAccessPage() {
       <StepUpDialog
         open={pending?.kind === 'membership'}
         title={`Retirar ${name} da organização?`}
+        guard={{ operation: 'membership.revoke', target: userId }}
         confirmLabel="Retirar vínculo"
         tone="danger"
         action={() => revokeMembership(org, userId)}

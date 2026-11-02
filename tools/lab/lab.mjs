@@ -10,6 +10,15 @@
  *                                                         ferramenta no laboratório (bloqueio B2). O mesmo modelo do
  *                                                         laboratório do Agent (ciclo.py, "fixture declarada 2"). Registrada
  *                                                         em tools/lab/saidas/<id>/fixtures.txt
+ *   node tools/lab/lab.mjs <id> cliente <org>            FIXTURE DECLARADA (FRONT-V1-002, só laboratório descartável): cria
+ *                                                         cliente, workspace do cliente e conta externa ativa com vínculo
+ *                                                         (sem senha, sem concessão) — a API não tem rota humana para isso
+ *                                                         (D-API-03). Imprime os ids em JSON. Concessões NÃO são criadas
+ *                                                         aqui: criação e decisões passam pela API real. Registrada em
+ *                                                         tools/lab/saidas/<id>/fixtures.txt
+ *   node tools/lab/lab.mjs <id> artefatos off|on          SÓ laboratório descartável (FRONT-V1-002): recria o serviço
+ *                                                         platform sem armazenamento de artefatos (503) e depois volta.
+ *                                                         Registrado em tools/lab/saidas/<id>/fixtures.txt
  *   node tools/lab/lab.mjs <id> limpar-redis              SÓ laboratório descartável: zera o Redis do projeto (limitadores
  *                                                         R9/R9b/R11 etc. e CSRF de pré-autenticação) entre rodadas.
  *                                                         Nunca é chamado pelos testes; cada uso fica registrado na
@@ -37,9 +46,9 @@ function env(id) {
   return out;
 }
 
-export function compose(id, args, options = {}) {
+export function compose(id, args, options = {}, extra = []) {
   const e = env(id);
-  const files = ['-f', join(e.LAB_API_REPO, 'api', 'e2e', 'compose.e2e.yml'), '-f', join(here, 'compose.front.yml')];
+  const files = ['-f', join(e.LAB_API_REPO, 'api', 'e2e', 'compose.e2e.yml'), '-f', join(here, 'compose.front.yml'), ...extra.flatMap((f) => ['-f', join(here, f)])];
   return execFileSync('docker', ['compose', ...files, ...args], {
     env: { ...process.env, ...e },
     encoding: 'utf8',
@@ -104,6 +113,41 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const { appendFileSync } = await import('node:fs');
     appendFileSync(join(here, 'saidas', id, 'fixtures.txt'), `${new Date().toISOString()} limites 010 (recursos 1-5, modo 2) org=${org}\n`);
     console.log('limites gravados (fixture declarada; registrada em fixtures.txt)');
+  } else if (cmd === 'cliente') {
+    const e = env(id);
+    if (!/^ensaio-frontlab-/.test(e.FRONT_AMBIENTE ?? '')) throw new Error('recusado: só em laboratório descartável ensaio-frontlab-*');
+    const [org] = rest;
+    if (!/^[0-9a-f-]{36}$/.test(org ?? '')) throw new Error('uso: cliente <org uuid>');
+    const { randomUUID } = await import('node:crypto');
+    const ids = { clientId: randomUUID(), workspaceId: randomUUID(), userId: randomUUID(), clientMembershipId: randomUUID() };
+    const tag = ids.clientId.slice(0, 8);
+    const out = { ...ids, clientName: `Cliente sintético ${tag}`, workspaceName: `Portal ${tag}`, externalName: `Externo ${tag}`, externalEmail: `externo-${tag}@frontlab.test` };
+    const sql = [
+      'BEGIN;',
+      `INSERT INTO clients (client_id, organization_id, name, status) VALUES ('${ids.clientId}', '${org}', '${out.clientName}', 1);`,
+      `INSERT INTO workspaces (workspace_id, organization_id, client_id, name, status) VALUES ('${ids.workspaceId}', '${org}', '${ids.clientId}', '${out.workspaceName}', 1);`,
+      `INSERT INTO users (user_id, organization_id, account_type, email, email_verified_at, status, display_name) VALUES ('${ids.userId}', '${org}', 2, '${out.externalEmail}', now(), 2, '${out.externalName}');`,
+      `INSERT INTO client_memberships (client_membership_id, organization_id, client_id, user_id, account_type, status) VALUES ('${ids.clientMembershipId}', '${org}', '${ids.clientId}', '${ids.userId}', 2, 2);`,
+      'COMMIT;',
+      '',
+    ].join('\n');
+    compose(id, ['exec', '-T', 'postgres', 'psql', '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-U', 'nekkora', '-d', 'nekkora'], { input: sql });
+    const { appendFileSync } = await import('node:fs');
+    appendFileSync(
+      join(here, 'saidas', id, 'fixtures.txt'),
+      `${new Date().toISOString()} cliente+workspace do cliente+conta externa (sem concessão) org=${org} cliente=${ids.clientId} vinculo=${ids.clientMembershipId}\n`,
+    );
+    process.stdout.write(JSON.stringify(out));
+  } else if (cmd === 'artefatos') {
+    const e = env(id);
+    if (!/^ensaio-frontlab-/.test(e.FRONT_AMBIENTE ?? '')) throw new Error('recusado: só em laboratório descartável ensaio-frontlab-*');
+    const mode = rest[0];
+    if (mode !== 'on' && mode !== 'off') throw new Error('uso: artefatos on|off');
+    compose(id, ['up', '-d', '--no-deps', '--wait', 'platform'], { stdio: ['ignore', 'inherit', 'inherit'] }, mode === 'off' ? ['compose.sem-artefatos.yml'] : []);
+    const { appendFileSync } = await import('node:fs');
+    appendFileSync(join(here, 'saidas', id, 'fixtures.txt'), `${new Date().toISOString()} platform recriado ${mode === 'off' ? 'SEM' : 'COM'} armazenamento de artefatos
+`);
+    console.log(`platform ${mode === 'off' ? 'sem' : 'com'} armazenamento de artefatos`);
   } else if (cmd === 'limpar-redis') {
     const e = env(id);
     if (!/^ensaio-frontlab-/.test(e.FRONT_AMBIENTE ?? '')) throw new Error('recusado: só em laboratório descartável ensaio-frontlab-*');

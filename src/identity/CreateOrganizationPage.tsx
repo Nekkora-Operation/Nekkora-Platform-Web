@@ -101,6 +101,7 @@ export function CreateOrganizationPage() {
       <StepUpDialog<string>
         open={confirming}
         title={`Criar a organização "${name}"?`}
+        guard={{ operation: 'organization.create' }}
         confirmLabel="Criar organização"
         stepUp={identityStepUp}
         action={() => createOrganization(name, legalName || undefined)}
