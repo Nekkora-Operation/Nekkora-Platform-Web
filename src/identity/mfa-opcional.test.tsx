@@ -67,9 +67,11 @@ describe('conta nova sem autenticação em duas etapas', () => {
     await user().type(await screen.findByLabelText(lbl('Nome da organização')), 'Acme');
     await user().click(screen.getByRole('button', { name: 'Continuar' }));
     const dialog = await screen.findByRole('alertdialog');
+    // o campo só aparece depois de lido o registro da operação (assíncrono): espera o campo, depois confere o outro método
+    const senha = await within(dialog).findByLabelText(lbl('Sua senha'));
     expect(within(dialog).queryByLabelText(/Código do seu aplicativo autenticador/)).not.toBeInTheDocument();
     expect(within(dialog).getByText(/não usa autenticação em duas etapas/)).toBeInTheDocument();
-    await user().type(within(dialog).getByLabelText(lbl('Sua senha')), PASSWORD);
+    await user().type(senha, PASSWORD);
     await user().click(within(dialog).getByRole('button', { name: 'Criar organização' }));
     await vi.waitFor(() => expect(api.sent('POST', '/api/v1/organizations')).toHaveLength(1));
     expect(api.sent('POST', '/api/v1/auth/password-confirm')[0]).toMatchObject({ csrf: 'id-csrf', body: { password: PASSWORD } });
@@ -84,7 +86,7 @@ describe('conta nova sem autenticação em duas etapas', () => {
     await user().type(await screen.findByLabelText(lbl('Nome da organização')), 'Acme');
     await user().click(screen.getByRole('button', { name: 'Continuar' }));
     const dialog = await screen.findByRole('alertdialog');
-    await user().type(within(dialog).getByLabelText(lbl('Sua senha')), 'senha-errada-qualquer');
+    await user().type(await within(dialog).findByLabelText(lbl('Sua senha')), 'senha-errada-qualquer');
     await user().click(within(dialog).getByRole('button', { name: 'Criar organização' }));
     expect(await within(dialog).findByText(/Não foi possível confirmar sua identidade com esta senha/)).toBeInTheDocument();
     expect(api.sent('POST', '/api/v1/organizations')).toEqual([]);
@@ -154,8 +156,11 @@ describe('conta já protegida', () => {
     await user().type(await screen.findByLabelText(lbl('Nome da organização')), 'Acme');
     await user().click(screen.getByRole('button', { name: 'Continuar' }));
     const dialog = await screen.findByRole('alertdialog');
-    expect(within(dialog).getByLabelText(/Código do seu aplicativo autenticador/)).toBeInTheDocument();
+    // nem enquanto o registro da operação carrega a senha aparece como alternativa
     expect(within(dialog).queryByLabelText(lbl('Sua senha'))).not.toBeInTheDocument();
+    expect(await within(dialog).findByLabelText(/Código do seu aplicativo autenticador/)).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(lbl('Sua senha'))).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/não usa autenticação em duas etapas/)).not.toBeInTheDocument();
   });
 });
 
