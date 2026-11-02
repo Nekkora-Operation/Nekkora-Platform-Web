@@ -3,7 +3,8 @@
 Frontend do Nekkora Platform — **Authentication V1**: login por organização, MFA (TOTP) obrigatório com
 primeiro acesso guiado, código de recuperação, esqueci/redefinir senha e confirmação de e-mail.
 
-- React 19 + Vite + react-router, **somente componentes da [Nekkora-lib](../Nekkora-lib)** (dependência `file:`).
+- React 19 + Vite + react-router, **somente componentes da Nekkora-lib**, fixada por commit e sha256 em `lib.lock.json`.
+- **Primeiro uso local com a API real no Windows:** [`docs/USO-LOCAL.md`](docs/USO-LOCAL.md).
 - A API (`nekkora-platform-api`, contrato 8.7) é a autoridade para sessão, MFA, organização e tokens.
 - Divergências entre a UX planejada e o contrato real: [`docs/DIVERGENCIAS.md`](docs/DIVERGENCIAS.md).
 
@@ -25,20 +26,18 @@ nem "manter conectado".
 
 ## Rodando
 
-Pré-requisitos: Node 22+ e o repositório `Nekkora-lib` ao lado deste, no `main` e atualizado com `git pull`.
-Não precisa da API nem de Docker.
+Pré-requisitos: Node 22+. A simulação não precisa da API nem do Docker.
 
-`dev`, `build` e `test` começam por `scripts/check-lib.mjs`: se a lib não exportar algum componente que o
-frontend usa, ela é recompilada; se ainda faltar (branch errado), o comando para com a instrução — em vez de a
-página abrir em branco.
+A Nekkora-lib é **fixada** (`lib.lock.json`: repositório, commit, versão e sha256 do pacote). `npm run lib:prepare`
+faz um checkout isolado em `.deps/nekkora-lib` (ignorado pelo Git), compila, empacota e confere o sha256. O `npm ci`
+instala esse pacote e confere a integridade sha512 do `package-lock.json`. Nenhuma pasta `../Nekkora-lib` é usada.
 
-Com npm 11, `npm ci`/`npm install` aqui **não** executa o `prepare` (build) da lib (aviso "allow-scripts"), e o
-`check-lib` só recompila quando falta um export. Depois de atualizar a lib, gere o `dist` nela
-(`npm ci && npm run build` em `../Nekkora-lib`). Ao registrar uma verificação, anote o **par de commits**
-web + lib: o lockfile e o comportamento dependem da lib em disco.
+`dev`, `build` e `test` começam por `scripts/check-lib.mjs`, que para com uma instrução se a lib instalada não exportar
+algum componente usado pelo frontend, em vez de deixar a página em branco.
 
 ```bash
-npm install
+npm run lib:prepare
+npm ci
 npm run dev              # http://localhost:5173 — com a API simulada
 npm run check            # typecheck + testes unitários/integração + build
 ```
@@ -116,10 +115,12 @@ senha → login; link de verificação → confirmação → login), códigos de
 cookies, organização, API indisponível, submit duplicado, vazamentos (console, URL, storage) e acessibilidade
 com axe (incluindo contraste).
 
-### Integração com a API real (fase futura)
+### Integração com a API real
 
-Com `NEKKORA_API_URL` definido (ex.: `https://localhost:55443`), o Vite deixa de simular e repassa `/api` para
-essa API. A origem pública configurada na API precisa ser a do Vite (`http://localhost:5173`).
+Com `NEKKORA_API_URL` definido, o Vite deixa de simular e repassa `/api` para essa API. A origem pública configurada
+na API precisa ser a do Vite (`http://localhost:5173`). Com `NEKKORA_API_CA` (o certificado do ambiente local), o
+repasse confere o TLS da API. O ambiente local completo (banco, Redis, migrations, API, gateway e caixa de e-mail) e o
+uso do dia a dia ficam em [`docs/USO-LOCAL.md`](docs/USO-LOCAL.md) (`tools/lab/local.sh`).
 
 ## Segurança no cliente
 
