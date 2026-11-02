@@ -5,12 +5,18 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ApiError } from '../api/http';
 import { ContractViolation } from '../api/validate';
+import { grantRefusalText } from '../pages/admin/grantActions';
+import { refusalText } from '../pages/admin/memberActions';
+import { mfaRefusalText } from '../pages/admin/mfaResetActions';
 import {
   beginCheck,
+  BUSY_ELSEWHERE_TEXT,
+  BusyElsewhere,
   classify,
   clearSettled,
   dismissWrite,
   finishCheck,
+  NotApplied,
   resetWriteStore,
   startWrite,
   writeEntry,
@@ -19,19 +25,24 @@ import {
 const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const t = (userId: string) => ({ userId, membershipId: `m-${userId}`, displayName: userId.slice(0, 4) });
-const flush = () => new Promise<void>((r) => setTimeout(r, 0));
+// o envio passa antes pelo registro persistente (resumo SHA-256 e gravação, assíncronos): várias voltas do laço
+const flush = async () => {
+  for (let i = 0; i < 10; i++) await new Promise<void>((r) => setTimeout(r, 0));
+};
 
 function deferred() {
   let resolve!: () => void;
   let reject!: (e: unknown) => void;
   const promise = new Promise<void>((res, rej) => ((resolve = res), (reject = rej)));
+  // o envio só é chamado depois da gravação no registro persistente: a recusa pode chegar antes de quem a consome
+  promise.catch(() => {});
   return { promise, resolve, reject };
 }
 
 beforeEach(() => resetWriteStore());
 
 describe('registro de escritas', () => {
-  it('trava síncrona: dois inícios no mesmo instante → um envio só', () => {
+  it('trava síncrona: dois inícios no mesmo instante → um envio só', async () => {
     const d = deferred();
     let calls = 0;
     const send = () => {
@@ -41,7 +52,15 @@ describe('registro de escritas', () => {
     expect(startWrite(A, 'suspend', t('u1'), send)).not.toBeNull();
     expect(startWrite(A, 'suspend', t('u1'), send)).toBeNull();
     expect(startWrite(A, 'reactivate', t('u1'), send)).toBeNull();
+    await flush();
     expect(calls).toBe(1);
+  });
+
+  it('envio em curso em OUTRA aba aparece como tal, não como recusa da API', () => {
+    const busy = new NotApplied('registry', new BusyElsewhere());
+    expect(classify(busy)).toBe('refused'); // nada foi enviado desta aba
+    for (const text of [grantRefusalText(busy), refusalText(busy), mfaRefusalText(busy, 'Caio')]) expect(text).toBe(BUSY_ELSEWHERE_TEXT);
+    expect(grantRefusalText(new ApiError('forbidden', 403))).not.toBe(BUSY_ELSEWHERE_TEXT);
   });
 
   it('classificação: recusa só com status documentado que não aplica; o resto é incerto', () => {

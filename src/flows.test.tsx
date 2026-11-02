@@ -30,7 +30,8 @@ describe('Login', () => {
     ]) {
       const view = renderApp(LOGIN);
       await fillLogin(email, pwd);
-      texts.push((await screen.findByRole('alert')).textContent ?? '');
+      // espera explícita: com a suíte inteira em paralelo a renderização depois da resposta passou de 1 s (FRONT-V1-002)
+      texts.push((await screen.findByRole('alert', {}, { timeout: 5_000 })).textContent ?? '');
       view.unmount();
     }
     expect(new Set(texts).size).toBe(1);
@@ -40,7 +41,7 @@ describe('Login', () => {
   it('login válido nunca vai direto para a área interna: a API v1 sempre exige MFA', async () => {
     renderApp(LOGIN);
     await fillLogin('ana@empresa.com', 'senha-muito-segura');
-    await waitFor(() => expect(location()).toBe(`/o/${ORG}/mfa`));
+    await waitFor(() => expect(location()).toBe(`/o/${ORG}/mfa`), { timeout: 5_000 });
     expect(screen.getByRole('heading', { name: 'Confirme sua identidade' })).toBeInTheDocument();
   });
 

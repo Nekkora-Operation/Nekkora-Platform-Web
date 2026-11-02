@@ -7,7 +7,7 @@ import contract from './generated/nekkora-api-v1.schemas.json' with { type: 'jso
 import { ApiError } from './http';
 import { getExecution, listExecutions, listWorkspaces } from './product';
 import { getMyPermissions } from './permissions';
-import { ContractViolation, isDateTime, readJson, rawSchemaViolations, validated, violations } from './validate';
+import { ContractViolation, isDateTime, rawSchemaViolations, readJson, schemaViolations, validated, violations } from './validate';
 import { ajvValidate } from '../test/ajvContract';
 import * as fx from '../test/contractFixtures';
 
@@ -67,6 +67,15 @@ describe('validador', () => {
     expect(bad('getAgentRun', { ...run, supervisor: { state: 'RUNNING', counts: { ok: 2 } } })).toEqual([]);
   });
 
+  it('D-API-01: o oneOf da confirmação do fator é ambíguo; o cliente confere pelo esquema do modo', () => {
+    const challenge = { recoveryCodes: ['AAAA-BBBB-CCCC-DDDD'], csrfToken: 'x', restricted: false };
+    // a resposta real do desafio satisfaz os DOIS ramos: pelo oneOf do contrato ela seria recusada
+    expect(violations('identityConfirmMfaEnrollment', challenge).map((v) => v.rule)).toEqual(['oneOf (mais de um)']);
+    expect(schemaViolations('IdentityEnrollmentConfirmation', challenge)).toEqual([]);
+    expect(schemaViolations('IdentityEnrollmentConfirmation', { recoveryCodes: [], restricted: false }).map((v) => v.rule)).toEqual(['required csrfToken']);
+    expect(schemaViolations('IdentityFactorReplacement', { recoveryCodes: ['A'], restricted: false })).toEqual([]);
+  });
+
   it('mapa com propriedades declaradas: chaves do mapa não são extras no modo estrito', () => {
     const schema = { type: 'object', properties: { total: { type: 'integer' } }, additionalProperties: { type: 'integer' } };
     expect(rawSchemaViolations(schema, { total: 3, ok: 2, falhas: 1 }, true)).toEqual([]);
@@ -89,7 +98,7 @@ describe('validador', () => {
     walk(Object.values(contract.schemas));
     walk(Object.values(contract.operations).flatMap((o) => Object.values(o.responses).map((r) => r.schema)));
     expect([...found].filter((k) => !supported.has(k))).toEqual([]);
-    expect(Object.keys(contract.operations)).toHaveLength(95); // todas as operações do OpenAPI (GET, POST, PUT, PATCH e DELETE) em e04a57c
+    expect(Object.keys(contract.operations)).toHaveLength(99); // todas as operações do OpenAPI (GET, POST, PUT, PATCH e DELETE) em e04a57c
   });
 
   it('validated: erro "unexpected" que leva só caminhos e regras, nunca valores', () => {

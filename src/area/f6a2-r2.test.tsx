@@ -189,7 +189,7 @@ describe('R2.1c: leitura já em curso que conclui DEPOIS do 403 da conferência'
 });
 
 describe('R2.2: troca de sessão em OUTRA aba', () => {
-  it('o aviso entre abas não carrega credencial: só { tipo: "sessao-alterada" }', async () => {
+  it('o aviso entre abas não carrega credencial: só { tipo: "sessao-alterada" } e, se for o caso, o alcance', async () => {
     const other = new BroadcastChannel('nekkora-sessao');
     const got: unknown[] = [];
     other.onmessage = (e) => got.push(e.data);
@@ -197,7 +197,7 @@ describe('R2.2: troca de sessão em OUTRA aba', () => {
     csrfStore.clear();
     csrfStore.beginSession(DEV_ORG, 'outro-token-que-nao-pode-vazar');
     await waitFor(() => expect(got).toHaveLength(2));
-    expect(got).toEqual([{ tipo: 'sessao-alterada' }, { tipo: 'sessao-alterada' }]);
+    expect(got).toEqual([{ tipo: 'sessao-alterada' }, { tipo: 'sessao-alterada', alcance: 'organizacao' }]);
     expect(JSON.stringify(got)).not.toContain('token');
     other.close();
   });

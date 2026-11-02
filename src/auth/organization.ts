@@ -27,6 +27,10 @@ export const orgPath = {
   resendVerification: (org: string) => `/o/${org}/resend-verification`,
   verifyEmail: (org: string) => `/o/${org}/verify-email`,
   home: (org: string) => `/o/${org}`,
+  /** Minha conta (dados da conta nesta organização e a versão em execução). */
+  account: (org: string) => `/o/${org}/conta`,
+  /** Reentrada pela identidade (troca por gesto explícito). */
+  entry: (org: string) => `/o/${org}/entrar`,
   /** Área interna (F4): lista de execuções. */
   executions: (org: string) => `/o/${org}/execucoes`,
   /** F5: leituras de detalhe (os identificadores vão codificados no caminho). */
@@ -34,10 +38,22 @@ export const orgPath = {
   workspaces: (org: string) => `/o/${org}/workspaces`,
   workspace: (org: string, id: string) => `/o/${org}/workspaces/${encodeURIComponent(id)}`,
   automation: (org: string, id: string) => `/o/${org}/automacoes/${encodeURIComponent(id)}`,
+  /** M3: versão (ciclo de vida: pacote, conferência, publicação). */
+  version: (org: string, id: string) => `/o/${org}/versoes/${encodeURIComponent(id)}`,
+  /** M4: execução local (Agents, Workers) e supervisão das execuções registradas pelo Agent. */
+  agents: (org: string) => `/o/${org}/agents`,
+  workers: (org: string) => `/o/${org}/workers`,
+  agentRuns: (org: string) => `/o/${org}/supervisao`,
+  agentRun: (org: string, id: string) => `/o/${org}/supervisao/${encodeURIComponent(id)}`,
   /** F6a-1: administração (só leitura). */
   members: (org: string) => `/o/${org}/administracao/membros`,
   clients: (org: string) => `/o/${org}/administracao/clientes`,
   grants: (org: string) => `/o/${org}/administracao/concessoes`,
+  /** M2: acessos (convites, papéis, vínculo, auditoria) e convite recebido. */
+  memberAccess: (org: string, userId: string) => `/o/${org}/administracao/membros/${encodeURIComponent(userId)}`,
+  invitations: (org: string) => `/o/${org}/administracao/convites`,
+  accessEvents: (org: string) => `/o/${org}/administracao/auditoria`,
+  invitation: (org: string) => `/o/${org}/convite`,
 };
 
 /**

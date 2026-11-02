@@ -1,8 +1,9 @@
 /**
- * Token de links de e-mail (redefinição de senha, verificação).
+ * Token de links de e-mail (cadastro, recuperação de senha, convite).
  *
- * Formato proposto dos links (divergência D4 — a API ainda não gera links):
- *   /o/{org}/reset-password#token=<token>   e   /o/{org}/verify-email#token=<token>
+ * Os caminhos são contrato da API (MailTemplates, token SEMPRE no fragmento): /cadastro/confirmar, /recuperar-senha,
+ * /o/{org}/recuperar-senha e /o/{org}/convite. Os antigos /o/{org}/reset-password e /o/{org}/verify-email continuam
+ * aceitos por compatibilidade.
  * O fragmento (#) não é enviado a servidores nem em Referer. Por compatibilidade também aceitamos ?token=.
  *
  * O token é lido UMA vez e removido da barra de endereços imediatamente (history.replaceState), para não
@@ -40,6 +41,11 @@ export function captureInitialLinkToken(): void {
   if (/\/(reset-password|verify-email|resend-verification)\/?$/.test(path) || /[#?&]token=/.test(window.location.href)) {
     initial = { path, token: takeLinkToken() };
   }
+}
+
+/** Há token capturado para o caminho (sem consumi-lo): decide a tela antes de a página o usar. */
+export function peekInitialLinkToken(path: string): boolean {
+  return !!initial && initial.path === path && initial.token !== null;
 }
 
 /** Devolve (e esquece) o token capturado para o caminho atual. */

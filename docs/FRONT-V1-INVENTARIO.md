@@ -134,6 +134,9 @@ Os laboratórios preservados (`agentlab-001…005` e os `ensaio-*` de homologaç
 Legenda de CSRF: **pre** = pré-autenticação; **des** = desafio; **id** = sessão de identidade; **org** = sessão de
 organização.
 
+> A coluna "Testes" é o PLANO do M0. A situação real de cada jornada (aprovada, parcial, bloqueada ou não executada),
+> com o tipo de prova, está em `FRONT-V1-002-RELATORIO.md` §2.
+
 | Jornada | Tela (rota web) | Operação(ões) da API | Permissão | CSRF | Step-up | Chave | Estados e erros próprios | Testes |
 |---------|-----------------|----------------------|-----------|------|---------|-------|--------------------------|--------|
 | J01/J02 cadastro | `/cadastro`, `/cadastro/confirmar#token` | signup, confirmSignup, resendSignupConfirmation | — | pre | — | cadastro | 202 uniforme; 400 = link inválido (expirado, revogado, usado, substituído); 404 = indisponível; 429/503 | componente + E2E real (caixa) |
@@ -161,5 +164,5 @@ organização.
 | B2 | API/operação | Ativação de organização só pelo `nekkora-ops` com mTLS, IdP e conta vinculada (stack de homologação). Os laboratórios E2E e do Agent não têm a ferramenta. | `OpsCli`, relatório de 23/10 §2; `ciclo.py` usou fixture SQL declarada | J06 "aguardando ativação" funciona; a etapa seguinte (Workers) exige ativação. | Ferramenta operacional no laboratório descartável, ou aceite da fixture declarada como pré-condição periférica. | A tela mostra o estado e não oferece botão de ativação. |
 | B3 | API | A API não emite link de verificação de e-mail por organização nem tem rota de reenvio (D2). | `MailTemplates` | Nenhum: a tela legada fica fora da navegação. | — | — |
 | B4 | Agent/infra | O Agent só fala https com a origem do nginx do laboratório (certificado descartável no truststore). | `Destination.java`, `LabComum.ps1` | J12–J15 dependem de configurar o Agent. | Roteiro do laboratório do Agent. | Telas e testes de componente. |
-| B5 | Lib | A release 0.2.0 da lib (contraste AA, Inter local) não está no checkout local. | `git log HEAD..origin/main` na lib | Contraste e tipografia finais. | Atualizar o checkout da lib e conferir a regressão visual e de a11y numa etapa própria. | Tudo. |
-| B6 | frontend (ensaio) | 14b30f7 é a `main` remota do Studio (`ls-remote`), mas não foi buscado no clone local, que não é alterado nesta missão. | `git cat-file`, `git ls-remote` | J10/J13 precisam de um ZIP real gerado pelo Studio. | Clone descartável do Studio em 14b30f7 para gerar o pacote, ou a fixture versionada da API (pacote real gerado pelo Studio). | Upload com a fixture. |
+| B5 | Lib | **Resolvido na FRONT-V1-002** (lib 0.2.0 fixada por commit e sha256 em `lib.lock.json`). Texto original: a release 0.2.0 da lib (contraste AA, Inter local) não está no checkout local. | `git log HEAD..origin/main` na lib | Contraste e tipografia finais. | Atualizar o checkout da lib e conferir a regressão visual e de a11y numa etapa própria. | Tudo. |
+| B6 | frontend (ensaio) | **Contornado**: o pacote usado é o real do Studio versionado na API (`pacote-studio-real`, impressão `5664f1a5…`); nenhum pacote novo foi gerado. Texto original: 14b30f7 é a `main` remota do Studio (`ls-remote`), mas não foi buscado no clone local, que não é alterado nesta missão. | `git cat-file`, `git ls-remote` | J10/J13 precisam de um ZIP real gerado pelo Studio. | Clone descartável do Studio em 14b30f7 para gerar o pacote, ou a fixture versionada da API (pacote real gerado pelo Studio). | Upload com a fixture. |

@@ -17,3 +17,12 @@
   .pw-home__facts { grid-template-columns: 1fr; gap: 2px; }
   .pw-home__facts dd { margin-bottom: var(--nk-space-3); }
 }
+
+/* página inicial interna como ponto de partida (PLATFORM-LOCAL-002) */
+.pw-start__head { display: flex; flex-direction: column; gap: var(--nk-space-1); }
+.pw-start__org { overflow-wrap: anywhere; }
+.pw-start__activation { display: flex; flex-wrap: wrap; align-items: center; gap: var(--nk-space-2); }
+.pw-start__activity { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: var(--nk-space-5); }
+.pw-start__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--nk-space-3); }
+.pw-start__list li { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.pw-start__meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--nk-space-2); font-size: var(--nk-font-size-sm); color: var(--nk-color-text-secondary); }

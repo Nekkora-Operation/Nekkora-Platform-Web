@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, Card, Grid, Select, Stack, StateView, StatusRegion, Table, Text, type TableColumn } from 'nekkora-lib';
+import { Alert, Button, Card, ConfirmDialog, Grid, Select, Stack, StateView, StatusRegion, Table, Text, type TableColumn } from 'nekkora-lib';
+import { GrantDecisionButtons, GrantDecisionDialog, useRecordedDecisions, type GrantDecision } from '../access/grantDecisions';
 import { listClientGrants, listClients } from '../../api/admin';
 import { isApiError } from '../../api/http';
 import type { ClientGrant, GrantStatus } from '../../api/v1';
 import { useInternalArea } from '../../area/InternalShell';
 import { useSession } from '../../area/session';
 import { orgPath } from '../../auth/organization';
-import { clearSettled, dismissWrite, isGrantEntry, useWriteEntries, writeEntry, type GrantEntry } from '../../admin/writeStore';
+import { clearSettled, dismissWrite, isGrantEntry, restoreUncertain, useWriteEntries, writeEntry, type GrantEntry } from '../../admin/writeStore';
 import { useCursorList } from '../../hooks/useCursorList';
 import { useResource } from '../../hooks/useResource';
 import { DateTimeText, errorOf, LoadErrorState, PageHeader, RouteLink, useExpiresOn } from '../product/shared';
@@ -48,9 +49,12 @@ const CLIENT_OPTIONS_LIMIT = 100;
  * decide de qualquer forma. Só o 204 é sucesso (inclusive para concessão já revogada). Envio, recusa, resultado incerto e
  * conferência ficam no registro de escritas, com chave própria de concessão (não colide com membros).
  */
+
+
 export function GrantsPage() {
   const { org, expired } = useSession();
   const { workspaces, permissions } = useInternalArea();
+  const membershipId = permissions.status === 'ready' ? permissions.data.membershipId : null;
   const filters = useUrlFilters<GrantStatus>({ statuses: GRANT_STATUS_ORDER, ids: ['cliente', 'workspace'] });
   const clientId = filters.ids.cliente;
   const workspaceId = filters.ids.workspace;
@@ -69,6 +73,10 @@ export function GrantsPage() {
   );
   const clients = useResource(() => listClients(org, { limit: CLIENT_OPTIONS_LIMIT }), [org]);
   useExpiresOn(list.error, errorOf(clients));
+  // incerteza persistente (recarga, outra aba) volta para as linhas lidas (FRONT-V1-002)
+  useEffect(() => {
+    void restoreUncertain(org, list.items.map((g) => ({ target: grantTarget(g), actions: ['revoke'] })));
+  }, [org, list.items, membershipId]);
   const listDenied = useAccessDenied(list);
   /**
    * Conferência recusada (403): acesso negado até uma NOVA leitura iniciada EXPLICITAMENTE pela pessoa ("Verificar
@@ -100,6 +108,21 @@ export function GrantsPage() {
   useEffect(() => clearSettled(org, 'grant'), [org, filters.key, refresh]);
 
   const canManage = permissions.status === 'ready' && permissions.data.organization.permissions.includes('external_access.manage');
+  // M2 (024): decisões além da revogação — aprovar, pedir/aprovar renovação, revisar, pedir de novo
+  const [decision, setDecision] = useState<{ grant: ClientGrant; decision: GrantDecision } | null>(null);
+  const [decisionNotice, setDecisionNotice] = useState<{ tone: 'success' | 'warning'; text: string } | null>(null);
+  /**
+   * Concessões com decisão de resultado desconhecido (FRONT-V1-004): os botões de decisão da linha só voltam por decisão
+   * EXPLÍCITA da pessoa ("Liberar nova decisão", com o aviso de possível duplicidade). Reler a lista, por "Atualizar" ou
+   * sozinha, não libera: o contrato (e04a57c) não liga o estado da concessão a uma tentativa (sem id de operação, versão
+   * ou autor da decisão), então nenhuma leitura comprova se a decisão anterior foi aplicada. O registro persistente
+   * mantém o bloqueio depois de recarregar e em outra aba.
+   */
+  const [uncertainHere, setUncertainDecisions] = useState<ReadonlySet<string>>(new Set());
+  const recorded = useRecordedDecisions(list.items.map((g) => g.grantId));
+  const uncertainDecisions = { has: (id: string) => uncertainHere.has(id) || recorded.blocked.has(id) };
+  /** Concessão cuja liberação a pessoa pediu e ainda não confirmou. */
+  const [releasing, setReleasing] = useState<ClientGrant | null>(null);
 
   // sessão expirada numa escrita: não foi aplicada (a sessão é validada antes dos efeitos) → fluxo de sessão expirada
   const expiredEntry = entries.find(
@@ -136,8 +159,23 @@ export function GrantsPage() {
     const e = byGrant.get(g.grantId);
     if (e?.phase === 'sending') return <Text variant="body-sm" color="secondary">Enviando…</Text>;
     if (e?.phase === 'uncertain') return <Text variant="body-sm" color="secondary">Resultado não confirmado</Text>;
-    if (!REVOCABLE.includes(effectiveGrantStatus(g, e))) return <span className="pw-prod__muted">—</span>;
+    const decisions =
+      e?.phase === 'done' ? null : uncertainDecisions.has(g.grantId) ? (
+        <>
+          <Text variant="body-sm" color="secondary">
+            Decisão não confirmada
+          </Text>
+          <Button size="sm" variant="ghost" onClick={() => setReleasing(g)} aria-label={`Liberar nova decisão: ${g.externalAccount.displayName} em ${g.workspace.name}`}>
+            Liberar nova decisão
+          </Button>
+        </>
+      ) : (
+        <GrantDecisionButtons grant={g} onPick={(d) => setDecision({ grant: g, decision: d })} />
+      );
+    if (!REVOCABLE.includes(effectiveGrantStatus(g, e))) return decisions ?? <span className="pw-prod__muted">—</span>;
     return (
+      <span className="pw-admin__row-actions">
+      {decisions}
       <Button
         size="sm"
         variant="secondary"
@@ -147,6 +185,7 @@ export function GrantsPage() {
       >
         Revogar
       </Button>
+      </span>
     );
   };
 
@@ -223,7 +262,11 @@ export function GrantsPage() {
             ? 'Acessos de contas externas aos workspaces dos clientes.'
             : 'Acessos de contas externas aos workspaces dos clientes. Somente consulta.'
         }
-        onRefresh={forbidden ? undefined : () => setRefresh((n) => n + 1)}
+        onRefresh={
+          forbidden
+            ? undefined
+            : () => setRefresh((n) => n + 1)
+        }
         refreshing={list.status === 'loading' && refresh > 0}
       />
       <StatusRegion aria-label="Resultado das ações" message={announce?.text} announceKey={announce?.n} />
@@ -235,7 +278,7 @@ export function GrantsPage() {
           copy={GRANT_UNCERTAIN_COPY}
           find={(e, interrupted) => findGrant(org, e, interrupted)}
           onRetry={retryFrom}
-          onDismiss={(e) => dismissWrite(org, e.target.grantId, 'grant')}
+          onDismiss={(e) => dismissWrite(org, e.target.grantId, 'grant', { acknowledge: true })}
           onUnauthenticated={expired}
           onForbidden={() => setCheckDenied(true)}
         />
@@ -319,6 +362,55 @@ export function GrantsPage() {
           )}
         </>
       )}
+      {decisionNotice && <Alert tone={decisionNotice.tone}>{decisionNotice.text}</Alert>}
+      <GrantDecisionDialog
+        org={org}
+        grant={forbidden ? null : (decision?.grant ?? null)}
+        decision={decision?.decision ?? null}
+        onClose={() => setDecision(null)}
+        onDone={(text) => {
+          setDecision(null);
+          setDecisionNotice({ tone: 'success', text });
+          setRefresh((n) => n + 1);
+        }}
+        onUncertain={() => {
+          const id = decision?.grant.grantId;
+          if (id) setUncertainDecisions((s) => new Set(s).add(id));
+          setDecisionNotice({ tone: 'warning', text: 'O resultado da última decisão não foi confirmado e nada será repetido automaticamente. Confira o estado atual; a linha só volta a oferecer decisões quando você liberar.' });
+          setRefresh((n) => n + 1);
+        }}
+        onUnauthenticated={expired}
+        onRefused={() => setRefresh((n) => n + 1)}
+      />
+      <ConfirmDialog
+        open={!!releasing && !forbidden}
+        title="Liberar nova decisão?"
+        confirmLabel="Liberar"
+        onConfirm={() => {
+          const id = releasing?.grantId;
+          if (id) {
+            setUncertainDecisions((s) => {
+              const next = new Set(s);
+              next.delete(id);
+              return next;
+            });
+            void recorded.release(id);
+          }
+          setReleasing(null);
+        }}
+        onCancel={() => setReleasing(null)}
+        size="md"
+      >
+        <Stack gap={2}>
+          <Text>
+            A última decisão sobre o acesso de {releasing?.externalAccount.displayName} em {releasing?.workspace.name} ficou sem
+            resultado confirmado. A lista não mostra se ela foi aplicada: o estado lido pode já incluir essa decisão ou não.
+          </Text>
+          <Alert tone="warning" live="off">
+            Liberar permite decidir de novo. Não confirma o resultado anterior nem garante que não haverá duplicidade.
+          </Alert>
+        </Stack>
+      </ConfirmDialog>
       <RevokeGrantDialog
         org={org}
         dialog={forbidden ? null : dialog}

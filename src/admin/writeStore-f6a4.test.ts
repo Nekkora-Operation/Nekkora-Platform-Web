@@ -24,7 +24,10 @@ const ORG = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const USER = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const member: MemberTarget = { userId: USER, membershipId: 'm1', displayName: 'Pessoa' };
 const mfa: MfaTarget = { kind: 'mfa', userId: USER, membershipId: 'm1', displayName: 'Pessoa', email: 'p@x.dev' };
-const flush = () => new Promise<void>((r) => setTimeout(r, 0));
+// o envio passa antes pelo registro persistente (resumo SHA-256 e gravação, assíncronos): várias voltas do laço
+const flush = async () => {
+  for (let i = 0; i < 10; i++) await new Promise<void>((r) => setTimeout(r, 0));
+};
 
 beforeEach(() => {
   resetWriteStore();

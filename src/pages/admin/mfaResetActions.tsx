@@ -1,10 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Alert, CodeInput, ConfirmDialog, RadioGroup, Stack, Text } from 'nekkora-lib';
+import { Alert, CodeInput, ConfirmDialog, Input, RadioGroup, Stack, Text } from 'nekkora-lib';
+import { stepUpMethods } from '../../api/stepUpMethod';
 import { resetUserMfa } from '../../api/admin';
 import { stepUp } from '../../api/auth';
 import { isApiError } from '../../api/http';
 import type { Member, MfaResetReason } from '../../api/v1';
-import { NotApplied, rootError, sessionGuard, startWrite, type MfaEntry, type MfaTarget, type WriteEntry } from '../../admin/writeStore';
+import { NotApplied, registryRefusalText, rootError, sessionGuard, startWrite, type MfaEntry, type MfaTarget, type WriteEntry } from '../../admin/writeStore';
 import { findMemberById } from './memberActions';
 import type { FindResult, UncertainCopy } from './uncertainPanel';
 
@@ -36,6 +37,8 @@ export function effectiveMfaConfigured(m: Member, entry: WriteEntry | undefined)
  * API não diz o motivo (código, conta sem fator, CSRF…) e a interface não o atribui ao código TOTP.
  */
 export function mfaRefusalText(e: unknown, name: string): string {
+  const registry = registryRefusalText(e);
+  if (registry) return registry;
   const nothing = `Nada foi alterado na conta de ${name}.`;
   const cause = rootError(e);
   if (e instanceof NotApplied) {
@@ -115,8 +118,11 @@ export function MfaResetDialog({
   const t = dialog?.target;
   const name = t?.displayName ?? '';
 
+  // API 029: sessão sem autenticação em duas etapas confirma com a senha (stepUp chama a rota da senha)
+  const byPassword = stepUpMethods.get(org) === 'password';
+  const secretReady = byPassword ? code.length > 0 : code.length === TOTP_DIGITS;
   const confirm = () => {
-    if (!dialog || !reason || code.length !== TOTP_DIGITS) return;
+    if (!dialog || !reason || !secretReady) return;
     const { target } = dialog;
     const typed = code;
     const chosen = reason;
@@ -150,7 +156,7 @@ export function MfaResetDialog({
       confirmLabel={dialog?.retry ? 'Redefinir de novo' : 'Redefinir MFA'}
       tone="danger"
       busy={busy}
-      confirmDisabled={!reason || code.length !== TOTP_DIGITS || mine?.phase === 'uncertain' || mine?.phase === 'done'}
+      confirmDisabled={!reason || !secretReady || mine?.phase === 'uncertain' || mine?.phase === 'done'}
       error={error}
       onConfirm={confirm}
       onCancel={() => {
@@ -196,14 +202,27 @@ export function MfaResetDialog({
             required
             disabled={busy}
           />
-          <CodeInput
-            label="Código do seu aplicativo autenticador"
-            hint="Confirma a sua identidade imediatamente antes da redefinição. Códigos de recuperação não são aceitos aqui."
-            length={TOTP_DIGITS}
-            value={code}
-            onValueChange={setCode}
-            disabled={busy}
-          />
+          {byPassword ? (
+            <Input
+              label="Sua senha"
+              type="password"
+              autoComplete="current-password"
+              fullWidth
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              disabled={busy}
+              hint="A sua conta não usa autenticação em duas etapas: a senha confirma a sua identidade imediatamente antes da redefinição."
+            />
+          ) : (
+            <CodeInput
+              label="Código do seu aplicativo autenticador"
+              hint="Confirma a sua identidade imediatamente antes da redefinição. Códigos de recuperação não são aceitos aqui."
+              length={TOTP_DIGITS}
+              value={code}
+              onValueChange={setCode}
+              disabled={busy}
+            />
+          )}
         </Stack>
       )}
     </ConfirmDialog>

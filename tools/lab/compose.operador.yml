@@ -1,0 +1,81 @@
+# PLATFORM-LOCAL-002 — operação LOCAL da ativação (022) no laboratório do frontend. Complemento de
+# api/e2e/compose.e2e.yml + tools/lab/compose.front.yml, usado por tools/lab/operador.sh SÓ depois de
+# `local.sh operador preparar` (que gera os arquivos de $OPERADOR_DIR). É o mesmo desenho da homologação descartável da API
+# (ops/homologacao/compose.016.yml), reduzido ao que a ativação usa:
+#
+# - PostgreSQL com TLS (certificado do servidor emitido por uma CA DO LABORATÓRIO, nome "postgres") e pg_hba/pg_ident
+#   gerados a partir do pg_hba EFETIVO do volume existente: as linhas dos serviços não mudam; à frente delas, os papéis
+#   op_* só entram por CERTIFICADO de cliente da CA OPERACIONAL do laboratório (CN = papel, mapa "ops") e só do job de
+#   operação (IP .33); nekkora_ops_ca (registro dos certificados) só do mesmo job, por SCRAM e TLS. O volume de dados é o
+#   mesmo (pgdados): recriar o container não apaga nada.
+# - job "operacao" (perfil operacao, IP .33): CLI REAL dos operadores (com.nekkora.ops.cli.OpsCli) e a ferramenta da
+#   homologação descartável da API (FerramentaHomologacao: IdP SIMULADO + emissor de certificados real com a CA
+#   operacional do laboratório — limite declarado no guia). Imagem de api/e2e/Dockerfile.operacao da cópia da API.
+#   Credenciais emitidas (PKCS#12 de 15 min e a senha dele) ficam no volume exclusivo "operadores" (dono nekkora, 0700).
+# Nenhum valor secreto neste arquivo.
+volumes:
+  operadores: {}
+
+services:
+  postgres:
+    entrypoint:
+      - sh
+      - -ec
+      - >-
+        install -d -o postgres -g postgres -m 700 /tls &&
+        install -o postgres -g postgres -m 600 /tls-src/postgres.key /tls/postgres.key &&
+        install -o postgres -g postgres -m 644 /tls-src/postgres.crt /tls/postgres.crt &&
+        install -o postgres -g postgres -m 644 /tls-src/ops-ca.crt /tls/ops-ca.crt &&
+        exec docker-entrypoint.sh "$$@"
+      - --
+    command:
+      - postgres
+      - -c
+      - cluster_name=nekkora-e2e
+      - -c
+      - hba_file=/etc/nekkora/pg_hba.conf
+      - -c
+      - ident_file=/etc/nekkora/pg_ident.conf
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/tls/postgres.crt
+      - -c
+      - ssl_key_file=/tls/postgres.key
+      - -c
+      - ssl_ca_file=/tls/ops-ca.crt
+      - -c
+      - ssl_min_protocol_version=TLSv1.2
+      - -c
+      - log_connections=on
+    volumes:
+      - ${OPERADOR_DIR:?defina OPERADOR_DIR}/tls-postgres:/tls-src:ro
+      - ${OPERADOR_DIR:?}/config/pg_hba.conf:/etc/nekkora/pg_hba.conf:ro
+      - ${OPERADOR_DIR:?}/config/pg_ident.conf:/etc/nekkora/pg_ident.conf:ro
+
+  operadores-init:
+    profiles: [operacao]
+    image: ${E2E_PROJETO:?}-operacao:local
+    user: root
+    network_mode: none
+    entrypoint: ["sh", "-ec", "install -d -o nekkora -g nekkora -m 700 /operadores && stat -c '%U %a' /operadores"]
+    volumes:
+      - operadores:/operadores
+
+  operacao:
+    profiles: [operacao]
+    image: ${E2E_PROJETO:?}-operacao:local
+    build:
+      context: ${LAB_API_REPO:?}/api
+      dockerfile: e2e/Dockerfile.operacao
+    env_file: ${OPERADOR_DIR:?}/operacao.env
+    read_only: true
+    tmpfs: [/tmp]
+    volumes:
+      - ${OPERADOR_DIR:?}/tls-operacao/ca.crt:/tls/ca.crt:ro
+      - ${OPERADOR_DIR:?}/tls-operacao/ops-ca.crt:/tls/ops-ca.crt:ro
+      - ${OPERADOR_DIR:?}/tls-operacao/ops-ca.key:/tls/ops-ca.key:ro
+      - operadores:/operadores
+    networks:
+      e2e:
+        ipv4_address: ${E2E_REDE:?}.33

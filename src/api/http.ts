@@ -10,9 +10,22 @@ export type ApiErrorCode =
   | 'unauthenticated'
   | 'forbidden'
   | 'not_found'
+  /** O estado atual impede o ato (409). */
+  | 'conflict'
+  /** Convite (409): já membro ativo; conta da organização com o e-mail, não ligada (vinculação); conta indisponível. */
+  | 'already_member'
+  | 'account_exists'
+  | 'account_unavailable'
+  /** Pacote recusado pela conferência da API (422), com motivo de vocabulário fechado em `reason`. */
+  | 'package_rejected'
   | 'rate_limited'
   | 'internal_error'
   | 'service_unavailable'
+  /**
+   * 502/503/504 SEM o corpo de erro da API (proxy/gateway): não se sabe se o pedido chegou à API. Leituras tratam como
+   * indisponibilidade; uma escrita com esse erro tem resultado DESCONHECIDO (nunca "nada foi gravado").
+   */
+  | 'gateway'
   /** Sem resposta (rede, gateway fora). */
   | 'network'
   /** Resposta fora do contrato. */
@@ -23,6 +36,11 @@ const KNOWN: ReadonlySet<string> = new Set([
   'unauthenticated',
   'forbidden',
   'not_found',
+  'conflict',
+  'already_member',
+  'account_exists',
+  'account_unavailable',
+  'package_rejected',
   'rate_limited',
   'internal_error',
   'service_unavailable',
@@ -35,8 +53,10 @@ export class ApiError extends Error {
   readonly retryAfterSeconds?: number;
   /** Correlação segura devolvida pela API (X-Request-Id) — pode ser mostrada discretamente. */
   readonly requestId?: string;
+  /** Motivo de vocabulário fechado (só em `package_rejected`); nunca texto livre da API. */
+  readonly reason?: string;
 
-  constructor(code: ApiErrorCode, status: number, retryAfterSeconds?: number, requestId?: string) {
+  constructor(code: ApiErrorCode, status: number, retryAfterSeconds?: number, requestId?: string, reason?: string) {
     // a mensagem é só o código: nunca payload, URL ou token
     super(code);
     this.name = 'ApiError';
@@ -44,11 +64,12 @@ export class ApiError extends Error {
     this.status = status;
     this.retryAfterSeconds = retryAfterSeconds;
     this.requestId = requestId;
+    this.reason = reason;
   }
 }
 
 export interface RequestOptions {
-  method?: 'GET' | 'POST';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   /** Token sincronizador do contexto atual (pré-autenticação, desafio ou sessão). */
   csrf?: string;
@@ -85,24 +106,48 @@ export async function request<T = unknown>(path: string, options: RequestOptions
   const requestId = rawId && REQUEST_ID.test(rawId) ? rawId : undefined;
 
   if (res.ok) {
-    if (res.status === 204 || res.status === 202) return { status: res.status, data: undefined as T };
+    if (res.status === 204) return { status: res.status, data: undefined as T };
     try {
-      return { status: res.status, data: (await res.json()) as T };
+      // 202 pode vir sem corpo (pedidos uniformes) ou com corpo (ex.: pedido de renovação devolve a concessão)
+      const text = await res.text();
+      if (!text && res.status === 202) return { status: res.status, data: undefined as T };
+      return { status: res.status, data: JSON.parse(text) as T };
     } catch {
       throw new ApiError('unexpected', res.status, undefined, requestId);
     }
   }
 
-  let code: ApiErrorCode = res.status >= 500 ? 'internal_error' : 'unexpected';
+  let body: unknown;
   try {
-    const body = (await res.json()) as { error?: unknown };
-    if (typeof body?.error === 'string' && KNOWN.has(body.error)) code = body.error as ApiErrorCode;
+    body = await res.json();
   } catch {
-    // gateway sem corpo JSON (ex.: 502 do proxy)
-    if (res.status === 502 || res.status === 503 || res.status === 504) code = 'service_unavailable';
+    body = undefined; // gateway sem corpo JSON (ex.: 502 do proxy)
   }
-  const retry = Number(res.headers.get('Retry-After'));
-  throw new ApiError(code, res.status, Number.isFinite(retry) && retry > 0 ? retry : undefined, requestId);
+  throw apiErrorFrom(res.status, body, res.headers.get('Retry-After'), requestId);
+}
+
+/**
+ * Erro da API a partir do status e do corpo já lido (`undefined` = sem JSON). Só códigos conhecidos do contrato viram
+ * código; motivo só de vocabulário fechado. Usado também pelo envio com progresso (XHR) do artefato.
+ */
+export function apiErrorFrom(status: number, body: unknown, retryAfter: string | null, requestId?: string): ApiError {
+  let code: ApiErrorCode = status >= 500 ? 'internal_error' : 'unexpected';
+  let reason: string | undefined;
+  const b = body as { error?: unknown; reason?: unknown } | undefined;
+  if (b && typeof b === 'object') {
+    if (typeof b.error === 'string' && KNOWN.has(b.error)) code = b.error as ApiErrorCode;
+    if (code === 'package_rejected' && typeof b.reason === 'string' && /^[a-z_]{1,64}$/.test(b.reason)) reason = b.reason;
+  } else if (status === 502 || status === 503 || status === 504) {
+    // sem o corpo da API: resposta do proxy — numa escrita, não se sabe se o pedido chegou
+    code = 'gateway';
+  }
+  const retry = Number(retryAfter);
+  return new ApiError(code, status, Number.isFinite(retry) && retry > 0 ? retry : undefined, requestId, reason);
+}
+
+/** Correlação segura (X-Request-Id), só no formato esperado. */
+export function safeRequestId(raw: string | null): string | undefined {
+  return raw && REQUEST_ID.test(raw) ? raw : undefined;
 }
 
 export function isApiError(e: unknown, ...codes: ApiErrorCode[]): e is ApiError {

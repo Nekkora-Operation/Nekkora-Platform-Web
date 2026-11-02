@@ -4,13 +4,19 @@ import { createAccount, createOrganization } from './support/mock';
 import { INVALID_CREDENTIALS, path, signIn } from './support/app';
 
 test('sem organização na URL: estado controlado, sem seletor nem campo de empresa', async ({ page }) => {
-  for (const url of ['/', '/login']) {
-    await page.goto(url);
-    await expect(page.getByRole('heading', { name: 'Não foi possível identificar a organização.' })).toBeVisible();
-    await expect(page.getByText('Utilize o endereço de acesso fornecido pela sua empresa.')).toBeVisible();
-    await expect(page.getByRole('textbox')).toHaveCount(0);
-    await expect(page.getByRole('combobox')).toHaveCount(0);
-  }
+  // caminho desconhecido fora da identidade: sem organização identificável
+  await page.goto('/login');
+  await expect(page.getByRole('heading', { name: 'Não foi possível identificar a organização.' })).toBeVisible();
+  await expect(page.getByText('Utilize o endereço de acesso fornecido pela sua empresa.')).toBeVisible();
+  await expect(page.getByRole('textbox')).toHaveCount(0);
+  await expect(page.getByRole('combobox')).toHaveCount(0);
+
+  // FRONT-V1-001: "/" é a porta da identidade Nekkora. A API simulada (8.7) não tem a entrada geral (404): a raiz
+  // orienta a entrar pelo endereço da organização, ainda sem seletor nem campo de empresa
+  await page.goto('/');
+  await expect(page.getByText('Entre pelo endereço da sua organização.')).toBeVisible();
+  await expect(page.getByRole('textbox')).toHaveCount(0);
+  await expect(page.getByRole('combobox')).toHaveCount(0);
 });
 
 test('identificador de organização inválido: "Organização não encontrada", sem redirecionar', async ({ page }) => {

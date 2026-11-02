@@ -8,9 +8,13 @@ test('DoD 1 — primeiro acesso: login → MFA obrigatório → códigos → ár
 
   await signIn(page, account);
   const { auth, codes } = await enrollMfa(page, account);
-  // F4: o e-mail aparece também no rodapé do menu da área interna; a conferência é no conteúdo principal
-  await expect(page.getByRole('main').getByText(account.email)).toBeVisible();
+  // PLATFORM-LOCAL-002: o início mostra o próximo passo, não o e-mail; os dados da conta ficam em Minha conta
   await expect(page).toHaveURL(path.home(account.org));
+  await expect(page.getByRole('heading', { name: 'Olá, Pessoa E2E' })).toBeVisible();
+  await expect(page.getByRole('main').getByText(account.email)).toHaveCount(0);
+  await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Minha conta' }).click();
+  await expect(page.getByRole('main').getByText(account.email)).toBeVisible();
+  await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Início' }).click();
 
   await test.step('sair e entrar de novo: senha → código do autenticador', async () => {
     await page.getByRole('button', { name: 'Sair' }).click();

@@ -129,6 +129,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/auth/password-confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 029: reconfirma a senha na sessao de organizacao VINCULADA sem segundo fator (vale 5 min, so nesta sessao)
+         * @description Sessao de organizacao nascida da troca a partir de sessao de identidade sem MFA (identidade que nunca confirmou fator), com o cookie __Host-nekkora_id da sessao de identidade de origem EXATA em adicao ao CSRF desta sessao (como o step-up vinculado). Grava password_step_up_at nesta sessao de organizacao e o evento 19 com a organizacao. Substitui o step-up por TOTP nesta sessao para as acoes sensiveis (convites, papeis, concessoes, Agent e Workers, autorizacao de execucao, publicacao, reset administrativo). Sessao do login por organizacao, sessao com MFA, senha errada ou cookie de outra sessao de identidade: 403, sem efeito.
+         */
+        post: operations["orgPasswordConfirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/auth/logout": {
         parameters: {
             query?: never;
@@ -308,7 +328,7 @@ export interface paths {
         put?: never;
         /**
          * Entrada geral, passo 1 (senha): abre o desafio de identidade; resposta unica para credencial invalida
-         * @description Missao 1, desenho 6.3. Fora de /o/{org}. Identidade inexistente, senha errada, identidade nao confirmada ou nao ACTIVE: 401 identico, com verificacao contra hash ficticio. Sucesso: desafio de 5 min no cookie __Host-nekkora_id_mfa (SameSite=Strict) e o CSRF do desafio no corpo; mfa_enrollment_required se a identidade nunca confirmou fator. Estado, verificacao do e-mail e credencial vigente sao reconferidos sob o lock da identidade antes de emitir o desafio. R8 (identidade global + IP) e R12. Chave propria, separada da do cadastro (nekkora.entrada-geral.enabled, desligada por padrao): desligada, 404.
+         * @description Missao 1, desenho 6.3. Fora de /o/{org}. Identidade inexistente, senha errada, identidade nao confirmada ou nao ACTIVE: 401 identico, com verificacao contra hash ficticio. Sucesso: desafio de 5 min no cookie __Host-nekkora_id_mfa (SameSite=Strict) e o CSRF do desafio no corpo. 029 (segundo fator opcional): identidade que NUNCA confirmou fator recebe status authenticated e a sessao de identidade direto no cookie __Host-nekkora_id (SameSite=Lax), sem desafio e sem QR (evento 18); csrfToken e o da sessao. mfa_enrollment_required so para identidade sem fator ativo que ja teve um (reset operacional): o cadastro do fator continua obrigatorio no login. Estado, verificacao do e-mail e credencial vigente sao reconferidos sob o lock da identidade antes de emitir o desafio. R8 (identidade global + IP) e R12. Chave propria, separada da do cadastro (nekkora.entrada-geral.enabled, desligada por padrao): desligada, 404.
          */
         post: operations["identityLogin"];
         delete?: never;
@@ -411,6 +431,66 @@ export interface paths {
          * @description P1 (contrato de 2026-10-13). Sessao de identidade nao restrita (cookie __Host-nekkora_id) e CSRF dela. So o codigo TOTP: recoveryCode NAO e alternativa (code ausente: 400). Numa so transacao, na ordem global da 017: identidade e sessao travadas e reconferidas (ativa, no prazo, nao restrita; identidade ACTIVE), fator lido sob o lock, TOTP, anti-replay no fator (o passo so avanca), marcador de step-up SO nesta sessao, evento 13 (STEP_UP) e a janela do passo reconferida antes do commit. Codigo errado, ja usado ou vencido durante as esperas: 403 generico; codigo errado e replay contam em R8m (identidade global, o mesmo contador da verificacao do login). Sessao que caiu: 401. Sessao restrita a recuperacao (DC-17.13): 403, sem conferir o codigo. R12. Mesma chave da entrada geral: desligada, 404.
          */
         post: operations["identityStepUp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password-confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 029: reconfirma a senha na sessao sem segundo fator (vale 5 min, so nesta sessao; substitui o step-up por TOTP)
+         * @description Politica aprovada pela titular em 2026-11-02 (relatorio docs/relatorios/2026-11-02-mfa-opcional.md). Sessao de identidade sem MFA de identidade que NUNCA confirmou fator, nao restrita, CSRF dela. A aplicacao confere o Argon2 contra o hash vigente e identity_password_reconfirm (029) exige, sob o lock da identidade, que ele ainda seja a credencial vigente; grava password_step_up_at nesta sessao e o evento 19. Vale para tudo que hoje pede step-up recente na sessao de identidade (criar organizacao, aceitar convite, vincular conta, trocar senha) e para iniciar a ativacao do MFA. Senha errada (conta em R8), identidade com fator, sessao com MFA ou senha trocada no intervalo: 403, sem efeito. Sessao que caiu: 401. Mesma chave da entrada geral: desligada, 404.
+         */
+        post: operations["identityPasswordConfirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/mfa/activate/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 029: ativacao voluntaria do MFA pelas configuracoes da conta - cria o TOTP pendente e devolve a URI otpauth
+         * @description Sessao de identidade sem MFA de identidade que nunca confirmou fator, com a senha reconfirmada ha ate 5 min (prova ativacao de identity_mfa_enroll_pending, 029); descarta o pendente anterior. Sem a prova, identidade com fator ou sessao com MFA: 403, sem efeito. Sessao que caiu: 401.
+         */
+        post: operations["identityMfaActivationStart"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/mfa/activate/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 029: conclui a ativacao do MFA com o TOTP do pendente; revoga TODAS as sessoes e emite a sessao nova com MFA
+         * @description So o TOTP (recoveryCode nao e alternativa). Com a senha reconfirmada ha ate 15 min nesta sessao, identity_mfa_activate (029) confirma o fator com o passo aceito (anti-replay), grava os codigos de recuperacao, revoga todas as sessoes da identidade (as sessoes de organizacao nascidas delas deixam de valer) e cria a sessao nova COM MFA, no cookie __Host-nekkora_id; evento 20. A partir dai o login pede o codigo e a senha nao substitui mais o TOTP. Codigo errado (conta em R8m), sem pendente ou sem a prova: 403. Sessao que caiu: 401.
+         */
+        post: operations["identityMfaActivationConfirm"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1950,9 +2030,12 @@ export interface components {
             password: string;
         };
         LoginResponse: {
-            /** @enum {string} */
-            status: "mfa_required" | "mfa_enrollment_required";
-            /** @description CSRF do desafio */
+            /**
+             * @description authenticated (029, so na entrada geral): sessao de identidade sem segundo fator ja emitida
+             * @enum {string}
+             */
+            status: "mfa_required" | "mfa_enrollment_required" | "authenticated";
+            /** @description CSRF do desafio; em authenticated, o da sessao */
             csrfToken: string;
         };
         OtpauthUri: {
@@ -1991,6 +2074,26 @@ export interface components {
         IdentitySessionState: {
             restricted: boolean;
             csrfToken: string;
+            /** @description 029: a identidade tem fator confirmado ativo */
+            mfaEnabled: boolean;
+            stepUpMethod: components["schemas"]["StepUpMethod"];
+        };
+        /**
+         * @description 029: como ESTA sessao prova a pessoa nas acoes sensiveis. password so em sessao sem segundo fator de identidade que nunca confirmou fator (POST .../password-confirm, vale 5 min); totp em todas as demais (POST .../step-up). A senha nunca substitui o codigo de quem tem fator.
+         * @enum {string}
+         */
+        StepUpMethod: "totp" | "password";
+        PasswordConfirmRequest: {
+            /** Format: password */
+            password: string;
+        };
+        MfaActivated: {
+            /** @description Mostrados uma unica vez */
+            recoveryCodes: string[];
+            /** @description CSRF da sessao NOVA (com MFA) */
+            csrfToken: string;
+            /** @enum {boolean} */
+            restricted: false;
         };
         EnrollmentConfirmation: {
             recoveryCodes: string[];
@@ -2298,6 +2401,7 @@ export interface components {
             /** Format: uuid */
             organizationId: string;
             organizationActivationState: components["schemas"]["OrganizationActivationState"];
+            stepUpMethod: components["schemas"]["StepUpMethod"];
         };
         /**
          * @description Ciclo de ativacao da organizacao (migration 022), INDEPENDENTE da situacao administrativa (ativa, suspensa, encerrada). AGUARDANDO_ATIVACAO: capacidade de execucao zero (nenhum Worker registrado, nenhuma execucao simultanea ou pendente) ate a ativacao pela operacao da Nekkora; toda organizacao criada nasce assim. ATIVADA: a operacao aplicou limites explicitos. So indicacao para a interface: os valores dos limites nao sao expostos e a admissao de execucao continua decidida no banco.
@@ -3101,6 +3205,42 @@ export interface operations {
             503: components["responses"]["ServiceUnavailable"];
         };
     };
+    orgPasswordConfirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordConfirmRequest"];
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description CSRF invalido; senha errada; sessao nao vinculada ou com MFA; sessao de identidade de origem divergente */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "forbidden"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+        };
+    };
     logout: {
         parameters: {
             query?: never;
@@ -3315,7 +3455,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Desafio de identidade aberto (cookie __Host-nekkora_id_mfa) */
+            /** @description Desafio de identidade aberto (cookie __Host-nekkora_id_mfa) ou, 029, sessao sem segundo fator (cookie __Host-nekkora_id) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3499,6 +3639,122 @@ export interface operations {
             400: components["responses"]["InvalidRequest"];
             401: components["responses"]["Unauthenticated"];
             /** @description Origin/CSRF da sessao de identidade invalido; codigo errado, ja usado ou vencido; ou sessao restrita a recuperacao (DC-17.13) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "forbidden"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    identityPasswordConfirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordConfirmRequest"];
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description Origin/CSRF invalido; senha errada; identidade com fator, sessao com MFA ou sessao restrita */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "forbidden"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    identityMfaActivationStart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description URI otpauth do fator pendente */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OtpauthUri"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description Origin/CSRF invalido; sem a senha reconfirmada; identidade com fator */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "forbidden"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    identityMfaActivationConfirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TotpCodeRequest"];
+            };
+        };
+        responses: {
+            /** @description Fator ativo; sessao nova no cookie */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaActivated"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description Origin/CSRF invalido; codigo errado; sem pendente ou sem a senha reconfirmada */
             403: {
                 headers: {
                     [name: string]: unknown;

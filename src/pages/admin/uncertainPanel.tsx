@@ -153,6 +153,12 @@ function UncertainPanelInner<E extends WriteEntry>(
                     </Button>
                   </div>
                 )}
+                {!sending && (
+                  <Text variant="body-sm" color="secondary">
+                    Dispensar o aviso libera uma nova tentativa. Não confirma o resultado anterior nem garante que não haverá
+                    duplicidade.
+                  </Text>
+                )}
               </li>
             );
           })}

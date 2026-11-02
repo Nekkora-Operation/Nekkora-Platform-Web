@@ -1,7 +1,10 @@
 import { useState } from 'react';
-import { Link as RouterLink, useParams } from 'react-router';
-import { Badge, Card, DescriptionList, Heading, Link, LoadMore, Stack, StateView, Table, type TableColumn } from 'nekkora-lib';
+import { Link as RouterLink, useNavigate, useParams } from 'react-router';
+import { Alert, Badge, Button, Card, DescriptionList, Heading, Link, LoadMore, Stack, StateView, Table, type TableColumn } from 'nekkora-lib';
 import { isApiError } from '../../api/http';
+import { createAutomationVersion } from '../../api/lifecycle';
+import { useWorkspacePermissions } from '../../area/useWorkspacePermissions';
+import { accessRefusal } from '../access/shared';
 import { getAutomation, listAutomationVersions } from '../../api/product';
 import type { AutomationVersion } from '../../api/v1';
 import { orgPath } from '../../auth/organization';
@@ -9,7 +12,7 @@ import { useInternalArea } from '../../area/InternalShell';
 import { useSession } from '../../area/session';
 import { useCursorList } from '../../hooks/useCursorList';
 import { useResource } from '../../hooks/useResource';
-import { DateTimeText, errorOf, errorText, isMissing, isSubordinateGone, LoadErrorState, NotFoundState, PageHeader, ResourceStatusBadge, useBackTarget, useExpiresOn } from './shared';
+import { DateTimeText, errorOf, errorText, isMissing, isSubordinateGone, LoadErrorState, NotFoundState, PageHeader, ResourceStatusBadge, RouteLink, useBackTarget, useExpiresOn } from './shared';
 
 const PAGE = 25;
 
@@ -19,12 +22,16 @@ export function AutomationDetailPage() {
 }
 
 /**
- * Detalhe da automação (L04, sem comando nem criador: DC-08/09) e versões (L05, paginadas, versionNumber desc). Só
- * leitura: sem editar, publicar ou executar.
+ * Detalhe da automação (L04, sem comando nem criador: DC-08/09) e versões (L05, paginadas, versionNumber desc). M3: nova
+ * versão DRAFT (automation.manage no workspace); cada versão abre o detalhe do ciclo de vida (pacote e publicação).
  */
 function AutomationDetail({ automationId }: { automationId: string }) {
-  const { org } = useSession();
+  const { org, expired } = useSession();
   const { workspaces } = useInternalArea();
+  const navigate = useNavigate();
+  const [creatingVersion, setCreatingVersion] = useState(false);
+  const [versionUncertain, setVersionUncertain] = useState(false);
+  const [versionError, setVersionError] = useState<{ tone: 'danger' | 'warning'; text: string } | null>(null);
   const [refresh, setRefresh] = useState(0);
   const automation = useResource(() => getAutomation(org, automationId), [org, automationId]);
   const versions = useCursorList<AutomationVersion>(
@@ -33,6 +40,8 @@ function AutomationDetail({ automationId }: { automationId: string }) {
     [org, automationId, refresh],
   );
   const workspaceId = automation.status === 'ready' ? automation.data.workspaceId : undefined;
+  const perms = useWorkspacePermissions(workspaceId);
+  const canManage = perms.status === 'ready' && perms.has('automation.manage');
   const back = useBackTarget(workspaceId ? orgPath.workspace(org, workspaceId) : orgPath.workspaces(org));
 
   useExpiresOn(errorOf(automation), versions.error);
@@ -50,9 +59,30 @@ function AutomationDetail({ automationId }: { automationId: string }) {
   }
 
   const a = automation.data;
+  const newVersion = async () => {
+    if (creatingVersion) return;
+    setCreatingVersion(true);
+    setVersionError(null);
+    try {
+      const created = await createAutomationVersion(org, a.automationId);
+      navigate(orgPath.version(org, created.automationVersionId!));
+    } catch (e) {
+      if (isApiError(e, 'unauthenticated')) return expired();
+      if (isApiError(e, 'network', 'unexpected', 'internal_error')) {
+        setVersionUncertain(true);
+        setVersionError({ tone: 'warning', text: 'Não foi possível confirmar se a versão foi criada. Atualize a lista antes de criar outra.' });
+      } else setVersionError({ tone: 'danger', text: accessRefusal(e, { conflict: 'A automação ou o workspace não está ativo.' }) });
+    } finally {
+      setCreatingVersion(false);
+    }
+  };
   const workspaceName = workspaces.items.find((w) => w.workspaceId === a.workspaceId)?.name;
   const columns: TableColumn<AutomationVersion>[] = [
-    { key: 'versao', header: 'Versão', render: (v) => `versão ${v.versionNumber}` },
+    {
+      key: 'versao',
+      header: 'Versão',
+      render: (v) => <RouteLink to={orgPath.version(org, v.automationVersionId)}>versão {v.versionNumber}</RouteLink>,
+    },
     {
       key: 'estado',
       header: 'Estado',
@@ -108,9 +138,17 @@ function AutomationDetail({ automationId }: { automationId: string }) {
       </Card>
 
       <section className="pw-prod__section" aria-labelledby="versoes-titulo">
-        <Heading level={2} id="versoes-titulo" className="pw-prod__section-title">
-          Versões
-        </Heading>
+        <div className="pw-prod__header-row">
+          <Heading level={2} id="versoes-titulo" className="pw-prod__section-title">
+            Versões
+          </Heading>
+          {canManage && (
+            <Button size="sm" leftIcon="plus" loading={creatingVersion} disabled={versionUncertain} onClick={() => void newVersion()}>
+              Nova versão
+            </Button>
+          )}
+        </div>
+        {versionError && <Alert tone={versionError.tone}>{versionError.text}</Alert>}
         {versions.status === 'loading' ? (
           <StateView status="loading" title="Carregando versões…" />
         ) : versions.status === 'error' ? (

@@ -127,10 +127,15 @@ describe('área interna', () => {
     sessionFor('ana@nekkora.dev');
     renderAt(exec());
     const nav = await screen.findByRole('navigation', { name: 'Navegação principal' });
-    expect(within(nav).getAllByRole('link').map((l) => l.textContent)).toEqual(['Início', 'Workspaces', 'Execuções']);
+    const links = within(nav).getAllByRole('link').map((l) => l.textContent);
+    expect(links.slice(0, 4)).toEqual(['Início', 'Workspaces', 'Execuções', 'Supervisão']);
+    // M4: Agents e Workers aparecem só com a P01 (agent.manage / worker.manage); nada além das telas implementadas
+    expect(links.slice(4).every((l) => ['Agents', 'Workers', 'Minha conta', 'Membros', 'Convites', 'Clientes', 'Concessões', 'Auditoria de acessos'].includes(l ?? ''))).toBe(true);
     expect(within(nav).getByRole('link', { name: 'Execuções' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getAllByText('Ana Souza').length).toBeGreaterThan(0);
-    expect(screen.getByText('ana@nekkora.dev')).toBeInTheDocument();
+    // PLATFORM-LOCAL-002: o e-mail saiu do menu e da página inicial; fica em Minha conta
+    expect(screen.queryByText('ana@nekkora.dev')).toBeNull();
+    expect(within(nav).getByRole('link', { name: 'Minha conta' })).toHaveAttribute('href', '/o/' + DEV_ORG + '/conta');
     expect(screen.getAllByRole('button', { name: 'Sair' }).length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: /executar|cancelar|reagendar/i })).toBeNull();
   });
