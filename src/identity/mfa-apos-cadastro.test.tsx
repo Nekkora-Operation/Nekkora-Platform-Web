@@ -31,11 +31,13 @@ beforeEach(() => {
   api.on('GET', '/api/v1/me/organizations', 'identityOrganizations', { status: 200, body: { organizations: [], canCreateOrganization: true } });
 });
 
-const sessao = (mfaEnabled: boolean) =>
-  api.on('GET', '/api/v1/me/session', 'identitySessionState', {
-    status: 200,
-    body: { restricted: false, csrfToken: 'id-csrf', mfaEnabled, stepUpMethod: mfaEnabled ? 'totp' : 'password' },
-  });
+// `aposLogin`: como a API, sem sessão (401) até a entrada — a tela de entrada confere a sessão ao abrir
+const sessao = (mfaEnabled: boolean, aposLogin = true) =>
+  api.on('GET', '/api/v1/me/session', 'identitySessionState', () =>
+    aposLogin && api.sent('POST', '/api/v1/auth/login').length === 0
+      ? { status: 401, body: { error: 'unauthenticated' } }
+      : { status: 200, body: { restricted: false, csrfToken: 'id-csrf', mfaEnabled, stepUpMethod: mfaEnabled ? 'totp' : 'password' } },
+  );
 
 async function cadastrarEEntrar() {
   api.on('POST', '/api/v1/signup/confirm', 'confirmSignup', { status: 204 });
@@ -99,7 +101,7 @@ describe('fora do cadastro', () => {
   });
 
   it('conta que já tem o fator não vê a oferta, mesmo abrindo o endereço', async () => {
-    sessao(true);
+    sessao(true, false);
     renderApp('/conta/proteger');
     await waitFor(() => expect(location()).toBe('/organizacoes'));
     expect(screen.queryByRole('heading', { name: 'Proteja sua conta' })).not.toBeInTheDocument();

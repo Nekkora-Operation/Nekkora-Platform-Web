@@ -5,6 +5,8 @@
  * em memória, para o diálogo mostrar o campo certo e o cliente chamar a rota certa. Na dúvida, `totp`: a API recusa a
  * senha de quem tem fator, então o padrão nunca relaxa nada.
  */
+import { csrfStore } from './csrf';
+
 export type StepUpMethod = 'totp' | 'password';
 
 const IDENTITY = '';
@@ -23,3 +25,6 @@ export const stepUpMethods = {
     methods.clear();
   },
 };
+
+// saída ou expiração (nesta aba ou em outra): o método da sessão encerrada não vale para a próxima
+csrfStore.onSessionEnd(() => methods.clear());

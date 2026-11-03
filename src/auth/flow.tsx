@@ -1,6 +1,7 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import * as orgAuth from '../api/auth';
 import { csrfStore } from '../api/csrf';
+import { ApiError, isApiError } from '../api/http';
 import * as identity from '../api/identity';
 import { orgPath } from './organization';
 
@@ -29,6 +30,11 @@ export interface AuthFlow {
   paths: { login: string; mfa: string; mfaSetup: string; forgotPassword: string };
   /** Destino depois da sessão emitida. */
   home(restricted: boolean): string;
+  /**
+   * Sessão que JÁ vale neste navegador (outra aba entrou, ou a página foi recarregada depois da entrada). A API é a
+   * autoridade: `null` = sem sessão (401) ou entrada indisponível (404); outra falha propaga (a tela continua no form).
+   */
+  currentSession(): Promise<{ restricted: boolean } | null>;
   /** Linha de contexto do arquivo de códigos de recuperação (nunca segredo). */
   codesContext: string;
 }
@@ -73,6 +79,15 @@ export function identityFlow(): AuthFlow {
       forgotPassword: identityPath.recoverPassword,
     },
     home: (restricted) => (restricted ? identityPath.replaceFactor : identityPath.organizations),
+    currentSession: async () => {
+      try {
+        const { restricted } = await identity.identitySession();
+        return { restricted };
+      } catch (e) {
+        if (isApiError(e, 'unauthenticated') || (e instanceof ApiError && e.status === 404)) return null;
+        throw e;
+      }
+    },
     codesContext: 'Identidade Nekkora',
   };
 }
@@ -94,6 +109,8 @@ export function organizationFlow(org: string): AuthFlow {
     confirmPasswordReset: (token, pw) => orgAuth.confirmPasswordReset(org, token, pw),
     paths: { login: orgPath.login(org), mfa: orgPath.mfa(org), mfaSetup: orgPath.mfaSetup(org), forgotPassword: orgPath.forgotPassword(org) },
     home: () => orgPath.home(org),
+    // a entrada por organização não reentra sozinha (useExistingSession desligado nela): nada a conferir
+    currentSession: async () => null,
     codesContext: `Organização: ${org}`,
   };
 }
