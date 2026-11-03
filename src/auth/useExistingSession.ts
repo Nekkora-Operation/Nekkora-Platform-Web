@@ -13,19 +13,22 @@ import type { AuthFlow } from './flow';
  * - quando a aba volta a ficar visível ou recebe foco (navegador sem BroadcastChannel, ou aviso perdido).
  * Não confere enquanto esta aba envia a própria entrada (`busy`): o resultado do envio decide o próximo passo.
  *
- * `onOpen = false` (a pessoa chegou com aviso: saiu, a sessão expirou ou foi trocada em outra aba): NÃO confere ao abrir
- * nem ao voltar o foco — só um aviso de outra aba leva adiante. Assim a saída e a expiração nunca são desfeitas sozinhas,
- * e um 401 de uma rota com a sessão ainda válida não vira um vaivém entre a área e a entrada.
+ * `enabled = false` — nada é conferido (nem ao abrir, nem no foco, nem por aviso de outra aba):
+ * - a pessoa chegou com aviso (saiu, a sessão expirou ou foi TROCADA em outra aba, F6a-2-R2): entra de novo
+ *   explicitamente; a saída e a expiração nunca são desfeitas sozinhas, o contexto de uma pessoa não vira o da conta
+ *   aberta em outra aba, e um 401 de uma rota com a sessão ainda válida não vira vaivém entre a área e a entrada;
+ * - entrada por organização: não reentra sozinha (cookie de organização é um por origem; abas disputariam a sessão).
  *
  * O formulário aparece desde o início (a conferência roda em segundo plano); sem sessão, ou com falha que não é "sem
  * sessão", ele simplesmente continua (a entrada segue possível).
  */
-export function useExistingSession(flow: AuthFlow, busy: RefObject<boolean>, onOpen = true): void {
+export function useExistingSession(flow: AuthFlow, busy: RefObject<boolean>, enabled = true): void {
   const navigate = useNavigate();
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
 
   useEffect(() => {
+    if (!enabled) return;
     // trava POR efeito: no StrictMode o efeito descartado não pode bloquear a conferência do efeito que vale
     let alive = true;
     let running = false;
@@ -42,12 +45,12 @@ export function useExistingSession(flow: AuthFlow, busy: RefObject<boolean>, onO
         running = false;
       }
     };
-    if (onOpen) void check();
+    void check();
     const offBoundary = csrfStore.onSessionBoundary((remote, scope) => {
       if (remote && scope === 'all') void check();
     });
     const onVisible = () => {
-      if (onOpen && document.visibilityState === 'visible') void check();
+      if (document.visibilityState === 'visible') void check();
     };
     window.addEventListener('focus', onVisible);
     document.addEventListener('visibilitychange', onVisible);
@@ -57,5 +60,5 @@ export function useExistingSession(flow: AuthFlow, busy: RefObject<boolean>, onO
       window.removeEventListener('focus', onVisible);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [flow, busy, onOpen]);
+  }, [flow, busy, enabled]);
 }

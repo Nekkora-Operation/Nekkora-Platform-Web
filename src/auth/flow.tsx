@@ -109,15 +109,8 @@ export function organizationFlow(org: string): AuthFlow {
     confirmPasswordReset: (token, pw) => orgAuth.confirmPasswordReset(org, token, pw),
     paths: { login: orgPath.login(org), mfa: orgPath.mfa(org), mfaSetup: orgPath.mfaSetup(org), forgotPassword: orgPath.forgotPassword(org) },
     home: () => orgPath.home(org),
-    currentSession: async () => {
-      try {
-        await orgAuth.sessionCsrf(org);
-        return { restricted: false };
-      } catch (e) {
-        if (isApiError(e, 'unauthenticated', 'forbidden') || (e instanceof ApiError && e.status === 404)) return null;
-        throw e;
-      }
-    },
+    // a entrada por organização não reentra sozinha (useExistingSession desligado nela): nada a conferir
+    currentSession: async () => null,
     codesContext: `Organização: ${org}`,
   };
 }

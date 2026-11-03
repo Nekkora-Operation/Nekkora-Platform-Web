@@ -110,6 +110,34 @@ describe('tela de entrada observa a sessão', () => {
   });
 });
 
+describe('sem reentrada automática', () => {
+  it('aba que saiu da área porque a sessão foi TROCADA em outra aba não vira a outra conta sozinha (F6a-2-R2)', async () => {
+    comSessao();
+    renderApp('/organizacoes');
+    await screen.findByText('Você ainda não participa de nenhuma organização.');
+    otherTab().postMessage({ tipo: 'sessao-alterada' }); // outra aba entrou com outra conta
+    expect(await screen.findByText(/Sua sessão foi encerrada ou alterada em outra aba/)).toBeInTheDocument();
+    expect(location()).toBe('/entrar');
+    const conferencias = api.sent('GET', '/api/v1/me/session').length;
+    otherTab().postMessage({ tipo: 'sessao-alterada' });
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(location()).toBe('/entrar');
+    expect(api.sent('GET', '/api/v1/me/session')).toHaveLength(conferencias);
+    expect(screen.getByLabelText(lbl('E-mail'))).toBeInTheDocument();
+  });
+
+  it('a entrada por organização não confere a sessão sozinha (o cookie de organização é um por origem)', async () => {
+    const ORG = '0a6e1f9c-3b2d-4c5e-8f71-2a9b3c4d5e6f';
+    renderApp(`/o/${ORG}/login`);
+    expect(await screen.findByLabelText(lbl('E-mail'))).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(api.calls.filter((c) => c.method === 'GET' && /\/auth\/csrf$|\/me\/session$/.test(c.path))).toEqual([]);
+  });
+});
+
 describe('saída sem resto da sessão', () => {
   it('depois de sair, a entrada NÃO volta sozinha à área (nem ao abrir, nem ao voltar o foco)', async () => {
     comSessao(false, 'password');

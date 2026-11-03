@@ -69,10 +69,7 @@ export class FakeApi {
     const path = url.replace(/^https?:\/\/[^/]+/, '');
     this.requests.push({ method, path, body, csrf });
     if (this.delay) await new Promise((r) => setTimeout(r, this.delay));
-    // a conferência de sessão da tela de entrada (useExistingSession) roda sozinha ao abrir: não consome as falhas
-    // forçadas, que são do envio que o teste dispara
-    const probe = method === 'GET' && (path === '/api/v1/me/session' || /^\/api\/v1\/o\/[^/]+\/auth\/csrf$/.test(path));
-    const failure = probe ? undefined : this.failures.shift();
+    const failure = this.failures.shift();
     if (failure === 'network') throw new TypeError('Failed to fetch');
     if (failure === 429) return this.error(429, 'rate_limited', { 'Retry-After': '120' });
     if (failure === 503) return this.error(503, 'service_unavailable');
