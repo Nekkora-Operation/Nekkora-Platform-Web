@@ -216,6 +216,10 @@ export class PreviouslyUncertain extends Error {
 
 /** Sujeito do registro persistente desta aba (vínculo na organização), definido pela área interna. */
 let persistent: { org: string; subject: string } | null = null;
+// saída ou expiração: o sujeito do registro (vínculo da pessoa) não vale para a próxima sessão
+csrfStore.onSessionEnd(() => {
+  persistent = null;
+});
 /** Só testes do registro em si (sem área interna montada): sujeito usado quando nenhuma área definiu o seu. */
 let testSubject: string | null = null;
 export function setPersistentScope(org: string, subject: string | null) {

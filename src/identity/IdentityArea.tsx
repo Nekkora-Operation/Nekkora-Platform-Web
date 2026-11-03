@@ -87,7 +87,7 @@ export function IdentityArea() {
     if (ended.current) return;
     ended.current = true;
     const nav: NavState = sessionMemory.hadSession() ? { notice: 'session-expired' } : {};
-    csrfStore.clear();
+    csrfStore.end();
     sessionMemory.reset();
     navigateRef.current(identityPath.login, { replace: true, state: nav });
   }, []);

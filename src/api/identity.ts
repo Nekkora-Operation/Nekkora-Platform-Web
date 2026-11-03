@@ -154,8 +154,7 @@ export async function identityLogout(): Promise<void> {
     }
     await send('identityLogout', '/api/v1/auth/logout', { method: 'POST', csrf });
   } finally {
-    csrfStore.clear();
-    stepUpMethods.clear();
+    csrfStore.end(); // fim de sessão: também zera o método de confirmação, convite e token de link (onSessionEnd)
   }
 }
 

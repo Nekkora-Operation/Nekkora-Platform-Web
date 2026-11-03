@@ -6,6 +6,7 @@ import { AuthScreen } from '../app/AuthScreen';
 import { readNavState } from '../app/notices';
 import { identityPath, useAuthFlow } from '../auth/flow';
 import { onboarding } from '../auth/onboarding';
+import { useExistingSession } from '../auth/useExistingSession';
 import { commonMessage, INVALID_CREDENTIALS, SESSION_EXPIRED, SIGNED_OUT_UNCONFIRMED, UNAVAILABLE, type UserMessage } from '../auth/messages';
 import { orgPath } from '../auth/organization';
 import { features } from '../config';
@@ -34,6 +35,11 @@ export function LoginPage() {
   const [error, setError] = useState<UserMessage | 'credentials' | 'unavailable' | null>(null);
   const inFlight = useRef(false);
   const passwordRef = useRef<HTMLInputElement>(null);
+  // sessão que já vale neste navegador (recarga depois da entrada, ou entrada em outra aba): vai direto ao destino
+  // Só na entrada da IDENTIDADE e só quando a tela abre sem aviso. Com aviso (saiu, expirou, ou a sessão foi TROCADA em
+  // outra aba, F6a-2-R2) a pessoa entra de novo explicitamente. A entrada por organização não reentra sozinha: o cookie
+  // de organização é um por origem e reentrar automaticamente faria abas disputarem a sessão (ver OrganizationEntryPage).
+  useExistingSession(flow, inFlight, flow.kind === 'identity' && !notice);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();

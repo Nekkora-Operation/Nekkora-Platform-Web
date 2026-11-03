@@ -141,7 +141,7 @@ export async function logout(org: string): Promise<void> {
   } catch (e) {
     if (!isApiError(e, 'unauthenticated')) throw e;
   } finally {
-    csrfStore.clear();
+    csrfStore.end();
   }
 }
 
