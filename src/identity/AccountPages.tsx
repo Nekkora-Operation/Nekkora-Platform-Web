@@ -469,6 +469,56 @@ export function ReplaceFactorPage() {
   );
 }
 
+/**
+ * /conta/proteger — oferta da autenticação em duas etapas na PRIMEIRA entrada depois do cadastro (API 029: opcional). A
+ * configuração é o foco da tela (ação principal); seguir sem ela é possível, com menos destaque, e a ativação continua
+ * disponível em Segurança da conta. Conta que já tem o fator não vê a oferta.
+ */
+export function ProtectAccountPage() {
+  const { mfaEnabled } = useIdentityArea();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (mfaEnabled) navigate(identityPath.organizations, { replace: true });
+  }, [mfaEnabled, navigate]);
+  if (mfaEnabled) return null;
+  return (
+    <Stack gap={5} className="pw-identity pw-protect">
+      <SectionHeader
+        as="h1"
+        title="Proteja sua conta"
+        description="Ative a verificação em duas etapas: além da senha, um código do aplicativo autenticador do seu celular passa a ser pedido ao entrar e nas ações sensíveis."
+      />
+      <Card variant="outlined" padding="lg">
+        <Stack gap={4}>
+          <Stack gap={2}>
+            <Text>Recomendado para todas as contas. Leva cerca de 2 minutos:</Text>
+            <ol className="pw-protect__steps">
+              <li>Confirme a sua senha.</li>
+              <li>Escaneie o QR Code com um aplicativo autenticador (por exemplo, Google Authenticator, Authy ou 1Password).</li>
+              <li>Digite o código de 6 dígitos e guarde os códigos de recuperação.</li>
+            </ol>
+          </Stack>
+          <div>
+            <Button size="lg" leftIcon="shield" onClick={() => navigate(identityPath.activateMfa)}>
+              Configurar verificação em duas etapas
+            </Button>
+          </div>
+        </Stack>
+      </Card>
+      <Stack gap={1} className="pw-protect__skip">
+        <div>
+          <Button variant="ghost" size="sm" onClick={() => navigate(identityPath.organizations, { replace: true })}>
+            Seguir sem a verificação em duas etapas
+          </Button>
+        </div>
+        <Text variant="body-sm" color="secondary">
+          Você pode ativar depois, quando quiser, em Segurança da conta.
+        </Text>
+      </Stack>
+    </Stack>
+  );
+}
+
 type ActivationStep = 'intro' | 'configure' | 'confirm' | 'codes' | 'done';
 
 /**

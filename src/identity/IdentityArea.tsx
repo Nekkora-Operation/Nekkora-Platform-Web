@@ -45,6 +45,7 @@ function titleFor(pathname: string): string {
   if (pathname === identityPath.organizations) return 'Organizações';
   if (pathname === identityPath.replaceFactor) return 'Autenticador';
   if (pathname === identityPath.activateMfa) return 'Autenticação em duas etapas';
+  if (pathname === identityPath.protectAccount) return 'Proteja sua conta';
   if (pathname === identityPath.account) return 'Segurança da conta';
   if (pathname === identityPath.linkAccount) return 'Vincular conta de organização';
   return 'Identidade Nekkora';

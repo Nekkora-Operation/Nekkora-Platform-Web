@@ -50,6 +50,8 @@ export const identityPath = {
   replaceFactor: '/conta/fator',
   /** API 029: ativação voluntária da autenticação em duas etapas. */
   activateMfa: '/conta/ativar-autenticacao',
+  /** Oferta da autenticação em duas etapas na primeira entrada depois do cadastro (opcional). */
+  protectAccount: '/conta/proteger',
   linkAccount: '/vincular-conta',
 };
 
