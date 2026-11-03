@@ -5,7 +5,7 @@ import { AcceptInvitationPage } from '../identity/AcceptInvitationPage';
 import { AccessEventsPage } from '../pages/access/AccessEventsPage';
 import { InvitationsPage } from '../pages/access/InvitationsPage';
 import { MemberAccessPage } from '../pages/access/MemberAccessPage';
-import { AccountPage, ActivateMfaPage, ReplaceFactorPage } from '../identity/AccountPages';
+import { AccountPage, ActivateMfaPage, ProtectAccountPage, ReplaceFactorPage } from '../identity/AccountPages';
 import { CreateOrganizationPage } from '../identity/CreateOrganizationPage';
 import { OrganizationEntryPage, RecoverPasswordRoute, RootPage } from '../identity/EntryPages';
 import { IdentityArea } from '../identity/IdentityArea';
@@ -70,6 +70,7 @@ export function AppRoutes() {
         <Route path="/conta" element={<AccountPage />} />
         <Route path="/conta/fator" element={<ReplaceFactorPage />} />
         <Route path="/conta/ativar-autenticacao" element={<ActivateMfaPage />} />
+        <Route path="/conta/proteger" element={<ProtectAccountPage />} />
         <Route path="/vincular-conta" element={<LinkAccountPage />} />
       </Route>
       <Route path="/o/:orgId" element={<OrganizationRoute />}>

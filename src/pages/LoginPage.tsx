@@ -5,6 +5,7 @@ import { ApiError, isApiError } from '../api/http';
 import { AuthScreen } from '../app/AuthScreen';
 import { readNavState } from '../app/notices';
 import { identityPath, useAuthFlow } from '../auth/flow';
+import { onboarding } from '../auth/onboarding';
 import { commonMessage, INVALID_CREDENTIALS, SESSION_EXPIRED, SIGNED_OUT_UNCONFIRMED, UNAVAILABLE, type UserMessage } from '../auth/messages';
 import { orgPath } from '../auth/organization';
 import { features } from '../config';
@@ -42,7 +43,9 @@ export function LoginPage() {
     setError(null);
     try {
       const next = await flow.login(email.trim(), password);
-      if (next === 'signed-in') navigate(flow.home(false), { replace: true });
+      // primeira entrada depois do cadastro, sem autenticação em duas etapas: oferece configurar antes de seguir
+      if (next === 'signed-in' && flow.kind === 'identity' && onboarding.takeSignupCompleted()) navigate(identityPath.protectAccount, { replace: true });
+      else if (next === 'signed-in') navigate(flow.home(false), { replace: true });
       else navigate(next === 'mfa' ? flow.paths.mfa : flow.paths.mfaSetup);
     } catch (e) {
       // 401 (ou 400 de entrada inválida) = mensagem genérica: não revela se o e-mail existe nem o estado da conta
