@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "ad05e202a1a7186e2edfa09ff26583e15e0b0be429f4bfe18c8af7f78e7c78cb",
+  "openapiSha256": "f4f1bca035bf1edf939079a5e7da5925ae862b4ca96289f925afe1fdfc68985e",
   "schemas": {
     "Error": {
       "type": "object",
@@ -2469,7 +2469,9 @@
                   "enum": [
                     "RUN_LOCAL",
                     "OBS_1_0",
-                    "SUPERVISOR_REPORT_1_0"
+                    "SUPERVISOR_REPORT_1_0",
+                    "EXTERNAL_PYTHON_1_0",
+                    "RUN_REQUEST_1_0"
                   ]
                 }
               },
@@ -2555,7 +2557,6 @@
       "additionalProperties": false,
       "required": [
         "workerId",
-        "automationVersionId",
         "validUntil"
       ],
       "properties": {
@@ -2570,6 +2571,16 @@
         "validUntil": {
           "type": "string",
           "format": "date-time"
+        },
+        "sourceKind": {
+          "type": "string",
+          "enum": [
+            "EXTERNAL_MONITORED"
+          ]
+        },
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
         }
       }
     },
@@ -2593,11 +2604,17 @@
           "format": "uuid"
         },
         "automationVersionId": {
-          "type": "string",
+          "type": [
+            "string",
+            "null"
+          ],
           "format": "uuid"
         },
         "packageFingerprint": {
-          "type": "string",
+          "type": [
+            "string",
+            "null"
+          ],
           "pattern": "^[0-9a-f]{64}$"
         },
         "grantedAt": {
@@ -2614,6 +2631,293 @@
             "null"
           ],
           "format": "date-time"
+        },
+        "sourceKind": {
+          "$ref": "#/components/schemas/SourceKind"
+        },
+        "packageFingerprintRule": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "nekkora-agent/package-fingerprint/1",
+            "nekkora-agent/external-python-fingerprint/1",
+            null
+          ]
+        }
+      }
+    },
+    "SourceKind": {
+      "type": "string",
+      "enum": [
+        "STUDIO_PACKAGE",
+        "EXTERNAL_PACKAGE",
+        "EXTERNAL_MONITORED"
+      ]
+    },
+    "RunRequestCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authorizationId",
+        "agentId",
+        "requestKey"
+      ],
+      "properties": {
+        "authorizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "agentId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "validForSeconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 86400,
+          "default": 900
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "RunRequest": {
+      "type": "object",
+      "properties": {
+        "runRequestId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "automationName": {
+          "type": "string"
+        },
+        "automationVersionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "versionNumber": {
+          "type": "integer"
+        },
+        "authorizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workerId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "agentId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "agentName": {
+          "type": "string"
+        },
+        "sourceKind": {
+          "$ref": "#/components/schemas/SourceKind"
+        },
+        "packageFingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "packageFingerprintRule": {
+          "type": "string"
+        },
+        "requestedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "validUntil": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "REQUESTED",
+            "DELIVERED",
+            "ACCEPTED",
+            "REFUSED",
+            "NOT_STARTED",
+            "RUN_LINKED",
+            "EXPIRED",
+            "REVOKED"
+          ]
+        },
+        "deliveredAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "deliveries": {
+          "type": "integer"
+        },
+        "decidedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "decisionReason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "PACKAGE_NOT_PRESENT",
+            "PACKAGE_NOT_APPROVED",
+            "AUTHORIZATION_UNUSABLE",
+            "ENVIRONMENT_INCOMPATIBLE",
+            "BUSY",
+            "EXPIRED",
+            "LAUNCH_NOT_ATTEMPTED",
+            null
+          ]
+        },
+        "agentExecutionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notStartedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "linkedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "expiredAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "revokedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "machine": {
+          "type": "object",
+          "properties": {
+            "connectivity": {
+              "type": "string",
+              "enum": [
+                "CONNECTED",
+                "DISCONNECTED"
+              ]
+            },
+            "lastHeartbeatAt": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            }
+          }
+        },
+        "run": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "runId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "registeredAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "state": {
+                  "$ref": "#/components/schemas/AgentSupervisorState"
+                },
+                "code": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "exitCode": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "startedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "endedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "process": {
+                  "type": "string",
+                  "enum": [
+                    "NOT_STARTED",
+                    "STARTING",
+                    "RUNNING",
+                    "ENDED"
+                  ]
+                },
+                "outcome": {
+                  "type": "string",
+                  "enum": [
+                    "PENDING",
+                    "KNOWN",
+                    "UNKNOWN"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "RunRequestList": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/RunRequest"
+          }
         }
       }
     },
@@ -2798,7 +3102,8 @@
         "fingerprintRule": {
           "type": "string",
           "enum": [
-            "nekkora-agent/package-fingerprint/1"
+            "nekkora-agent/package-fingerprint/1",
+            "nekkora-agent/external-python-fingerprint/1"
           ]
         },
         "fingerprint": {
@@ -2812,14 +3117,55 @@
           "type": "string"
         },
         "framework": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "executionMode": {
-          "type": "string",
+          "type": [
+            "string",
+            "null"
+          ],
           "enum": [
             "single",
             "list",
-            "tabular"
+            "tabular",
+            null
+          ]
+        },
+        "packageKind": {
+          "type": "string",
+          "enum": [
+            "STUDIO_PYTHON",
+            "EXTERNAL_PYTHON"
+          ]
+        },
+        "pythonRequirement": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dependencies": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "packageName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "packageVersion": {
+          "type": [
+            "string",
+            "null"
           ]
         },
         "declaredGenerator": {
@@ -3009,11 +3355,21 @@
               "format": "uuid"
             },
             "automationVersionId": {
-              "type": "string",
+              "type": [
+                "string",
+                "null"
+              ],
               "format": "uuid"
             },
             "authorizationId": {
               "type": "string",
+              "format": "uuid"
+            },
+            "runRequestId": {
+              "type": [
+                "string",
+                "null"
+              ],
               "format": "uuid"
             }
           }
@@ -3021,8 +3377,18 @@
         "origin": {
           "type": "string",
           "enum": [
-            "LOCAL_AUTHORIZED"
+            "LOCAL_AUTHORIZED",
+            "PLATFORM_REQUEST"
           ]
+        },
+        "sourceKind": {
+          "$ref": "#/components/schemas/SourceKind"
+        },
+        "automationName": {
+          "type": "string"
+        },
+        "agentName": {
+          "type": "string"
         },
         "authorizationStateAtRegistration": {
           "type": "string",
@@ -7339,6 +7705,216 @@
           }
         },
         "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "listRunRequests": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/workspaces/{workspace}/run-requests",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/RunRequestList"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "createRunRequest": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/workspaces/{workspace}/run-requests",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/RunRequest"
+          }
+        },
+        "201": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/RunRequest"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "getRunRequest": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/run-requests/{runRequest}",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/RunRequest"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "revokeRunRequest": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/run-requests/{runRequest}/revoke",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/RunRequest"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/Error"

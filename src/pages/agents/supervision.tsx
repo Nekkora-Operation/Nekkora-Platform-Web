@@ -59,6 +59,46 @@ const RETENTION: Record<string, string> = {
 };
 const short = (v: string | null | undefined) => (v ? `${v.slice(0, 8)}…` : '—');
 
+/** Origem do código e de quem pediu (030). */
+export const SOURCE_KIND: Record<string, string> = {
+  STUDIO_PACKAGE: 'Pacote Studio',
+  EXTERNAL_PACKAGE: 'Pacote Python externo',
+  EXTERNAL_MONITORED: 'Python externo monitorado',
+};
+const ORIGIN: Record<string, string> = { LOCAL_AUTHORIZED: 'Iniciada na máquina', PLATFORM_REQUEST: 'Pedido pela Platform' };
+
+/**
+ * O desfecho em palavras. Python externo (AGT-EXT-*): código 0 sem sinal é "terminou sem erro sinalizado", NUNCA sucesso de
+ * negócio; sem evidência do desfecho, "desconhecido". Nos demais, o rótulo do supervisor.
+ */
+export function outcomeLabel(state: AgentSupervisorState | undefined, code?: string | null, exitCode?: number | null): { label: string; tone: Tone } {
+  if (!state) return { label: '—', tone: 'neutral' };
+  switch (code) {
+    case 'AGT-EXT-001':
+      return { label: 'Terminou sem erro sinalizado (código 0; sucesso de negócio não sinalizado)', tone: 'neutral' };
+    case 'AGT-EXT-002':
+      return { label: `Terminou com erro (código de saída ${exitCode ?? '?'})`, tone: 'danger' };
+    case 'AGT-EXT-003':
+      return { label: 'Falha de negócio sinalizada pelo script', tone: 'danger' };
+    case 'AGT-EXT-004':
+      return { label: 'Desconhecido: o lançador terminou sem observar o fim', tone: 'warning' };
+    case 'AGT-EXT-005':
+      return { label: 'O processo do script não pôde ser criado', tone: 'danger' };
+    default:
+      if (state === 'SUCCEEDED' && !code) return { label: 'Concluída com sucesso', tone: 'success' };
+      return SUPERVISOR[state];
+  }
+}
+
+/** Duração pelo relógio do Agent (início e fim do supervisor); sem os dois, nada é inventado. */
+export function durationText(start?: string | null, end?: string | null): string {
+  if (!start || !end) return '—';
+  const ms = new Date(end).getTime() - new Date(start).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return '—';
+  const s = Math.round(ms / 1000);
+  return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, '0')} s`;
+}
+
 /** Um acompanhamento acabou quando o desfecho deixou de estar pendente E a entrega do histórico não está pendente. */
 export const runIsSettled = (r: AgentRun) => r.outcome !== 'PENDING' && r.history?.completeness !== 'PENDING';
 
@@ -113,7 +153,20 @@ export function AgentRunsPage() {
 
   const columns: TableColumn<AgentRun>[] = [
     { key: 'registro', header: 'Registrada em', render: (r) => <RouteLink to={orgPath.agentRun(org, r.runId!)}><DateTimeText iso={r.registeredAt} /></RouteLink> },
-    { key: 'supervisor', header: 'Supervisor', render: (r) => (r.supervisor?.state ? <Badge tone={SUPERVISOR[r.supervisor.state].tone}>{SUPERVISOR[r.supervisor.state].label}</Badge> : '—') },
+    { key: 'automacao', header: 'Automação', render: (r) => r.automationName ?? short(r.correlation?.automationId) },
+    { key: 'maquina', header: 'Máquina', render: (r) => r.agentName ?? short(r.correlation?.agentId) },
+    { key: 'origem', header: 'Origem', render: (r) => [r.sourceKind ? SOURCE_KIND[r.sourceKind] : null, r.origin === 'PLATFORM_REQUEST' ? ORIGIN.PLATFORM_REQUEST : null].filter(Boolean).join(' · ') || '—' },
+    { key: 'inicio', header: 'Início', render: (r) => <DateTimeText iso={r.supervisor?.agentStartedAt} /> },
+    { key: 'duracao', header: 'Fim / duração', render: (r) => (r.supervisor?.agentEndedAt ? <><DateTimeText iso={r.supervisor.agentEndedAt} /> · {durationText(r.supervisor.agentStartedAt, r.supervisor.agentEndedAt)}</> : '—') },
+    {
+      key: 'supervisor',
+      header: 'Desfecho',
+      render: (r) => {
+        if (!r.supervisor?.state) return '—';
+        const o = outcomeLabel(r.supervisor.state, r.supervisor.code, r.supervisor.exitCode);
+        return <Badge tone={o.tone}>{o.label}</Badge>;
+      },
+    },
     { key: 'processo', header: 'Processo', render: (r) => (r.process ? PROCESS[r.process] : '—') },
     { key: 'historico', header: 'Histórico', render: (r) => (r.history?.completeness ? COMPLETENESS[r.history.completeness].label : '—') },
     { key: 'workspace', header: 'Workspace', render: (r) => workspaces.items.find((w) => w.workspaceId === r.correlation?.workspaceId)?.name ?? short(r.correlation?.workspaceId) },
@@ -121,7 +174,7 @@ export function AgentRunsPage() {
 
   return (
     <Stack gap={5}>
-      <PageHeader title="Supervisão" subtitle="Execuções locais registradas pelos Agents. O início é sempre no Agent; aqui só se acompanha." />
+      <PageHeader title="Supervisão" subtitle="Execuções registradas pelos Agents: iniciadas na máquina (inclusive Python externo monitorado) ou pedidas pela Platform. O desfecho é sempre o do supervisor da máquina." />
       <div className="pw-form__row">
         <Select
           label="Workspace"
@@ -238,7 +291,7 @@ export function AgentRunPage() {
         <Card variant="outlined" padding="md">
           <Text variant="overline">Desfecho</Text>
           {r.outcome && <Badge tone={OUTCOME[r.outcome].tone}>{OUTCOME[r.outcome].label}</Badge>}
-          <Text variant="body-sm">Supervisor: {s?.state ? SUPERVISOR[s.state].label : '—'}</Text>
+          <Text variant="body-sm">Supervisor: {s?.state ? outcomeLabel(s.state, s.code, s.exitCode).label : '—'}</Text>
         </Card>
         <Card variant="outlined" padding="md">
           <Text variant="overline">Transporte</Text>
@@ -267,9 +320,21 @@ export function AgentRunPage() {
       <Card variant="surface" padding="lg">
         <DescriptionList
           items={[
-            { key: 'auto', term: 'Automação', description: c?.automationId ? <RouteLink to={orgPath.automation(org, c.automationId)}>{short(c.automationId)}</RouteLink> : '—' },
-            { key: 'versao', term: 'Versão', description: c?.automationVersionId ? <RouteLink to={orgPath.version(org, c.automationVersionId)}>{short(c.automationVersionId)}</RouteLink> : '—' },
-            { key: 'agent', term: 'Agent', description: short(c?.agentId) },
+            { key: 'auto', term: 'Automação', description: c?.automationId ? <RouteLink to={orgPath.automation(org, c.automationId)}>{r.automationName ?? short(c.automationId)}</RouteLink> : '—' },
+            {
+              key: 'versao',
+              term: 'Versão',
+              description: c?.automationVersionId ? (
+                <RouteLink to={orgPath.version(org, c.automationVersionId)}>{short(c.automationVersionId)}</RouteLink>
+              ) : r.sourceKind === 'EXTERNAL_MONITORED' ? (
+                'sem versão (Python externo monitorado: a Platform não conhece o código)'
+              ) : (
+                '—'
+              ),
+            },
+            { key: 'origem', term: 'Origem', description: [r.sourceKind ? SOURCE_KIND[r.sourceKind] : null, r.origin ? ORIGIN[r.origin] : null].filter(Boolean).join(' · ') || '—' },
+            { key: 'agent', term: 'Máquina (Agent)', description: r.agentName ?? short(c?.agentId) },
+            { key: 'duracao', term: 'Duração (relógio do Agent)', description: durationText(s?.agentStartedAt, s?.agentEndedAt) },
             { key: 'worker', term: 'Worker', description: short(c?.workerId) },
             { key: 'autorizacao', term: 'Autorização', description: short(c?.authorizationId) },
             { key: 'execucao', term: 'Execução no Agent', description: <code className="pw-hash">{c?.agentExecutionId ?? '—'}</code> },

@@ -1595,7 +1595,7 @@ export interface paths {
         put?: never;
         /**
          * Autoriza execucao local de uma versao publicada num Worker (step-up)
-         * @description Exige automation.execute no workspace e step-up. Vincula organizacao, workspace, Worker AUTORIZADO no workspace, versao PUBLICADA e o pacote imutavel (packageFingerprint = command_json.agent_package.fingerprint da versao, com agent_package.fingerprint_rule = nekkora-agent/package-fingerprint/1; NAO e command_json.artifact.sha256, que mede os bytes do artefato). validUntil posterior a agora e ate 366 dias (fora disso, 400); automacao ou workspace inativo, 409. Versao rascunho ou sem artefato, ou Worker sem autorizacao no workspace: 409. A 025 reconfere tudo no banco. Auditoria (agent_admin_events 10).
+         * @description AGENT-PYTHON-001 (030): com sourceKind = EXTERNAL_MONITORED o corpo leva automationId (e nao automationVersionId) e a autorizacao e de MONITORAMENTO de Python externo, sem versao e sem impressao (a Platform nao conhece codigo, caminho nem argumento); sourceKind de pacote no corpo e 400 (a origem de pacote vem da regra da versao: package-fingerprint/1 = STUDIO_PACKAGE, external-python-fingerprint/1 = EXTERNAL_PACKAGE). Exige automation.execute no workspace e step-up. Vincula organizacao, workspace, Worker AUTORIZADO no workspace, versao PUBLICADA e o pacote imutavel (packageFingerprint = command_json.agent_package.fingerprint da versao, com agent_package.fingerprint_rule = nekkora-agent/package-fingerprint/1; NAO e command_json.artifact.sha256, que mede os bytes do artefato). validUntil posterior a agora e ate 366 dias (fora disso, 400); automacao ou workspace inativo, 409. Versao rascunho ou sem artefato, ou Worker sem autorizacao no workspace: 409. A 025 reconfere tudo no banco. Auditoria (agent_admin_events 10).
          */
         post: operations["createLocalRunAuthorization"];
         delete?: never;
@@ -1618,6 +1618,70 @@ export interface paths {
          * @description Exige automation.execute no workspace. Limite declarado: uma maquina desconectada so ve a revogacao no proximo download das autorizacoes; execucoes ja feitas continuam sendo fatos aceitos e marcados (authorizationStateAtRegistration). Auditoria (agent_admin_events 11).
          */
         post: operations["revokeLocalRunAuthorization"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/workspaces/{workspace}/run-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pedidos de execucao mais recentes do workspace
+         * @description Exige automation.read no workspace. Ordem: mais recente primeiro; limit de 1 a 100.
+         */
+        get: operations["listRunRequests"];
+        put?: never;
+        /**
+         * Pede que uma versao autorizada rode num Agent (step-up) - 030
+         * @description Exige automation.execute no workspace e step-up. A autorizacao precisa estar ATIVA e ser de pacote (monitoramento: 409); o Agent, ativo e associado ao Worker da autorizacao (409). Validade de 60 s a 24 h (400). A mesma requestKey devolve o mesmo pedido (200); com outro conteudo, 409. A requisicao nao transporta comando, caminho nem segredo. Auditoria (agent_admin_events 12).
+         */
+        post: operations["createRunRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/run-requests/{runRequest}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Estado do pedido e da execucao ligada
+         * @description Exige automation.read no workspace do pedido. REQUESTED/DELIVERED vencido e lido como EXPIRED.
+         */
+        get: operations["getRunRequest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/run-requests/{runRequest}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoga o pedido antes da decisao da maquina (step-up)
+         * @description So REQUESTED ou DELIVERED no prazo; depois da decisao (ou vencido): 409 (cancelamento remoto esta fora). Exige automation.execute no workspace e step-up. Auditoria (agent_admin_events 13).
+         */
+        post: operations["revokeRunRequest"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2513,7 +2577,7 @@ export interface components {
                 /** @enum {string} */
                 connectivity?: "CONNECTED" | "DISCONNECTED";
                 contractVersion?: string | null;
-                capabilities?: ("RUN_LOCAL" | "OBS_1_0" | "SUPERVISOR_REPORT_1_0")[];
+                capabilities?: ("RUN_LOCAL" | "OBS_1_0" | "SUPERVISOR_REPORT_1_0" | "EXTERNAL_PYTHON_1_0" | "RUN_REQUEST_1_0")[];
                 /** Format: date-time */
                 credentialExpiresAt?: string | null;
             }[];
@@ -2542,13 +2606,26 @@ export interface components {
         LocalRunAuthorizationRequest: {
             /** Format: uuid */
             workerId: string;
-            /** Format: uuid */
-            automationVersionId: string;
+            /**
+             * Format: uuid
+             * @description Obrigatorio sem sourceKind (pacote); proibido com EXTERNAL_MONITORED
+             */
+            automationVersionId?: string;
             /**
              * Format: date-time
              * @description Com fuso; ate 366 dias
              */
             validUntil: string;
+            /**
+             * @description So para o monitoramento de Python externo (030)
+             * @enum {string}
+             */
+            sourceKind?: "EXTERNAL_MONITORED";
+            /**
+             * Format: uuid
+             * @description Obrigatorio com EXTERNAL_MONITORED
+             */
+            automationId?: string;
         };
         LocalRunAuthorization: {
             /** Format: uuid */
@@ -2559,15 +2636,120 @@ export interface components {
             workerId?: string;
             /** Format: uuid */
             automationId?: string;
-            /** Format: uuid */
-            automationVersionId?: string;
-            packageFingerprint?: string;
+            /**
+             * Format: uuid
+             * @description Nulo em EXTERNAL_MONITORED
+             */
+            automationVersionId?: string | null;
+            /** @description Nulo em EXTERNAL_MONITORED */
+            packageFingerprint?: string | null;
             /** Format: date-time */
             grantedAt?: string;
             /** Format: date-time */
             validUntil?: string;
             /** Format: date-time */
             revokedAt?: string | null;
+            sourceKind?: components["schemas"]["SourceKind"];
+            /** @enum {string|null} */
+            packageFingerprintRule?: "nekkora-agent/package-fingerprint/1" | "nekkora-agent/external-python-fingerprint/1" | null;
+        };
+        /**
+         * @description Origem explicita do codigo (030). STUDIO_PACKAGE: pacote do formato Studio, regra package-fingerprint/1 (inalterada). EXTERNAL_PACKAGE: pacote Python externo, regra external-python-fingerprint/1. EXTERNAL_MONITORED: Python do cliente disparado pelo agendador dele, sem versao e sem impressao.
+         * @enum {string}
+         */
+        SourceKind: "STUDIO_PACKAGE" | "EXTERNAL_PACKAGE" | "EXTERNAL_MONITORED";
+        RunRequestCreate: {
+            /**
+             * Format: uuid
+             * @description Autorizacao ATIVA de pacote (STUDIO_PACKAGE ou EXTERNAL_PACKAGE)
+             */
+            authorizationId: string;
+            /**
+             * Format: uuid
+             * @description Agent ativo associado ao Worker da autorizacao
+             */
+            agentId: string;
+            /** @default 900 */
+            validForSeconds: number;
+            /**
+             * Format: uuid
+             * @description Gerado pelo navegador: a repeticao com a mesma chave devolve o mesmo pedido (200)
+             */
+            requestKey: string;
+        };
+        /** @description Pedido de execucao. state: REQUESTED (registrado, aguardando a maquina), DELIVERED (entregue, aguardando decisao; entregar nao prova inicio), ACCEPTED (aceito; inicio ainda nao confirmado), REFUSED, NOT_STARTED (aceito e o processo comprovadamente nao criado), RUN_LINKED (execucao registrada; iniciada so com run.startedAt; desfecho em run), EXPIRED (vencido sem decisao), REVOKED. Maquina desconectada: continua aguardando ate voltar ou vencer; nunca "em execucao" por inferencia. */
+        RunRequest: {
+            /** Format: uuid */
+            runRequestId?: string;
+            /** Format: uuid */
+            workspaceId?: string;
+            /** Format: uuid */
+            automationId?: string;
+            automationName?: string;
+            /** Format: uuid */
+            automationVersionId?: string;
+            versionNumber?: number;
+            /** Format: uuid */
+            authorizationId?: string;
+            /** Format: uuid */
+            workerId?: string;
+            /** Format: uuid */
+            agentId?: string;
+            agentName?: string;
+            sourceKind?: components["schemas"]["SourceKind"];
+            packageFingerprint?: string;
+            packageFingerprintRule?: string;
+            /** Format: date-time */
+            requestedAt?: string;
+            /** Format: date-time */
+            validUntil?: string;
+            /** @enum {string} */
+            state?: "REQUESTED" | "DELIVERED" | "ACCEPTED" | "REFUSED" | "NOT_STARTED" | "RUN_LINKED" | "EXPIRED" | "REVOKED";
+            /** Format: date-time */
+            deliveredAt?: string | null;
+            deliveries?: number;
+            /** Format: date-time */
+            decidedAt?: string | null;
+            /** @enum {string|null} */
+            decisionReason?: "PACKAGE_NOT_PRESENT" | "PACKAGE_NOT_APPROVED" | "AUTHORIZATION_UNUSABLE" | "ENVIRONMENT_INCOMPATIBLE" | "BUSY" | "EXPIRED" | "LAUNCH_NOT_ATTEMPTED" | null;
+            agentExecutionId?: string | null;
+            /** Format: date-time */
+            notStartedAt?: string | null;
+            /** Format: date-time */
+            linkedAt?: string | null;
+            /** Format: date-time */
+            expiredAt?: string | null;
+            /** Format: date-time */
+            revokedAt?: string | null;
+            machine?: {
+                /** @enum {string} */
+                connectivity?: "CONNECTED" | "DISCONNECTED";
+                /** Format: date-time */
+                lastHeartbeatAt?: string | null;
+            };
+            run?: null | {
+                /** Format: uuid */
+                runId?: string;
+                /** Format: date-time */
+                registeredAt?: string;
+                state?: components["schemas"]["AgentSupervisorState"];
+                code?: string | null;
+                exitCode?: number | null;
+                /**
+                 * Format: date-time
+                 * @description Relogio do Agent (RUNNING); sem ele o inicio nao esta provado
+                 */
+                startedAt?: string | null;
+                /** Format: date-time */
+                endedAt?: string | null;
+                /** @enum {string} */
+                process?: "NOT_STARTED" | "STARTING" | "RUNNING" | "ENDED";
+                /** @enum {string} */
+                outcome?: "PENDING" | "KNOWN" | "UNKNOWN";
+            };
+        };
+        RunRequestList: {
+            items?: components["schemas"]["RunRequest"][];
         };
         WorkspaceCreateRequest: {
             name: string;
@@ -2618,14 +2800,26 @@ export interface components {
             sha256?: string;
             sizeBytes?: number;
             /** @enum {string} */
-            fingerprintRule?: "nekkora-agent/package-fingerprint/1";
-            /** @description impressao do pacote (calculada pelo servidor; a mesma do Agent) */
+            fingerprintRule?: "nekkora-agent/package-fingerprint/1" | "nekkora-agent/external-python-fingerprint/1";
+            /** @description impressao do pacote (calculada pelo servidor; a mesma do Agent). Regra por tipo: STUDIO_PYTHON = package-fingerprint/1, EXTERNAL_PYTHON = external-python-fingerprint/1 */
             fingerprint?: string;
             filesCount?: number;
             manifestVersion?: string;
-            framework?: string;
+            /** @description So STUDIO_PYTHON */
+            framework?: string | null;
+            /**
+             * @description So STUDIO_PYTHON
+             * @enum {string|null}
+             */
+            executionMode?: "single" | "list" | "tabular" | null;
             /** @enum {string} */
-            executionMode?: "single" | "list" | "tabular";
+            packageKind?: "STUDIO_PYTHON" | "EXTERNAL_PYTHON";
+            /** @description So EXTERNAL_PYTHON (ex.: >=3.10,<3.14) */
+            pythonRequirement?: string | null;
+            /** @description So EXTERNAL_PYTHON: nome==versao exata */
+            dependencies?: string[] | null;
+            packageName?: string | null;
+            packageVersion?: string | null;
             declaredGenerator?: string | null;
             /**
              * @description procedencia declarada no manifesto; nao verificada criptograficamente
@@ -2686,13 +2880,24 @@ export interface components {
                 workspaceId?: string;
                 /** Format: uuid */
                 automationId?: string;
-                /** Format: uuid */
-                automationVersionId?: string;
+                /**
+                 * Format: uuid
+                 * @description Nulo em EXTERNAL_MONITORED
+                 */
+                automationVersionId?: string | null;
                 /** Format: uuid */
                 authorizationId?: string;
+                /**
+                 * Format: uuid
+                 * @description Pedido de execucao (030) que originou a execucao
+                 */
+                runRequestId?: string | null;
             };
             /** @enum {string} */
-            origin?: "LOCAL_AUTHORIZED";
+            origin?: "LOCAL_AUTHORIZED" | "PLATFORM_REQUEST";
+            sourceKind?: components["schemas"]["SourceKind"];
+            automationName?: string;
+            agentName?: string;
             /** @enum {string} */
             authorizationStateAtRegistration?: "ACTIVE" | "REVOKED" | "EXPIRED";
             /** Format: date-time */
@@ -5983,6 +6188,143 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listRunRequests: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                workspace: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pedidos */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunRequestList"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    createRunRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                workspace: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunRequestCreate"];
+            };
+        };
+        responses: {
+            /** @description Mesma chave: o pedido ja registrado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunRequest"];
+                };
+            };
+            /** @description Pedido registrado */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunRequest"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getRunRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                runRequest: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pedido */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunRequest"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    revokeRunRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                runRequest: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revogado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunRequest"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };
