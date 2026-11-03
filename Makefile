@@ -10,6 +10,7 @@
 #   make local-front           frontend em http://localhost:5173 ligado a API real (Ctrl+C encerra)
 #   make local-link E=<email>  link da ultima confirmacao de cadastro enviada para o e-mail
 #   make local-parar / make local-subir   parar sem apagar dados / subir de novo
+#   make email-real-credenciais CODIGO=<MFA> && make email-real-ligar   envio REAL pelo M365 (lista fechada, teto 20)
 
 ifeq ($(OS),Windows_NT)
 SHELL := bash.exe
@@ -26,6 +27,7 @@ API_COPIA ?= ../Nekkora-Platform-API-contrato
 CONTRATO_COMMIT := $(shell sed -n 's/.*"commit": *"\([0-9a-f]\{40\}\)".*/\1/p' contract/SOURCE.json)
 # Parametros dos alvos com argumento
 E ?=
+CODIGO ?=
 ORG ?=
 WORKERS ?=
 SIMULTANEAS ?=
@@ -34,10 +36,10 @@ MOTIVO ?=
 
 .PHONY: help instalar lib dev typecheck test build check e2e contrato contrato-sync preview \
         api-copia local-instalar local-subir local-front local local-estado local-caixa local-link local-convite \
-        local-parar local-atualizar operador-preparar operador-estado ativar
+        local-parar local-atualizar email-real-credenciais email-real-ligar email-real-desligar email-real-estado \n        operador-preparar operador-estado ativar
 
 help: ## Lista os alvos
-	@grep -hE '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
+	@grep -hE '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-23s\033[0m %s\n", $$1, $$2}'
 
 # --- frontend ------------------------------------------------------------------------------------------------------
 
@@ -119,6 +121,19 @@ local-parar: ## Para tudo SEM apagar dados
 
 local-atualizar: api-copia ## Leva o laboratorio a revisao nova da API (copia de seguranca + migrations novas)
 	$(LAB) atualizar "$(API_COPIA)"
+
+email-real-credenciais: ## Credenciais de 1 h da AWS para o e-mail real: make email-real-credenciais CODIGO=<MFA>
+	@[ -n "$(CODIGO)" ] || { echo "uso: make email-real-credenciais CODIGO=<codigo de 6 digitos do MFA>"; exit 2; }
+	@$(LAB) email-real credenciais "$(CODIGO)"
+
+email-real-ligar: ## Liga o envio REAL pelo M365 no laboratorio (links continuam em localhost:5173)
+	$(LAB) email-real ligar
+
+email-real-desligar: ## Volta a caixa local e apaga as credenciais da AWS
+	$(LAB) email-real desligar
+
+email-real-estado: ## Ligado/desligado, tentativas usadas (teto 20) e validade das credenciais
+	$(LAB) email-real estado
 
 operador-preparar: ## Uma vez: operador local da ativacao de organizacoes
 	$(LAB) operador preparar

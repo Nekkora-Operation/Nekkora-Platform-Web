@@ -18,6 +18,14 @@
 #                                                      reinstalar: cópia de segurança do banco, só as migrations novas
 #                                                      pelo migrador suportado, imagens novas da API (PLATFORM-LOCAL-002)
 #
+# E-mail REAL pelo Microsoft 365 (opcional; tools/lab/compose.m365.yml). Os links continuam em http://localhost:5173:
+#   bash tools/lab/local.sh email-real credenciais <código>  credenciais de 1 h da função de leitura (código do MFA)
+#   bash tools/lab/local.sh email-real ligar          transporte m365 no lugar da caixa (só destinatários da lista;
+#                                                      teto de 20 tentativas compartilhado com o ensaio dono do material)
+#   bash tools/lab/local.sh email-real desligar       volta à caixa local e apaga as credenciais
+#   bash tools/lab/local.sh email-real estado         ligado/desligado, tentativas usadas e validade das credenciais
+#   (material M365 fora do Git em LOCAL_M365_DIR, padrão ~/.nekkora/homologacao/ensaio-api-v1-003/m365)
+#
 # Operação da Nekkora no laboratório (NÃO é da tela; PLATFORM-LOCAL-002, tools/lab/operador.sh):
 #   bash tools/lab/local.sh operador preparar          uma vez: operador local da ativação (TLS do banco, CA operacional,
 #                                                      papéis op_lab_*, conta responsável do operador), dados preservados
@@ -50,6 +58,30 @@ carregar() {
         export OPERADOR_DIR="$(cygpath -m "$SEG/operador" 2>/dev/null || echo "$SEG/operador")"
         COMPOSE+=(-f "$aqui_m/compose.operador.yml")
     fi
+    # e-mail REAL ligado (local.sh email-real ligar): transporte m365 no lugar da caixa (compose.m365.yml)
+    if [ -f "$SEG/email-real" ]; then
+        m365_exportar
+        COMPOSE+=(-f "$aqui_m/compose.m365.yml")
+    fi
+}
+# material M365 (fora do Git): o do ensaio que tem a autorização do envio real; o teto de tentativas é o desse diretório
+M365_DIR="${LOCAL_M365_DIR:-$HOME/.nekkora/homologacao/ensaio-api-v1-003/m365}"
+M365_AWS="$SEG/m365-aws.env"
+email_real_py() { python "$(cygpath -m "$LAB_API_REPO/ops/homologacao/lib/email_real.py" 2>/dev/null || echo "$LAB_API_REPO/ops/homologacao/lib/email_real.py")" "$@"; }
+m365_exportar() {
+    [ -f "$M365_DIR/fila.env" ] && [ -f "$M365_DIR/destinatarios.txt" ] && [ -d "$M365_DIR/tentativas" ] \
+        || falha "material M365 incompleto em $M365_DIR (fila.env, destinatarios.txt, tentativas/)"
+    export LAB_M365_DIR="$(cygpath -m "$M365_DIR" 2>/dev/null || echo "$M365_DIR")"
+    export LAB_M365_AWS_ENV="$(cygpath -m "$M365_AWS" 2>/dev/null || echo "$M365_AWS")"
+    export LAB_M365_SQUID="$LAB_API_REPO/ops/homologacao/proxy/squid.conf"
+    [ -f "$M365_AWS" ] || : > "$M365_AWS"   # o compose exige o arquivo; vazio = sem credencial (a partida recusa)
+    LAB_M365_DESTINATARIOS="$(email_real_py destinatarios "$(cygpath -m "$M365_DIR/destinatarios.txt" 2>/dev/null || echo "$M365_DIR/destinatarios.txt")")" \
+        || falha "lista de destinatários recusada ($M365_DIR/destinatarios.txt)"
+    export LAB_M365_DESTINATARIOS
+}
+m365_tentativas() { find "$M365_DIR/tentativas" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' '; }
+m365_credencial_ok() {   # $1 = minutos mínimos de validade
+    [ -s "$M365_AWS" ] && email_real_py credenciais "$(cygpath -m "$M365_AWS" 2>/dev/null || echo "$M365_AWS")" --minimo "$1" > /dev/null 2>&1
 }
 docker_ok() { docker info >/dev/null 2>&1 || falha "o Docker não responde: abra o Docker Desktop e espere 'Engine running'"; }
 base() { sed -n 's/^api=//p' "$SAIDA/laboratorio.txt"; }
@@ -73,6 +105,11 @@ subir)
         [ "$i" -lt 60 ] || falha "PostgreSQL não respondeu"
         sleep 2
     done
+    if [ -f "$SEG/email-real" ]; then
+        # a Platform lê o segredo do M365 na partida: sem credencial válida ela não sobe com o transporte real
+        m365_credencial_ok 5 || falha "e-mail real ligado e credenciais da AWS vencidas: bash tools/lab/local.sh email-real credenciais <código do MFA> (ou email-real desligar)"
+        "${COMPOSE[@]}" up -d proxy-m365
+    fi
     "${COMPOSE[@]}" start platform portal agent-gateway
     # a chave TLS do nginx não fica em disco (é apagada assim que ele a carrega): cada subida gera um certificado novo
     bash "$AQUI/tls-renovar.sh" "$ID"
@@ -184,6 +221,79 @@ atualizar)
     sed -i "s#^api_commit=.*#api_commit=$COMMIT_NOVO#; s#^migrations=.*#migrations=001-$ALVO#" "$SAIDA/laboratorio.txt"
     { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) atualizado para API $COMMIT_NOVO (migrations até $ALVO); antes: $ATUAL; cópia: $(basename "$COPIA")"; } >> "$SAIDA/atualizacoes.txt"
     echo "atualizado: API $(git -C "$NOVA" log -1 --format=%h), banco em $ALVO, dados preservados. Próximo passo: bash tools/lab/local.sh front"
+    ;;
+email-real)
+    # envio REAL pelo Microsoft 365 (compose.m365.yml). Os links continuam apontando para http://localhost:5173.
+    docker_ok
+    sub="${1:-estado}"; shift || true
+    case "$sub" in
+    credenciais)
+        # credenciais de 1 h da função de leitura do segredo, com o código do MFA por argumento (o aws.exe lê o prompt
+        # do console do Windows, não do stdin); gravadas direto no arquivo, nada impresso
+        carregar
+        codigo="${1:-}"; [[ "$codigo" =~ ^[0-9]{6}$ ]] || falha "uso: local.sh email-real credenciais <código de 6 dígitos do MFA>"
+        [ -f "$M365_DIR/aws-local.env" ] || falha "$M365_DIR/aws-local.env ausente (CONTA_AWS, MFA_SERIAL)"
+        conta="$(sed -n 's/^CONTA_AWS=\([0-9]\{12\}\)\r\{0,1\}$/\1/p' "$M365_DIR/aws-local.env")"
+        mfa="$(sed -n 's/^MFA_SERIAL=\(arn:aws:iam::[0-9]\{12\}:mfa\/[A-Za-z0-9+=,.@_/-]*\)\r\{0,1\}$/\1/p' "$M365_DIR/aws-local.env")"
+        [ -n "$conta" ] && [ -n "$mfa" ] || falha "aws-local.env sem CONTA_AWS ou MFA_SERIAL válidos"
+        aws sts get-caller-identity --profile nekkora-login > /dev/null 2>&1 || falha "sem sessão da AWS: aws login --profile nekkora-login"
+        tmp="$M365_AWS.novo"; (umask 077; : > "$tmp")
+        MSYS2_ENV_CONV_EXCL='*' MSYS_NO_PATHCONV=1 aws sts assume-role --profile nekkora-login \
+            --role-arn "arn:aws:iam::$conta:role/nekkora-homologacao-platform-m365-leitura" --role-session-name nekkora-hml-m365 \
+            --serial-number "$mfa" --token-code "$codigo" --duration-seconds 3600 \
+            --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken,Expiration]' --output text \
+            | tr -d '\r' | awk -F'\t' 'NF==4 {print "AWS_ACCESS_KEY_ID="$1; print "AWS_SECRET_ACCESS_KEY="$2; print "AWS_SESSION_TOKEN="$3; print "AWS_CREDENTIAL_EXPIRATION="$4}' > "$tmp" \
+            || { rm -f "$tmp"; falha "a AWS recusou (código vencido ou já usado? sessão do nekkora-login?)"; }
+        [ "$(grep -c '=.' "$tmp")" = 4 ] || { rm -f "$tmp"; falha "credenciais não obtidas"; }
+        mv "$tmp" "$M365_AWS"
+        email_real_py credenciais "$(cygpath -m "$M365_AWS" 2>/dev/null || echo "$M365_AWS")" --minimo 20 || { rm -f "$M365_AWS"; falha "credenciais recusadas (apagadas)"; }
+        ;;
+    ligar)
+        carregar
+        m365_exportar
+        m365_credencial_ok 20 || falha "credenciais da AWS ausentes ou com menos de 20 min: bash tools/lab/local.sh email-real credenciais <código do MFA>"
+        [ "$(m365_tentativas)" -lt 20 ] || falha "teto global de tentativas atingido ($(m365_tentativas)/20): nada ligado"
+        echo "tentativas usadas: $(m365_tentativas)/20 (teto global, compartilhado com o ensaio)"
+        : > "$SEG/email-real"; carregar
+        "${COMPOSE[@]}" config -q || { rm -f "$SEG/email-real"; falha "sobreposição do e-mail real não renderiza; nada ligado"; }
+        ini="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        "${COMPOSE[@]}" up -d proxy-m365
+        "${COMPOSE[@]}" up -d --force-recreate --no-deps platform
+        ok=""
+        for i in $(seq 1 60); do
+            eventos="$("${COMPOSE[@]}" logs --no-color --since "$ini" platform 2>&1 \
+                | grep -oE 'evento=mail\.(segredo_carregado|destinatarios_restritos|teto_tentativas_configurado)[^"]*' | sort -u || true)"
+            if grep -q 'segredo_carregado origem=aws-secrets-manager' <<<"$eventos" && grep -q 'destinatarios_restritos' <<<"$eventos" \
+                && grep -q 'teto_tentativas_configurado maximo=20 ' <<<"$eventos"; then ok=1; break; fi
+            sleep 3
+        done
+        if [ -z "$ok" ]; then
+            echo "a Platform não confirmou o transporte real; desligando" >&2
+            bash "$0" email-real desligar; exit 1
+        fi
+        printf '%s\n' "$eventos" | sed 's/impressao=[^ ]*/impressao=<omitida>/'
+        echo "E-MAIL REAL LIGADO no laboratório $ID: só para os destinatários da lista; links para http://localhost:5173."
+        echo "Desligar: bash tools/lab/local.sh email-real desligar"
+        ;;
+    desligar)
+        carregar
+        if [ -f "$SEG/email-real" ]; then
+            "${COMPOSE[@]}" stop proxy-m365 > /dev/null 2>&1 || true
+            "${COMPOSE[@]}" rm -f proxy-m365 > /dev/null 2>&1 || true
+            rm -f "$SEG/email-real"; carregar
+            "${COMPOSE[@]}" up -d --force-recreate --no-deps platform
+        fi
+        rm -f "$M365_AWS"
+        echo "e-mail real DESLIGADO: proxy removido, credenciais apagadas, mensagens de volta à caixa local"
+        ;;
+    estado)
+        carregar
+        echo "e-mail real: $([ -f "$SEG/email-real" ] && echo LIGADO || echo "desligado (caixa local)")"
+        echo "tentativas usadas: $(m365_tentativas)/20 (teto global)"
+        if m365_credencial_ok 1; then email_real_py credenciais "$(cygpath -m "$M365_AWS" 2>/dev/null || echo "$M365_AWS")"; else echo "credenciais da AWS: ausentes ou vencidas"; fi
+        ;;
+    *) falha "uso: local.sh email-real credenciais <código>|ligar|desligar|estado";;
+    esac
     ;;
 parar)
     docker_ok; carregar
