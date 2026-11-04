@@ -23,7 +23,10 @@
     instalar-pacote   (Marco 2) nekkora-console pacote instalar <zip> --python <venv do cliente> --saida <saida-pedidos>; a
                       confirmacao SIM e o ato da pessoa NA maquina (no laboratorio, executado pelo operador e registrado)
     falha-laboratorio (Marco 2) liga UMA falha injetada so de laboratorio na copia do Agent (-Extra perderConfirmacaoDecisao |
-                      quedaAposStarting | nenhuma); vale na proxima abertura do Agent
+                      quedaAposStarting | nenhuma; -AgentRepo <clone de build>): copia o artefato SEPARADO
+                      nekkora-agent-lab-falhas.jar (tools\lab-faults do Agent; nunca vem na distribuicao) para a copia e
+                      acrescenta classpath + propriedades; 'nenhuma' retira tudo. Registro do ponto: falhas-laboratorio.txt.
+                      Vale na proxima abertura do Agent
     efeitos-pedidos   linhas gravadas pelo pacote externo em saida-pedidos\efeitos.txt
 #>
 param(
@@ -31,7 +34,8 @@ param(
     [Parameter(Mandatory)][ValidateSet('preparar-cliente', 'rodar', 'disparar', 'esperar', 'vincular', 'usar-lancador', 'argumentos', 'efeitos', 'remover', 'instalar-pacote', 'falha-laboratorio', 'efeitos-pedidos')][string]$Acao,
     [string]$Automacao,
     [string]$Extra = '',
-    [string]$Exemplo
+    [string]$Exemplo,
+    [string]$AgentRepo
 )
 $ErrorActionPreference = 'Stop'
 $lab = Join-Path $PSScriptRoot "saidas\$Id"
@@ -142,11 +146,19 @@ switch ($Acao) {
     }
     'falha-laboratorio' {
         $cfg = Join-Path $app 'app\Nekkora Agent.cfg'
+        $labJar = Join-Path $app 'app\nekkora-agent-lab-falhas.jar'
+        $registro = Join-Path $lab 'falhas-laboratorio.txt'
         $t = [IO.File]::ReadAllText($cfg)
-        $t = ($t -split "`r`n" | Where-Object { $_ -notmatch 'nekkora\.agent\.lab\.' }) -join "`r`n"
+        $t = ($t -split "`r`n" | Where-Object { $_ -notmatch 'nekkora\.agent\.lab\.|nekkora-agent-lab-falhas' }) -join "`r`n"
+        if (Test-Path $labJar) { Remove-Item -Force $labJar }
         if ($Extra -and $Extra -ne 'nenhuma') {
             if ($Extra -notin 'perderConfirmacaoDecisao', 'quedaAposStarting') { throw "falha desconhecida: $Extra" }
-            $t = $t.Replace('[JavaOptions]', "[JavaOptions]`r`njava-options=-Dnekkora.agent.lab.$Extra=true")
+            if (-not $AgentRepo) { throw 'informe -AgentRepo (clone onde tools\lab-faults\build.ps1 gerou o artefato)' }
+            $src = Join-Path $AgentRepo 'target\lab-faults\nekkora-agent-lab-falhas.jar'
+            if (-not (Test-Path $src)) { throw "artefato de laboratorio ausente: rode tools\lab-faults\build.ps1 em $AgentRepo" }
+            Copy-Item $src $labJar
+            $t = $t.Replace('[Application]', "[Application]`r`napp.classpath=`$APPDIR\nekkora-agent-lab-falhas.jar")
+            $t = $t.Replace('[JavaOptions]', "[JavaOptions]`r`njava-options=-Dnekkora.agent.lab.falha=$Extra`r`njava-options=-Dnekkora.agent.lab.registro=$registro")
         }
         [IO.File]::WriteAllText($cfg, $t)
         Write-Host "falha de laboratorio na copia do Agent: $(if ($Extra) { $Extra } else { 'nenhuma' })"

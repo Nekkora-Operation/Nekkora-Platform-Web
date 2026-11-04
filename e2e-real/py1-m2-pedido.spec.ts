@@ -78,6 +78,23 @@ const runOf = (id: string) =>
   sql(`SELECT coalesce((SELECT supervisor_state || '|' || coalesce(supervisor_code,'-') || '|' || (agent_started_at IS NOT NULL) FROM agent_runs WHERE run_request_id = '${id}'), 'sem-execucao')`);
 const runsOf = (id: string) => sql(`SELECT count(*) FROM agent_runs WHERE run_request_id = '${id}'`);
 const localDirs = (exec: string) => (existsSync(`${LABDIR}/agent-dados/execucoes/${exec}`) ? 1 : 0);
+/** Só as duas provas de falha (S2 e S5), sem repetir a jornada inteira: PY1_M2_SO=falhas. */
+const ONLY_FAULTS = process.env.PY1_M2_SO === 'falhas';
+const FAULT_LOG = `${LABDIR}/falhas-laboratorio.txt`;
+const faultLog = () => (existsSync(FAULT_LOG) ? readFileSync(FAULT_LOG, 'utf8').trim().split(/\r?\n/).filter(Boolean) : []);
+/** Estado local gravado pelo Agent e os nomes (só nomes) do que existe na pasta da execução. */
+const localRecord = (exec: string) => {
+  const d = `${LABDIR}/agent-dados/execucoes/${exec}`;
+  if (!existsSync(d)) return { estado: '-', arquivos: [] as string[] };
+  const st = existsSync(`${d}/estado.json`) ? (/"state"\s*:\s*"([A-Z_]+)"/.exec(readFileSync(`${d}/estado.json`, 'utf8'))?.[1] ?? '?') : '-';
+  return { estado: st, arquivos: readdirSync(d).sort() };
+};
+/** A cópia normal do Agent (distribuição) não traz o artefato de falhas nem opção de laboratório. */
+const distributionClean = () => {
+  const app = `${LABDIR}/agent-app/app`;
+  const cfgs = readdirSync(app).filter((n) => n.endsWith('.cfg')).map((n) => readFileSync(`${app}/${n}`, 'utf8'));
+  return !existsSync(`${app}/nekkora-agent-lab-falhas.jar`) && cfgs.every((t) => !/nekkora\.agent\.lab\.|lab-falhas/.test(t));
+};
 const decisionPosts = (id: string) =>
   (execFileSync('node', ['tools/lab/lab.mjs', LAB, 'compose', 'logs', '--no-color', 'nginx'], { encoding: 'utf8' }).match(new RegExp(`POST /agent/api/v1/run-requests/${id}/decision`, 'g')) ?? [])
     .length;
@@ -102,6 +119,9 @@ test('M2: pacote externo publicado, aprovado na máquina e disparado pela Platfo
   rmSync(`${LABDIR}/saida-pedidos`, { recursive: true, force: true });
   log('agent_preparar', agent('preparar').trim());
   machine('falha-laboratorio', ['-Extra', 'nenhuma']);
+  rmSync(FAULT_LOG, { force: true });
+  log('distribuicao_sem_falhas_de_laboratorio', distributionClean());
+  expect(distributionClean()).toBe(true);
   machine('preparar-cliente', ['-Exemplo', resolve(AGENT_REPO, 'tools/external-package/exemplo-relatorio')]);
 
   // ---------- Platform: organização, workspace, automação, versão com o pacote externo e publicação
@@ -167,6 +187,7 @@ test('M2: pacote externo publicado, aprovado na máquina e disparado pela Platfo
   await expect.poll(() => (existsSync(authFile) ? readFileSync(authFile, 'utf8') : ''), { timeout: 420_000, intervals: [10_000] }).toContain('EXTERNAL_PACKAGE');
 
   // ---------- S1: Executar e ver o desfecho no mesmo pedido
+  if (!ONLY_FAULTS) {
   const s1 = await execute(page, ana, versionUrl);
   await shot(page, 'm2-02-pedido-registrado');
   await expect.poll(() => panelText(page), { timeout: 300_000, intervals: [5_000] }).toMatch(/Desfecho reportado: Concluída com sucesso/);
@@ -174,11 +195,13 @@ test('M2: pacote externo publicado, aprovado na máquina e disparado pela Platfo
   log('s1', { pedido: requestRow(s1), execucao: runOf(s1), execucoes: runsOf(s1), efeitos: effects() });
   expect(effects()).toBe(1);
   expect(runsOf(s1)).toBe('1');
+  }
 
   // ---------- S2: confirmação da decisão perdida (falha injetada) — quantos processos e efeitos?
   agent('parar');
-  machine('falha-laboratorio', ['-Extra', 'perderConfirmacaoDecisao']);
+  machine('falha-laboratorio', ['-Extra', 'perderConfirmacaoDecisao', '-AgentRepo', AGENT_REPO]);
   agent('iniciar');
+  const e2 = effects();
   const s2 = await execute(page, ana, versionUrl);
   await expect.poll(() => panelText(page), { timeout: 300_000, intervals: [5_000] }).toMatch(/Desfecho reportado/);
   const exec2 = requestRow(s2).split('|')[2];
@@ -186,9 +209,14 @@ test('M2: pacote externo publicado, aprovado na máquina e disparado pela Platfo
   expect(decisionPosts(s2)).toBeGreaterThanOrEqual(2);
   expect(runsOf(s2)).toBe('1');
   expect(localDirs(exec2)).toBe(1);
-  expect(effects()).toBe(2);
+  expect(effects()).toBe(e2 + 1);
+  log('s2_registro_da_falha', faultLog());
+  expect(faultLog().filter((l) => l.includes('DECISION_RESPONSE_RECEIVED'))).toHaveLength(1);
   agent('parar');
   machine('falha-laboratorio', ['-Extra', 'nenhuma']);
+  expect(distributionClean()).toBe(true);
+
+  if (!ONLY_FAULTS) {
 
   // ---------- S3: máquina offline — o pedido fica aguardando; volta e executa
   const s3 = await execute(page, ana, versionUrl);
@@ -215,16 +243,22 @@ test('M2: pacote externo publicado, aprovado na máquina e disparado pela Platfo
   expect(requestRow(s4).split('|')[0]).toBe('7');
   expect(runsOf(s4)).toBe('0');
   expect(effects()).toBe(3);
+  }
 
   // ---------- S5: queda do Agent na fronteira do início (falha injetada) — desconhecido visível, nada relançado
   agent('parar');
-  machine('falha-laboratorio', ['-Extra', 'quedaAposStarting']);
+  machine('falha-laboratorio', ['-Extra', 'quedaAposStarting', '-AgentRepo', AGENT_REPO]);
   agent('iniciar');
+  const e5 = effects();
   const s5 = await execute(page, ana, versionUrl);
   await expect.poll(() => agentAlive(), { timeout: 180_000, intervals: [3_000] }).toBe(false);
   const exec5 = requestRow(s5).split('|')[2];
-  log('s5_queda', { pedido: requestRow(s5), pasta_local: localDirs(exec5), efeitos: effects() });
+  // ponto exato: STARTING gravado, processo Python ainda não criado (sem cópia do pacote, sem saída, sem posse de processo)
+  log('s5_queda', { pedido: requestRow(s5), local: localRecord(exec5), efeitos: effects(), registro_da_falha: faultLog() });
+  expect(localRecord(exec5).estado).toBe('STARTING');
+  expect(faultLog().filter((l) => l.includes('STARTING_SAVED_BEFORE_PROCESS'))).toHaveLength(1);
   machine('falha-laboratorio', ['-Extra', 'nenhuma']);
+  expect(distributionClean()).toBe(true);
   agent('iniciar');
   await expect.poll(() => panelText(page), { timeout: 300_000, intervals: [5_000] }).toMatch(/Desfecho reportado: Desfecho desconhecido/);
   await shot(page, 'm2-06-queda-fronteira-desconhecido');
@@ -232,7 +266,13 @@ test('M2: pacote externo publicado, aprovado na máquina e disparado pela Platfo
   log('s5_volta', { pedido: requestRow(s5), execucao: runOf(s5), execucoes: runsOf(s5), efeitos: effects() });
   expect(runsOf(s5)).toBe('1');
   expect(runOf(s5)).toMatch(/^9\|/); // OUTCOME_UNKNOWN
-  expect(effects()).toBe(3); // o processo nunca foi criado e nada foi relançado
+  expect(effects()).toBe(e5); // o processo nunca foi criado e nada foi relançado
+  log('s5_local_depois', localRecord(exec5));
+  if (ONLY_FAULTS) {
+    agent('parar');
+    log('fim', 'provas de falha (S2, S5) concluídas');
+    return;
+  }
 
   // ---------- S6: credencial revogada — o pedido existe, a máquina não o recebe, nada inicia
   agent('parar');
