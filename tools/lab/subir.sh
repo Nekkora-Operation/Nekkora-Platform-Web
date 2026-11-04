@@ -128,7 +128,7 @@ rm -f "$SEG/tls/key.pem"
 
 {
     echo "id=$ID"; echo "projeto=$E2E_PROJETO"; echo "ambiente=$FRONT_AMBIENTE"; echo "api_commit=$COMMIT"; echo "migrations=001-$ATE"
-    echo "sub_rede=$E2E_REDE.0/24"; echo "api=$BASE"; echo "origem_publica=http://localhost:5173"
+    echo "sub_rede=$E2E_REDE.0/24"; echo "api=$BASE"; echo "origem_publica=${FRONT_ORIGEM:-http://localhost:5173}"
     echo "certificado_sha256=$(sha256sum "$CA" | cut -c1-64)"; echo "subido_em=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 } > "$SAIDA/laboratorio.txt"
 cp "$CA" "$SAIDA/certificado-laboratorio.pem"

@@ -239,8 +239,17 @@ export function VersionPage() {
                   { key: 'tam', term: 'Tamanho', description: art.sizeBytes !== undefined ? mib(art.sizeBytes) : '—' },
                   { key: 'arqs', term: 'Arquivos', description: art.filesCount ?? '—' },
                   { key: 'man', term: 'Manifesto', description: art.manifestVersion ?? '—' },
-                  { key: 'fw', term: 'Framework', description: art.framework ?? '—' },
-                  { key: 'modo', term: 'Modo de execução', description: art.executionMode ?? '—' },
+                  { key: 'tipo', term: 'Tipo do pacote', description: art.packageKind === 'EXTERNAL_PYTHON' ? 'Python externo (sem framework Nekkora)' : 'Formato Studio' },
+                  ...(art.packageKind === 'EXTERNAL_PYTHON'
+                    ? [
+                        { key: 'pkg', term: 'Projeto (declarado)', description: `${art.packageName ?? '—'} ${art.packageVersion ?? ''}` },
+                        { key: 'py', term: 'Python exigido', description: art.pythonRequirement ?? '—' },
+                        { key: 'deps', term: 'Dependências (versão exata)', description: art.dependencies?.length ? art.dependencies.join(', ') : 'nenhuma', wide: true },
+                      ]
+                    : [
+                        { key: 'fw', term: 'Framework', description: art.framework ?? '—' },
+                        { key: 'modo', term: 'Modo de execução', description: art.executionMode ?? '—' },
+                      ]),
                   {
                     key: 'gerador',
                     term: 'Gerador (declarado)',
