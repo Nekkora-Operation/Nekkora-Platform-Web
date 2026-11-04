@@ -205,7 +205,7 @@ export function AgentRunsPage() {
         <StateView status="neutral" title="Nenhuma execução local registrada." description="Elas aparecem quando um Agent inicia uma automação autorizada e registra a execução." />
       ) : (
         <div className="pw-prod__scroll" role="region" aria-label="Execuções locais" tabIndex={0}>
-          <Table columns={columns} data={poll.data.items} rowKey="runId" size="sm" caption="Execuções locais, da mais recente para a mais antiga (primeiros 25)." />
+          <Table columns={columns} data={poll.data.items} rowKey="runId" size="sm" caption="Execuções locais em ordem de registro, da mais antiga para a mais recente (as 25 primeiras)." />
         </div>
       )}
     </Stack>

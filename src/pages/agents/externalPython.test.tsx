@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { csrfStore } from '../../api/csrf';
 import type { RunRequest } from '../../api/agents';
@@ -101,6 +101,11 @@ describe('Python externo na supervisão', () => {
     // nenhuma linha diz "Concluída com sucesso" (o texto só existe no filtro)
     expect(screen.getByRole('region', { name: 'Execuções locais' }).textContent).not.toContain('Concluída com sucesso');
     expect(screen.getAllByText(/1 min 05 s/)).toHaveLength(2);
+    // a legenda descreve a ordem que a API devolve (registeredAt, runId crescente; contrato listAgentRuns), sem reordenar
+    const rows = within(screen.getByRole('region', { name: 'Execuções locais' })).getAllByRole('row').slice(1);
+    expect(rows[0].textContent).not.toContain('código de saída 3');
+    expect(rows[1].textContent).toContain('código de saída 3');
+    expect(screen.getByText('Execuções locais em ordem de registro, da mais antiga para a mais recente (as 25 primeiras).')).toBeInTheDocument();
   });
 
   it('detalhe diz que não há versão no monitoramento', async () => {
