@@ -12,6 +12,7 @@ import { useInternalArea } from '../../area/InternalShell';
 import { useSession } from '../../area/session';
 import { useCursorList } from '../../hooks/useCursorList';
 import { useResource } from '../../hooks/useResource';
+import { LocalRunAuthorizations } from '../agents/LocalRunAuthorizations';
 import { DateTimeText, errorOf, errorText, isMissing, isSubordinateGone, LoadErrorState, NotFoundState, PageHeader, ResourceStatusBadge, RouteLink, useBackTarget, useExpiresOn } from './shared';
 
 const PAGE = 25;
@@ -42,6 +43,7 @@ function AutomationDetail({ automationId }: { automationId: string }) {
   const workspaceId = automation.status === 'ready' ? automation.data.workspaceId : undefined;
   const perms = useWorkspacePermissions(workspaceId);
   const canManage = perms.status === 'ready' && perms.has('automation.manage');
+  const canExecute = perms.status === 'ready' && perms.has('automation.execute');
   const back = useBackTarget(workspaceId ? orgPath.workspace(org, workspaceId) : orgPath.workspaces(org));
 
   useExpiresOn(errorOf(automation), versions.error);
@@ -173,6 +175,9 @@ function AutomationDetail({ automationId }: { automationId: string }) {
           </>
         )}
       </section>
+
+      {/* AGENT-PYTHON-001 (030): monitoramento de um Python externo disparado pelo agendador do cliente */}
+      <LocalRunAuthorizations workspaceId={a.workspaceId} automation={{ automationId: a.automationId, name: a.name }} canExecute={canExecute} />
     </Stack>
   );
 }
