@@ -3,8 +3,9 @@
  * autorização de execução local e consultas das execuções registradas pelo Agent. O lado da máquina
  * (/agent/api/v1/*) NUNCA é chamado pelo navegador.
  *
- * Não há despacho remoto, cancelamento remoto nem download automático do pacote: a execução começa no Agent, por
- * confirmação local da pessoa; a Platform só registra e supervisiona.
+ * Não há cancelamento remoto nem download automático do pacote. AGENT-PYTHON-001 (030): a autorização pode ser de
+ * MONITORAMENTO de Python externo (sem versão e sem impressão) e uma pessoa pode PEDIR uma execução de versão autorizada
+ * (pedido de execução): a máquina puxa, decide e inicia; entregar ou aceitar não prova início.
  */
 import { sessionCsrf } from './auth';
 import { request, type RequestOptions } from './http';
@@ -20,6 +21,9 @@ export type LocalRunAuthorization = S['LocalRunAuthorization'];
 export type AgentRun = S['AgentRun'];
 export type AgentRunEvent = S['AgentRunEventPage']['items'][number];
 export type AgentSupervisorState = S['AgentSupervisorState'];
+export type SourceKind = S['SourceKind'];
+export type RunRequest = S['RunRequest'];
+export type RunRequestState = RunRequest['state'];
 
 const base = (org: string) => `/api/v1/o/${encodeURIComponent(org)}`;
 const id = (v: string) => encodeURIComponent(v);
@@ -96,11 +100,53 @@ export function createLocalRunAuthorization(
   return send(org, 'createLocalRunAuthorization', `/workspaces/${id(workspaceId)}/local-run-authorizations`, { method: 'POST', body });
 }
 
+/**
+ * Autoriza o MONITORAMENTO de um Python externo (030): automação cadastrada + Worker + validade, sem versão nem impressão
+ * (step-up). O vínculo com o interpretador, o script e a pasta é feito NA máquina e nunca chega à Platform.
+ */
+export function createMonitoringAuthorization(
+  org: string,
+  workspaceId: string,
+  body: { workerId: string; automationId: string; validUntil: string },
+): Promise<LocalRunAuthorization> {
+  return send(org, 'createLocalRunAuthorization', `/workspaces/${id(workspaceId)}/local-run-authorizations`, {
+    method: 'POST',
+    body: { sourceKind: 'EXTERNAL_MONITORED', ...body },
+  });
+}
+
 /** Revoga. Máquina desconectada só vê a revogação no próximo download das autorizações. */
 export function revokeLocalRunAuthorization(org: string, workspaceId: string, authorizationId: string): Promise<void> {
   return send(org, 'revokeLocalRunAuthorization', `/workspaces/${id(workspaceId)}/local-run-authorizations/${id(authorizationId)}/revoke`, {
     method: 'POST',
   });
+}
+
+// ------------------------------------------------------------------ pedido de execução (030)
+
+/**
+ * Pede que a versão da autorização rode no Agent escolhido (step-up). `requestKey` é gerado UMA vez por clique: a repetição
+ * (resposta perdida) devolve o mesmo pedido. Nenhum comando, caminho ou segredo vai na requisição.
+ */
+export function createRunRequest(
+  org: string,
+  workspaceId: string,
+  body: { authorizationId: string; agentId: string; validForSeconds?: number; requestKey: string },
+): Promise<RunRequest> {
+  return send(org, 'createRunRequest', `/workspaces/${id(workspaceId)}/run-requests`, { method: 'POST', body });
+}
+
+export function listRunRequests(org: string, workspaceId: string, limit = 20): Promise<S['RunRequestList']> {
+  return send(org, 'listRunRequests', `/workspaces/${id(workspaceId)}/run-requests${queryString({ limit })}`);
+}
+
+export function getRunRequest(org: string, runRequestId: string): Promise<RunRequest> {
+  return send(org, 'getRunRequest', `/run-requests/${id(runRequestId)}`);
+}
+
+/** Revoga antes da decisão da máquina (step-up). Depois dela: 409 (cancelar fica fora). */
+export function revokeRunRequest(org: string, runRequestId: string): Promise<RunRequest> {
+  return send(org, 'revokeRunRequest', `/run-requests/${id(runRequestId)}/revoke`, { method: 'POST' });
 }
 
 // ------------------------------------------------------------------ supervisão (execuções registradas pelo Agent)
