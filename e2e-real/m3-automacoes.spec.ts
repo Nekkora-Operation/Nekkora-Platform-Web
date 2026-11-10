@@ -64,9 +64,12 @@ test('J10/J11: automação, versão, ZIP inválido recusado, pacote real conferi
   // a pessoa abre a publicação (valores conferidos fixados) …
   await page.getByRole('button', { name: 'Publicar versão' }).click();
   const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toContainText('Depois de publicada, esta versão não poderá ser alterada.');
+  await expect(dialog).not.toContainText(sha256(REAL)); // identificação técnica oculta por padrão
+  await dialog.getByRole('button', { name: 'Conferir identificação técnica' }).click();
   await expect(dialog).toContainText(sha256(REAL));
-  await dialog.getByLabel('Impressão esperada (opcional)').fill(REAL_FINGERPRINT);
-  await dialog.getByLabel('Conferi o pacote desta versão.').check();
+  await dialog.getByLabel('Comparar com um valor (opcional)').fill(REAL_FINGERPRINT);
+  await expect(dialog).toContainText('Confere com a impressão do conteúdo.');
 
   // … e, em outra aba, o artefato do rascunho é trocado (mesmo conteúdo, outros bytes)
   const other = await context.newPage();
@@ -84,8 +87,8 @@ test('J10/J11: automação, versão, ZIP inválido recusado, pacote real conferi
 
   // conferir de novo e publicar
   await page.getByRole('button', { name: 'Publicar versão' }).click();
+  await dialog.getByRole('button', { name: 'Conferir identificação técnica' }).click();
   await expect(dialog).toContainText(sha256(STORED));
-  await dialog.getByLabel('Conferi o pacote desta versão.').check();
   await confirmStepUp(page, ana, 'Publicar');
   await expect(page.getByText('Publicada (imutável)')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Enviar pacote' })).toHaveCount(0);

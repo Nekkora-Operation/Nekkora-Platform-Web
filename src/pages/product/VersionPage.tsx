@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Link as RouterLink, useParams } from 'react-router';
-import { Alert, Badge, Button, Card, Checkbox, DescriptionList, Heading, Input, Link, Stack, StateView, Text, Textarea } from 'nekkora-lib';
+import { Alert, Badge, Button, Card, DescriptionList, Heading, Input, Link, Stack, StateView, Text, Textarea } from 'nekkora-lib';
 import { ApiError, isApiError } from '../../api/http';
 import {
   ARTIFACT_MAX_BYTES,
@@ -23,6 +23,7 @@ import { useResource } from '../../hooks/useResource';
 import { orgStepUp } from '../access/shared';
 import { LocalRunAuthorizations } from '../agents/LocalRunAuthorizations';
 import { DateTimeText, LoadErrorState, NotFoundState, PageHeader, isMissing } from './shared';
+import { compareTechnical, PublishSummary, type Reviewed } from './PublishSummary';
 import { uploadOutcome } from './uploadOutcome';
 import './shared.css';
 import '../../identity/identity.css';
@@ -80,9 +81,14 @@ export function VersionPage() {
   const [draftMsg, setDraftMsg] = useState<{ tone: 'success' | 'danger' | 'warning'; text: string } | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [reviewed, setReviewed] = useState<{ sha256: string; fingerprint: string } | null>(null);
-  const [checked, setChecked] = useState(false);
-  const [expectedFp, setExpectedFp] = useState('');
+  /**
+   * Pacote conferido, fixado ao abrir a publicação (T05): é exatamente o que vai na expectativa do POST; a API recusa (409)
+   * se o rascunho mudar até lá. Os dados de apresentação ficam fixados junto, para o diálogo não mudar sob a pessoa.
+   */
+  const [reviewed, setReviewed] = useState<Reviewed | null>(null);
+  /** "Conferir identificação técnica": fechado por padrão; só para quem precisa comparar o arquivo. */
+  const [technical, setTechnical] = useState(false);
+  const [compare, setCompare] = useState('');
   const [publishMsg, setPublishMsg] = useState<{ tone: 'success' | 'warning'; text: string } | null>(null);
 
   useEffect(() => {
@@ -185,7 +191,27 @@ export function VersionPage() {
     }
   };
 
-  const fpMismatch = !!expectedFp.trim() && !!reviewed && expectedFp.trim().toLowerCase() !== reviewed.fingerprint;
+  const comparison = compareTechnical(compare, reviewed);
+  const openPublish = () => {
+    if (!art?.sha256 || !art?.fingerprint) return;
+    setReviewed({
+      sha256: art.sha256,
+      fingerprint: art.fingerprint,
+      fingerprintRule: art.fingerprintRule ?? null,
+      kind: art.packageKind === 'EXTERNAL_PYTHON' ? 'EXTERNAL_PYTHON' : 'STUDIO',
+      sizeBytes: art.sizeBytes ?? null,
+      filesCount: art.filesCount ?? null,
+      packageName: art.packageName ?? null,
+      packageVersion: art.packageVersion ?? null,
+      receivedAt: art.receivedAt ?? null,
+      // nome do arquivo só quando é, comprovadamente, o que este navegador enviou (mesmo SHA-256)
+      fileName: file && localHash && localHash === art.sha256 ? file.name : null,
+    });
+    setTechnical(false);
+    setCompare('');
+    setPublishMsg(null);
+    setPublishing(true);
+  };
 
   return (
     <Stack gap={6}>
@@ -399,16 +425,7 @@ export function VersionPage() {
                 autoriza execução.
               </Text>
               <div>
-                <Button
-                  disabled={!art?.sha256 || !art?.fingerprint}
-                  onClick={() => {
-                    setReviewed({ sha256: art!.sha256!, fingerprint: art!.fingerprint! });
-                    setChecked(false);
-                    setExpectedFp('');
-                    setPublishMsg(null);
-                    setPublishing(true);
-                  }}
-                >
+                <Button disabled={!art?.sha256 || !art?.fingerprint} onClick={openPublish}>
                   Publicar versão
                 </Button>
               </div>
@@ -428,12 +445,12 @@ export function VersionPage() {
 
       <StepUpDialog<LifecycleVersion>
         open={publishing}
-        title={`Publicar a versão ${data.versionNumber ?? ''}?`}
+        title={`Publicar a versão ${data.versionNumber ?? ''} de ${name}?`}
         guard={{ operation: 'version.publish', target: versionId }}
         confirmLabel="Publicar"
-        ready={checked && !fpMismatch}
+        ready={!!reviewed && comparison.status !== 'mismatch' && comparison.status !== 'malformed'}
         stepUp={orgStepUp(org)}
-        action={() => publishAutomationVersion(org, versionId, reviewed!)}
+        action={() => publishAutomationVersion(org, versionId, { sha256: reviewed!.sha256, fingerprint: reviewed!.fingerprint })}
         onDone={() => {
           setPublishing(false);
           setPublishMsg({ tone: 'success', text: 'Versão publicada. Ela não muda mais.' });
@@ -454,24 +471,16 @@ export function VersionPage() {
         onOutcome={(k) => k === 'uncertain' && setPublishMsg({ tone: 'warning', text: 'O resultado da publicação não foi confirmado. Atualize a versão e confira.' })}
       >
         {reviewed && (
-          <>
-            <Text>A publicação usa exatamente o pacote que você conferiu:</Text>
-            <DescriptionList
-              items={[
-                { key: 'sha', term: 'SHA-256 dos bytes', description: <Hash value={reviewed.sha256} />, wide: true },
-                { key: 'fp', term: 'Impressão do pacote', description: <Hash value={reviewed.fingerprint} />, wide: true },
-              ]}
-            />
-            <Input
-              label="Impressão esperada (opcional)"
-              hint="Cole a impressão informada pelo Studio ou pelo Agent para comparar."
-              value={expectedFp}
-              onChange={(e) => setExpectedFp(e.target.value)}
-              error={fpMismatch ? 'Diferente da impressão do pacote recebido. Não publique: confira o pacote.' : undefined}
-              spellCheck={false}
-            />
-            <Checkbox label="Conferi o pacote desta versão." checked={checked} onChange={(e) => setChecked(e.target.checked)} />
-          </>
+          <PublishSummary
+            automation={name}
+            versionNumber={data.versionNumber}
+            reviewed={reviewed}
+            technical={technical}
+            onToggleTechnical={() => setTechnical((t) => !t)}
+            compare={compare}
+            onCompare={setCompare}
+            comparison={comparison}
+          />
         )}
       </StepUpDialog>
     </Stack>

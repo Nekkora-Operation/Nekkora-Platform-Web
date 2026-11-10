@@ -64,7 +64,6 @@ test('J12: código emitido na tela, pareamento do Agent real, presença, Worker 
   await page.getByRole('button', { name: 'Enviar pacote' }).click();
   await expect(page.getByText('Pacote recebido e conferido pela Platform.')).toBeVisible();
   await page.getByRole('button', { name: 'Publicar versão' }).click();
-  await page.getByRole('alertdialog').getByLabel('Conferi o pacote desta versão.').check();
   await confirmStepUp(page, ana, 'Publicar');
   await expect(page.getByText('Publicada (imutável)')).toBeVisible();
 
