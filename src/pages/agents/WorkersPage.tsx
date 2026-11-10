@@ -8,12 +8,19 @@ import { StepUpDialog } from '../../components/StepUpDialog';
 import { accessRefusal, orgStepUp } from '../access/shared';
 import { ForbiddenState } from '../admin/shared';
 import { LoadErrorState, PageHeader } from '../product/shared';
+import './workers.css';
 
 const STATUS: Record<NonNullable<Worker['status']>, { label: string; tone: 'success' | 'warning' | 'neutral' }> = {
   ACTIVE: { label: 'Ativo', tone: 'success' },
   SUSPENDED: { label: 'Suspenso', tone: 'warning' },
   RETIRED: { label: 'Aposentado', tone: 'neutral' },
 };
+
+/** T08: texto de abertura da tela. */
+export const WORKERS_INTRO = 'Crie Workers, vincule as máquinas e escolha em quais workspaces elas podem executar automações.';
+
+/** T08: o destino do "Retirar" legível por teclado e leitor de tela (o workspace e o Worker do item). */
+export const removeLabel = (workspace: string, worker: string) => `Retirar autorização de ${workspace} do Worker ${worker}`;
 
 type Pending = { kind: 'authorize'; worker: Worker } | { kind: 'remove'; worker: Worker; workspaceId: string };
 
@@ -54,19 +61,25 @@ export function WorkersPage() {
 
   const wsName = (id: string) => workspaces.items.find((w) => w.workspaceId === id)?.name ?? `Workspace ${id.slice(0, 8)}…`;
   const columns: TableColumn<Worker>[] = [
-    { key: 'nome', header: 'Worker', render: (w) => <span className="pw-break">{w.name}</span> },
-    { key: 'situacao', header: 'Situação', render: (w) => (w.status ? <Badge tone={STATUS[w.status].tone}>{STATUS[w.status].label}</Badge> : '—') },
-    { key: 'agent', header: 'Agent', render: (w) => (w.agentId ? 'Associado' : 'Sem Agent') },
+    { key: 'nome', header: 'Worker', align: 'center', render: (w) => <span className="pw-break">{w.name}</span> },
+    { key: 'situacao', header: 'Situação', align: 'center', render: (w) => (w.status ? <Badge tone={STATUS[w.status].tone}>{STATUS[w.status].label}</Badge> : '—') },
+    { key: 'agent', header: 'Agent', align: 'center', render: (w) => (w.agentId ? 'Associado' : 'Sem Agent') },
     {
       key: 'workspaces',
       header: 'Workspaces autorizados',
+      align: 'center',
       render: (w) =>
         w.workspaceIds?.length ? (
-          <ul className="pw-identity__orgs" aria-label={`Workspaces de ${w.name}`}>
+          <ul className="pw-workers__ws" aria-label={`Workspaces autorizados de ${w.name}`}>
             {w.workspaceIds.map((id) => (
-              <li key={id} className="pw-form__row">
-                <span>{wsName(id)}</span>
-                <Button size="sm" variant="ghost" onClick={() => setPending({ kind: 'remove', worker: w, workspaceId: id })} aria-label={`Retirar ${w.name} de ${wsName(id)}`}>
+              <li key={id} className="pw-workers__ws-item">
+                <span className="pw-workers__ws-name">{wsName(id)}</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setPending({ kind: 'remove', worker: w, workspaceId: id })}
+                  aria-label={removeLabel(wsName(id), w.name ?? '')}
+                >
                   Retirar
                 </Button>
               </li>
@@ -81,6 +94,7 @@ export function WorkersPage() {
     {
       key: 'acoes',
       header: 'Ações',
+      align: 'center',
       render: (w) =>
         w.status === 'ACTIVE' ? (
           <Button
@@ -106,7 +120,7 @@ export function WorkersPage() {
 
   return (
     <Stack gap={5}>
-      <PageHeader title="Workers" subtitle="Onde as automações podem rodar. Um Worker recebe autorizações só nos workspaces em que está autorizado." onRefresh={() => void load()} />
+      <PageHeader title="Workers" subtitle={WORKERS_INTRO} onRefresh={() => void load()} />
       {notice && <Alert tone={notice.tone}>{notice.text}</Alert>}
       {list.status === 'loading' && <StateView status="loading" title="Carregando Workers…" />}
       {list.status === 'error' && <LoadErrorState error={list.error} onRetry={() => void load()} />}
@@ -114,7 +128,7 @@ export function WorkersPage() {
         (list.items.length === 0 ? (
           <StateView status="neutral" title="Nenhum Worker registrado." description="O Worker é criado junto com o código de pareamento, na tela de Agents (com a organização ativada)." />
         ) : (
-          <div className="pw-prod__scroll" role="region" aria-label="Lista de Workers" tabIndex={0}>
+          <div className="pw-prod__scroll pw-workers" role="region" aria-label="Lista de Workers" tabIndex={0}>
             <Table columns={columns} data={list.items} rowKey="workerId" size="sm" caption="Workers da organização." />
           </div>
         ))}

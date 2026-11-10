@@ -1,0 +1,40 @@
+/*
+ * PLATFORM-AGENT-V2-002, T08 — legibilidade da tabela de Workers. Regras LOCAIS a esta tabela (.pw-workers): as demais
+ * tabelas da Lib e da aplicação não mudam. Cabeçalhos e células centralizados na horizontal (align do Table) e na vertical
+ * (aqui); em "Workspaces autorizados", um par nome + "Retirar" por item, lado a lado e alinhados pelo centro.
+ */
+.pw-workers .nk-table__th,
+.pw-workers .nk-table__td {
+  vertical-align: middle;
+  text-align: center;
+}
+
+.pw-workers__ws {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--nk-space-2);
+  justify-items: center;
+}
+
+.pw-workers__ws-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--nk-space-2);
+  max-width: 100%;
+}
+
+/* nome longo quebra dentro do item, sem empurrar nem sobrepor o botão */
+.pw-workers__ws-name {
+  min-width: 0;
+  max-width: 28ch;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.pw-workers__ws-item > button {
+  flex: none;
+}
