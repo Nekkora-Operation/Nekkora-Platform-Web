@@ -7,7 +7,7 @@ import { createOperationRegistry, setOperationRegistryForTest } from '../api/pen
 import { stepUpMethods } from '../api/stepUpMethod';
 import { fakeLocks } from '../test/fakeLocks';
 import { OperationScopeProvider } from './operationScope';
-import { STEP_UP_NEEDED_TEXT, StepUpDialog } from './StepUpDialog';
+import { IDENTITY_SCOPE_TEXT, ORG_HOUR_SCOPE_TEXT, STEP_UP_NEEDED_TEXT, StepUpDialog } from './StepUpDialog';
 
 /**
  * PLATFORM-V2-001, T01 — confirmação conforme a resposta da API (sessão de organização). Dentro da hora, o ato vai sem
@@ -99,6 +99,11 @@ describe('confirmação sob demanda na organização (T01)', () => {
     expect(stepUp).not.toHaveBeenCalled();
     expect(campo.value).toBe('Contas a pagar'); // campos do ato preservados
     expect(codeField()).not.toBeNull();
+    // diz quais ações aproveitam a hora e o que continua com 5 minutos (Minha conta, redefinição de MFA)
+    const scope = within(dialog()).getByText(ORG_HOUR_SCOPE_TEXT);
+    expect(scope.textContent).toMatch(/publicar versões, convidar/);
+    expect(scope.textContent).toMatch(/redefinir a autenticação de outra pessoa, que pede um código dos últimos 5 minutos/);
+    expect(scope.textContent).toMatch(/Minha conta: trocar a senha ou o fator .* vale 5 minutos/);
     expect(confirmButton()).toBeDisabled(); // falta o código
     expect(onDone).not.toHaveBeenCalled();
 
@@ -185,6 +190,8 @@ describe('confirmação sob demanda na organização (T01)', () => {
     const onDone = vi.fn();
     render(<Harness stepUp={stepUp} action={action} onDone={onDone} />);
     expect(codeField()).not.toBeNull();
+    expect(within(dialog()).getByText(IDENTITY_SCOPE_TEXT)).toBeInTheDocument();
+    expect(within(dialog()).queryByText(ORG_HOUR_SCOPE_TEXT)).toBeNull();
     fireEvent.change(within(dialog()).getByLabelText('Campo do ato'), { target: { value: 'W' } });
     expect(confirmButton()).toBeDisabled();
     fireEvent.change(codeField()!, { target: { value: '111111' } });

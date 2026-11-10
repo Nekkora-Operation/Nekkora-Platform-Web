@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, Button, CodeInput, ConfirmDialog, Input, Stack } from 'nekkora-lib';
+import { Alert, Button, CodeInput, ConfirmDialog, Input, Stack, Text } from 'nekkora-lib';
 import { ApiError, hasReason, isApiError } from '../api/http';
 import { NO_TAB_LOCK_TEXT, operations, opKey, type OpView } from '../api/pendingOps';
 import { stepUpMethods } from '../api/stepUpMethod';
@@ -16,7 +16,17 @@ export type StepUpOutcome = 'refused-identity' | 'refused' | 'uncertain' | 'unau
  * foi feito) ele pede o código (ou a senha, na sessão sem MFA), mantendo os campos do ato, e envia o ato UMA vez depois da
  * confirmação aceita. Na sessão de identidade continua como antes: o fator imediatamente antes do ato.
  */
-export const STEP_UP_NEEDED_TEXT = 'Para continuar, confirme a sua identidade. Nada foi feito ainda. A confirmação vale por uma hora nas ações sensíveis desta sessão.';
+export const STEP_UP_NEEDED_TEXT = 'Para continuar, confirme a sua identidade. Nada foi feito ainda. A confirmação vale por uma hora nas ações sensíveis desta organização.';
+/**
+ * Quais ações aproveitam a hora (as que a API confere com a janela de 60 min, AccessActions.requireStepUp) e quais não:
+ * a redefinição do MFA de outra pessoa (prova própria de 5 min) e tudo o que é da sessão de identidade (Minha conta,
+ * criar organização, vincular conta, aceitar convite), que continua com 5 min no banco. Dito na tela para não prometer
+ * uma hora e surpreender a pessoa em Minha conta.
+ */
+export const ORG_HOUR_SCOPE_TEXT =
+  'A hora vale para: publicar versões, convidar e reenviar convites, atribuir e trocar papéis, aprovar, renovar ou manter na revisão acessos de clientes, emitir códigos e revogar Agents, autorizar computadores e execuções, e pedir ou cancelar execuções. Não vale para redefinir a autenticação de outra pessoa, que pede um código dos últimos 5 minutos, nem para Minha conta: trocar a senha ou o fator e as outras ações da sua conta continuam pedindo a confirmação, que vale 5 minutos.';
+export const IDENTITY_SCOPE_TEXT =
+  'Nesta área da sua conta, a confirmação vale 5 minutos. A confirmação de uma hora vale só para ações dentro de uma organização.';
 const STEP_UP_STILL_NEEDED_TEXT = 'A Platform ainda pede a confirmação para este ato. Nada foi feito. Confirme de novo.';
 
 /**
@@ -273,7 +283,7 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
               disabled={busy}
               hint={
                 onDemand
-                  ? 'A sua conta não usa autenticação em duas etapas: a senha confirma a sua identidade por uma hora nas ações sensíveis desta sessão. Você pode ativar a autenticação em duas etapas em Segurança da conta.'
+                  ? 'A sua conta não usa autenticação em duas etapas: a senha confirma a sua identidade por uma hora nas ações sensíveis desta organização. Você pode ativar a autenticação em duas etapas em Segurança da conta.'
                   : 'A sua conta não usa autenticação em duas etapas: a senha confirma a sua identidade imediatamente antes do ato. Você pode ativar a autenticação em duas etapas em Segurança da conta.'
               }
             />
@@ -282,7 +292,7 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
             label="Código do seu aplicativo autenticador"
             hint={
               onDemand
-                ? 'Confirma a sua identidade por uma hora nas ações sensíveis desta sessão. Códigos de recuperação não são aceitos aqui.'
+                ? 'Confirma a sua identidade por uma hora nas ações sensíveis desta organização. Códigos de recuperação não são aceitos aqui.'
                 : 'Confirma a sua identidade imediatamente antes do ato. Códigos de recuperação não são aceitos aqui.'
             }
             length={TOTP_DIGITS}
@@ -292,6 +302,7 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
           />
           ))
         )}
+        {needsCode && !blockedByRecord && outcome?.kind !== 'uncertain' && <Text>{onDemand ? ORG_HOUR_SCOPE_TEXT : IDENTITY_SCOPE_TEXT}</Text>}
       </Stack>
     </ConfirmDialog>
   );
