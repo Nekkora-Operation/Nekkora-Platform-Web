@@ -16,7 +16,7 @@ import { STEP_UP_NEEDED_TEXT, StepUpDialog } from './StepUpDialog';
  * imediatamente antes do ato.
  */
 const ORG = '0a6e1f9c-3b2d-4c5e-8f71-2a9b3c4d5e6f';
-const required = () => new ApiError('step_up_required', 403);
+const required = () => new ApiError('forbidden', 403, undefined, undefined, 'step_up_required');
 
 function Harness(props: { org?: string; stepUp: (c: string) => Promise<void>; action: (value: string) => Promise<string>; onDone?: (r: string) => void; guard?: boolean }) {
   const [open, setOpen] = useState(true);

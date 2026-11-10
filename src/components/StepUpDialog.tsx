@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, CodeInput, ConfirmDialog, Input, Stack } from 'nekkora-lib';
-import { ApiError, isApiError } from '../api/http';
+import { ApiError, hasReason, isApiError } from '../api/http';
 import { NO_TAB_LOCK_TEXT, operations, opKey, type OpView } from '../api/pendingOps';
 import { stepUpMethods } from '../api/stepUpMethod';
 import { useOperationScope } from './operationScope';
@@ -12,7 +12,7 @@ export type StepUpOutcome = 'refused-identity' | 'refused' | 'uncertain' | 'unau
 
 /**
  * PLATFORM-V2-001, T01 — na sessão de ORGANIZAÇÃO, uma confirmação aceita vale por uma hora (janela fixa, no servidor) para
- * as ações sensíveis comuns. O diálogo envia o ato sem pedir o fator; só quando a API responde 403 step_up_required (nada
+ * as ações sensíveis comuns. O diálogo envia o ato sem pedir o fator; só quando a API responde 403 forbidden + step_up_required (nada
  * foi feito) ele pede o código (ou a senha, na sessão sem MFA), mantendo os campos do ato, e envia o ato UMA vez depois da
  * confirmação aceita. Na sessão de identidade continua como antes: o fator imediatamente antes do ato.
  */
@@ -201,7 +201,7 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
       try {
         result = await action();
       } catch (e) {
-        if (onDemand && isApiError(e, 'step_up_required')) {
+        if (onDemand && hasReason(e, 'forbidden', 'step_up_required')) {
           // recusa documentada sem efeito: o registro fecha como recusado e a pessoa confirma e decide de novo
           finish('refused');
           if (!alive.current) return;

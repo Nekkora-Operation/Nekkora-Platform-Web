@@ -120,7 +120,7 @@ export interface paths {
         put?: never;
         /**
          * Confirmacao de identidade com TOTP na sessao: abre a janela fixa de 60 min das acoes sensiveis comuns (T01)
-         * @description PLATFORM-V2-001, T01: o 204 abre uma janela FIXA de 60 minutos, contada deste instante, para as acoes sensiveis comuns DESTA sessao (convites, papeis, concessoes, Agents e Workers, autorizacao de execucao, publicacao, pedidos de execucao); usar acoes nao estende o prazo, e cada ato continua conferindo sessao, organizacao e permissao. Prova propria mais curta: o reset administrativo de MFA exige a confirmacao dos ultimos 5 minutos. Sem confirmacao valida, o ato responde 403 step_up_required (nada feito). O codigo nunca e guardado nem reaproveitado (anti-replay). Codigo TOTP errado -> 403 forbidden (step_up); so codigo TOTP (recoveryCode nao aceito). Sessao do login por organizacao: TOTP do fator local, R1/R4, caminho inalterado. Sessao VINCULADA (nascida da troca, contrato P4): TOTP do fator da IDENTIDADE de origem. O CSRF desta sessao de organizacao continua exigido (o CSRF da sessao de identidade nao o substitui) e o cookie __Host-nekkora_id e exigido EM ADICAO, resolvendo exatamente a sessao de identidade que originou esta sessao (unica rota em que os dois cookies valem juntos). Cookie ausente, de outra identidade ou de outra sessao da mesma identidade: 403 sem conferir o codigo. Numa so transacao, na ordem global da 017 (identidade -> sessao de identidade -> organizacao -> conta -> sessao de organizacao), com a revalidacao da sessao de organizacao sob o lock, anti-replay no fator da identidade (um codigo aceito aqui nao serve para outro step-up, global ou de outra organizacao, nem para o login), step-up SO nesta sessao de organizacao (nem na de identidade, nem em outra sessao), eventos mfa_events 6 e identity_events 14 (ORG_STEP_UP) no mesmo commit, e as duas sessoes e a janela do passo reconferidas antes do commit. Codigo errado ou replay: 403, contado em R8m (identidade global). Sessao que caiu durante as esperas: 401, sem efeito.
+         * @description PLATFORM-V2-001, T01: o 204 abre uma janela FIXA de 60 minutos, contada deste instante, para as acoes sensiveis comuns DESTA sessao (convites, papeis, concessoes, Agents e Workers, autorizacao de execucao, publicacao, pedidos de execucao); usar acoes nao estende o prazo, e cada ato continua conferindo sessao, organizacao e permissao. Prova propria mais curta: o reset administrativo de MFA exige a confirmacao dos ultimos 5 minutos. Sem confirmacao valida, o ato responde 403 forbidden com reason step_up_required (nada feito). O codigo nunca e guardado nem reaproveitado (anti-replay). Codigo TOTP errado -> 403 forbidden (step_up); so codigo TOTP (recoveryCode nao aceito). Sessao do login por organizacao: TOTP do fator local, R1/R4, caminho inalterado. Sessao VINCULADA (nascida da troca, contrato P4): TOTP do fator da IDENTIDADE de origem. O CSRF desta sessao de organizacao continua exigido (o CSRF da sessao de identidade nao o substitui) e o cookie __Host-nekkora_id e exigido EM ADICAO, resolvendo exatamente a sessao de identidade que originou esta sessao (unica rota em que os dois cookies valem juntos). Cookie ausente, de outra identidade ou de outra sessao da mesma identidade: 403 sem conferir o codigo. Numa so transacao, na ordem global da 017 (identidade -> sessao de identidade -> organizacao -> conta -> sessao de organizacao), com a revalidacao da sessao de organizacao sob o lock, anti-replay no fator da identidade (um codigo aceito aqui nao serve para outro step-up, global ou de outra organizacao, nem para o login), step-up SO nesta sessao de organizacao (nem na de identidade, nem em outra sessao), eventos mfa_events 6 e identity_events 14 (ORG_STEP_UP) no mesmo commit, e as duas sessoes e a janela do passo reconferidas antes do commit. Codigo errado ou replay: 403, contado em R8m (identidade global). Sessao que caiu durante as esperas: 401, sem efeito.
          */
         post: operations["mfaStepUp"];
         delete?: never;
@@ -1838,7 +1838,12 @@ export interface components {
     schemas: {
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "unauthenticated" | "forbidden" | "not_found" | "conflict" | "already_member" | "account_exists" | "account_unavailable" | "step_up_required" | "rate_limited" | "internal_error" | "service_unavailable" | "unsupported_contract";
+            error: "invalid_request" | "unauthenticated" | "forbidden" | "not_found" | "conflict" | "already_member" | "account_exists" | "account_unavailable" | "rate_limited" | "internal_error" | "service_unavailable" | "unsupported_contract";
+            /**
+             * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
+             * @enum {string}
+             */
+            reason?: "step_up_required";
         };
         /**
          * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
@@ -3124,7 +3129,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Conta externa, sem a permissao exigida, ou Origin/CSRF invalido (forbidden). Nas acoes sensiveis da sessao de organizacao, com tudo o mais conferido e sem confirmacao de identidade valida na janela: step_up_required (T01; confirme e repita o ato) */
+        /** @description Conta externa, sem a permissao exigida, ou Origin/CSRF invalido (forbidden). Nas acoes sensiveis da sessao de organizacao, com tudo o mais conferido e sem confirmacao de identidade valida na janela: forbidden com reason step_up_required (T01; confirme e repita o ato) */
         Forbidden: {
             headers: {
                 [name: string]: unknown;

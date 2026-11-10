@@ -783,8 +783,8 @@ export class MockApi {
     if (target === actor.userId) return error(403, 'forbidden');
     const acc = this.accounts.get(target);
     if (!acc || acc.org !== org) return error(404, 'not_found');
-    // T01 (API): sem a confirmação dos últimos 5 min (prova própria do reset) → 403 step_up_required, nada feito
-    if (s.stepUpAt === undefined || this.now() - s.stepUpAt >= STEP_UP_WINDOW) return error(403, 'step_up_required');
+    // T01 (API): sem a confirmação dos últimos 5 min (prova própria do reset) → 403 forbidden + reason step_up_required
+    if (s.stepUpAt === undefined || this.now() - s.stepUpAt >= STEP_UP_WINDOW) return json(403, { error: 'forbidden', reason: 'step_up_required' });
     const effectiveAdmin = (a: Account) =>
       a.org === org && a.accountType === 'internal' && a.active && !a.closed && a.membershipStatus === 'active' &&
       (this.product.memberships.get(a.membershipId)?.orgRoles ?? []).includes('ORG_ADMIN');

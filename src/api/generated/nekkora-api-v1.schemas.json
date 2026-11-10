@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "19de8ce334052bec6cc54b99fe03a1b8242c2c5de2356747aaf7afbb5622e4a1",
+  "openapiSha256": "4509cc4748f9082d374dc9261d2e0b7efd99d6ea97c0357bd88fffe4240f0a0f",
   "schemas": {
     "Error": {
       "type": "object",
@@ -18,11 +18,16 @@
             "already_member",
             "account_exists",
             "account_unavailable",
-            "step_up_required",
             "rate_limited",
             "internal_error",
             "service_unavailable",
             "unsupported_contract"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "step_up_required"
           ]
         }
       }
