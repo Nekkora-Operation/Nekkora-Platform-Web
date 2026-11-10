@@ -1217,7 +1217,7 @@ export interface paths {
         put?: never;
         /**
          * Cria um workspace interno da organizacao
-         * @description Exige workspace.lifecycle (permissao da organizacao). Nasce ACTIVE. Auditado (automation_admin_events, ato 1).
+         * @description Exige workspace.lifecycle (permissao da organizacao). Nasce ACTIVE. Auditado (automation_admin_events, ato 1). Nome unico na organizacao (031): sem distincao de maiusculas/minusculas nem espacos nas extremidades; o nome visivel e guardado como digitado, sem esses espacos. Outro workspace (de qualquer situacao) com o mesmo nome -> 409 conflict com reason workspace_name_taken.
          */
         post: operations["createWorkspace"];
         delete?: never;
@@ -1240,7 +1240,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Renomeia um workspace da organizacao (PLATFORM-V2-001, T03)
+         * @description Exige workspace.lifecycle. Mesma regra de nome da criacao. Nome igual ao atual (depois de retirar os espacos das extremidades) nao grava nada e devolve o workspace; mudar so maiusculas/minusculas do proprio nome e permitido. Outro workspace da organizacao com o mesmo nome -> 409 conflict com reason workspace_name_taken. Trocar responsavel nao libera nome. Auditado (automation_admin_events, ato 7) quando o nome muda.
+         */
+        patch: operations["renameWorkspace"];
         trace?: never;
     };
     "/api/v1/o/{org}/workspaces/{workspaceId}/automations": {
@@ -1840,10 +1844,10 @@ export interface components {
             /** @enum {string} */
             error: "invalid_request" | "unauthenticated" | "forbidden" | "not_found" | "conflict" | "already_member" | "account_exists" | "account_unavailable" | "rate_limited" | "internal_error" | "service_unavailable" | "unsupported_contract";
             /**
-             * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
+             * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
              * @enum {string}
              */
-            reason?: "step_up_required";
+            reason?: "workspace_name_taken" | "step_up_required";
         };
         /**
          * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
@@ -2760,6 +2764,9 @@ export interface components {
             name: string;
             description?: string | null;
         };
+        WorkspaceRenameRequest: {
+            name: string;
+        };
         AutomationCreateRequest: {
             name: string;
         };
@@ -3166,6 +3173,21 @@ export interface components {
                 /**
                  * @example {
                  *       "error": "internal_error"
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Ja existe um workspace com esse nome nesta organizacao (031; maiusculas/minusculas e espacos nas extremidades nao distinguem). Codigo conflict (o cliente que nao conhece o motivo ve a recusa comum) com reason workspace_name_taken */
+        WorkspaceNameTaken: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": "conflict",
+                 *       "reason": "workspace_name_taken"
                  *     }
                  */
                 "application/json": components["schemas"]["Error"];
@@ -5390,6 +5412,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["WorkspaceNameTaken"];
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };
@@ -5423,6 +5446,42 @@ export interface operations {
             404: components["responses"]["NotFound"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["CatalogInconsistent"];
+        };
+    };
+    renameWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkspaceRenameRequest"];
+            };
+        };
+        responses: {
+            /** @description Workspace com o nome em vigor */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LifecycleWorkspace"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["WorkspaceNameTaken"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     listAutomations: {

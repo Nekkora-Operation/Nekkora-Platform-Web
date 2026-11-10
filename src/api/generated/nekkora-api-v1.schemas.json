@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "4509cc4748f9082d374dc9261d2e0b7efd99d6ea97c0357bd88fffe4240f0a0f",
+  "openapiSha256": "81e50f3ce5799c5fa3efa8c4abc9b99e74f91ed6e353dca1d7c7412d5f08d729",
   "schemas": {
     "Error": {
       "type": "object",
@@ -27,6 +27,7 @@
         "reason": {
           "type": "string",
           "enum": [
+            "workspace_name_taken",
             "step_up_required"
           ]
         }
@@ -2944,6 +2945,19 @@
             "null"
           ],
           "maxLength": 500
+        }
+      }
+    },
+    "WorkspaceRenameRequest": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
         }
       }
     },
@@ -6560,6 +6574,12 @@
             "$ref": "#/components/schemas/Error"
           }
         },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
         "429": {
           "contentType": "application/json",
           "schema": {
@@ -6615,6 +6635,60 @@
           }
         },
         "500": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "renameWorkspace": {
+      "method": "PATCH",
+      "path": "/api/v1/o/{org}/workspaces/{workspaceId}",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/LifecycleWorkspace"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/Error"

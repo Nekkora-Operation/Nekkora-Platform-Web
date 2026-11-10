@@ -443,7 +443,8 @@ describe('F4-R1: workspaces além da primeira página', () => {
     sessionFor('ana@nekkora.dev');
     renderAt(`/o/${DEV_ORG}`);
     expect(await screen.findByText('Pelo menos 100 workspaces visíveis (lista parcial)')).toBeInTheDocument();
-    expect(screen.queryByText(/139/)).toBeNull();
+    // o total (139) não aparece antes da continuação; o rodapé de versão fica de fora (o commit pode conter "139")
+    expect(screen.queryAllByText(/139/).filter((el) => !el.closest('.pw-shell__footer-version'))).toHaveLength(0);
     const wsRequests = () => requests.filter((r) => r.includes('/workspaces?'));
     expect(wsRequests()).toHaveLength(1); // nada de carregar tudo automaticamente
     fireEvent.click(screen.getByRole('link', { name: 'Ver execuções' }));

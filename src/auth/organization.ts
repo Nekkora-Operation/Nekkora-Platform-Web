@@ -38,6 +38,8 @@ export const orgPath = {
   workspaces: (org: string) => `/o/${org}/workspaces`,
   workspace: (org: string, id: string) => `/o/${org}/workspaces/${encodeURIComponent(id)}`,
   automation: (org: string, id: string) => `/o/${org}/automacoes/${encodeURIComponent(id)}`,
+  /** T04: criar automação (só o nome, ou com a primeira versão e o ZIP). */
+  newAutomation: (org: string, workspaceId: string) => `/o/${org}/workspaces/${encodeURIComponent(workspaceId)}/nova-automacao`,
   /** M3: versão (ciclo de vida: pacote, conferência, publicação). */
   version: (org: string, id: string) => `/o/${org}/versoes/${encodeURIComponent(id)}`,
   /** M4: execução local (Agents, Workers) e supervisão das execuções registradas pelo Agent. */

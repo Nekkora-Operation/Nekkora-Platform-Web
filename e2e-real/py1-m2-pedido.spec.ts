@@ -134,8 +134,10 @@ test('M2: pacote externo publicado, aprovado na máquina e disparado pela Platfo
   await expect(page.getByRole('heading', { name: 'Operações' })).toBeVisible();
   const workspaceId = /workspaces\/([0-9a-f-]{36})/.exec(page.url())![1];
   await page.getByRole('button', { name: 'Criar automação' }).click();
-  await page.getByRole('alertdialog').getByLabel(/^Nome da automação/).fill('Relatório por pedido');
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar automação' }).click();
+  // T04: criação em página própria; aqui, o caminho só com o nome (rascunho)
+  await page.getByLabel(/^Nome da automação/).fill('Relatório por pedido');
+  await page.getByRole('radio', { name: /Só o nome, como rascunho/ }).check();
+  await page.getByRole('button', { name: 'Salvar rascunho' }).click();
   await page.getByRole('button', { name: 'Nova versão' }).click();
   await expect(page).toHaveURL(/\/versoes\/[0-9a-f-]{36}$/);
   const versionUrl = page.url();
@@ -145,7 +147,6 @@ test('M2: pacote externo publicado, aprovado na máquina e disparado pela Platfo
   await expect(page.getByText('Python externo (sem framework Nekkora)')).toBeVisible();
   await expect(page.locator('main')).toContainText(fingerprint.slice(0, 12));
   await page.getByRole('button', { name: 'Publicar versão' }).click();
-  await page.getByRole('alertdialog').getByLabel('Conferi o pacote desta versão.').check();
   await confirmStepUp(page, ana, 'Publicar');
   await expect(page.getByText('Publicada (imutável)')).toBeVisible();
   await shot(page, 'm2-01-versao-pacote-externo-publicada');
