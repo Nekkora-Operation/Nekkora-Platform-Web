@@ -1,10 +1,8 @@
 import { useState } from 'react';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router';
-import { Alert, Badge, Button, Card, DescriptionList, Heading, Link, LoadMore, Stack, StateView, Table, type TableColumn } from 'nekkora-lib';
+import { Badge, Button, Card, DescriptionList, Heading, Link, LoadMore, Stack, StateView, Table, type TableColumn } from 'nekkora-lib';
 import { isApiError } from '../../api/http';
-import { createAutomationVersion } from '../../api/lifecycle';
 import { useWorkspacePermissions } from '../../area/useWorkspacePermissions';
-import { accessRefusal } from '../access/shared';
 import { getAutomation, listAutomationVersions } from '../../api/product';
 import type { AutomationVersion } from '../../api/v1';
 import { orgPath } from '../../auth/organization';
@@ -23,16 +21,15 @@ export function AutomationDetailPage() {
 }
 
 /**
- * Detalhe da automação (L04, sem comando nem criador: DC-08/09) e versões (L05, paginadas, versionNumber desc). M3: nova
- * versão DRAFT (automation.manage no workspace); cada versão abre o detalhe do ciclo de vida (pacote e publicação).
+ * Detalhe da automação (L04, sem comando nem criador: DC-08/09) e versões (L05, paginadas, versionNumber desc). Cada versão
+ * abre o detalhe do ciclo de vida (pacote e publicação). T09: no máximo um rascunho por automação. Sem rascunho, "Nova
+ * versão" só abre o formulário (nada é gravado até a Platform aceitar o ZIP); com rascunho, "Continuar rascunho" leva a
+ * ele (automation.manage no workspace).
  */
 function AutomationDetail({ automationId }: { automationId: string }) {
-  const { org, expired } = useSession();
+  const { org } = useSession();
   const { workspaces } = useInternalArea();
   const navigate = useNavigate();
-  const [creatingVersion, setCreatingVersion] = useState(false);
-  const [versionUncertain, setVersionUncertain] = useState(false);
-  const [versionError, setVersionError] = useState<{ tone: 'danger' | 'warning'; text: string } | null>(null);
   const [refresh, setRefresh] = useState(0);
   const automation = useResource(() => getAutomation(org, automationId), [org, automationId]);
   const versions = useCursorList<AutomationVersion>(
@@ -61,23 +58,9 @@ function AutomationDetail({ automationId }: { automationId: string }) {
   }
 
   const a = automation.data;
-  const newVersion = async () => {
-    if (creatingVersion) return;
-    setCreatingVersion(true);
-    setVersionError(null);
-    try {
-      const created = await createAutomationVersion(org, a.automationId);
-      navigate(orgPath.version(org, created.automationVersionId!));
-    } catch (e) {
-      if (isApiError(e, 'unauthenticated')) return expired();
-      if (isApiError(e, 'network', 'unexpected', 'internal_error')) {
-        setVersionUncertain(true);
-        setVersionError({ tone: 'warning', text: 'Não foi possível confirmar se a versão foi criada. Atualize a lista antes de criar outra.' });
-      } else setVersionError({ tone: 'danger', text: accessRefusal(e, { conflict: 'A automação ou o workspace não está ativo.' }) });
-    } finally {
-      setCreatingVersion(false);
-    }
-  };
+  // o rascunho, se houver, é o de maior número (só nasce sem outro, com MAX+1): o primeiro da lista
+  const draft = versions.items[0]?.status === 'draft' ? versions.items[0] : undefined;
+  const listed = versions.status !== 'loading' && !(versions.status === 'error' && versions.items.length === 0);
   const workspaceName = workspaces.items.find((w) => w.workspaceId === a.workspaceId)?.name;
   const columns: TableColumn<AutomationVersion>[] = [
     {
@@ -144,13 +127,17 @@ function AutomationDetail({ automationId }: { automationId: string }) {
           <Heading level={2} id="versoes-titulo" className="pw-prod__section-title">
             Versões
           </Heading>
-          {canManage && (
-            <Button size="sm" leftIcon="plus" loading={creatingVersion} disabled={versionUncertain} onClick={() => void newVersion()}>
-              Nova versão
-            </Button>
-          )}
+          {canManage && listed &&
+            (draft ? (
+              <Button size="sm" leftIcon="edit" onClick={() => navigate(orgPath.version(org, draft.automationVersionId))}>
+                Continuar rascunho
+              </Button>
+            ) : (
+              <Button size="sm" leftIcon="plus" onClick={() => navigate(orgPath.newVersion(org, a.automationId))}>
+                Nova versão
+              </Button>
+            ))}
         </div>
-        {versionError && <Alert tone={versionError.tone}>{versionError.text}</Alert>}
         {versions.status === 'loading' ? (
           <StateView status="loading" title="Carregando versões…" />
         ) : versions.status === 'error' ? (

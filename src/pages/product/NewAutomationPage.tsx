@@ -1,21 +1,10 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router';
 import { Alert, Button, Card, DescriptionList, Input, Link, RadioGroup, Stack, StateView, Text } from 'nekkora-lib';
-import { ApiError, isApiError } from '../../api/http';
-import {
-  ARTIFACT_MAX_BYTES,
-  createAutomation,
-  createAutomationVersion,
-  getAutomationVersion,
-  localSha256,
-  PACKAGE_REASON,
-  uploadArtifact,
-  type LifecycleVersion,
-  type PackageRejectedReason,
-  type UploadHandle,
-} from '../../api/lifecycle';
+import { ApiError, hasReason, isApiError } from '../../api/http';
+import { ARTIFACT_MAX_BYTES, createAutomation, localSha256, readAutomationDraft, uploadDraftPackage, type LifecycleVersion, type UploadHandle } from '../../api/lifecycle';
 import { NO_TAB_LOCK_TEXT, operations, opKey, type OpView } from '../../api/pendingOps';
-import { getWorkspace, listAutomations, listAutomationVersions } from '../../api/product';
+import { getWorkspace, listAutomations } from '../../api/product';
 import { useOperationScope } from '../../components/operationScope';
 import { useSession } from '../../area/session';
 import { useWorkspacePermissions } from '../../area/useWorkspacePermissions';
@@ -23,20 +12,23 @@ import { orgPath } from '../../auth/organization';
 import { useResource } from '../../hooks/useResource';
 import { DateTimeText, LoadErrorState, NotFoundState, PageHeader, isMissing } from './shared';
 import { uploadOutcome } from './uploadOutcome';
+import { draftRefusal, mib, packageReason, PackageBrief } from './draftPackage';
 import './shared.css';
 import '../../identity/identity.css';
 
 /**
- * PLATFORM-V2-001, T04 — criar automação com a primeira versão e o ZIP, no mesmo fluxo e com as rotas existentes:
+ * PLATFORM-V2-001, T04 — criar automação com a primeira versão e o ZIP, no mesmo fluxo:
  *   só o nome (rascunho)  -> POST automação -> página da automação;
- *   nome + versão + ZIP   -> POST automação -> POST versão (DRAFT 1) -> PUT do ZIP -> metadados conferidos pela Platform ->
- *                            "Revisar e publicar" (página da versão). Nada é publicado nem executado aqui.
- * Cada passo confirmado (automação e versão criadas) fica guardado EM MEMÓRIA nesta aba: falha depois dele RETOMA o mesmo
- * rascunho, sem criar outra automação ou versão, inclusive ao sair e voltar à página. Nada vai para o armazenamento do
- * navegador (§39/§40): depois de recarregar, o rascunho continua na API (a página da versão aceita o pacote). Resultado
- * desconhecido (sem resposta, 5xx): a tela RECONCILIA lendo a API antes de permitir outra tentativa; nunca reenvia sozinha.
- * A criação da automação usa o registro de operações incertas (FRONT-V1-002, só resumo e estado): a incerteza sobrevive a
- * recarga e a outra aba até a pessoa conferir.
+ *   nome + ZIP            -> POST automação -> PUT do ZIP no rascunho da automação (T09) -> metadados conferidos pela
+ *                            Platform -> "Revisar e publicar" (página da versão). Nada é publicado nem executado aqui.
+ * PLATFORM-AGENT-V2-002, T09: a versão só passa a existir quando a Platform ACEITA o ZIP (o PUT, sem expectativa de
+ * rascunho, cria a versão DRAFT 1 com o pacote numa só transação). ZIP recusado: a automação (já criada) fica sem versão e
+ * "Continuar" reenvia à MESMA automação. A automação criada fica guardada EM MEMÓRIA nesta aba: falha depois dela RETOMA
+ * a mesma automação, inclusive ao sair e voltar à página. Nada vai para o armazenamento do navegador (§39/§40): depois de
+ * recarregar, a automação continua na API (a página dela oferece "Nova versão"). Resultado desconhecido (sem resposta,
+ * 5xx): a tela RECONCILIA lendo a API antes de permitir outra tentativa; nunca reenvia sozinha. A criação da automação usa
+ * o registro de operações incertas (FRONT-V1-002, só resumo e estado): a incerteza sobrevive a recarga e a outra aba até a
+ * pessoa conferir.
  */
 
 type Mode = 'draft' | 'version';
@@ -46,17 +38,20 @@ interface Progress {
   mode: Mode;
   startedAt: number;
   automationId?: string;
-  versionId?: string;
 }
+
+type Step = 'automation' | 'upload';
 
 type Phase =
   | { kind: 'idle' }
-  | { kind: 'working'; step: 'automation' | 'version' | 'upload'; sent?: number; total?: number }
+  | { kind: 'working'; step: Step; sent?: number; total?: number }
   /** Passo com resultado desconhecido: só a conferência (leitura da API) libera outra tentativa. */
-  | { kind: 'uncertain'; step: 'automation' | 'version' | 'upload' }
+  | { kind: 'uncertain'; step: Step }
   | { kind: 'refused'; text: string }
   | { kind: 'ambiguous'; count: number }
   | { kind: 'checked'; text: string }
+  /** A automação já tem um rascunho que não é o deste envio (outra aba ou pessoa): leva a ele, sem sobrescrever. */
+  | { kind: 'foreign'; draft: LifecycleVersion }
   | { kind: 'done'; version: LifecycleVersion };
 
 const NAME_MAX = 80;
@@ -74,25 +69,20 @@ export function resetNewAutomationMemoryForTest() {
   memory.clear();
 }
 
-const mib = (n: number) => `${(n / 1024 / 1024).toFixed(n < 1024 * 1024 ? 2 : 1)} MiB`;
 const uncertainError = (e: unknown) => e instanceof ApiError && (e.code === 'network' || e.code === 'unexpected' || e.code === 'internal_error' || e.code === 'gateway');
 
-function refusalText(step: 'automation' | 'version' | 'upload', e: unknown): string {
+function refusalText(step: Step, e: unknown): string {
   if (step === 'upload') {
-    if (e instanceof ApiError && e.code === 'package_rejected') {
-      const reason = e.reason ? PACKAGE_REASON[e.reason as PackageRejectedReason] : undefined;
-      return `O pacote foi recusado pela conferência da Platform: ${reason ?? 'motivo não informado'}. Escolha o arquivo corrigido e envie de novo: a automação e a versão já criadas continuam as mesmas.`;
-    }
-    if (e instanceof ApiError && e.status === 413) return 'O arquivo passa do limite aceito (50 MiB). Nada foi gravado nesta versão; escolha outro arquivo.';
-    if (isApiError(e, 'service_unavailable')) return 'O armazenamento de pacotes está indisponível agora. Nada foi gravado; a versão continua sem pacote. Tente mais tarde.';
-    if (isApiError(e, 'conflict')) return 'Esta versão não aceita mais pacote (já foi publicada). Abra a automação e crie uma nova versão.';
-    return 'O envio não foi aceito. A versão continua sem pacote; você pode escolher o arquivo e enviar de novo.';
+    const reason = packageReason(e);
+    if (reason)
+      return `O pacote foi recusado pela conferência da Platform: ${reason}. A automação foi criada, mas nenhuma versão: a versão só passa a existir quando a Platform aceita o pacote. Escolha o arquivo corrigido e continue: o envio vai para esta mesma automação.`;
+    return draftRefusal(e, 'nothing');
   }
   if (isApiError(e, 'conflict')) return 'O workspace não está ativo. Nada foi criado.';
   if (isApiError(e, 'forbidden', 'not_found')) return 'Você não tem permissão para criar automações neste workspace. Nada foi criado.';
   if (isApiError(e, 'rate_limited')) return 'Muitas tentativas em pouco tempo. Aguarde e tente de novo. Nada foi criado.';
   if (isApiError(e, 'invalid_request')) return 'O pedido não foi aceito. Confira o nome. Nada foi criado.';
-  return step === 'version' ? 'A versão não foi criada. A automação já criada continua; tente de novo.' : 'A automação não foi criada.';
+  return 'A automação não foi criada.';
 }
 
 export function NewAutomationPage() {
@@ -171,7 +161,7 @@ export function NewAutomationPage() {
   // incerteza registrada (outra aba, ou antes de recarregar) sem o progresso desta tela: só a conferência explícita libera
   const recordBlocks = !progress?.automationId && phase.kind !== 'working' && (recorded?.state === 'unknown' || recorded?.state === 'pending');
   const guardBlocks = !progress?.automationId && (guard === null || guard === 'no-locks' || guard === 'unavailable');
-  const blocked = phase.kind === 'uncertain' || phase.kind === 'ambiguous' || recordBlocks || guardBlocks;
+  const blocked = phase.kind === 'uncertain' || phase.kind === 'ambiguous' || phase.kind === 'foreign' || recordBlocks || guardBlocks;
   const needsFile = mode === 'version';
   const canStart = nameOk && !busy && !blocked && phase.kind !== 'done' && (!needsFile || (!!file && !fileProblem));
 
@@ -211,7 +201,7 @@ export function NewAutomationPage() {
           setProgress(p);
         } catch (e) {
           begun.finish(uncertainError(e) ? 'unknown' : 'refused');
-          return fail('automation', e, p);
+          return fail('automation', e);
         }
         if (p.mode === 'draft') {
           setProgress(null);
@@ -219,19 +209,10 @@ export function NewAutomationPage() {
           return;
         }
       }
-      if (!p.versionId) {
-        setPhase({ kind: 'working', step: 'version' });
-        try {
-          const v = await createAutomationVersion(org, p.automationId!);
-          p = { ...p, versionId: v.automationVersionId! };
-          setProgress(p);
-        } catch (e) {
-          return fail('version', e, p);
-        }
-      }
       if (!file) return setPhase({ kind: 'idle' });
       setPhase({ kind: 'working', step: 'upload', sent: 0, total: file.size });
-      const h = uploadArtifact(org, p.versionId!, file, (sent, total) => setPhase({ kind: 'working', step: 'upload', sent, total }));
+      // sem expectativa de rascunho: o ZIP aceito cria a versão 1; existindo um rascunho, a API recusa (409) sem sobrescrever
+      const h = uploadDraftPackage(org, p.automationId!, file, {}, (sent, total) => setPhase({ kind: 'working', step: 'upload', sent, total }));
       upload.current = h;
       try {
         const v = await h.promise;
@@ -241,6 +222,10 @@ export function NewAutomationPage() {
         const outcome = uploadOutcome(e);
         if (outcome === 'expired') return expired();
         if (outcome === 'uncertain') return setPhase({ kind: 'uncertain', step: 'upload' });
+        if (hasReason(e, 'conflict', 'draft_changed')) {
+          const draft = await readAutomationDraft(org, p.automationId!).catch(() => undefined);
+          if (draft !== undefined) return settle(draft, 'O envio não foi aplicado e a automação continua sem versão. Você pode enviar de novo.');
+        }
         setFile(null);
         setLocalHash(null);
         return setPhase({ kind: 'refused', text: refusalText('upload', e) });
@@ -252,12 +237,21 @@ export function NewAutomationPage() {
     }
   };
 
-  const fail = (step: 'automation' | 'version', e: unknown, p: Progress) => {
+  const fail = (step: 'automation', e: unknown) => {
     if (isApiError(e, 'unauthenticated')) return expired();
     if (uncertainError(e)) return setPhase({ kind: 'uncertain', step });
-    if (step === 'automation') setProgress(null); // recusa documentada: nada criado, nada a retomar
-    else setProgress(p);
+    setProgress(null); // recusa documentada: nada criado, nada a retomar
     setPhase({ kind: 'refused', text: refusalText(step, e) });
+  };
+
+  /** O rascunho que a automação tem agora: é o deste envio (mesmo SHA-256)? Nunca sobrescreve outro. */
+  const settle = (draft: LifecycleVersion | null, none: string) => {
+    if (!draft) return setPhase({ kind: 'checked', text: none });
+    if (localHash && draft.artifact?.sha256 === localHash) {
+      setProgress(null);
+      return setPhase({ kind: 'done', version: draft });
+    }
+    setPhase({ kind: 'foreign', draft });
   };
 
   /** Conferência do passo com resultado desconhecido, pela leitura da API. */
@@ -284,32 +278,12 @@ export function NewAutomationPage() {
             navigate(orgPath.automation(org, found[0]));
             return;
           }
-          return setPhase({ kind: 'checked', text: 'Conferido: a automação foi criada. Continue para criar a versão e enviar o pacote.' });
+          return setPhase({ kind: 'checked', text: 'Conferido: a automação foi criada. Continue para enviar o pacote; a versão 1 nasce quando a Platform aceitá-lo.' });
         }
         return setPhase({ kind: 'checked', text: 'Conferido: a automação não foi criada. Você pode tentar de novo.' });
       }
-      if (step === 'version') {
-        const page = await listAutomationVersions(org, progress.automationId!, { limit: 100 });
-        const drafts = (page.items ?? []).filter((v) => v.status === 'draft');
-        if (drafts.length > 1) return setPhase({ kind: 'ambiguous', count: drafts.length });
-        if (drafts.length === 1) {
-          setProgress({ ...progress, versionId: drafts[0].automationVersionId! });
-          return setPhase({ kind: 'checked', text: 'Conferido: a versão 1 foi criada. Continue para enviar o pacote.' });
-        }
-        return setPhase({ kind: 'checked', text: 'Conferido: a versão não foi criada. Você pode tentar de novo.' });
-      }
-      const v = await getAutomationVersion(org, progress.versionId!);
-      const arrived = !!v.artifact?.sha256 && !!localHash && v.artifact.sha256 === localHash;
-      if (arrived) {
-        setProgress(null);
-        return setPhase({ kind: 'done', version: v });
-      }
-      return setPhase({
-        kind: 'checked',
-        text: v.artifact?.sha256
-          ? 'Conferido: a versão tem um pacote diferente do arquivo escolhido. Abra a versão e confira antes de enviar de novo.'
-          : 'Conferido: o pacote não chegou. Você pode enviar de novo.',
-      });
+      // envio sem resposta: o rascunho da automação, se houver, é o deste envio quando o SHA-256 confere
+      return settle(await readAutomationDraft(org, progress.automationId!), 'Conferido: o pacote não chegou e nenhuma versão foi criada. Você pode enviar de novo.');
     } catch (e) {
       if (isApiError(e, 'unauthenticated')) return expired();
       // a leitura falhou: continua sem saber; nada é liberado
@@ -325,7 +299,7 @@ export function NewAutomationPage() {
   };
 
   const pct = phase.kind === 'working' && phase.total ? Math.round(((phase.sent ?? 0) / Math.max(phase.total, 1)) * 100) : 0;
-  const stepText = phase.kind === 'working' ? { automation: 'Criando a automação…', version: 'Criando a versão 1…', upload: 'Enviando o pacote…' }[phase.step] : null;
+  const stepText = phase.kind === 'working' ? { automation: 'Criando a automação…', upload: 'Enviando o pacote…' }[phase.step] : null;
 
   if (phase.kind === 'done') {
     const v = phase.version;
@@ -395,9 +369,8 @@ export function NewAutomationPage() {
         <Alert tone="info" title={`Rascunho em andamento: ${progress!.name}`}>
           <Stack gap={2}>
             <span>
-              {progress!.versionId
-                ? 'A automação e a versão 1 já foram criadas. Escolha o arquivo .zip para enviar o pacote a esta mesma versão.'
-                : 'A automação já foi criada. Continue para criar a versão 1 e enviar o pacote.'}
+              A automação já foi criada, ainda sem versão. Escolha o arquivo .zip e continue: o envio vai para esta mesma
+              automação, e a versão 1 passa a existir quando a Platform aceitar o pacote.
             </span>
             <span>
               <Link as={RouterLink} to={orgPath.automation(org, progress!.automationId!)}>
@@ -480,15 +453,34 @@ export function NewAutomationPage() {
           )}
           {phase.kind === 'refused' && <Alert tone="danger">{phase.text}</Alert>}
           {phase.kind === 'checked' && <Alert tone="info">{phase.text}</Alert>}
+          {phase.kind === 'foreign' && (
+            <Alert tone="warning" title={`A automação já tem um rascunho: a versão ${phase.draft.versionNumber ?? ''}.`}>
+              <Stack gap={2}>
+                <span>
+                  {localHash
+                    ? 'Ele não tem o pacote deste arquivo (outra aba ou pessoa o criou). '
+                    : 'Este navegador não calculou o SHA-256 do arquivo, então não dá para saber se o rascunho tem o seu pacote. '}
+                  Ele tem <PackageBrief artifact={phase.draft.artifact} />. Nada foi sobrescrito: continue nele.
+                </span>
+                <span>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setProgress(null);
+                      navigate(orgPath.version(org, phase.draft.automationVersionId!));
+                    }}
+                  >
+                    Continuar rascunho
+                  </Button>
+                </span>
+              </Stack>
+            </Alert>
+          )}
           {phase.kind === 'uncertain' && (
             <Alert tone="warning" title="Não foi possível confirmar o resultado.">
               <Stack gap={2}>
                 <span>
-                  {phase.step === 'automation'
-                    ? 'A automação pode ter sido criada.'
-                    : phase.step === 'version'
-                      ? 'A versão pode ter sido criada.'
-                      : 'Os bytes do pacote podem ter chegado.'}{' '}
+                  {phase.step === 'automation' ? 'A automação pode ter sido criada.' : 'Os bytes do pacote podem ter chegado e criado a versão.'}{' '}
                   Nada é repetido automaticamente: confira antes de tentar de novo.
                 </span>
                 <span>

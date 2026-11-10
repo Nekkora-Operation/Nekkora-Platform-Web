@@ -10,6 +10,7 @@ import { sessionCsrf } from './auth';
 import { ApiError, apiErrorFrom, request, safeRequestId, type RequestOptions } from './http';
 import { validated, type OperationId } from './validate';
 import type { components } from './generated/nekkora-api-v1';
+import { listAutomationVersions } from './product';
 
 type S = components['schemas'];
 export type LifecycleAutomation = S['LifecycleAutomation'];
@@ -34,11 +35,6 @@ export function createAutomation(org: string, workspaceId: string, name: string)
   return send(org, 'createAutomation', `/workspaces/${id(workspaceId)}/automations`, { method: 'POST', body: { name } });
 }
 
-/** Versão DRAFT (número atribuído pelo banco). `runtime` padrão python3.12. */
-export function createAutomationVersion(org: string, automationId: string, draft?: { runtime?: string; arguments?: string[] }): Promise<LifecycleVersion> {
-  return send(org, 'createAutomationVersion', `/automations/${id(automationId)}/versions`, { method: 'POST', body: draft ?? {} });
-}
-
 export function getAutomationVersion(org: string, versionId: string): Promise<LifecycleVersion> {
   return send(org, 'getAutomationVersion', `/automation-versions/${id(versionId)}`);
 }
@@ -54,17 +50,54 @@ export interface UploadHandle {
   abort: () => void;
 }
 
+export interface DraftExpectation {
+  /** Rascunho que a pessoa vê. Ausente: espera que a automação NÃO tenha rascunho (o envio aceito cria a versão). */
+  draftVersionId?: string;
+  /** SHA-256 do pacote atual do rascunho esperado. Ausente: o rascunho esperado ainda não tem pacote. */
+  sha256?: string | null;
+  /** Só valem quando o envio cria o rascunho; para um rascunho existente, o comando muda pelo PATCH da versão. */
+  runtime?: string;
+  arguments?: string[];
+}
+
+/** Caminho do PUT do pacote do rascunho, com a expectativa na query (T09). */
+export function draftPackagePath(org: string, automationId: string, expect: DraftExpectation): string {
+  const q = new URLSearchParams();
+  if (expect.draftVersionId) {
+    q.set('expectedDraftVersionId', expect.draftVersionId);
+    if (expect.sha256) q.set('expectedSha256', expect.sha256);
+  } else {
+    if (expect.runtime) q.set('runtime', expect.runtime);
+    for (const a of expect.arguments ?? []) q.append('argument', a);
+  }
+  const qs = q.toString();
+  return `${base(org)}/automations/${id(automationId)}/draft/artifact${qs ? `?${qs}` : ''}`;
+}
+
 /**
- * Envia o ZIP (application/zip, Content-Length do próprio arquivo) com progresso. Recusa do pacote: 422
- * (`ApiError.code === 'package_rejected'`, `reason` do vocabulário do contrato); versão publicada: 409; armazenamento não
- * configurado: 503. Os mesmos bytes de novo: idempotente no servidor — mas a interface NUNCA reenvia sozinha.
+ * O rascunho atual da automação, lido da API (ou `null`). No máximo um por automação (033) e sempre o de maior número
+ * (só nasce quando não há outro, com MAX+1): é o primeiro da lista, ordenada por número decrescente.
  */
-export function uploadArtifact(org: string, versionId: string, file: Blob, onProgress: (sent: number, total: number) => void): UploadHandle {
+export async function readAutomationDraft(org: string, automationId: string): Promise<LifecycleVersion | null> {
+  const page = await listAutomationVersions(org, automationId, { limit: 1 });
+  const draft = (page.items ?? []).find((v) => v.status === 'draft');
+  return draft ? getAutomationVersion(org, draft.automationVersionId) : null;
+}
+
+/**
+ * PLATFORM-AGENT-V2-002, T09 — envia o ZIP do rascunho da automação (application/zip, Content-Length do próprio arquivo),
+ * com progresso. Um único rascunho por automação: sem rascunho, o ZIP ACEITO cria a versão DRAFT (201); com rascunho, só
+ * substitui o pacote da MESMA versão se a expectativa conferir (200). Expectativa vencida (outra aba ou pessoa enviou, ou o
+ * rascunho foi publicado): 409 `conflict` + `draft_changed`, nada sobrescrito. Pacote recusado: 422 (`package_rejected`,
+ * `reason` do vocabulário do contrato), nada criado e o pacote anterior preservado; armazenamento não configurado: 503.
+ * Os mesmos bytes de novo: 200 com o mesmo rascunho — mas a interface NUNCA reenvia sozinha.
+ */
+export function uploadDraftPackage(org: string, automationId: string, file: Blob, expect: DraftExpectation, onProgress: (sent: number, total: number) => void): UploadHandle {
   const xhr = new XMLHttpRequest();
   const promise = (async () => {
     const csrf = await sessionCsrf(org);
     return new Promise<LifecycleVersion>((resolve, reject) => {
-      xhr.open('PUT', `${base(org)}/automation-versions/${id(versionId)}/artifact`);
+      xhr.open('PUT', draftPackagePath(org, automationId, expect));
       xhr.setRequestHeader('Content-Type', 'application/zip');
       xhr.setRequestHeader('Accept', 'application/json');
       xhr.setRequestHeader('X-CSRF-Token', csrf);
@@ -82,7 +115,7 @@ export function uploadArtifact(org: string, versionId: string, file: Blob, onPro
         }
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
-            resolve(validated<LifecycleVersion>('putAutomationVersionArtifact', body, xhr.status));
+            resolve(validated<LifecycleVersion>('putAutomationDraftPackage', body, xhr.status));
           } catch (e) {
             reject(e);
           }

@@ -4,71 +4,31 @@ import { csrfStore } from '../../api/csrf';
 import { createOperationRegistry, setOperationRegistryForTest } from '../../api/pendingOps';
 import { sessionMemory } from '../../app/notices';
 import { fakeLocks } from '../../test/fakeLocks';
+import { installFakeXhr, sha256, zip, type XhrAnswer, type XhrPut } from '../../test/fakeXhr';
 import { location } from '../../test/helpers';
 import { renderApp } from '../../test/render';
 import { RouteApi } from '../../test/routeApi';
 import { resetNewAutomationMemoryForTest } from './NewAutomationPage';
 
 /**
- * PLATFORM-V2-001, T04 — criar automação com a primeira versão e o ZIP. Rascunho só com nome; ZIP válido dos dois formatos
- * (metadados conferidos pela Platform; versão da Platform separada da declarada pelo projeto); ZIP inválido corrigido NO
- * MESMO rascunho; recusa de tamanho antes de qualquer gravação; falha de rede depois da criação e do envio, com
- * reconciliação antes de nova tentativa; duplo clique. Em todos: no máximo uma automação e uma versão, e nenhuma publicação
- * ou execução. Respostas por rota conferidas contra o contrato; o PUT do ZIP (XHR) por um dublê local.
+ * PLATFORM-V2-001, T04 — criar automação com a primeira versão e o ZIP. Com a T09 (PLATFORM-AGENT-V2-002), a versão só
+ * passa a existir quando a Platform aceita o ZIP: a tela cria a automação e envia o pacote ao rascunho da automação (PUT
+ * sem expectativa), sem nenhum POST de versão. Rascunho só com nome; ZIP válido dos dois formatos (metadados conferidos
+ * pela Platform; versão da Platform separada da declarada pelo projeto); ZIP inválido: a automação fica sem versão e o
+ * reenvio vai para a MESMA automação; recusa de tamanho antes de qualquer gravação; falha de rede na criação e no envio,
+ * com reconciliação antes de nova tentativa; rascunho criado por outra aba; duplo clique. Em todos: no máximo uma
+ * automação, nenhum POST de versão, nenhuma publicação ou execução. Respostas por rota e do PUT (XHR) conferidas contra o
+ * contrato.
  */
 const ORG = '0a6e1f9c-3b2d-4c5e-8f71-2a9b3c4d5e6f';
 const WS = '5d6e7f80-1a2b-4c3d-8e4f-9a0b1c2d3e4f';
 const AUT = '7f8091a2-3b4c-4d5e-8f60-718293a4b5c6';
 const VER = 'a2b3c4d5-e6f7-4081-92a3-b4c5d6e7f809';
 const T = '2026-11-10T12:00:00Z';
-const SHA_OF = new Map<string, string>();
+const DRAFT_PUT = `/api/v1/o/${ORG}/automations/${AUT}/draft/artifact`;
 
 let api: RouteApi;
-
-// ------------------------------------------------------------------ dublê do XHR do envio
-type XhrAnswer = { status: number; body?: unknown } | 'network';
-let xhrHandler: (file: Blob) => XhrAnswer = () => 'network';
-const puts: { url: string; file: Blob }[] = [];
-class FakeXhr {
-  status = 0;
-  responseText = '';
-  upload: { onprogress: ((e: { loaded: number; total: number; lengthComputable: boolean }) => void) | null } = { onprogress: null };
-  onload: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-  onabort: (() => void) | null = null;
-  withCredentials = false;
-  private url = '';
-  open(_m: string, url: string) {
-    this.url = url;
-  }
-  setRequestHeader() {}
-  getResponseHeader() {
-    return null;
-  }
-  abort() {
-    this.onabort?.();
-  }
-  send(file: Blob) {
-    puts.push({ url: this.url, file });
-    const a = xhrHandler(file);
-    setTimeout(() => {
-      this.upload.onprogress?.({ loaded: file.size, total: file.size, lengthComputable: true });
-      if (a === 'network') return this.onerror?.();
-      this.status = a.status;
-      this.responseText = a.body === undefined ? '' : JSON.stringify(a.body);
-      this.onload?.();
-    }, 0);
-  }
-}
-
-async function sha256(b: Blob) {
-  const d = await crypto.subtle.digest('SHA-256', await b.arrayBuffer());
-  return [...new Uint8Array(d)].map((x) => x.toString(16).padStart(2, '0')).join('');
-}
-
-function zip(name = 'pacote.zip', content = 'PK conteudo') {
-  return new File([content], name, { type: 'application/zip' });
-}
+let xhr: { handler: (put: XhrPut) => XhrAnswer; puts: XhrPut[] };
 
 function version(opts: { sha?: string; external?: boolean } = {}) {
   const external = !!opts.external;
@@ -115,9 +75,7 @@ beforeEach(() => {
   resetNewAutomationMemoryForTest();
   vi.unstubAllGlobals();
   localStorage.clear();
-  puts.length = 0;
-  SHA_OF.clear();
-  vi.stubGlobal('XMLHttpRequest', FakeXhr);
+  xhr = installFakeXhr();
   const locks = fakeLocks();
   setOperationRegistryForTest(createOperationRegistry({ storage: () => localStorage, locks: () => locks, now: () => Date.now() }));
   api = new RouteApi().install();
@@ -150,7 +108,8 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 const automationPosts = () => api.sent('POST', `/api/v1/o/${ORG}/workspaces/${WS}/automations`);
-const versionPosts = () => api.sent('POST', `/api/v1/o/${ORG}/automations/${AUT}/versions`);
+/** A rota antiga de criação de versão não é usada: a versão nasce com o ZIP aceito. */
+const versionPosts = () => api.sent('POST', /\/versions$/);
 const noPublishNoRun = () => {
   expect(api.sent('POST', /publish|run-requests|local-run-authorizations|executions/)).toEqual([]);
 };
@@ -160,8 +119,13 @@ function created(answer: 'ok' | 'network' = 'ok') {
     answer === 'ok' ? { status: 201, body: { automationId: AUT, workspaceId: WS, name: 'Relatório de pedidos', status: 'ACTIVE', createdAt: new Date().toISOString() } } : 'network',
   );
 }
-function versionCreated(answer: () => 'ok' | 'network' = () => 'ok') {
-  api.on('POST', `/api/v1/o/${ORG}/automations/${AUT}/versions`, 'createAutomationVersion', () => (answer() === 'ok' ? { status: 201, body: version() } : 'network'));
+/** O rascunho que a API tem agora (lista: só o resumo; a versão: o pacote). */
+function serverDraft(sha: string | null | 'none') {
+  api.on('GET', `/api/v1/o/${ORG}/automations/${AUT}/versions`, 'listAutomationVersions', {
+    status: 200,
+    body: { items: sha === 'none' ? [] : [{ automationVersionId: VER, versionNumber: 1, status: 'draft', publishedAt: null, createdAt: T }], nextCursor: null },
+  });
+  if (sha !== 'none') api.on('GET', `/api/v1/o/${ORG}/automation-versions/${VER}`, 'getAutomationVersion', { status: 200, body: version({ sha: sha ?? undefined }) });
 }
 
 async function open() {
@@ -173,9 +137,9 @@ async function pick(file: File) {
   fireEvent.change(screen.getByLabelText('Arquivo .zip do pacote'), { target: { files: [file] } });
   await waitFor(() => expect(screen.getByText(new RegExp(file.name.replace('.', '\\.')))).toBeInTheDocument());
 }
-const submit = () => screen.getByRole('button', { name: /Criar e enviar o pacote|Continuar|Salvar rascunho/ });
+const submit = () => screen.getByRole('button', { name: /Criar e enviar o pacote|Continuar$|Salvar rascunho/ });
 
-describe('criar automação com versão e ZIP (T04)', () => {
+describe('criar automação com versão e ZIP (T04 + T09)', () => {
   it('só o nome: salva o rascunho e abre a automação; nenhuma versão', async () => {
     created();
     await open();
@@ -187,15 +151,15 @@ describe('criar automação com versão e ZIP (T04)', () => {
     expect(automationPosts()).toHaveLength(1);
     expect(automationPosts()[0].body).toEqual({ name: 'Relatório de pedidos' });
     expect(versionPosts()).toEqual([]);
+    expect(xhr.puts).toEqual([]);
     noPublishNoRun();
   });
 
-  it('ZIP válido (Studio): automação, versão 1 e pacote; mostra o que a Platform conferiu e segue para revisar', async () => {
+  it('ZIP válido (Studio): automação e, com o ZIP aceito, a versão 1; mostra o que a Platform conferiu e segue para revisar', async () => {
     created();
-    versionCreated();
     const f = zip('studio.zip');
     const sha = await sha256(f);
-    xhrHandler = () => ({ status: 200, body: version({ sha }) });
+    xhr.handler = () => ({ status: 201, body: version({ sha }) });
     await open();
     await pick(f);
     fireEvent.click(submit());
@@ -203,9 +167,10 @@ describe('criar automação com versão e ZIP (T04)', () => {
     expect(screen.getByText('Versão 1 (rascunho)')).toBeInTheDocument();
     expect(screen.getByText('Formato Studio')).toBeInTheDocument();
     expect(automationPosts()).toHaveLength(1);
-    expect(versionPosts()).toHaveLength(1);
-    expect(puts).toHaveLength(1);
-    expect(puts[0].url).toContain(`/automation-versions/${VER}/artifact`);
+    expect(versionPosts()).toEqual([]);
+    expect(xhr.puts).toHaveLength(1);
+    // sem expectativa de rascunho: o envio aceito cria a versão
+    expect(xhr.puts[0].url).toBe(DRAFT_PUT);
     noPublishNoRun();
     fireEvent.click(screen.getByRole('button', { name: 'Revisar e publicar' }));
     await waitFor(() => expect(location()).toBe(`/o/${ORG}/versoes/${VER}`));
@@ -213,9 +178,8 @@ describe('criar automação com versão e ZIP (T04)', () => {
 
   it('ZIP válido (Python externo): a versão declarada pelo projeto aparece separada da versão da Platform', async () => {
     created();
-    versionCreated();
     const f = zip('externo.zip', 'PK externo');
-    xhrHandler = () => ({ status: 200, body: version({ sha: 'c'.repeat(64), external: true }) });
+    xhr.handler = () => ({ status: 201, body: version({ sha: 'c'.repeat(64), external: true }) });
     await open();
     await pick(f);
     fireEvent.click(submit());
@@ -226,25 +190,29 @@ describe('criar automação com versão e ZIP (T04)', () => {
     noPublishNoRun();
   });
 
-  it('ZIP inválido, depois o corrigido: o mesmo rascunho (uma automação, uma versão, dois envios à mesma versão)', async () => {
+  it('ZIP inválido: a automação fica sem versão; o corrigido vai para a MESMA automação e cria a versão 1', async () => {
     created();
-    versionCreated();
     let attempt = 0;
     const good = zip('corrigido.zip', 'PK corrigido');
     const goodSha = await sha256(good);
-    xhrHandler = () => (++attempt === 1 ? { status: 422, body: { error: 'package_rejected', reason: 'manifesto_ausente' } } : { status: 200, body: version({ sha: goodSha }) });
+    xhr.handler = () => (++attempt === 1 ? { status: 422, body: { error: 'package_rejected', reason: 'manifesto_ausente' } } : { status: 201, body: version({ sha: goodSha }) });
     await open();
     await pick(zip('errado.zip', 'PK errado'));
     fireEvent.click(submit());
-    expect(await screen.findByText(/O pacote foi recusado pela conferência da Platform/)).toBeInTheDocument();
-    expect(screen.getByText(/a automação e a versão já criadas continuam as mesmas/)).toBeInTheDocument();
+    expect(await screen.findByText(/O pacote foi recusado pela conferência da Platform: falta o manifest.json do Studio/)).toBeInTheDocument();
+    expect(screen.getByText(/A automação foi criada, mas nenhuma versão/)).toBeInTheDocument();
+    expect(screen.queryByText(/a automação e a versão já criadas continuam as mesmas/)).toBeNull();
     expect(screen.getByText(/Rascunho em andamento: Relatório de pedidos/)).toBeInTheDocument();
+    expect(screen.getByText(/A automação já foi criada, ainda sem versão/)).toBeInTheDocument();
+    // o nome continua (fixo) e nenhuma versão foi pedida
+    expect(screen.getByLabelText(/^Nome da automação/)).toHaveValue('Relatório de pedidos');
+    expect(versionPosts()).toEqual([]);
     await pick(good);
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
     expect(await screen.findByText('Pacote recebido e conferido pela Platform.')).toBeInTheDocument();
     expect(automationPosts()).toHaveLength(1);
-    expect(versionPosts()).toHaveLength(1);
-    expect(puts.map((p) => p.url)).toEqual([expect.stringContaining(VER), expect.stringContaining(VER)]);
+    expect(versionPosts()).toEqual([]);
+    expect(xhr.puts.map((p) => p.url)).toEqual([DRAFT_PUT, DRAFT_PUT]);
     noPublishNoRun();
   });
 
@@ -259,35 +227,31 @@ describe('criar automação com versão e ZIP (T04)', () => {
     expect(automationPosts()).toEqual([]);
   });
 
-  it('rede cai ao criar a versão: confere antes de outra tentativa e retoma a versão já criada', async () => {
+  it('rede cai no envio e o pacote não chegou: a conferência não acha rascunho e libera reenviar à mesma automação', async () => {
     created();
-    let calls = 0;
-    versionCreated(() => (++calls === 1 ? 'network' : 'ok'));
-    api.on('GET', `/api/v1/o/${ORG}/automations/${AUT}/versions`, 'listAutomationVersions', {
-      status: 200,
-      body: { items: [{ automationVersionId: VER, versionNumber: 1, status: 'draft', publishedAt: null, createdAt: T }], nextCursor: null },
-    });
+    serverDraft('none');
     const f = zip('ok.zip');
     const sha = await sha256(f);
-    xhrHandler = () => ({ status: 200, body: version({ sha }) });
+    let attempt = 0;
+    xhr.handler = () => (++attempt === 1 ? 'network' : { status: 201, body: version({ sha }) });
     await open();
     await pick(f);
     fireEvent.click(submit());
-    expect(await screen.findByText('A versão pode ter sido criada.', { exact: false })).toBeInTheDocument();
+    expect(await screen.findByText('Os bytes do pacote podem ter chegado e criado a versão.', { exact: false })).toBeInTheDocument();
     expect(submit()).toBeDisabled(); // sem conferir, nada de nova tentativa
     fireEvent.click(screen.getByRole('button', { name: 'Conferir agora' }));
-    expect(await screen.findByText(/Conferido: a versão 1 foi criada/)).toBeInTheDocument();
+    expect(await screen.findByText(/Conferido: o pacote não chegou e nenhuma versão foi criada/)).toBeInTheDocument();
+    expect(xhr.puts).toHaveLength(1); // nada reenviado sozinho
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
     expect(await screen.findByText('Pacote recebido e conferido pela Platform.')).toBeInTheDocument();
     expect(automationPosts()).toHaveLength(1);
-    expect(versionPosts()).toHaveLength(1); // a versão do servidor foi retomada, não recriada
-    expect(puts).toHaveLength(1);
+    expect(versionPosts()).toEqual([]);
+    expect(xhr.puts.map((p) => p.url)).toEqual([DRAFT_PUT, DRAFT_PUT]);
     noPublishNoRun();
   });
 
   it('rede cai ao criar a automação: a incerteza fica registrada; a conferência acha a automação e o fluxo continua', async () => {
     created('network');
-    versionCreated();
     api.on('GET', `/api/v1/o/${ORG}/workspaces/${WS}/automations`, 'listAutomations', () => ({
       status: 200,
       body: {
@@ -297,7 +261,7 @@ describe('criar automação com versão e ZIP (T04)', () => {
     }));
     const f = zip('ok.zip');
     const sha = await sha256(f);
-    xhrHandler = () => ({ status: 200, body: version({ sha }) });
+    xhr.handler = () => ({ status: 201, body: version({ sha }) });
     await open();
     await pick(f);
     fireEvent.click(submit());
@@ -308,34 +272,51 @@ describe('criar automação com versão e ZIP (T04)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
     expect(await screen.findByText('Pacote recebido e conferido pela Platform.')).toBeInTheDocument();
     expect(automationPosts()).toHaveLength(1);
-    expect(versionPosts()).toHaveLength(1);
+    expect(versionPosts()).toEqual([]);
+    expect(xhr.puts.map((p) => p.url)).toEqual([DRAFT_PUT]);
     noPublishNoRun();
   });
 
-  it('rede cai no envio do ZIP: a conferência acha o pacote (mesmo SHA-256) sem reenviar', async () => {
+  it('rede cai no envio do ZIP: a conferência acha o rascunho com o mesmo SHA-256, sem reenviar', async () => {
     created();
-    versionCreated();
     const f = zip('ok.zip');
     const sha = await sha256(f);
-    xhrHandler = () => 'network';
-    api.on('GET', `/api/v1/o/${ORG}/automation-versions/${VER}`, 'getAutomationVersion', { status: 200, body: version({ sha }) });
+    xhr.handler = () => 'network';
+    serverDraft(sha);
     await open();
     await pick(f);
     fireEvent.click(submit());
-    expect(await screen.findByText('Os bytes do pacote podem ter chegado.', { exact: false })).toBeInTheDocument();
+    expect(await screen.findByText('Os bytes do pacote podem ter chegado', { exact: false })).toBeInTheDocument();
     expect(submit()).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Conferir agora' }));
     expect(await screen.findByText('Pacote recebido e conferido pela Platform.')).toBeInTheDocument();
-    expect(puts).toHaveLength(1);
+    expect(xhr.puts).toHaveLength(1);
     noPublishNoRun();
   });
 
-  it('duplo clique: uma automação, uma versão, um envio', async () => {
+  it('outra aba criou o rascunho desta automação: 409 draft_changed, nada sobrescrito; a tela leva ao rascunho existente', async () => {
     created();
-    versionCreated();
+    serverDraft('d'.repeat(64));
+    xhr.handler = () => ({ status: 409, body: { error: 'conflict', reason: 'draft_changed' } });
+    await open();
+    await pick(zip('meu.zip', 'PK meu'));
+    fireEvent.click(submit());
+    expect(await screen.findByText('A automação já tem um rascunho: a versão 1.')).toBeInTheDocument();
+    expect(screen.getByText(/Ele não tem o pacote deste arquivo/)).toBeInTheDocument();
+    expect(screen.getByText('dddddddddddd…')).toBeInTheDocument();
+    expect(screen.getByText(/Nada foi sobrescrito/)).toBeInTheDocument();
+    expect(submit()).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar rascunho' }));
+    await waitFor(() => expect(location()).toBe(`/o/${ORG}/versoes/${VER}`));
+    expect(xhr.puts).toHaveLength(1);
+    expect(versionPosts()).toEqual([]);
+  });
+
+  it('duplo clique: uma automação, um envio, nenhum POST de versão', async () => {
+    created();
     const f = zip('ok.zip');
     const sha = await sha256(f);
-    xhrHandler = () => ({ status: 200, body: version({ sha }) });
+    xhr.handler = () => ({ status: 201, body: version({ sha }) });
     await open();
     await pick(f);
     fireEvent.click(submit());
@@ -343,7 +324,7 @@ describe('criar automação com versão e ZIP (T04)', () => {
     fireEvent.click(submit());
     expect(await screen.findByText('Pacote recebido e conferido pela Platform.')).toBeInTheDocument();
     expect(automationPosts()).toHaveLength(1);
-    expect(versionPosts()).toHaveLength(1);
-    expect(puts).toHaveLength(1);
+    expect(versionPosts()).toEqual([]);
+    expect(xhr.puts).toHaveLength(1);
   });
 });

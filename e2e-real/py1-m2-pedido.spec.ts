@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { confirmStepUp, LAB, signUpAndEnroll, type Person } from './support/lab';
+import { confirmStepUp, LAB, signUpAndEnroll, type Person, newVersionWithPackage } from './support/lab';
 
 /**
  * AGENT-PYTHON-001 — Marco 2 com Web, API e Agent REAIS: um projeto Python externo é empacotado pelo gerador (build =
@@ -138,12 +138,8 @@ test('M2: pacote externo publicado, aprovado na máquina e disparado pela Platfo
   await page.getByLabel(/^Nome da automação/).fill('Relatório por pedido');
   await page.getByRole('radio', { name: /Só o nome, como rascunho/ }).check();
   await page.getByRole('button', { name: 'Salvar rascunho' }).click();
-  await page.getByRole('button', { name: 'Nova versão' }).click();
-  await expect(page).toHaveURL(/\/versoes\/[0-9a-f-]{36}$/);
-  const versionUrl = page.url();
-  await page.getByLabel('Arquivo .zip do pacote').setInputFiles(zip);
-  await page.getByRole('button', { name: 'Enviar pacote' }).click();
-  await expect(page.getByText('Pacote recebido e conferido pela Platform.')).toBeVisible();
+  // T09: a versão nasce com o ZIP aceito no formulário "Nova versão"
+  const versionUrl = await newVersionWithPackage(page, zip);
   await expect(page.getByText('Python externo (sem framework Nekkora)')).toBeVisible();
   await expect(page.locator('main')).toContainText(fingerprint.slice(0, 12));
   await page.getByRole('button', { name: 'Publicar versão' }).click();
