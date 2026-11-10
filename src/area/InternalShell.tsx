@@ -39,14 +39,13 @@ export function useInternalArea(): InternalArea {
 const MAIN_ID = 'conteudo';
 
 /** Seção da área interna a que o endereço pertence (menu ativo e título do topo). */
-function sectionOf(pathname: string, org: string): 'inicio' | 'conta' | 'execucoes' | 'workspaces' | 'membros' | 'clientes' | 'concessoes' | 'convites' | 'auditoria' | 'agents' | 'workers' | 'supervisao' | null {
+function sectionOf(pathname: string, org: string): 'inicio' | 'conta' | 'execucoes' | 'workspaces' | 'membros' | 'clientes' | 'concessoes' | 'convites' | 'auditoria' | 'workers' | 'supervisao' | null {
   if (pathname === orgPath.home(org)) return 'inicio';
   const rest = pathname.slice(orgPath.home(org).length);
   if (rest === '/execucoes' || rest.startsWith('/execucoes/')) return 'execucoes';
   if (rest === '/workspaces' || rest.startsWith('/workspaces/') || rest.startsWith('/automacoes/') || rest.startsWith('/versoes/')) return 'workspaces';
   if (rest === '/administracao/membros' || rest.startsWith('/administracao/membros/')) return 'membros';
   if (rest === '/administracao/convites') return 'convites';
-  if (rest === '/agents') return 'agents';
   if (rest === '/workers') return 'workers';
   if (rest === '/supervisao' || rest.startsWith('/supervisao/')) return 'supervisao';
   if (rest === '/administracao/auditoria') return 'auditoria';
@@ -68,7 +67,6 @@ function titleFor(pathname: string, org: string): string {
   if (rest === '/administracao/membros') return 'Membros';
   if (rest.startsWith('/administracao/membros/')) return 'Acessos do membro';
   if (rest === '/administracao/convites') return 'Convites';
-  if (rest === '/agents') return 'Agents';
   if (rest === '/workers') return 'Workers';
   if (rest === '/supervisao') return 'Supervisão';
   if (rest.startsWith('/supervisao/')) return 'Execução local';
@@ -171,9 +169,7 @@ export function InternalShell() {
       label: 'Execução local',
       items: [
         { id: 'supervisao', label: 'Supervisão', href: orgPath.agentRuns(org), icon: 'pulse', active: section === 'supervisao' },
-        ...(permissions.status === 'ready' && permissions.data.organization.permissions.includes('agent.manage')
-          ? [{ id: 'agents', label: 'Agents', href: orgPath.agents(org), icon: 'agent' as const, active: section === 'agents' }]
-          : []),
+        // PLATFORM-AGENT-V2-002, T07: Workers é a entrada única (a máquina vinculada é gerida na linha do Worker); /agents leva até lá
         ...(permissions.status === 'ready' && permissions.data.organization.permissions.includes('worker.manage')
           ? [{ id: 'workers', label: 'Workers', href: orgPath.workers(org), icon: 'server' as const, active: section === 'workers' }]
           : []),

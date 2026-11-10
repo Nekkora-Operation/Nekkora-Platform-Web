@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
-import { expect, test, type Page } from '@playwright/test';
-import { confirmStepUp, LAB, signUpAndEnroll, type Person } from './support/lab';
+import { expect, test } from '@playwright/test';
+import { confirmStepUp, createWorker, LAB, pairNewWorker, signUpAndEnroll } from './support/lab';
 
 /**
  * PLATFORM-LOCAL-002 (item 4) — ativação REAL de uma organização criada pela interface, sem fixture.
@@ -8,8 +8,9 @@ import { confirmStepUp, LAB, signUpAndEnroll, type Person } from './support/lab'
  * A pessoa cria a organização na tela e vê "Aguardando ativação"; a ativação é um ato da OPERAÇÃO, feito pela CLI real dos
  * operadores (`bash tools/lab/local.sh ativar`, que chama `ativar-organizacao` da 022 com o papel op_lab_atv, certificado
  * de cliente de 15 min, a conta responsável do operador e limites explícitos); depois a pessoa volta ao navegador e vê o
- * estado novo e uma consequência prática: o código de pareamento de um Agent com Worker novo, recusado antes (capacidade
- * zero), passa a ser emitido — sem Agent desktop (o código não é usado e não aparece na saída).
+ * estado novo e uma consequência prática: criar um Worker, recusado antes (capacidade zero: limite de Workers), passa a ser
+ * aceito, e o código de pareamento para esse Worker ("Vincular Agent", T07) é emitido — sem Agent desktop (o código não é
+ * usado e não aparece na saída).
  *
  *   FRONT_LAB_ID=<id> FRONT_PORTA=<porta do Vite> npx playwright test -c playwright.real.config.ts ativacao-operador
  * Pré-requisito: `LOCAL_ID=<id> bash tools/lab/local.sh operador preparar` (docs/USO-LOCAL.md, "Ativação pelo operador").
@@ -17,16 +18,6 @@ import { confirmStepUp, LAB, signUpAndEnroll, type Person } from './support/lab'
  */
 const local = (...args: string[]) =>
   execFileSync('bash', ['tools/lab/local.sh', ...args], { env: { ...process.env, LOCAL_ID: LAB }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-
-async function tentarParear(page: Page, org: string, person: Person, worker: string) {
-  await page.goto(`/o/${org}/agents`);
-  await expect(page.getByText('Nenhum Agent pareado.')).toBeVisible();
-  await page.getByRole('button', { name: 'Parear novo Agent' }).click();
-  const dialog = page.getByRole('alertdialog');
-  await dialog.getByLabel(/^Nome da máquina/).fill(`LAB-${worker.toUpperCase()}`);
-  await dialog.getByLabel(/^Nome do Worker/).fill(`Worker ${worker}`);
-  await confirmStepUp(page, person, 'Gerar código');
-}
 
 test('ativação pela CLI real dos operadores: Aguardando ativação → Ativada, auditoria e capacidade para Workers', async ({ page }) => {
   test.setTimeout(600_000);
@@ -47,9 +38,11 @@ test('ativação pela CLI real dos operadores: Aguardando ativação → Ativada
   await expect(page).toHaveURL(/\/o\/[0-9a-f-]{36}$/);
   const org = /\/o\/([0-9a-f-]{36})/.exec(page.url())![1];
 
-  // 2. antes da ativação: capacidade zero — o código de pareamento com Worker novo é recusado pela API
-  await tentarParear(page, org, ana, 'antes');
-  await expect(page.getByText(/ainda não tem capacidade para registrar Workers \(aguardando ativação\)/)).toBeVisible();
+  // 2. antes da ativação: capacidade zero — criar Worker é recusado pela API (409 worker_limit_reached)
+  await page.goto(`/o/${org}/workers`);
+  await expect(page.getByText('Nenhum Worker criado.')).toBeVisible();
+  await createWorker(page, org, 'Worker antes');
+  await expect(page.getByRole('alertdialog').getByText(/A organização atingiu o limite de Workers. Enquanto ela aguarda ativação, o limite é zero/)).toBeVisible();
   await page.keyboard.press('Escape');
 
   // 3. a operação ativa pela CLI real, com limites explícitos de laboratório (2 Workers, 1 simultânea, 10 pendentes)
@@ -70,9 +63,11 @@ test('ativação pela CLI real dos operadores: Aguardando ativação → Ativada
   await expect(depois.getByText('Ativada')).toBeVisible();
   await expect(depois.getByText('Aguardando ativação')).toHaveCount(0);
 
-  // 5. consequência prática: agora o código de pareamento com Worker novo é emitido (sem Agent desktop; não é usado)
+  // 5. consequência prática: agora o Worker é criado e o código de pareamento para ele é emitido (sem Agent desktop; não é usado)
   await depois.getByRole('button', { name: `Entrar em ${nome}` }).click();
   await expect(page).toHaveURL(/\/o\/[0-9a-f-]{36}$/);
-  await tentarParear(page, org, ana, 'depois');
-  await expect(page.getByLabel('Código de uso único')).toHaveText(/^nkp1\./);
+  const codigo = await pairNewWorker(page, org, ana, 'Worker depois', 'LAB-DEPOIS');
+  expect(codigo).toMatch(/^nkp1\./);
+  // nenhuma máquina fictícia: sem o resgate pelo Agent, o Worker continua sem Agent
+  await expect(page.getByRole('region', { name: 'Lista de Workers' }).getByText('Sem Agent')).toBeVisible();
 });

@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { expect, test, type Page, type Response } from '@playwright/test';
-import { confirmStepUp, LAB, signUpAndEnroll } from './support/lab';
+import { confirmStepUp, LAB, pairNewWorker, signUpAndEnroll } from './support/lab';
 
 /**
  * J17 (teclado, foco, zoom 200%, viewports, recarga, links diretos, navegação) e J18 (nenhum segredo em armazenamento,
@@ -61,13 +61,8 @@ test('J17/J18: telas reais com teclado, zoom 200%, viewports, recarga, links dir
   await page.getByRole('button', { name: 'Enviar pacote' }).click();
   await expect(page.getByText('Pacote recebido e conferido pela Platform.')).toBeVisible();
 
-  // código de pareamento: aparece só na tela (J18 confere que não vaza)
-  await page.goto(`/o/${org}/agents`);
-  await page.getByRole('button', { name: 'Parear novo Agent' }).click();
-  await page.getByRole('alertdialog').getByLabel(/^Nome da máquina/).fill('LAB-J17');
-  await page.getByRole('alertdialog').getByLabel(/^Nome do Worker/).fill('Worker J17');
-  await confirmStepUp(page, ana, 'Gerar código');
-  const pairing = (await page.getByLabel('Código de uso único').innerText()).trim();
+  // código de pareamento (T07: Workers → Criar Worker → Vincular Agent): aparece só na tela (J18 confere que não vaza)
+  const pairing = await pairNewWorker(page, org, ana, 'Worker J17', 'LAB-J17');
   await page.getByRole('button', { name: 'Concluir' }).click();
 
   // ---------------- J17: teclado e foco — o primeiro Tab é o atalho para o conteúdo, e ele leva o foco ao conteúdo
@@ -102,7 +97,6 @@ test('J17/J18: telas reais com teclado, zoom 200%, viewports, recarga, links dir
     ['início da organização', `/o/${org}`, /^Olá, /],
     ['workspace', workspaceUrl.replace(/^https?:\/\/[^/]+/, ''), 'Operações'],
     ['versão', versionUrl.replace(/^https?:\/\/[^/]+/, ''), /Biografias da Wikipédia — versão 1/],
-    ['agents', `/o/${org}/agents`, 'Agents'],
     ['workers', `/o/${org}/workers`, 'Workers'],
     ['supervisão', `/o/${org}/supervisao`, 'Supervisão'],
     ['convites', `/o/${org}/administracao/convites`, 'Convites'],
@@ -173,11 +167,13 @@ test('J17/J18: telas reais com teclado, zoom 200%, viewports, recarga, links dir
   await tab.goto(versionUrl);
   await expect(tab.getByRole('heading', { name: /Biografias da Wikipédia — versão 1/ })).toBeVisible();
   await tab.close();
+  // T07: o endereço antigo de Agents leva a Workers sem deixar entrada própria no histórico
   await page.goto(`/o/${org}/agents`);
+  await expect(page).toHaveURL(new RegExp(`/o/${org}/workers$`));
   await page.goBack();
   await expect(page).toHaveURL(versionUrl);
   await page.goForward();
-  await expect(page).toHaveURL(new RegExp(`/o/${org}/agents$`));
+  await expect(page).toHaveURL(new RegExp(`/o/${org}/workers$`));
   // link direto sem sessão (outro contexto): entrada, sem conteúdo da organização
   const anon = await (await browser.newContext()).newPage();
   await anon.goto(versionUrl);

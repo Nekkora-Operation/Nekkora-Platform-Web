@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { confirmStepUp, LAB, signUpAndEnroll, type Person } from './support/lab';
+import { confirmStepUp, LAB, pairNewWorker, signUpAndEnroll, type Person, workersText } from './support/lab';
 
 /**
  * AGENT-PYTHON-001 — Marco 1 com Web, API e Agent REAIS: um Python externo (sem nada da Nekkora) que o Agendador de Tarefas
@@ -91,24 +91,12 @@ test('M1: Python externo do agendador monitorado pela Platform (0, erro com efei
   const automationId = /automacoes\/([0-9a-f-]{36})/.exec(automationUrl)?.[1] ?? /([0-9a-f-]{36})$/.exec(automationUrl)![1];
   log('ids', { org, workspaceId, automationId });
 
-  // ---------- pareamento do Agent real (código na tela, digitado no Agent)
-  await page.goto(`/o/${org}/agents`);
-  await page.getByRole('button', { name: 'Parear novo Agent' }).click();
-  const dialog = page.getByRole('alertdialog');
-  await dialog.getByLabel(/^Nome da máquina/).fill('ESTACAO-PY1');
-  await dialog.getByLabel(/^Nome do Worker/).fill('Worker relatórios');
-  await confirmStepUp(page, ana, 'Gerar código');
-  const code = (await page.getByLabel('Código de uso único').innerText()).trim();
+  // ---------- pareamento do Agent real (T07: Workers → Criar Worker → Vincular Agent; código na tela, digitado no Agent)
+  const code = await pairNewWorker(page, org, ana, 'Worker relatórios', 'ESTACAO-PY1');
   agent('iniciar');
   agent('parear', `${code}\n`);
   await page.getByRole('button', { name: 'Concluir' }).click();
-  const agentsText = async () => {
-    await page.goto(`/o/${org}/agents`);
-    await page.getByRole('heading', { name: 'Agents' }).waitFor();
-    await page.waitForTimeout(1_500);
-    return page.locator('main').innerText();
-  };
-  await expect.poll(agentsText, { timeout: 240_000, intervals: [10_000] }).toMatch(/ESTACAO-PY1[\s\S]*Conectado/);
+  await expect.poll(() => workersText(page, org), { timeout: 240_000, intervals: [10_000] }).toMatch(/ESTACAO-PY1[\s\S]*Conectada/);
   await page.goto(`/o/${org}/workers`);
   await page.getByRole('button', { name: 'Autorizar Worker relatórios num workspace' }).click();
   await page.getByRole('alertdialog').getByLabel('Workspace').selectOption(workspaceId);
