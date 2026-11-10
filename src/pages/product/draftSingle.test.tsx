@@ -221,6 +221,16 @@ describe('um único rascunho por automação (T09)', () => {
     expect(writes()).toEqual([]);
   });
 
+  it('permissões não conferidas (429): avisa que não conferiu, sem dizer "sem permissão" e sem envio', async () => {
+    api.on('GET', `/api/v1/o/${ORG}/me/permissions`, 'getMyPermissions', { status: 429, body: { error: 'rate_limited' } });
+    renderApp(`/o/${ORG}/automacoes/${AUT}/nova-versao`);
+    expect(await screen.findByText('Não foi possível conferir suas permissões agora.')).toBeInTheDocument();
+    expect(screen.queryByText(/não tem permissão/)).toBeNull();
+    expect(screen.queryByLabelText(NEW_ZIP)).toBeNull();
+    expect(writes()).toEqual([]);
+    expect(xhr.puts).toEqual([]);
+  });
+
   it('comando inválido: recusado na tela, sem envio', async () => {
     renderApp(`/o/${ORG}/automacoes/${AUT}/nova-versao`);
     await screen.findByRole('heading', { name: 'Nova versão' });

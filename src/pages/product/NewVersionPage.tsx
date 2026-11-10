@@ -73,6 +73,19 @@ function NewVersion({ automationId }: { automationId: string }) {
   const back = { to: orgPath.automation(org, automationId), label: `Voltar para ${a.name}` };
   const openDraft = (v: LifecycleVersion) => navigate(orgPath.version(org, v.automationVersionId!));
 
+  // permissões não conferidas (ex.: 429 ou rede) não são "sem permissão": a pessoa pode tentar de novo
+  if (perms.status === 'unknown') {
+    return (
+      <Stack gap={5}>
+        <PageHeader title="Nova versão" subtitle={a.name} back={back} />
+        <StateView
+          status="warning"
+          title="Não foi possível conferir suas permissões agora."
+          description="Nada foi criado. Recarregue a página em alguns instantes para tentar de novo."
+        />
+      </Stack>
+    );
+  }
   if (perms.status !== 'ready' || !perms.has('automation.manage') || a.status !== 'active') {
     return (
       <Stack gap={5}>
