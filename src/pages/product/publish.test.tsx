@@ -119,7 +119,7 @@ async function confirmPublish(dialog: HTMLElement) {
   }
 }
 const stepUpDone = () => stepUps().length > 0;
-const needsStepUp = { status: 403, body: { error: 'step_up_required' } } as const;
+const needsStepUp = { status: 403, body: { error: 'forbidden', reason: 'step_up_required' } } as const;
 
 async function openDialog() {
   renderApp(`/o/${ORG}/versoes/${VERSION}`);
