@@ -14,6 +14,8 @@ import { useCursorList } from '../../hooks/useCursorList';
 import { RouteLink, DateTimeText, errorText, LoadErrorState, PageHeader, ResourceStatusBadge, useBackState, useExpiresOn } from './shared';
 
 const PAGE = 25;
+/** Texto do conflito de nome (T03, 409 workspace_name_taken). */
+export const NAME_TAKEN = 'Já existe um workspace com esse nome nesta organização.';
 
 /**
  * Workspaces visíveis (L01: `automation.read` efetivo; arquivados e suspensos incluídos), paginados por cursor na
@@ -29,6 +31,9 @@ export function WorkspacesPage() {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  /** Nome recusado pela API como já existente nesta organização (T03): o campo fica marcado até a pessoa mudar o nome. */
+  const [takenName, setTakenName] = useState<string | null>(null);
+  const nameTaken = takenName !== null && takenName === name.trim();
   const [uncertain, setUncertain] = useState(false);
   const nameOk = name.trim().length > 0 && [...name.trim()].length <= 80 && [...description].length <= 500;
   const [openHandled, setOpenHandled] = useState(false);
@@ -83,22 +88,42 @@ export function WorkspacesPage() {
         guard={{ operation: 'workspace.create' }}
         confirmLabel="Criar workspace"
         ready={nameOk}
-        action={() => createWorkspace(org, name.trim(), description.trim() || undefined)}
+        action={() =>
+          createWorkspace(org, name.trim(), description.trim() || undefined).catch((e: unknown) => {
+            if (isApiError(e, 'workspace_name_taken')) setTakenName(name.trim());
+            throw e;
+          })
+        }
         onDone={(w) => {
           setCreating(false);
           setName('');
           setDescription('');
+          setTakenName(null);
           reloadWorkspaces();
           if (w.workspaceId) navigate(orgPath.workspace(org, w.workspaceId));
           else setRefresh((n) => n + 1);
         }}
         onClose={() => setCreating(false)}
-        refusalText={(e) => accessRefusal(e, { forbidden: 'Você não tem permissão para criar workspaces nesta organização.' })}
+        refusalText={(e) =>
+          isApiError(e, 'workspace_name_taken')
+            ? `${NAME_TAKEN} Escolha outro nome. Nada foi criado.`
+            : accessRefusal(e, { forbidden: 'Você não tem permissão para criar workspaces nesta organização.' })
+        }
         uncertainText="Não foi possível confirmar se o workspace foi criado. Feche e atualize a lista antes de tentar de novo."
         onUnauthenticated={expired}
         onOutcome={(k) => k === 'uncertain' && setUncertain(true)}
       >
-        <Input label="Nome" required fullWidth maxLength={80} value={name} onChange={(e) => setName(e.target.value)} hint="Até 80 caracteres." />
+        <Input
+          label="Nome"
+          required
+          fullWidth
+          maxLength={80}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          hint="Até 80 caracteres. Precisa ser diferente dos outros workspaces da organização (maiúsculas e espaços nas pontas não contam)."
+          error={nameTaken ? NAME_TAKEN : undefined}
+          aria-invalid={nameTaken || undefined}
+        />
         <Textarea label="Descrição (opcional)" fullWidth maxLength={500} value={description} onChange={(e) => setDescription(e.target.value)} />
       </StepUpDialog>
       {list.status === 'loading' ? (

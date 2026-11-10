@@ -16,6 +16,8 @@ export type ApiErrorCode =
   | 'already_member'
   | 'account_exists'
   | 'account_unavailable'
+  /** Workspace (409): já existe outro com o mesmo nome nesta organização (sem distinção de maiúsculas nem espaços nas pontas). */
+  | 'workspace_name_taken'
   /** Pacote recusado pela conferência da API (422), com motivo de vocabulário fechado em `reason`. */
   | 'package_rejected'
   | 'rate_limited'
@@ -40,6 +42,7 @@ const KNOWN: ReadonlySet<string> = new Set([
   'already_member',
   'account_exists',
   'account_unavailable',
+  'workspace_name_taken',
   'package_rejected',
   'rate_limited',
   'internal_error',
