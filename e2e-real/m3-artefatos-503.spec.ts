@@ -31,8 +31,10 @@ test('503 de artefatos: armazenamento não configurado, nada gravado, nenhuma co
   await page.getByRole('alertdialog').getByLabel(/^Nome/).fill('Operações');
   await page.getByRole('alertdialog').getByRole('button', { name: 'Criar workspace' }).click();
   await page.getByRole('button', { name: 'Criar automação' }).click();
-  await page.getByRole('alertdialog').getByLabel(/^Nome da automação/).fill('Biografias da Wikipédia');
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar automação' }).click();
+  // T04: criação em página própria; aqui, o caminho só com o nome (rascunho)
+  await page.getByLabel(/^Nome da automação/).fill('Biografias da Wikipédia');
+  await page.getByRole('radio', { name: /Só o nome, como rascunho/ }).check();
+  await page.getByRole('button', { name: 'Salvar rascunho' }).click();
   await page.getByRole('button', { name: 'Nova versão' }).click();
   await expect(page).toHaveURL(/\/versoes\/[0-9a-f-]{36}$/);
   await expect(page.getByText('Esta versão ainda não tem pacote.')).toBeVisible();

@@ -36,8 +36,10 @@ test('J10/J11: automação, versão, ZIP inválido recusado, pacote real conferi
   await expect(page.getByRole('heading', { name: 'Operações' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Criar automação' }).click();
-  await page.getByRole('alertdialog').getByLabel(/^Nome da automação/).fill('Biografias da Wikipédia');
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar automação' }).click();
+  // T04: criação em página própria; aqui, o caminho só com o nome (rascunho)
+  await page.getByLabel(/^Nome da automação/).fill('Biografias da Wikipédia');
+  await page.getByRole('radio', { name: /Só o nome, como rascunho/ }).check();
+  await page.getByRole('button', { name: 'Salvar rascunho' }).click();
   await expect(page.getByRole('heading', { name: 'Biografias da Wikipédia' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Nova versão' }).click();

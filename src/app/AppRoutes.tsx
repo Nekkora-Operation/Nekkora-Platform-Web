@@ -23,6 +23,7 @@ import { ExecutionDetailPage } from '../pages/product/ExecutionDetailPage';
 import { WorkspaceDetailPage } from '../pages/product/WorkspaceDetailPage';
 import { WorkspacesPage } from '../pages/product/WorkspacesPage';
 import { VersionPage } from '../pages/product/VersionPage';
+import { NewAutomationPage } from '../pages/product/NewAutomationPage';
 import { AgentsPage } from '../pages/agents/AgentsPage';
 import { WorkersPage } from '../pages/agents/WorkersPage';
 import { AgentRunPage, AgentRunsPage } from '../pages/agents/supervision';
@@ -81,6 +82,7 @@ export function AppRoutes() {
           <Route path="execucoes/:executionId" element={<ExecutionDetailPage />} />
           <Route path="workspaces" element={<WorkspacesPage />} />
           <Route path="workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
+          <Route path="workspaces/:workspaceId/nova-automacao" element={<NewAutomationPage />} />
           <Route path="automacoes/:automationId" element={<AutomationDetailPage />} />
           <Route path="versoes/:versionId" element={<VersionPage />} />
           {/* M4: execução local e supervisão */}
