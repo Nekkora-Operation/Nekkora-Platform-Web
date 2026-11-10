@@ -75,7 +75,7 @@ export function draftPackagePath(org: string, automationId: string, expect: Draf
 }
 
 /**
- * O rascunho atual da automação, lido da API (ou `null`). No máximo um por automação (033) e sempre o de maior número
+ * O rascunho atual da automação, lido da API (ou `null`). No máximo um por automação (032) e sempre o de maior número
  * (só nasce quando não há outro, com MAX+1): é o primeiro da lista, ordenada por número decrescente.
  */
 export async function readAutomationDraft(org: string, automationId: string): Promise<LifecycleVersion | null> {
