@@ -82,8 +82,10 @@ test('M1: Python externo do agendador monitorado pela Platform (0, erro com efei
   await expect(page.getByRole('heading', { name: 'Operações' })).toBeVisible();
   const workspaceId = /workspaces\/([0-9a-f-]{36})/.exec(page.url())![1];
   await page.getByRole('button', { name: 'Criar automação' }).click();
-  await page.getByRole('alertdialog').getByLabel(/^Nome da automação/).fill('Relatório CSV');
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar automação' }).click();
+  // T04: criação em página própria; aqui, o caminho só com o nome (rascunho)
+  await page.getByLabel(/^Nome da automação/).fill('Relatório CSV');
+  await page.getByRole('radio', { name: /Só o nome, como rascunho/ }).check();
+  await page.getByRole('button', { name: 'Salvar rascunho' }).click();
   await expect(page.getByRole('heading', { name: 'Relatório CSV' })).toBeVisible();
   const automationUrl = page.url();
   const automationId = /automacoes\/([0-9a-f-]{36})/.exec(automationUrl)?.[1] ?? /([0-9a-f-]{36})$/.exec(automationUrl)![1];
