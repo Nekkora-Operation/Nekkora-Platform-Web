@@ -99,6 +99,28 @@ beforeEach(() => {
 const publishes = () => api.sent('POST', `/api/v1/o/${ORG}/automation-versions/${VERSION}/publish`);
 const stepUps = () => api.sent('POST', `/api/v1/o/${ORG}/auth/mfa/step-up`);
 
+/**
+ * Confirma a publicação nos dois comportamentos do diálogo: o código antes do ato (como hoje) ou, com a T01, só quando a
+ * API responder step_up_required. A rota de publicação dos testes pede a confirmação enquanto não houver step-up.
+ */
+async function confirmPublish(dialog: HTMLElement) {
+  const confirm = within(dialog).getByRole('button', { name: 'Publicar' });
+  const fill = () => fireEvent.change(within(dialog).getByLabelText(/Código do seu aplicativo autenticador/), { target: { value: '123456' } });
+  if (within(dialog).queryByLabelText(/Código do seu aplicativo autenticador/)) fill();
+  await waitFor(() => expect(confirm).toBeEnabled());
+  fireEvent.click(confirm);
+  await waitFor(() => expect(publishes().length + stepUps().length).toBeGreaterThan(0));
+  if (stepUps().length === 0) {
+    // T01: o ato foi primeiro e a API pediu a confirmação; nada publicado ainda
+    await within(dialog).findByLabelText(/Código do seu aplicativo autenticador/);
+    fill();
+    await waitFor(() => expect(confirm).toBeEnabled());
+    fireEvent.click(confirm);
+  }
+}
+const stepUpDone = () => stepUps().length > 0;
+const needsStepUp = { status: 403, body: { error: 'step_up_required' } } as const;
+
 async function openDialog() {
   renderApp(`/o/${ORG}/versoes/${VERSION}`);
   fireEvent.click(await screen.findByRole('button', { name: 'Publicar versão' }));
@@ -111,6 +133,7 @@ describe('publicação compreensível (T05)', () => {
     api.on('GET', `/api/v1/o/${ORG}/automation-versions/${VERSION}`, 'getAutomationVersion', () => ({ status: 200, body: current }));
     api.on('POST', `/api/v1/o/${ORG}/auth/mfa/step-up`, 'mfaStepUp', { status: 204 });
     api.on('POST', `/api/v1/o/${ORG}/automation-versions/${VERSION}/publish`, 'publishAutomationVersion', () => {
+      if (!stepUpDone()) return needsStepUp;
       current = version({ status: 'PUBLISHED' });
       return { status: 200, body: current };
     });
@@ -127,15 +150,13 @@ describe('publicação compreensível (T05)', () => {
     expect(within(dialog).queryByLabelText(/Comparar com um valor/)).toBeNull();
     expect(within(dialog).getByRole('button', { name: 'Conferir identificação técnica' })).toHaveAttribute('aria-expanded', 'false');
 
-    const confirm = within(dialog).getByRole('button', { name: 'Publicar' });
-    fireEvent.change(within(dialog).getByLabelText(/Código do seu aplicativo autenticador/), { target: { value: '123456' } });
-    await waitFor(() => expect(confirm).toBeEnabled());
-    fireEvent.click(confirm);
+    await confirmPublish(dialog);
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
     expect(await screen.findByText('Versão publicada: não muda mais.')).toBeInTheDocument();
     expect(stepUps()).toHaveLength(1);
-    expect(publishes()).toHaveLength(1);
-    expect(publishes()[0].body).toEqual({ expectedArtifactSha256: SHA, expectedPackageFingerprint: FP });
+    // uma publicação aceita; com a T01, antes dela uma recusa step_up_required sem efeito
+    expect(publishes().length).toBeLessThanOrEqual(2);
+    for (const p of publishes()) expect(p.body).toEqual({ expectedArtifactSha256: SHA, expectedPackageFingerprint: FP });
     // publicar não é executar: nenhum outro ato enviado
     expect(api.sent('POST', /run-requests|local-run-authorizations|executions/)).toEqual([]);
     expect(await screen.findByText('Publicada (imutável)')).toBeInTheDocument();
@@ -158,7 +179,8 @@ describe('publicação compreensível (T05)', () => {
     const a11y = await axe.run(dialog, { rules: { 'color-contrast': { enabled: false }, region: { enabled: false } } });
     expect(a11y.violations.map((v) => v.id)).toEqual([]);
 
-    fireEvent.change(within(dialog).getByLabelText(/Código do seu aplicativo autenticador/), { target: { value: '123456' } });
+    const code = within(dialog).queryByLabelText(/Código do seu aplicativo autenticador/);
+    if (code) fireEvent.change(code, { target: { value: '123456' } });
     const confirm = within(dialog).getByRole('button', { name: 'Publicar' });
     await waitFor(() => expect(confirm).toBeEnabled());
     const compare = within(panel).getByLabelText(/Comparar com um valor/);
@@ -186,17 +208,15 @@ describe('publicação compreensível (T05)', () => {
     let current = version();
     api.on('GET', `/api/v1/o/${ORG}/automation-versions/${VERSION}`, 'getAutomationVersion', () => ({ status: 200, body: current }));
     api.on('POST', `/api/v1/o/${ORG}/auth/mfa/step-up`, 'mfaStepUp', { status: 204 });
-    api.on('POST', `/api/v1/o/${ORG}/automation-versions/${VERSION}/publish`, 'publishAutomationVersion', { status: 409, body: { error: 'conflict' } });
+    api.on('POST', `/api/v1/o/${ORG}/automation-versions/${VERSION}/publish`, 'publishAutomationVersion', () =>
+      stepUpDone() ? { status: 409, body: { error: 'conflict' } } : needsStepUp,
+    );
     const dialog = await openDialog();
     current = version({ sha: 'd'.repeat(64) }); // outra aba trocou o pacote
-    fireEvent.change(within(dialog).getByLabelText(/Código do seu aplicativo autenticador/), { target: { value: '123456' } });
-    const confirm = within(dialog).getByRole('button', { name: 'Publicar' });
-    await waitFor(() => expect(confirm).toBeEnabled());
-    fireEvent.click(confirm);
+    await confirmPublish(dialog);
     expect(await within(dialog).findByText(/o pacote mudou depois da sua conferência/)).toBeInTheDocument();
-    expect(stepUps()).toHaveLength(1);
-    expect(publishes()).toHaveLength(1);
-    expect(publishes()[0].body).toEqual({ expectedArtifactSha256: SHA, expectedPackageFingerprint: FP }); // o par conferido, não o novo
+    expect(stepUps()).toHaveLength(1); // a identidade foi confirmada, e mesmo assim a API recusou a troca
+    for (const p of publishes()) expect(p.body).toEqual({ expectedArtifactSha256: SHA, expectedPackageFingerprint: FP }); // o par conferido, não o novo
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
     expect(await screen.findByText('d'.repeat(64))).toBeInTheDocument(); // a versão foi relida
