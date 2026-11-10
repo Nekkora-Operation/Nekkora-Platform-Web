@@ -145,7 +145,6 @@ test('M2: pacote externo publicado, aprovado na máquina e disparado pela Platfo
   await expect(page.getByText('Python externo (sem framework Nekkora)')).toBeVisible();
   await expect(page.locator('main')).toContainText(fingerprint.slice(0, 12));
   await page.getByRole('button', { name: 'Publicar versão' }).click();
-  await page.getByRole('alertdialog').getByLabel('Conferi o pacote desta versão.').check();
   await confirmStepUp(page, ana, 'Publicar');
   await expect(page.getByText('Publicada (imutável)')).toBeVisible();
   await shot(page, 'm2-01-versao-pacote-externo-publicada');

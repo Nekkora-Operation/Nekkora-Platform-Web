@@ -109,7 +109,6 @@ async function setup(page: Page, person: Person) {
   await page.getByRole('button', { name: 'Enviar pacote' }).click();
   await expect(page.getByText('Pacote recebido e conferido pela Platform.')).toBeVisible();
   await page.getByRole('button', { name: 'Publicar versão' }).click();
-  await page.getByRole('alertdialog').getByLabel('Conferi o pacote desta versão.').check();
   await confirmStepUp(page, person, 'Publicar');
   await expect(page.getByText('Publicada (imutável)')).toBeVisible();
 
