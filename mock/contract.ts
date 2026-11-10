@@ -108,7 +108,7 @@ interface Session {
   stepUpAt?: number;
 }
 
-/** Janela do step-up exigido pelo reset administrativo de MFA (application.yml: nekkora.session.step-up = 5m). */
+/** Janela do step-up exigido pelo reset administrativo de MFA (application.yml: nekkora.session.step-up-own-proof = 5m; T01). */
 const STEP_UP_WINDOW = 5 * 60_000;
 const MFA_RESET_REASONS = ['DISPOSITIVO_PERDIDO', 'DISPOSITIVO_TROCADO', 'SUSPEITA_COMPROMETIMENTO', 'OUTRO'];
 
@@ -783,7 +783,8 @@ export class MockApi {
     if (target === actor.userId) return error(403, 'forbidden');
     const acc = this.accounts.get(target);
     if (!acc || acc.org !== org) return error(404, 'not_found');
-    if (s.stepUpAt === undefined || this.now() - s.stepUpAt >= STEP_UP_WINDOW) return error(403, 'forbidden');
+    // T01 (API): sem a confirmação dos últimos 5 min (prova própria do reset) → 403 step_up_required, nada feito
+    if (s.stepUpAt === undefined || this.now() - s.stepUpAt >= STEP_UP_WINDOW) return error(403, 'step_up_required');
     const effectiveAdmin = (a: Account) =>
       a.org === org && a.accountType === 'internal' && a.active && !a.closed && a.membershipStatus === 'active' &&
       (this.product.memberships.get(a.membershipId)?.orgRoles ?? []).includes('ORG_ADMIN');

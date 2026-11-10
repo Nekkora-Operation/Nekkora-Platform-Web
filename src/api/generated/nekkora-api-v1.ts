@@ -119,8 +119,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Step-up com TOTP na sessao (exigido pelo reset administrativo de MFA)
-         * @description Codigo TOTP errado -> 403 forbidden (step_up); so codigo TOTP (recoveryCode nao aceito). Sessao do login por organizacao: TOTP do fator local, R1/R4, caminho inalterado. Sessao VINCULADA (nascida da troca, contrato P4): TOTP do fator da IDENTIDADE de origem. O CSRF desta sessao de organizacao continua exigido (o CSRF da sessao de identidade nao o substitui) e o cookie __Host-nekkora_id e exigido EM ADICAO, resolvendo exatamente a sessao de identidade que originou esta sessao (unica rota em que os dois cookies valem juntos). Cookie ausente, de outra identidade ou de outra sessao da mesma identidade: 403 sem conferir o codigo. Numa so transacao, na ordem global da 017 (identidade -> sessao de identidade -> organizacao -> conta -> sessao de organizacao), com a revalidacao da sessao de organizacao sob o lock, anti-replay no fator da identidade (um codigo aceito aqui nao serve para outro step-up, global ou de outra organizacao, nem para o login), step-up SO nesta sessao de organizacao (nem na de identidade, nem em outra sessao), eventos mfa_events 6 e identity_events 14 (ORG_STEP_UP) no mesmo commit, e as duas sessoes e a janela do passo reconferidas antes do commit. Codigo errado ou replay: 403, contado em R8m (identidade global). Sessao que caiu durante as esperas: 401, sem efeito.
+         * Confirmacao de identidade com TOTP na sessao: abre a janela fixa de 60 min das acoes sensiveis comuns (T01)
+         * @description PLATFORM-V2-001, T01: o 204 abre uma janela FIXA de 60 minutos, contada deste instante, para as acoes sensiveis comuns DESTA sessao (convites, papeis, concessoes, Agents e Workers, autorizacao de execucao, publicacao, pedidos de execucao); usar acoes nao estende o prazo, e cada ato continua conferindo sessao, organizacao e permissao. Prova propria mais curta: o reset administrativo de MFA exige a confirmacao dos ultimos 5 minutos. Sem confirmacao valida, o ato responde 403 step_up_required (nada feito). O codigo nunca e guardado nem reaproveitado (anti-replay). Codigo TOTP errado -> 403 forbidden (step_up); so codigo TOTP (recoveryCode nao aceito). Sessao do login por organizacao: TOTP do fator local, R1/R4, caminho inalterado. Sessao VINCULADA (nascida da troca, contrato P4): TOTP do fator da IDENTIDADE de origem. O CSRF desta sessao de organizacao continua exigido (o CSRF da sessao de identidade nao o substitui) e o cookie __Host-nekkora_id e exigido EM ADICAO, resolvendo exatamente a sessao de identidade que originou esta sessao (unica rota em que os dois cookies valem juntos). Cookie ausente, de outra identidade ou de outra sessao da mesma identidade: 403 sem conferir o codigo. Numa so transacao, na ordem global da 017 (identidade -> sessao de identidade -> organizacao -> conta -> sessao de organizacao), com a revalidacao da sessao de organizacao sob o lock, anti-replay no fator da identidade (um codigo aceito aqui nao serve para outro step-up, global ou de outra organizacao, nem para o login), step-up SO nesta sessao de organizacao (nem na de identidade, nem em outra sessao), eventos mfa_events 6 e identity_events 14 (ORG_STEP_UP) no mesmo commit, e as duas sessoes e a janela do passo reconferidas antes do commit. Codigo errado ou replay: 403, contado em R8m (identidade global). Sessao que caiu durante as esperas: 401, sem efeito.
          */
         post: operations["mfaStepUp"];
         delete?: never;
@@ -139,7 +139,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 029: reconfirma a senha na sessao de organizacao VINCULADA sem segundo fator (vale 5 min, so nesta sessao)
+         * 029: reconfirma a senha na sessao de organizacao VINCULADA sem segundo fator (abre a mesma janela fixa do step-up, T01; so nesta sessao)
          * @description Sessao de organizacao nascida da troca a partir de sessao de identidade sem MFA (identidade que nunca confirmou fator), com o cookie __Host-nekkora_id da sessao de identidade de origem EXATA em adicao ao CSRF desta sessao (como o step-up vinculado). Grava password_step_up_at nesta sessao de organizacao e o evento 19 com a organizacao. Substitui o step-up por TOTP nesta sessao para as acoes sensiveis (convites, papeis, concessoes, Agent e Workers, autorizacao de execucao, publicacao, reset administrativo). Sessao do login por organizacao, sessao com MFA, senha errada ou cookie de outra sessao de identidade: 403, sem efeito.
          */
         post: operations["orgPasswordConfirm"];
@@ -826,7 +826,7 @@ export interface paths {
         put?: never;
         /**
          * Emite convite para a organizacao (org.manage e autoridade sobre o papel; step-up)
-         * @description Contrato de 2026-10-27, secao 4 (023). Corpo: email e, opcional, um papel: ORG_ADMIN (sem workspaceId) ou WORKSPACE_ADMIN/OPERATOR/VIEWER com workspaceId de workspace ativo da organizacao. Exige org.manage, a permissao de atribuir o papel (role.assign_admin_roles ou role.assign_operator_viewer) e step-up de ate 5 min na mesma sessao, reconferidos depois do lock da organizacao. Prazo de 7 dias; token de 32 bytes so no e-mail (fila cifrada, link /o/{org}/convite#token=), o banco guarda o SHA-256. Um convite aberto por organizacao e e-mail: outro aberto e no prazo -> 409 (use o reenvio); um aberto vencido e fechado (motivo EXPIRADO) no mesmo ato. Destinataria ja cadastrada na organizacao -> 409, exceto a readmissao (conta ligada a identidade, ativa, com vinculo retirado). Auditoria (access_events 1). Chave nekkora.convites.enabled com a entrada geral: desligada, 404.
+         * @description Contrato de 2026-10-27, secao 4 (023). Corpo: email e, opcional, um papel: ORG_ADMIN (sem workspaceId) ou WORKSPACE_ADMIN/OPERATOR/VIEWER com workspaceId de workspace ativo da organizacao. Exige org.manage, a permissao de atribuir o papel (role.assign_admin_roles ou role.assign_operator_viewer) e confirmacao na janela da sessao (T01), reconferidos depois do lock da organizacao. Prazo de 7 dias; token de 32 bytes so no e-mail (fila cifrada, link /o/{org}/convite#token=), o banco guarda o SHA-256. Um convite aberto por organizacao e e-mail: outro aberto e no prazo -> 409 (use o reenvio); um aberto vencido e fechado (motivo EXPIRADO) no mesmo ato. Destinataria ja cadastrada na organizacao -> 409, exceto a readmissao (conta ligada a identidade, ativa, com vinculo retirado). Auditoria (access_events 1). Chave nekkora.convites.enabled com a entrada geral: desligada, 404.
          */
         post: operations["issueInvitation"];
         delete?: never;
@@ -1838,7 +1838,7 @@ export interface components {
     schemas: {
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "unauthenticated" | "forbidden" | "not_found" | "conflict" | "already_member" | "account_exists" | "account_unavailable" | "rate_limited" | "internal_error" | "service_unavailable" | "unsupported_contract";
+            error: "invalid_request" | "unauthenticated" | "forbidden" | "not_found" | "conflict" | "already_member" | "account_exists" | "account_unavailable" | "step_up_required" | "rate_limited" | "internal_error" | "service_unavailable" | "unsupported_contract";
         };
         /**
          * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
@@ -2143,7 +2143,7 @@ export interface components {
             stepUpMethod: components["schemas"]["StepUpMethod"];
         };
         /**
-         * @description 029: como ESTA sessao prova a pessoa nas acoes sensiveis. password so em sessao sem segundo fator de identidade que nunca confirmou fator (POST .../password-confirm, vale 5 min); totp em todas as demais (POST .../step-up). A senha nunca substitui o codigo de quem tem fator.
+         * @description 029: como ESTA sessao prova a pessoa nas acoes sensiveis. password so em sessao sem segundo fator de identidade que nunca confirmou fator (POST .../password-confirm; identidade: vale 5 min; organizacao: abre a janela fixa das acoes comuns, T01); totp em todas as demais (POST .../step-up). A senha nunca substitui o codigo de quem tem fator.
          * @enum {string}
          */
         StepUpMethod: "totp" | "password";
@@ -3124,7 +3124,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Conta externa, sem a permissao exigida, ou Origin/CSRF invalido */
+        /** @description Conta externa, sem a permissao exigida, ou Origin/CSRF invalido (forbidden). Nas acoes sensiveis da sessao de organizacao, com tudo o mais conferido e sem confirmacao de identidade valida na janela: step_up_required (T01; confirme e repita o ato) */
         Forbidden: {
             headers: {
                 [name: string]: unknown;

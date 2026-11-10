@@ -16,6 +16,11 @@ export type ApiErrorCode =
   | 'already_member'
   | 'account_exists'
   | 'account_unavailable'
+  /**
+   * Ato sensível da sessão de organização sem confirmação de identidade válida (403; PLATFORM-V2-001, T01): o resto foi
+   * conferido e nada foi feito. Confirmar (código ou senha) abre uma janela de uma hora nesta sessão.
+   */
+  | 'step_up_required'
   /** Pacote recusado pela conferência da API (422), com motivo de vocabulário fechado em `reason`. */
   | 'package_rejected'
   | 'rate_limited'
@@ -40,6 +45,7 @@ const KNOWN: ReadonlySet<string> = new Set([
   'already_member',
   'account_exists',
   'account_unavailable',
+  'step_up_required',
   'package_rejected',
   'rate_limited',
   'internal_error',

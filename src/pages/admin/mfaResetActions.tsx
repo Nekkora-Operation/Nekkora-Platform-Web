@@ -46,6 +46,9 @@ export function mfaRefusalText(e: unknown, name: string): string {
     if (isApiError(cause, 'forbidden', 'invalid_request')) return `Não foi possível confirmar sua identidade. ${nothing}`;
     return `Não foi possível confirmar sua identidade agora. ${nothing}`;
   }
+  // T01: a redefinição é prova própria (confirmação dos últimos 5 minutos), mesmo com a janela de uma hora aberta
+  if (isApiError(cause, 'step_up_required'))
+    return `A confirmação de identidade não vale mais para a redefinição, que exige o código dos últimos 5 minutos. Digite um código novo e confirme de novo. ${nothing}`;
   if (isApiError(cause, 'not_found')) return 'Este membro não foi encontrado nesta organização. A lista pode estar desatualizada.';
   if (isApiError(cause, 'rate_limited')) return `Muitas tentativas em pouco tempo. Aguarde um pouco e tente de novo. ${nothing}`;
   if (isApiError(cause, 'invalid_request')) return `O pedido não foi aceito. Atualize a lista e tente de novo. ${nothing}`;
