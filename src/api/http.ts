@@ -147,8 +147,9 @@ export function apiErrorFrom(status: number, body: unknown, retryAfter: string |
 }
 
 /**
- * Erro de código CONHECIDO com um motivo do contrato (PLATFORM-V2-001): ex. conflict + workspace_name_taken. Quem não
- * conhece o motivo trata o código como sempre (recusa: nada foi feito).
+ * Erro de código CONHECIDO com um motivo do contrato (PLATFORM-V2-001): ex. conflict + workspace_name_taken (nome de
+ * workspace em uso na organização) ou forbidden + step_up_required (ato sensível da sessão de organização sem confirmação
+ * de identidade válida). Nada foi feito. Quem não conhece o motivo trata o código como sempre (recusa).
  */
 export function hasReason(e: unknown, code: ApiErrorCode, reason: string): boolean {
   return e instanceof ApiError && e.code === code && e.reason === reason;

@@ -169,7 +169,15 @@ cole em arquivos, issues ou evidências. A mensagem pode levar alguns segundos p
 
 **A autenticação em duas etapas é opcional** (API com a migration 029). Depois de confirmar o e-mail, você entra só com
 a senha, sem QR. Enquanto ela estiver desativada, as ações sensíveis (criar organização, convidar, mudar papéis,
-publicar, credenciais do Agent etc.) pedem a **senha de novo**, imediatamente antes do ato.
+publicar, credenciais do Agent etc.) pedem a **senha de novo**.
+
+**Quanto vale a confirmação (PLATFORM-V2-001, T01).** Dentro de uma organização, uma confirmação (código ou senha) vale
+por **uma hora** nas ações sensíveis: publicar versões, convidar e reenviar convites, atribuir e trocar papéis,
+aprovar, renovar ou manter na revisão acessos de clientes, emitir códigos e revogar Agents, autorizar computadores e
+execuções, e pedir ou cancelar execuções. A tela só pede o código quando a API diz que falta. **Continuam com 5
+minutos:** redefinir a autenticação de outra pessoa (código dos últimos 5 minutos, mesmo com a hora aberta) e tudo o
+que é da sua conta — trocar a senha ou o fator em **Minha conta**, criar organização, vincular conta e aceitar convite —,
+em que a confirmação é pedida imediatamente antes do ato.
 
 **Para ativar:** Segurança da conta → **Ativar autenticação em duas etapas** → confirme a senha → leia o QR com o seu
 aplicativo (Microsoft Authenticator, Google Authenticator, 1Password etc.) → digite o código de 6 dígitos. A tela mostra

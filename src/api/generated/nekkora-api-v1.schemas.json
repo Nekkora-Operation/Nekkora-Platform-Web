@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "f0962aad8b93ee2cb92ee0430b58ba4f35f4f0bb776125dac5c11dce6e942e4a",
+  "openapiSha256": "81e50f3ce5799c5fa3efa8c4abc9b99e74f91ed6e353dca1d7c7412d5f08d729",
   "schemas": {
     "Error": {
       "type": "object",
@@ -27,7 +27,8 @@
         "reason": {
           "type": "string",
           "enum": [
-            "workspace_name_taken"
+            "workspace_name_taken",
+            "step_up_required"
           ]
         }
       }
