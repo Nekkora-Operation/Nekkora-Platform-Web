@@ -10,7 +10,7 @@ import { RouteApi } from '../../test/routeApi';
 import { NAME_TAKEN } from './WorkspacesPage';
 
 /**
- * PLATFORM-V2-001, T03 — nome de workspace único por organização. A API recusa com 409 workspace_name_taken (inclusive
+ * PLATFORM-V2-001, T03 — nome de workspace único por organização. A API recusa com 409 conflict + reason workspace_name_taken (inclusive
  * " financeiro " contra "Financeiro"): a tela diz exatamente o que houve, mantém o formulário (nome e descrição), marca o
  * campo, não envia de novo sozinha e aceita a correção no mesmo diálogo. Respostas por rota conferidas contra o contrato.
  */
@@ -59,11 +59,11 @@ beforeEach(() => {
 });
 
 describe('nome de workspace já usado na organização (T03)', () => {
-  it('409 workspace_name_taken: mensagem exata, formulário mantido, um único envio; corrigir o nome cria', async () => {
+  it('409 conflict + workspace_name_taken: mensagem exata, formulário mantido, um único envio; corrigir o nome cria', async () => {
     let answer: 'taken' | 'created' = 'taken';
     api.on('POST', `/api/v1/o/${ORG}/workspaces`, 'createWorkspace', () =>
       answer === 'taken'
-        ? { status: 409, body: { error: 'workspace_name_taken' } }
+        ? { status: 409, body: { error: 'conflict', reason: 'workspace_name_taken' } }
         : { status: 201, body: { workspaceId: '33333333-3333-4333-8333-333333333333', name: 'Financeiro Norte', status: 'ACTIVE', createdAt: T } },
     );
     renderApp(`/o/${ORG}/workspaces`);

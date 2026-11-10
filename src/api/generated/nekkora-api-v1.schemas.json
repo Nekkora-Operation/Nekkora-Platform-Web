@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "41edc1ecfc73a6e318b58b72869609e79736f9a0cdbbaec191b533427c4ff618",
+  "openapiSha256": "f0962aad8b93ee2cb92ee0430b58ba4f35f4f0bb776125dac5c11dce6e942e4a",
   "schemas": {
     "Error": {
       "type": "object",
@@ -18,11 +18,16 @@
             "already_member",
             "account_exists",
             "account_unavailable",
-            "workspace_name_taken",
             "rate_limited",
             "internal_error",
             "service_unavailable",
             "unsupported_contract"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "workspace_name_taken"
           ]
         }
       }

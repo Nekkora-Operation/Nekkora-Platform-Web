@@ -5,7 +5,7 @@ import { createWorkspace } from '../../api/access';
 import { useInternalArea } from '../../area/InternalShell';
 import { StepUpDialog } from '../../components/StepUpDialog';
 import { accessRefusal } from '../access/shared';
-import { isApiError } from '../../api/http';
+import { hasReason, isApiError } from '../../api/http';
 import { listWorkspaces } from '../../api/product';
 import type { Workspace } from '../../api/v1';
 import { orgPath } from '../../auth/organization';
@@ -14,7 +14,7 @@ import { useCursorList } from '../../hooks/useCursorList';
 import { RouteLink, DateTimeText, errorText, LoadErrorState, PageHeader, ResourceStatusBadge, useBackState, useExpiresOn } from './shared';
 
 const PAGE = 25;
-/** Texto do conflito de nome (T03, 409 workspace_name_taken). */
+/** Texto do conflito de nome (T03, 409 conflict com reason workspace_name_taken). */
 export const NAME_TAKEN = 'Já existe um workspace com esse nome nesta organização.';
 
 /**
@@ -90,7 +90,7 @@ export function WorkspacesPage() {
         ready={nameOk}
         action={() =>
           createWorkspace(org, name.trim(), description.trim() || undefined).catch((e: unknown) => {
-            if (isApiError(e, 'workspace_name_taken')) setTakenName(name.trim());
+            if (hasReason(e, 'conflict', 'workspace_name_taken')) setTakenName(name.trim());
             throw e;
           })
         }
@@ -105,7 +105,7 @@ export function WorkspacesPage() {
         }}
         onClose={() => setCreating(false)}
         refusalText={(e) =>
-          isApiError(e, 'workspace_name_taken')
+          hasReason(e, 'conflict', 'workspace_name_taken')
             ? `${NAME_TAKEN} Escolha outro nome. Nada foi criado.`
             : accessRefusal(e, { forbidden: 'Você não tem permissão para criar workspaces nesta organização.' })
         }
