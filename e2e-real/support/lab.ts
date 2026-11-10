@@ -163,9 +163,24 @@ export async function signInWithTotp(page: Page, person: Person) {
   await expect(page).toHaveURL(/\/organizacoes$/);
 }
 
-/** Confirma um diálogo de step-up com o próximo código do autenticador. */
-export async function confirmStepUp(page: Page, person: Person, confirmLabel: string) {
+/**
+ * Confirma um diálogo de ato sensível com o próximo código do autenticador. Identidade: o código vem antes do ato.
+ * Organização (PLATFORM-V2-001, T01): o ato vai primeiro; o código só é pedido se a API responder step_up_required (fora
+ * da hora de uma confirmação anterior). Devolve se o código foi pedido.
+ */
+export async function confirmStepUp(page: Page, person: Person, confirmLabel: string): Promise<boolean> {
   const dialog = page.getByRole('alertdialog');
-  await dialog.getByLabel('Código do seu aplicativo autenticador').fill(await person.auth.next());
-  await dialog.getByRole('button', { name: confirmLabel }).click();
+  const code = dialog.getByLabel('Código do seu aplicativo autenticador');
+  const confirm = dialog.getByRole('button', { name: confirmLabel });
+  if (await code.isVisible()) {
+    await code.fill(await person.auth.next());
+    await confirm.click();
+    return true;
+  }
+  await confirm.click();
+  await Promise.race([dialog.waitFor({ state: 'hidden' }), code.waitFor({ state: 'visible' }), dialog.getByRole('alert').first().waitFor({ state: 'visible' })]);
+  if (!(await code.isVisible())) return false;
+  await code.fill(await person.auth.next());
+  await confirm.click();
+  return true;
 }
