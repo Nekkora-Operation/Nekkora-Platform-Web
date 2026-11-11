@@ -8,6 +8,7 @@ import { getWorkspace, listAutomations } from '../../api/product';
 import { useOperationScope } from '../../components/operationScope';
 import { useSession } from '../../area/session';
 import { useWorkspacePermissions } from '../../area/useWorkspacePermissions';
+import { PermissionsUnverified } from '../../area/PermissionsUnverified';
 import { orgPath } from '../../auth/organization';
 import { useResource } from '../../hooks/useResource';
 import { DateTimeText, LoadErrorState, NotFoundState, PageHeader, isMissing } from './shared';
@@ -144,6 +145,15 @@ export function NewAutomationPage() {
   }
   const w = workspace.data;
   const back = { to: orgPath.workspace(org, workspaceId), label: `Voltar para ${w.name}` };
+  // permissões não conferidas (429, rede) não são "sem permissão": diz que não conferiu e deixa tentar de novo
+  if (perms.status === 'unknown' && w.status === 'active') {
+    return (
+      <Stack gap={5}>
+        <PageHeader title="Nova automação" subtitle={w.name} back={back} />
+        <PermissionsUnverified actions="O formulário de criação e o envio do pacote" onRetry={perms.retry} />
+      </Stack>
+    );
+  }
   if (perms.status !== 'ready' || !perms.has('automation.manage') || w.status !== 'active') {
     return (
       <Stack gap={5}>

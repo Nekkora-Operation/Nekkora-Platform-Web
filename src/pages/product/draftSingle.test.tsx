@@ -161,6 +161,9 @@ async function pick(label: string, file: File) {
   await waitFor(() => expect(screen.getByText(new RegExp(file.name.replace('.', '\\.')))).toBeInTheDocument());
 }
 const NEW_ZIP = 'Arquivo .zip do pacote';
+const PERMS_UNVERIFIED = 'Não foi possível verificar suas permissões neste workspace agora.';
+/** "Tentar novamente" do aviso de permissões não conferidas (há outros botões com o mesmo nome em outras seções). */
+const retryPermissions = () => within(screen.getByText(PERMS_UNVERIFIED).closest('.nk-alert') as HTMLElement).getByRole('button', { name: 'Tentar novamente' });
 const sendNew = () => screen.getByRole('button', { name: 'Enviar o pacote e criar o rascunho' });
 
 describe('um único rascunho por automação (T09)', () => {
@@ -221,14 +224,68 @@ describe('um único rascunho por automação (T09)', () => {
     expect(writes()).toEqual([]);
   });
 
-  it('permissões não conferidas (429): avisa que não conferiu, sem dizer "sem permissão" e sem envio', async () => {
-    api.on('GET', `/api/v1/o/${ORG}/me/permissions`, 'getMyPermissions', { status: 429, body: { error: 'rate_limited' } });
+  it('permissões da organização não conferidas (429): Nova versão diz que não conferiu, sem "sem permissão", sem envio; Tentar novamente recupera', async () => {
+    let fail = true; // até a pessoa pedir nova tentativa (o modo estrito pede duas vezes)
+    api.on('GET', `/api/v1/o/${ORG}/me/permissions`, 'getMyPermissions', () =>
+      fail
+        ? { status: 429, body: { error: 'rate_limited' } }
+        : {
+            status: 200,
+            body: {
+              organizationId: ORG,
+              membershipId: V1,
+              organization: { roles: ['ORG_ADMIN'], permissions: ['org.manage', 'workspace.lifecycle'] },
+              allWorkspaces: { permissions: ['automation.read', 'automation.manage', 'automation.publish'] },
+              hasWorkspaceAssignments: false,
+            },
+          },
+    );
     renderApp(`/o/${ORG}/automacoes/${AUT}/nova-versao`);
-    expect(await screen.findByText('Não foi possível conferir suas permissões agora.')).toBeInTheDocument();
-    expect(screen.queryByText(/não tem permissão/)).toBeNull();
+    const alert = await screen.findByText('Não foi possível verificar suas permissões neste workspace agora.');
+    expect(screen.queryByText(/Você não tem permissão/)).toBeNull();
     expect(screen.queryByLabelText(NEW_ZIP)).toBeNull();
     expect(writes()).toEqual([]);
     expect(xhr.puts).toEqual([]);
+    const box = alert.closest('.nk-alert') as HTMLElement;
+    fail = false;
+    fireEvent.click(within(box).getByRole('button', { name: 'Tentar novamente' }));
+    expect(await screen.findByLabelText(NEW_ZIP)).toBeInTheDocument();
+    expect(screen.queryByText('Não foi possível verificar suas permissões neste workspace agora.')).toBeNull();
+    expect(writes()).toEqual([]);
+  });
+
+  it('permissões do workspace com falha de rede: a automação não esconde Nova versão em silêncio; Tentar novamente recupera', async () => {
+    let fail = true;
+    api.on('GET', new RegExp(`/api/v1/o/${ORG}/me/permissions/workspaces`), 'listMyWorkspacePermissions', () =>
+      fail ? 'network' : { status: 200, body: { items: [], nextCursor: null } },
+    );
+    await openAutomation();
+    const alert = await screen.findByText('Não foi possível verificar suas permissões neste workspace agora.');
+    expect(alert.closest('[role="alert"], [role="status"], .nk-alert')).toHaveTextContent(/Nova versão, Continuar rascunho e a execução local só aparecem depois dessa verificação/);
+    expect(screen.queryByRole('button', { name: 'Nova versão' })).toBeNull();
+    expect(screen.queryByText(/Você não tem permissão/)).toBeNull();
+    fail = false;
+    fireEvent.click(retryPermissions());
+    expect(await screen.findByRole('button', { name: 'Nova versão' })).toBeInTheDocument();
+    expect(screen.queryByText('Não foi possível verificar suas permissões neste workspace agora.')).toBeNull();
+    expect(writes()).toEqual([]);
+  });
+
+  it('429 seguido de 429 na nova tentativa: o aviso continua, nada é enviado, e a terceira tentativa recupera', async () => {
+    let fail = true;
+    const route = new RegExp(`/api/v1/o/${ORG}/me/permissions/workspaces`);
+    api.on('GET', route, 'listMyWorkspacePermissions', () => (fail ? { status: 429, body: { error: 'rate_limited' } } : { status: 200, body: { items: [], nextCursor: null } }));
+    await openAutomation();
+    await screen.findByText('Não foi possível verificar suas permissões neste workspace agora.');
+    const before = api.sent('GET', route).length;
+    fireEvent.click(retryPermissions());
+    await waitFor(() => expect(api.sent('GET', route).length).toBeGreaterThan(before));
+    expect(await screen.findByText('Não foi possível verificar suas permissões neste workspace agora.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Nova versão' })).toBeNull();
+    fail = false;
+    fireEvent.click(retryPermissions());
+    expect(await screen.findByRole('button', { name: 'Nova versão' })).toBeInTheDocument();
+    expect(writes()).toEqual([]);
   });
 
   it('comando inválido: recusado na tela, sem envio', async () => {

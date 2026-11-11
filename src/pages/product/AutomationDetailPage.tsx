@@ -3,6 +3,7 @@ import { Link as RouterLink, useNavigate, useParams } from 'react-router';
 import { Badge, Button, Card, DescriptionList, Heading, Link, LoadMore, Stack, StateView, Table, type TableColumn } from 'nekkora-lib';
 import { isApiError } from '../../api/http';
 import { useWorkspacePermissions } from '../../area/useWorkspacePermissions';
+import { PermissionsUnverified } from '../../area/PermissionsUnverified';
 import { getAutomation, listAutomationVersions } from '../../api/product';
 import type { AutomationVersion } from '../../api/v1';
 import { orgPath } from '../../auth/organization';
@@ -138,6 +139,7 @@ function AutomationDetail({ automationId }: { automationId: string }) {
               </Button>
             ))}
         </div>
+        {perms.status === 'unknown' && <PermissionsUnverified actions="Nova versão, Continuar rascunho e a execução local" onRetry={perms.retry} />}
         {versions.status === 'loading' ? (
           <StateView status="loading" title="Carregando versões…" />
         ) : versions.status === 'error' ? (

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useWorkspacePermissions } from '../../area/useWorkspacePermissions';
+import { PermissionsUnverified } from '../../area/PermissionsUnverified';
 import { LocalRunAuthorizations } from '../agents/LocalRunAuthorizations';
 import { Link as RouterLink, useParams } from 'react-router';
 import { Button, Card, DescriptionList, Heading, Link, LoadMore, Stack, StateView, Table, type TableColumn } from 'nekkora-lib';
@@ -105,6 +106,7 @@ function WorkspaceDetail({ workspaceId }: { workspaceId: string }) {
           ) : undefined
         }
       />
+      {perms.status === 'unknown' && <PermissionsUnverified actions="Criar automação e a execução local" onRetry={perms.retry} />}
       <Card variant="surface" padding="lg">
         <Stack gap={4}>
           <DescriptionList

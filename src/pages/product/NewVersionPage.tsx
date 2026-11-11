@@ -6,6 +6,7 @@ import { ARTIFACT_MAX_BYTES, localSha256, readAutomationDraft, uploadDraftPackag
 import { getAutomation } from '../../api/product';
 import { useSession } from '../../area/session';
 import { useWorkspacePermissions } from '../../area/useWorkspacePermissions';
+import { PermissionsUnverified } from '../../area/PermissionsUnverified';
 import { orgPath } from '../../auth/organization';
 import { useResource } from '../../hooks/useResource';
 import { checkCommand, draftRefusal, mib, PackageBrief } from './draftPackage';
@@ -78,11 +79,7 @@ function NewVersion({ automationId }: { automationId: string }) {
     return (
       <Stack gap={5}>
         <PageHeader title="Nova versão" subtitle={a.name} back={back} />
-        <StateView
-          status="warning"
-          title="Não foi possível conferir suas permissões agora."
-          description="Nada foi criado. Recarregue a página em alguns instantes para tentar de novo."
-        />
+        <PermissionsUnverified actions="O formulário de nova versão e o envio do pacote" onRetry={perms.retry} />
       </Stack>
     );
   }

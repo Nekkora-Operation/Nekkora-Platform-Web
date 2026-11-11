@@ -26,6 +26,8 @@ export interface InternalArea {
   loadMoreWorkspaces: () => void;
   /** Recomeça a lista de workspaces (nova primeira página, sem cursor) depois de continuação recusada. */
   restartWorkspaces: () => void;
+  /** Lê de novo as permissões da organização (P01), por exemplo depois de uma falha (429, rede). */
+  reloadPermissions: () => void;
 }
 
 const InternalContext = createContext<InternalArea | null>(null);
@@ -212,7 +214,7 @@ export function InternalShell() {
       : null;
 
   return (
-    <InternalContext.Provider value={{ organizationName: orgName, permissions, workspaces, reloadWorkspaces, loadMoreWorkspaces, restartWorkspaces }}>
+    <InternalContext.Provider value={{ organizationName: orgName, permissions, workspaces, reloadWorkspaces, loadMoreWorkspaces, restartWorkspaces, reloadPermissions: loadPermissions }}>
       <OperationScopeProvider value={operationScope}>
       <AppShell
         className="pw-shell"

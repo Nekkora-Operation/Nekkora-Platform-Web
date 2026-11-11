@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { csrfStore } from '../../api/csrf';
 import { createOperationRegistry, setOperationRegistryForTest } from '../../api/pendingOps';
@@ -140,6 +140,21 @@ async function pick(file: File) {
 const submit = () => screen.getByRole('button', { name: /Criar e enviar o pacote|Continuar$|Salvar rascunho/ });
 
 describe('criar automação com versão e ZIP (T04 + T09)', () => {
+  it('permissões do workspace não conferidas (429): avisa e deixa tentar de novo, sem "sem permissão" e sem gravar; a nova tentativa abre o formulário', async () => {
+    let fail = true;
+    api.on('GET', new RegExp(`/api/v1/o/${ORG}/me/permissions/workspaces`), 'listMyWorkspacePermissions', () =>
+      fail ? { status: 429, body: { error: 'rate_limited' } } : { status: 200, body: { items: [], nextCursor: null } },
+    );
+    renderApp(`/o/${ORG}/workspaces/${WS}/nova-automacao`);
+    const alert = (await screen.findByText('Não foi possível verificar suas permissões neste workspace agora.')).closest('.nk-alert') as HTMLElement;
+    expect(screen.queryByText(/Você não tem permissão/)).toBeNull();
+    expect(screen.queryByLabelText(/^Nome da automação/)).toBeNull();
+    fail = false;
+    fireEvent.click(within(alert).getByRole('button', { name: 'Tentar novamente' }));
+    expect(await screen.findByLabelText(/^Nome da automação/)).toBeInTheDocument();
+    expect(automationPosts()).toEqual([]);
+  });
+
   it('só o nome: salva o rascunho e abre a automação; nenhuma versão', async () => {
     created();
     await open();

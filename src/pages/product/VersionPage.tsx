@@ -15,6 +15,7 @@ import {
 import { getAutomation } from '../../api/product';
 import { useSession } from '../../area/session';
 import { useWorkspacePermissions } from '../../area/useWorkspacePermissions';
+import { PermissionsUnverified } from '../../area/PermissionsUnverified';
 import { orgPath } from '../../auth/organization';
 import { StepUpDialog } from '../../components/StepUpDialog';
 import { useResource } from '../../hooks/useResource';
@@ -214,6 +215,9 @@ export function VersionPage() {
   return (
     <Stack gap={6}>
       <PageHeader title={`${name} — versão ${data.versionNumber ?? ''}`} subtitle="Versão da automação" back={back} onRefresh={version.refresh} refreshing={version.refreshing} />
+      {perms.status === 'unknown' && (
+        <PermissionsUnverified actions={draft ? 'Enviar o pacote, Publicar versão e a execução local' : 'As ações de execução local'} onRetry={perms.retry} />
+      )}
 
       <Card variant="surface" padding="lg">
         <DescriptionList
