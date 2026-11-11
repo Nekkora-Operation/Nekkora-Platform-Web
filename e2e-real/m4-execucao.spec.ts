@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { confirmStepUp, LAB, pairNewWorker, signUpAndEnroll, type Person } from './support/lab';
+import { confirmStepUp, LAB, pairNewWorker, signUpAndEnroll, type Person, newVersionWithPackage } from './support/lab';
 
 /**
  * J13–J15 com o Agent REAL e a API REAL, em sessão ASSISTIDA (FRONT-V1-002).
@@ -104,12 +104,8 @@ async function setup(page: Page, person: Person) {
   await page.getByLabel(/^Nome da automação/).fill('Biografias da Wikipédia');
   await page.getByRole('radio', { name: /Só o nome, como rascunho/ }).check();
   await page.getByRole('button', { name: 'Salvar rascunho' }).click();
-  await page.getByRole('button', { name: 'Nova versão' }).click();
-  await expect(page).toHaveURL(/\/versoes\/[0-9a-f-]{36}$/);
-  const versionUrl = page.url();
-  await page.getByLabel('Arquivo .zip do pacote').setInputFiles(PKG_ZIP);
-  await page.getByRole('button', { name: 'Enviar pacote' }).click();
-  await expect(page.getByText('Pacote recebido e conferido pela Platform.')).toBeVisible();
+  // T09: a versão nasce com o ZIP aceito no formulário "Nova versão"
+  const versionUrl = await newVersionWithPackage(page, PKG_ZIP);
   await page.getByRole('button', { name: 'Publicar versão' }).click();
   await confirmStepUp(page, person, 'Publicar');
   await expect(page.getByText('Publicada (imutável)')).toBeVisible();

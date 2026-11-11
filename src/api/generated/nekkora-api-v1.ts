@@ -1297,7 +1297,7 @@ export interface paths {
         put?: never;
         /**
          * Cria uma versao DRAFT (numero atribuido pelo banco)
-         * @description Exige automation.manage no workspace da automacao; automacao e workspace ACTIVE, senao 409. O numero e MAX+1 com a automacao travada (005): criacoes concorrentes nunca repetem numero. command_json nasce com contract_version 1, runtime, entrypoint main.py, arguments, parameters e secret_bindings vazios; o artefato vem pelo PUT do artefato. Auditado (ato 3).
+         * @description Exige automation.manage no workspace da automacao; automacao e workspace ACTIVE, senao 409. T09 (032): no maximo um rascunho por automacao; ja havendo um, 409 conflict + reason draft_exists, nada criado (a Web nova cria o rascunho so com o pacote aceito, em PUT /automations/{automationId}/draft/artifact; esta rota fica para a Web V1). O numero e MAX+1 com a automacao travada (005): criacoes concorrentes nunca repetem numero. command_json nasce com contract_version 1, runtime, entrypoint main.py, arguments, parameters e secret_bindings vazios; o artefato vem pelo PUT do artefato. Auditado (ato 3).
          */
         post: operations["createAutomationVersion"];
         delete?: never;
@@ -1756,6 +1756,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/automations/{automationId}/draft/artifact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Envia o pacote do rascunho da automacao; o rascunho nasce quando o ZIP e aceito (T09)
+         * @description PLATFORM-AGENT-V2-002, T09. Exige automation.manage; automacao e workspace ACTIVE. O ZIP e inspecionado antes de qualquer escrita: recusado -> 422 package_rejected, nada criado e o pacote anterior preservado. Sem rascunho e sem expectativa: cria a versao DRAFT (numero MAX+1) e o artefato na mesma transacao -> 201. Com rascunho e a expectativa igual a ele (expectedDraftVersionId e, se ele ja tem pacote, expectedSha256 do pacote atual): substitui o pacote da MESMA versao -> 200. Expectativa diferente do rascunho atual (outra aba ou pessoa, ou o rascunho esperado foi publicado): 409 conflict + reason draft_changed, nada sobrescrito; exceto se o rascunho ja tem exatamente estes bytes (repeticao apos resposta perdida) -> 200 com o mesmo rascunho. No maximo um rascunho por automacao, garantido no banco (032). Nao publica nem executa nada. runtime e argument (repetivel, ate 20) valem so para o rascunho criado.
+         */
+        put: operations["putAutomationDraftPackage"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/automation-versions/{version}": {
         parameters: {
             query?: never;
@@ -1848,10 +1868,10 @@ export interface components {
             /** @enum {string} */
             error: "invalid_request" | "unauthenticated" | "forbidden" | "not_found" | "conflict" | "already_member" | "account_exists" | "account_unavailable" | "rate_limited" | "internal_error" | "service_unavailable" | "unsupported_contract";
             /**
-             * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
+             * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached, draft_exists, draft_changed; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
              * @enum {string}
              */
-            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached";
+            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "draft_exists" | "draft_changed";
         };
         /**
          * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
@@ -6564,6 +6584,67 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    putAutomationDraftPackage: {
+        parameters: {
+            query?: {
+                /** @description ausente = espera que nao exista rascunho */
+                expectedDraftVersionId?: string;
+                /** @description sha256 do pacote atual do rascunho esperado; ausente = rascunho sem pacote */
+                expectedSha256?: string;
+                runtime?: string;
+                argument?: string[];
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                automationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/zip": string;
+            };
+        };
+        responses: {
+            /** @description Pacote do rascunho existente substituido (ou repeticao com os mesmos bytes) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LifecycleVersion"];
+                };
+            };
+            /** @description Rascunho criado com o pacote aceito */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LifecycleVersion"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            /** @description Pacote recusado: nada criado, pacote anterior preservado */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageRejected"];
+                };
+            };
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };

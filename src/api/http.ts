@@ -138,6 +138,9 @@ export function apiErrorFrom(status: number, body: unknown, retryAfter: string |
     if (typeof b.error === 'string' && KNOWN.has(b.error)) code = b.error as ApiErrorCode;
     // motivo de vocabulário fechado: pacote recusado (422) e, PLATFORM-V2-001, conflito (409) e recusa (403) com motivo
     if ((code === 'package_rejected' || code === 'conflict' || code === 'forbidden') && typeof b.reason === 'string' && /^[a-z_]{1,64}$/.test(b.reason)) reason = b.reason;
+  } else if (status === 429) {
+    // R1: 429 sem o corpo da API vem do limite do gateway (nginx, por IP): é limite, não erro "do nosso lado"; nada foi feito
+    code = 'rate_limited';
   } else if (status === 502 || status === 503 || status === 504) {
     // sem o corpo da API: resposta do proxy — numa escrita, não se sabe se o pedido chegou
     code = 'gateway';

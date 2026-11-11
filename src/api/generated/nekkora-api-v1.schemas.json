@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "d39fdebbf5792ba8675a047240ff2c1881f6cef106a92962b5812eccdad94055",
+  "openapiSha256": "61acf1ea1bf09b9b08b3e4d34744a1dc56945eedfd6679c967713caaeec304bd",
   "schemas": {
     "Error": {
       "type": "object",
@@ -29,7 +29,9 @@
           "enum": [
             "workspace_name_taken",
             "step_up_required",
-            "worker_limit_reached"
+            "worker_limit_reached",
+            "draft_exists",
+            "draft_changed"
           ]
         }
       }
@@ -8295,6 +8297,72 @@
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "putAutomationDraftPackage": {
+      "method": "PUT",
+      "path": "/api/v1/o/{org}/automations/{automationId}/draft/artifact",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/LifecycleVersion"
+          }
+        },
+        "201": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/LifecycleVersion"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "422": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/PackageRejected"
           }
         },
         "429": {

@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { expect, test, type Page, type Response } from '@playwright/test';
-import { confirmStepUp, LAB, pairNewWorker, signUpAndEnroll } from './support/lab';
+import { confirmStepUp, LAB, pairNewWorker, signUpAndEnroll, newVersionWithPackage } from './support/lab';
 
 /**
  * J17 (teclado, foco, zoom 200%, viewports, recarga, links diretos, navegação) e J18 (nenhum segredo em armazenamento,
@@ -54,12 +54,8 @@ test('J17/J18: telas reais com teclado, zoom 200%, viewports, recarga, links dir
   await page.getByLabel(/^Nome da automação/).fill('Biografias da Wikipédia');
   await page.getByRole('radio', { name: /Só o nome, como rascunho/ }).check();
   await page.getByRole('button', { name: 'Salvar rascunho' }).click();
-  await page.getByRole('button', { name: 'Nova versão' }).click();
-  await expect(page).toHaveURL(/\/versoes\/[0-9a-f-]{36}$/);
-  const versionUrl = page.url();
-  await page.getByLabel('Arquivo .zip do pacote').setInputFiles(PKG);
-  await page.getByRole('button', { name: 'Enviar pacote' }).click();
-  await expect(page.getByText('Pacote recebido e conferido pela Platform.')).toBeVisible();
+  // T09: a versão nasce com o ZIP aceito no formulário "Nova versão"
+  const versionUrl = await newVersionWithPackage(page, PKG);
 
   // código de pareamento (T07: Workers → Criar Worker → Vincular Agent): aparece só na tela (J18 confere que não vaza)
   const pairing = await pairNewWorker(page, org, ana, 'Worker J17', 'LAB-J17');

@@ -20,6 +20,7 @@ import { GrantsPage } from '../pages/admin/GrantsPage';
 import { MembersPage } from '../pages/admin/MembersPage';
 import { ExecutionsPage } from '../pages/ExecutionsPage';
 import { AutomationDetailPage } from '../pages/product/AutomationDetailPage';
+import { NewVersionPage } from '../pages/product/NewVersionPage';
 import { ExecutionDetailPage } from '../pages/product/ExecutionDetailPage';
 import { WorkspaceDetailPage } from '../pages/product/WorkspaceDetailPage';
 import { WorkspacesPage } from '../pages/product/WorkspacesPage';
@@ -90,6 +91,7 @@ export function AppRoutes() {
           <Route path="workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
           <Route path="workspaces/:workspaceId/nova-automacao" element={<NewAutomationPage />} />
           <Route path="automacoes/:automationId" element={<AutomationDetailPage />} />
+          <Route path="automacoes/:automationId/nova-versao" element={<NewVersionPage />} />
           <Route path="versoes/:versionId" element={<VersionPage />} />
           {/* M4: execução local e supervisão */}
           {/* PLATFORM-AGENT-V2-002, T07: Workers é a entrada única; o endereço antigo de Agents continua levando até lá */}
