@@ -628,7 +628,7 @@ export interface paths {
         put?: never;
         /**
          * Cria uma organizacao com a identidade como ORG_ADMIN (exige step-up da identidade de ate 5 min)
-         * @description P2 (contrato de 2026-10-13). Sessao de identidade nao restrita (cookie __Host-nekkora_id) e CSRF dela. Corpo: name e legalName opcional, cada um com 1 a 120 pontos de codigo, sem espaco nas pontas e sem caractere de controle (fora disso: 400). Uma transacao que chama so identity_create_organization: a funcao reconfere, sob o lock da identidade, sessao nao restrita, step-up de ate 5 min, identidade ACTIVE e verificada e o teto de 10, e cria organizacao, conta, vinculo, ORG_ADMIN e o evento 6 (ORG_CREATED) no mesmo commit. Recusa da funcao: 403 generico; sessao que caiu: 401. R11 (3 reservas por identidade a cada 24 h; devolvidas quando a criacao comprovadamente nao aconteceu, mantidas em resultado desconhecido; Redis fora: 503) e R12. Chave propria (nekkora.criacao-organizacao.enabled) e a da entrada geral: qualquer uma desligada, 404. Em seguida, a troca (/api/v1/sessions/organization) da a sessao de organizacao.
+         * @description P2 (contrato de 2026-10-13). Sessao de identidade nao restrita (cookie __Host-nekkora_id) e CSRF dela. Corpo: name e legalName opcional, cada um com 1 a 120 pontos de codigo, sem espaco nas pontas e sem caractere de controle (fora disso: 400). Uma transacao que chama so identity_create_organization: a funcao reconfere, sob o lock da identidade, sessao nao restrita, step-up de ate 5 min, identidade ACTIVE e verificada e o teto de 10, e cria organizacao, conta, vinculo, ORG_ADMIN e o evento 6 (ORG_CREATED) no mesmo commit. Recusa da funcao: 403 generico; sessao que caiu: 401. R11 (3 reservas por identidade a cada 24 h; devolvidas quando a criacao comprovadamente nao aconteceu, mantidas em resultado desconhecido; Redis fora: 503) e R12. Chave propria (nekkora.criacao-organizacao.enabled) e a da entrada geral: qualquer uma desligada, 404. Em seguida, a troca (/api/v1/sessions/organization) da a sessao de organizacao. PLATFORM-AGENT-V2-003 T10 (034): o nome e unico entre as organizacoes CRIADAS PELA MESMA IDENTIDADE pelo cadastro (autoria, nao propriedade; espacos internos repetidos e maiusculas/minusculas nao distinguem; acentos e pontuacao distinguem). Repetido: 409 conflict + reason organization_name_taken, nada criado (a reserva de R11 e devolvida). Outras identidades, e organizacoes em que a pessoa so participa por convite, nao contam. Concorrentes da mesma identidade: uma criada, a outra 409. A organizacao nova recebe um identificador legivel unico e estavel (handle).
          */
         post: operations["identityCreateOrganization"];
         delete?: never;
@@ -1868,10 +1868,10 @@ export interface components {
             /** @enum {string} */
             error: "invalid_request" | "unauthenticated" | "forbidden" | "not_found" | "conflict" | "already_member" | "account_exists" | "account_unavailable" | "rate_limited" | "internal_error" | "service_unavailable" | "unsupported_contract";
             /**
-             * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached, draft_exists, draft_changed, local_run_authorization_exists; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
+             * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached, draft_exists, draft_changed, local_run_authorization_exists, organization_name_taken; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
              * @enum {string}
              */
-            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "draft_exists" | "draft_changed" | "local_run_authorization_exists";
+            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken";
         };
         /**
          * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
@@ -2232,6 +2232,8 @@ export interface components {
                 /** Format: uuid */
                 organizationId: string;
                 name: string;
+                /** @description T10 (034): identificador legivel, unico e estavel da organizacao (nao muda com o nome). Distingue organizacoes de mesmo nome. Nao e credencial e nao da acesso: as rotas continuam pelo organizationId. Nulo so antes da 034 */
+                handle: string | null;
                 /** @description codigos dos papeis ativos do vinculo interno, em ordem */
                 roles: string[];
                 activationState: components["schemas"]["OrganizationActivationState"];
@@ -4295,6 +4297,21 @@ export interface operations {
                 };
             };
             404: components["responses"]["SignupDisabled"];
+            /** @description T10 (034): esta identidade ja criou, pelo cadastro, uma organizacao com esse nome; nada foi criado. Codigo conflict com reason organization_name_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "conflict",
+                     *       "reason": "organization_name_taken"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };

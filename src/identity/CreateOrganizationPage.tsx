@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router';
 import { Alert, Button, Input, Link, SectionHeader, Stack, Text } from 'nekkora-lib';
-import { ApiError, isApiError } from '../api/http';
+import { ApiError, hasReason, isApiError } from '../api/http';
 import { createOrganization, identityStepUp } from '../api/identity';
 import { identityPath } from '../auth/flow';
 import { StepUpDialog } from '../components/StepUpDialog';
@@ -20,7 +20,12 @@ export function organizationNameProblem(value: string, required: boolean): strin
   return undefined;
 }
 
+/** T10 (PLATFORM-AGENT-V2-003, API 034): esta identidade já criou, pelo cadastro, uma organização com esse nome. */
+export const NAME_TAKEN_TEXT =
+  'Você já criou uma organização com esse nome. Escolha outro nome: maiúsculas, minúsculas e espaços repetidos não diferenciam. Nada foi criado.';
+
 function refusalText(e: unknown): string {
+  if (hasReason(e, 'conflict', 'organization_name_taken')) return NAME_TAKEN_TEXT;
   if (isApiError(e, 'rate_limited'))
     return 'Você atingiu o limite de criações de organização por enquanto. Tente de novo mais tarde. Nada foi criado.';
   if (isApiError(e, 'invalid_request')) return 'O nome não foi aceito. Confira os campos. Nada foi criado.';
@@ -43,6 +48,9 @@ export function CreateOrganizationPage() {
   const [errors, setErrors] = useState<{ name?: string; legalName?: string }>({});
   const [confirming, setConfirming] = useState(false);
   const [uncertain, setUncertain] = useState(false);
+  // T10: nome recusado por repetição; o campo mostra o motivo enquanto o texto continuar o mesmo (o formulário fica preenchido)
+  const [takenName, setTakenName] = useState<string | null>(null);
+  const nameError = errors.name ?? (takenName !== null && name === takenName ? 'Você já criou uma organização com esse nome.' : undefined);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -73,8 +81,8 @@ export function CreateOrganizationPage() {
           maxLength={240}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          error={errors.name}
-          hint="Até 120 caracteres. É o nome que as pessoas convidadas verão."
+          error={nameError}
+          hint="Até 120 caracteres. É o nome que as pessoas convidadas verão. Duas organizações criadas por você não podem ter o mesmo nome."
         />
         <Input
           label="Razão social (opcional)"
@@ -110,7 +118,10 @@ export function CreateOrganizationPage() {
           navigate(identityPath.organizations, { state: { created: organizationId } satisfies OrganizationsNavState });
         }}
         onClose={() => setConfirming(false)}
-        refusalText={refusalText}
+        refusalText={(e) => {
+          if (hasReason(e, 'conflict', 'organization_name_taken')) queueMicrotask(() => setTakenName(name));
+          return refusalText(e);
+        }}
         uncertainText="Não foi possível confirmar o resultado. A organização pode ter sido criada. Feche e confira a lista de organizações antes de tentar de novo."
         onUnauthenticated={expired}
         onOutcome={(kind) => kind === 'uncertain' && setUncertain(true)}

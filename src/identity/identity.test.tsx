@@ -137,7 +137,7 @@ describe('organizações', () => {
         : {
             status: 200,
             body: {
-              organizations: [{ organizationId: ORG_A, name: 'Acme', roles: ['ORG_ADMIN'], activationState: 'AGUARDANDO_ATIVACAO' }],
+              organizations: [{ organizationId: ORG_A, name: 'Acme', roles: ['ORG_ADMIN'], activationState: 'AGUARDANDO_ATIVACAO', handle: 'acme' }],
               canCreateOrganization: true,
             },
           },
@@ -152,7 +152,7 @@ describe('organizações', () => {
     const card = (await screen.findByRole('heading', { name: 'Acme' })).closest('li')!;
     expect(within(card).getByText('Aguardando ativação')).toBeInTheDocument();
     expect(within(card).getByText(/nenhuma automação executa até a ativação/)).toBeInTheDocument();
-    await user().click(within(card).getByRole('button', { name: 'Entrar em Acme' }));
+    await user().click(within(card).getByRole('button', { name: 'Entrar em Acme (acme)' }));
     expect(await within(card).findByText(/Não foi possível entrar nesta organização/)).toBeInTheDocument();
     expect(api.sent('POST', '/api/v1/sessions/organization')[0]).toMatchObject({ csrf: 'id-csrf', body: { organizationId: ORG_A } });
     expect(location()).toBe('/organizacoes');
@@ -298,14 +298,14 @@ describe('sessão de organização nascida da identidade', () => {
       status: 200,
       body: {
         organizations: [
-          { organizationId: '1b2c3d4e-5f60-4a1b-8c2d-3e4f5a6b7c8d', name: 'Outra', roles: ['ORG_ADMIN'], activationState: 'ATIVADA' },
-          { organizationId: ORG_A, name: 'Acme', roles: ['ORG_ADMIN'], activationState: 'AGUARDANDO_ATIVACAO' },
+          { organizationId: '1b2c3d4e-5f60-4a1b-8c2d-3e4f5a6b7c8d', name: 'Outra', roles: ['ORG_ADMIN'], activationState: 'ATIVADA', handle: 'outra' },
+          { organizationId: ORG_A, name: 'Acme', roles: ['ORG_ADMIN'], activationState: 'AGUARDANDO_ATIVACAO', handle: 'acme' },
         ],
         canCreateOrganization: true,
       },
     });
     renderApp(`/o/${ORG_A}`);
-    expect(await screen.findByLabelText('Organização aberta: Acme')).toHaveTextContent('Acme');
+    expect(await screen.findByLabelText('Organização aberta: Acme (acme)')).toHaveTextContent('Acme');
     expect(screen.getByText('Organização Acme')).toBeInTheDocument();
     expect(screen.queryByText('Outra')).not.toBeInTheDocument();
   });
