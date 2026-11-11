@@ -1,6 +1,6 @@
 import axe from 'axe-core';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { csrfStore } from '../../api/csrf';
 import { createOperationRegistry, setOperationRegistryForTest } from '../../api/pendingOps';
 import { sessionMemory } from '../../app/notices';
