@@ -43,6 +43,7 @@ export const orgPath = {
   /** M3: versão (ciclo de vida: pacote, conferência, publicação). */
   version: (org: string, id: string) => `/o/${org}/versoes/${encodeURIComponent(id)}`,
   /** M4: execução local (Agents, Workers) e supervisão das execuções registradas pelo Agent. */
+  /** Endereço antigo (compatibilidade, T07): leva a Workers, a entrada única. */
   agents: (org: string) => `/o/${org}/agents`,
   workers: (org: string) => `/o/${org}/workers`,
   agentRuns: (org: string) => `/o/${org}/supervisao`,

@@ -51,6 +51,15 @@
   white-space: nowrap;
 }
 
+/* T07 + T08: acoes da linha lado a lado, centralizadas, quebrando em janela estreita */
+.pw-workers__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--nk-space-2);
+}
+
 /*
  * R1: nomes de Worker e de máquina quebram só entre palavras nesta tabela. Com "anywhere" (regra geral .pw-break), a
  * coluna encolhia até uma letra em janela estreita e com zoom de 200% ("Estaçã / o fiscal"). Uma palavra maior que a
@@ -124,4 +133,9 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--nk-space-2);
+}
+
+/* T07 + T08 nos cartões: as ações da linha começam à esquerda */
+.pw-rtable--cards .pw-workers__actions {
+  justify-content: flex-start;
 }
