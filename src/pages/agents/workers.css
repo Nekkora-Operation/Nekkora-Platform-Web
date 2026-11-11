@@ -1,7 +1,9 @@
 /*
  * PLATFORM-AGENT-V2-002, T08 — legibilidade da tabela de Workers. Regras LOCAIS a esta tabela (.pw-workers): as demais
  * tabelas da Lib e da aplicação não mudam. Cabeçalhos e células centralizados na horizontal (align do Table) e na vertical
- * (aqui); em "Workspaces autorizados", um par nome + "Retirar" por item, lado a lado e alinhados pelo centro.
+ * (aqui); em "Workspaces autorizados", um par nome + "Retirar" por item, SEMPRE lado a lado (R1): a lista é uma grade de
+ * duas colunas (nome | botão) compartilhada pelos itens (subgrid), então os botões ficam alinhados entre si e um nome
+ * longo quebra dentro da própria coluna, sem descer o botão para outra linha, em janela estreita e com zoom de 200%.
  */
 .pw-workers .nk-table__th,
 .pw-workers .nk-table__td {
@@ -11,30 +13,40 @@
 
 .pw-workers__ws {
   list-style: none;
-  margin: 0;
+  margin: 0 auto;
   padding: 0;
   display: grid;
-  gap: var(--nk-space-2);
-  justify-items: center;
-}
-
-.pw-workers__ws-item {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: var(--nk-space-2);
+  grid-template-columns: minmax(0, 28ch) auto;
+  column-gap: var(--nk-space-2);
+  row-gap: var(--nk-space-2);
+  width: max-content;
   max-width: 100%;
 }
 
-/* nome longo quebra dentro do item, sem empurrar nem sobrepor o botão */
+/* cada item ocupa uma linha da grade da lista (mesmas colunas: os botões se alinham) */
+.pw-workers__ws-item {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+}
+
+/* sem subgrid: o item tem as próprias duas colunas (continua lado a lado; só o alinhamento entre itens se perde) */
+@supports not (grid-template-columns: subgrid) {
+  .pw-workers__ws-item {
+    grid-template-columns: minmax(0, 28ch) auto;
+    column-gap: var(--nk-space-2);
+  }
+}
+
+/* nome longo quebra dentro da própria coluna, junto ao botão, sem empurrar nem sobrepor */
 .pw-workers__ws-name {
   min-width: 0;
-  max-width: 28ch;
   overflow-wrap: anywhere;
-  text-align: center;
+  text-align: end;
 }
 
 .pw-workers__ws-item > button {
-  flex: none;
+  justify-self: start;
+  white-space: nowrap;
 }
