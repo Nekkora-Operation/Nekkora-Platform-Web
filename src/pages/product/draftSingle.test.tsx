@@ -271,6 +271,22 @@ describe('um único rascunho por automação (T09)', () => {
     expect(writes()).toEqual([]);
   });
 
+  it('429 do gateway (nginx, sem o corpo da API) ao abrir a automação: "Muitas tentativas", nunca "algo deu errado do nosso lado"; Tentar novamente recupera', async () => {
+    let fail = true;
+    api.on('GET', `/api/v1/o/${ORG}/automations/${AUT}`, 'getAutomation', () =>
+      fail
+        ? { gateway: 429 }
+        : { status: 200, body: { automationId: AUT, workspaceId: WS, name: 'Relatório de pedidos', description: null, status: 'active', latestPublishedVersion: null, createdAt: T, updatedAt: T } },
+    );
+    renderApp(`/o/${ORG}/automacoes/${AUT}`);
+    expect(await screen.findByText('Muitas tentativas.')).toBeInTheDocument();
+    expect(screen.queryByText(/Algo deu errado do nosso lado/)).toBeNull();
+    fail = false;
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    expect(await screen.findByRole('button', { name: 'Nova versão' })).toBeInTheDocument();
+    expect(writes()).toEqual([]);
+  });
+
   it('429 seguido de 429 na nova tentativa: o aviso continua, nada é enviado, e a terceira tentativa recupera', async () => {
     let fail = true;
     const route = new RegExp(`/api/v1/o/${ORG}/me/permissions/workspaces`);
