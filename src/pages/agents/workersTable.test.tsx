@@ -1,5 +1,6 @@
+import axe from 'axe-core';
 import { fireEvent, screen, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { csrfStore } from '../../api/csrf';
 import { createOperationRegistry, setOperationRegistryForTest } from '../../api/pendingOps';
 import { fakeLocks } from '../../test/fakeLocks';
@@ -121,5 +122,128 @@ describe('tabela de Workers (T08)', () => {
     fireEvent.click(confirm);
     await vi.waitFor(() => expect(api.sent('DELETE', /\/workers\//)).toHaveLength(1));
     expect(api.sent('DELETE', /\/workers\//)[0].path).toContain(`/workers/${ID(3)}/workspaces/${ID(12)}`);
+  });
+});
+
+/**
+ * R1 — cartões no modo estreito. O jsdom não mede: a largura da região e a de que a tabela precisa são simuladas, e o
+ * ResizeObserver é um dublê que avisa quando a "janela" muda.
+ */
+describe('Workers em cartões quando a tabela não cabe (T08 R1)', () => {
+  let width = 600;
+  const NEEDED = 1100;
+  let observers: (() => void)[] = [];
+  beforeEach(() => {
+    width = 600;
+    observers = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        cb: () => void;
+        constructor(cb: () => void) {
+          this.cb = cb;
+          observers.push(cb);
+        }
+        observe() {}
+        disconnect() {
+          observers = observers.filter((o) => o !== this.cb);
+        }
+      },
+    );
+    // a região mede `width`; a tabela, quando presente, precisa de NEEDED; os cartões cabem sempre
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get() { return (this as HTMLElement).classList.contains('pw-rtable') ? width : 0; } });
+    Object.defineProperty(HTMLElement.prototype, 'scrollWidth', {
+      configurable: true,
+      get() {
+        const el = this as HTMLElement;
+        if (!el.classList.contains('pw-rtable')) return 0;
+        return el.querySelector('table') ? Math.max(NEEDED, width) : width;
+      },
+    });
+  });
+  afterEach(() => {
+    delete (HTMLElement.prototype as unknown as Record<string, unknown>).clientWidth;
+    delete (HTMLElement.prototype as unknown as Record<string, unknown>).scrollWidth;
+  });
+  const resize = (w: number) => {
+    width = w;
+    for (const o of [...observers]) o();
+  };
+  const region = () => screen.findByRole('region', { name: 'Lista de Workers' });
+
+  it('estreito: um cartão por Worker, sem tabela no DOM; cada workspace com o seu "Retirar"; uma consulta só', async () => {
+    renderApp(`/o/${ORG}/workers`);
+    const r = await region();
+    await vi.waitFor(() => expect(r).toHaveAttribute('data-format', 'cartoes'));
+    expect(within(r).queryByRole('table')).toBeNull();
+    const cards = within(r).getAllByRole('article');
+    expect(cards.map((c) => within(c).getByRole('heading').textContent)).toEqual(['Estação sem workspace', 'Estação fiscal', 'Estação central']);
+    const central = cards[2];
+    expect(within(central).getByText('Workspaces autorizados')).toBeInTheDocument();
+    const itens = within(central).getAllByRole('listitem');
+    expect(itens.map((li) => li.textContent)).toEqual(['FinanceiroRetirar', 'ComprasRetirar', `${LONG}Retirar`]);
+    for (const [li, nome] of itens.map((li, i) => [li, ['Financeiro', 'Compras', LONG][i]] as const))
+      expect(within(li).getByRole('button', { name: removeLabel(nome, 'Estação central') })).toBeInTheDocument();
+    // nenhum controle duplicado/escondido: um "Retirar" por workspace na página inteira
+    expect(screen.getAllByRole('button', { name: /^Retirar autorização de/ })).toHaveLength(4);
+    expect(within(cards[0]).getByText('Nenhum')).toBeInTheDocument();
+    expect(within(cards[0]).getByRole('button', { name: 'Autorizar Estação sem workspace num workspace' })).toBeInTheDocument();
+    // a região só recebe foco quando é a tabela rolável
+    expect(r).not.toHaveAttribute('tabindex');
+    // trocar de formato não pede nada à API: a mesma lista (carga inicial, com a montagem dupla do modo estrito)
+    const gets = api.sent('GET', `/api/v1/o/${ORG}/workers`).length;
+    resize(650);
+    expect(api.sent('GET', `/api/v1/o/${ORG}/workers`)).toHaveLength(gets);
+  });
+
+  it('estreito, pelo teclado: "Retirar" do cartão atua só no par indicado', async () => {
+    renderApp(`/o/${ORG}/workers`);
+    const r = await region();
+    await vi.waitFor(() => expect(r).toHaveAttribute('data-format', 'cartoes'));
+    const b = within(r).getByRole('button', { name: removeLabel(LONG, 'Estação central') });
+    b.focus();
+    expect(b).toHaveFocus();
+    fireEvent.click(b);
+    const dialog = await screen.findByRole('alertdialog', { name: `Retirar Estação central de ${LONG}?` });
+    api.on('DELETE', `/api/v1/o/${ORG}/workers/${ID(3)}/workspaces/${ID(13)}`, 'revokeWorkerInWorkspace', { status: 204 });
+    const confirm = within(dialog).getByRole('button', { name: 'Retirar' });
+    await vi.waitFor(() => expect(confirm).toBeEnabled());
+    fireEvent.click(confirm);
+    await vi.waitFor(() => expect(api.sent('DELETE', /\/workers\//)).toHaveLength(1));
+    expect(api.sent('DELETE', /\/workers\//)[0].path).toContain(`/workers/${ID(3)}/workspaces/${ID(13)}`);
+  });
+
+  it('a troca acompanha o espaço: alarga e volta à tabela (com foco de rolagem), estreita e volta aos cartões, sem nova consulta', async () => {
+    renderApp(`/o/${ORG}/workers`);
+    const r = await region();
+    await vi.waitFor(() => expect(r).toHaveAttribute('data-format', 'cartoes'));
+    const gets = api.sent('GET', `/api/v1/o/${ORG}/workers`).length;
+    resize(1000); // ainda menor que o necessário
+    expect(r).toHaveAttribute('data-format', 'cartoes');
+    resize(1200);
+    await vi.waitFor(() => expect(r).toHaveAttribute('data-format', 'tabela'));
+    expect(within(r).getByRole('table')).toBeInTheDocument();
+    expect(within(r).queryByRole('article')).toBeNull();
+    expect(r).toHaveAttribute('tabindex', '0');
+    resize(700);
+    await vi.waitFor(() => expect(r).toHaveAttribute('data-format', 'cartoes'));
+    expect(api.sent('GET', `/api/v1/o/${ORG}/workers`)).toHaveLength(gets);
+  });
+
+  it('acessibilidade (axe) dos cartões', async () => {
+    renderApp(`/o/${ORG}/workers`);
+    const r = await region();
+    await vi.waitFor(() => expect(r).toHaveAttribute('data-format', 'cartoes'));
+    const result = await axe.run(r, { rules: { 'color-contrast': { enabled: false } } });
+    expect(result.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+  });
+
+  it('desktop (a tabela cabe): tabela, sem cartões', async () => {
+    width = 1400;
+    renderApp(`/o/${ORG}/workers`);
+    const r = await region();
+    await within(r).findByRole('table');
+    expect(r).toHaveAttribute('data-format', 'tabela');
+    expect(within(r).queryByRole('article')).toBeNull();
   });
 });

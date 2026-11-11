@@ -59,3 +59,69 @@
 .pw-workers .pw-break {
   overflow-wrap: break-word;
 }
+
+/*
+ * R1: em cartões (quando a tabela não cabe; ResponsiveTable): um cartão por Worker, com o nome como título e cada
+ * coluna da tabela como rótulo + valor. Os pares nome do workspace + "Retirar" continuam juntos, lado a lado.
+ */
+.pw-rtable--cards {
+  overflow: visible;
+}
+
+.pw-rtable__cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--nk-space-3);
+}
+
+.pw-rtable__card {
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-md);
+  padding: var(--nk-space-3) var(--nk-space-4);
+}
+
+.pw-rtable__title {
+  margin: 0 0 var(--nk-space-2);
+  font-size: var(--nk-font-size-sm);
+  font-weight: var(--nk-font-weight-semibold);
+  color: var(--nk-color-text);
+}
+
+.pw-rtable__fields {
+  margin: 0;
+  display: grid;
+  gap: var(--nk-space-3);
+}
+
+.pw-rtable__field {
+  display: grid;
+  gap: var(--nk-space-1);
+}
+
+.pw-rtable__field dt {
+  font-size: var(--nk-font-size-xs);
+  color: var(--nk-color-text-secondary);
+}
+
+.pw-rtable__field dd {
+  margin: 0;
+  min-width: 0;
+}
+
+/* nos cartões, os pares do workspace ficam alinhados à esquerda: nome e "Retirar" na mesma linha */
+.pw-rtable--cards .pw-workers__ws {
+  margin: 0;
+}
+
+.pw-rtable--cards .pw-workers__ws-name {
+  text-align: start;
+}
+
+/* ações do cartão lado a lado, quebrando quando não couberem */
+.pw-rtable--cards .pw-rtable__field--acoes dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nk-space-2);
+}

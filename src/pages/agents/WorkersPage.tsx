@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Badge, Button, Select, Stack, StateView, Table, Text, type TableColumn } from 'nekkora-lib';
+import { Alert, Badge, Button, Select, Stack, StateView, Text, type TableColumn } from 'nekkora-lib';
 import { authorizeWorkerInWorkspace, listWorkers, revokeWorkerInWorkspace, type Worker } from '../../api/agents';
 import { isApiError } from '../../api/http';
 import { useInternalArea } from '../../area/InternalShell';
@@ -8,6 +8,7 @@ import { StepUpDialog } from '../../components/StepUpDialog';
 import { accessRefusal, orgStepUp } from '../access/shared';
 import { ForbiddenState } from '../admin/shared';
 import { LoadErrorState, PageHeader } from '../product/shared';
+import { ResponsiveTable } from './ResponsiveTable';
 import './workers.css';
 
 const STATUS: Record<NonNullable<Worker['status']>, { label: string; tone: 'success' | 'warning' | 'neutral' }> = {
@@ -128,9 +129,8 @@ export function WorkersPage() {
         (list.items.length === 0 ? (
           <StateView status="neutral" title="Nenhum Worker registrado." description="O Worker é criado junto com o código de pareamento, na tela de Agents (com a organização ativada)." />
         ) : (
-          <div className="pw-prod__scroll pw-workers" role="region" aria-label="Lista de Workers" tabIndex={0}>
-            <Table columns={columns} data={list.items} rowKey="workerId" size="sm" caption="Workers da organização." />
-          </div>
+          // R1: tabela quando cabe; cartões quando não cabe (janela estreita, zoom de 200%), com as MESMAS colunas
+          <ResponsiveTable className="pw-prod__scroll pw-workers" label="Lista de Workers" columns={columns} data={list.items} rowKey="workerId" title="nome" caption="Workers da organização." />
         ))}
 
       <StepUpDialog
