@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "61acf1ea1bf09b9b08b3e4d34744a1dc56945eedfd6679c967713caaeec304bd",
+  "openapiSha256": "e1ada3ea9fdd4bc7b46681b3422b2ddbcd247351e3a160813aa9740c6241626b",
   "schemas": {
     "Error": {
       "type": "object",

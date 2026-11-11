@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Badge, Button, Input, Select, Stack, StateView, Text, type TableColumn } from 'nekkora-lib';
 import { authorizeWorkerInWorkspace, cancelAgentCode, createWorker, listWorkers, revokeWorkerInWorkspace, type AgentCode, type Worker } from '../../api/agents';
 import { hasReason, isApiError } from '../../api/http';
@@ -12,6 +12,7 @@ import './workers.css';
 import { OneTimeCode, PairAgentDialog, RevokeLinkDialog, RotateCredentialDialog, type FreeWorker, type LinkedAgent } from './agentDialogs';
 import { LinkedAgentsView } from './linkedAgents';
 import { ResponsiveTable } from './ResponsiveTable';
+import { CommunicationCell, FreshnessNotice, LinkBadge, PRESENCE_TEXT, useLiveList } from './presence';
 
 const STATUS: Record<NonNullable<Worker['status']>, { label: string; tone: 'success' | 'warning' | 'neutral' }> = {
   ACTIVE: { label: 'Ativo', tone: 'success' },
@@ -24,13 +25,6 @@ export const WORKERS_INTRO = 'Crie Workers, vincule as máquinas e escolha em qu
 
 /** T08: o destino do "Retirar" legível por teclado e leitor de tela (o workspace e o Worker do item). */
 export const removeLabel = (workspace: string, worker: string) => `Retirar autorização de ${workspace} do Worker ${worker}`;
-
-const AGENT_STATUS: Record<NonNullable<Worker['agentStatus']>, { label: string; tone: 'success' | 'warning' | 'neutral' | 'danger' }> = {
-  PENDING: { label: 'Agent pendente', tone: 'neutral' },
-  ACTIVE: { label: 'Agent ativo', tone: 'success' },
-  SUSPENDED: { label: 'Agent suspenso', tone: 'warning' },
-  REVOKED: { label: 'Agent revogado', tone: 'danger' },
-};
 
 /** Texto da recusa por capacidade (409 worker_limit_reached). */
 export const WORKER_LIMIT_TEXT =
@@ -48,7 +42,8 @@ function WorkersManagement() {
   const { org, expired } = useSession();
   const { workspaces, permissions } = useInternalArea();
   const has = (p: string) => permissions.status === 'ready' && (permissions.data.organization.permissions as string[]).includes(p);
-  const [list, setList] = useState<{ status: 'loading' } | { status: 'ready'; items: Worker[] } | { status: 'error'; error: unknown }>({ status: 'loading' });
+  // T11 (PLATFORM-AGENT-V2-003): releitura a cada 30 s com a página visível; falha mantém os dados como não confirmados
+  const { list, freshness, load, refresh } = useLiveList(async () => (await listWorkers(org)).items, [org], expired);
   const [pending, setPending] = useState<Pending | null>(null);
   const [target, setTarget] = useState('');
   const [notice, setNotice] = useState<{ tone: 'success' | 'warning'; text: string } | null>(null);
@@ -58,27 +53,6 @@ function WorkersManagement() {
   const [rotating, setRotating] = useState<LinkedAgent | null>(null);
   const [revoking, setRevoking] = useState<LinkedAgent | null>(null);
   const [code, setCode] = useState<{ code: AgentCode; purpose: string } | null>(null);
-  const generation = useRef(0);
-
-  const load = useCallback(async () => {
-    const gen = ++generation.current;
-    setList({ status: 'loading' });
-    try {
-      const data = await listWorkers(org);
-      if (gen === generation.current) setList({ status: 'ready', items: data.items });
-    } catch (e) {
-      if (gen !== generation.current) return;
-      if (isApiError(e, 'unauthenticated')) return expired();
-      setList({ status: 'error', error: e });
-    }
-  }, [org, expired]);
-
-  useEffect(() => {
-    void load();
-    return () => {
-      generation.current++;
-    };
-  }, [load]);
 
   // o código sai da memória ao sair da tela
   useEffect(() => () => setCode(null), []);
@@ -104,11 +78,7 @@ function WorkersManagement() {
         w.agentId ? (
           <Stack gap={1}>
             <span className="pw-break">{machineName(w)}</span>
-            {w.agentStatus && (
-              <span>
-                <Badge tone={AGENT_STATUS[w.agentStatus].tone}>{AGENT_STATUS[w.agentStatus].label}</Badge>
-              </span>
-            )}
+            <LinkBadge status={w.agentStatus} />
             <Text variant="body-sm" color="secondary">
               Versão do Agent: {w.agentVersion ?? 'não informada'}
             </Text>
@@ -118,7 +88,7 @@ function WorkersManagement() {
           </Stack>
         ) : (
           // ausência de vínculo, nunca falta de sinal
-          'Sem Agent'
+          'Sem máquina vinculada'
         ),
     },
     {
@@ -127,16 +97,7 @@ function WorkersManagement() {
       align: 'center',
       render: (w) =>
         w.agentId ? (
-          <Stack gap={1}>
-            <span>
-              <Badge tone={w.connectivity === 'CONNECTED' ? 'success' : 'neutral'} dot>
-                {w.connectivity === 'CONNECTED' ? 'Conectada' : 'Sem comunicação'}
-              </Badge>
-            </span>
-            <Text variant="body-sm" color="secondary">
-              Último sinal: <DateTimeText iso={w.lastHeartbeatAt} empty="nunca" />
-            </Text>
-          </Stack>
+          <CommunicationCell status={w.agentStatus} connectivity={w.connectivity} lastHeartbeatAt={w.lastHeartbeatAt} freshness={freshness} />
         ) : (
           <span aria-label="Sem máquina vinculada">—</span>
         ),
@@ -235,6 +196,7 @@ function WorkersManagement() {
         }
       />
       {notice && <Alert tone={notice.tone}>{notice.text}</Alert>}
+      {list.status === 'ready' && <FreshnessNotice freshness={freshness} onRetry={() => void refresh()} />}
       {code && (
         <section aria-label={code.purpose}>
           <Stack gap={2}>
@@ -266,9 +228,7 @@ function WorkersManagement() {
             {/* R1: tabela quando cabe; cartões quando não cabe (janela estreita, zoom de 200%), com as MESMAS colunas */}
             <ResponsiveTable className="pw-prod__scroll pw-workers" label="Lista de Workers" columns={columns} data={list.items} rowKey="workerId" title="nome" caption="Workers da organização." />
             <Text variant="body-sm" color="secondary">
-              Sem comunicação quer dizer que a Platform não recebe sinal da máquina há alguns minutos, não que ela foi desligada. A
-              falta de sinal não revoga a credencial, não libera o Worker, não retira workspaces e não encerra execuções. Quando o
-              sinal voltar, a máquina aparece conectada de novo, sem novo pareamento.
+              {PRESENCE_TEXT} Quando o contato voltar, a máquina aparece online de novo, sem novo pareamento.
             </Text>
           </>
         ))}

@@ -134,7 +134,7 @@ describe('Workers: criar Worker (T07)', () => {
     expect(workerPosts()[0].csrf).toBe('ses');
     const row = await waitFor(() => rowOf('Worker financeiro'));
     expect(within(row).getByText('Ativo')).toBeInTheDocument();
-    expect(within(row).getByText('Sem Agent')).toBeInTheDocument();
+    expect(within(row).getByText('Sem máquina vinculada')).toBeInTheDocument();
     expect(within(row).getByText('—')).toBeInTheDocument();
     nothingElse();
   });
@@ -191,7 +191,7 @@ describe('Workers: vincular e gerenciar o Agent (T07)', () => {
     expect(pairingPosts()[0].body).toEqual({ workerId: W1, agentName: 'ESTACAO-01', expiresInMinutes: 15 });
     expect(workerPosts()).toEqual([]);
     // nenhuma máquina fictícia: a linha continua sem Agent enquanto a lista do servidor não trouxer o vínculo
-    expect(within(rowOf('Worker financeiro')).getByText('Sem Agent')).toBeInTheDocument();
+    expect(within(rowOf('Worker financeiro')).getByText('Sem máquina vinculada')).toBeInTheDocument();
     expect(screen.queryByText('ESTACAO-01')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar código' }));
@@ -201,7 +201,7 @@ describe('Workers: vincular e gerenciar o Agent (T07)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Concluir' }));
     await waitFor(() => expect(listGets()).toBeGreaterThan(before));
     expect(screen.queryByLabelText('Código de uso único')).toBeNull();
-    expect(within(await waitFor(() => rowOf('Worker financeiro'))).getByText('Sem Agent')).toBeInTheDocument();
+    expect(within(await waitFor(() => rowOf('Worker financeiro'))).getByText('Sem máquina vinculada')).toBeInTheDocument();
     expect(screen.queryByText('ESTACAO-01')).toBeNull();
   });
 
@@ -218,17 +218,17 @@ describe('Workers: vincular e gerenciar o Agent (T07)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Concluir' }));
     const row = await waitFor(() => rowOf('ESTACAO-01'));
     expect(within(row).getByText('Worker financeiro')).toBeInTheDocument();
-    expect(within(row).getByText('Agent ativo')).toBeInTheDocument();
+    expect(within(row).getByText('Vinculada')).toBeInTheDocument();
     expect(within(row).getByText('Versão do Agent: 2.1.0')).toBeInTheDocument();
     expect(within(row).getByText(/Credencial vale até/)).toBeInTheDocument();
-    expect(within(row).getByText('Conectada')).toBeInTheDocument();
+    expect(within(row).getByText('Online')).toBeInTheDocument();
     expect(within(row).queryByRole('button', { name: /Vincular Agent/ })).toBeNull();
     expect(within(row).getByRole('button', { name: 'Renovar credencial de ESTACAO-01' })).toBeInTheDocument();
     expect(within(row).getByRole('button', { name: 'Revogar vínculo de ESTACAO-01 com Worker financeiro' })).toBeInTheDocument();
     expect(pairingPosts()).toHaveLength(1);
   });
 
-  it('comunicação: Conectada; Sem comunicação com último sinal ou "nunca"; Sem Agent com "—"; nota sobre a falta de sinal', async () => {
+  it('comunicação (T11): Online; Offline com último contato; ainda sem comunicação; sem máquina com "—"; nota sobre vínculo e comunicação', async () => {
     workers = [
       withAgent({ workerId: W1, name: 'Worker A', agentName: 'MAQ-A', connectivity: 'CONNECTED' }),
       withAgent({ workerId: W2, name: 'Worker B', agentName: 'MAQ-B', connectivity: 'DISCONNECTED', lastHeartbeatAt: '2026-11-09T08:30:00Z' }),
@@ -237,21 +237,26 @@ describe('Workers: vincular e gerenciar o Agent (T07)', () => {
     ];
     await openPage();
     const a = await waitFor(() => rowOf('MAQ-A'));
-    expect(within(a).getByText('Conectada')).toBeInTheDocument();
+    expect(within(a).getByText('Online')).toBeInTheDocument();
+    expect(within(a).getByText('Vinculada')).toBeInTheDocument();
     const b = rowOf('MAQ-B');
-    expect(within(b).getByText('Sem comunicação')).toBeInTheDocument();
-    expect(within(b).getByText(/Último sinal:/).querySelector('time')).toHaveAttribute('dateTime', '2026-11-09T08:30:00Z');
+    expect(within(b).getByText('Offline')).toBeInTheDocument();
+    // offline continua vinculada: não é desvinculado
+    expect(within(b).getByText('Vinculada')).toBeInTheDocument();
+    expect(within(b).getByText(/Último contato:/).querySelector('time')).toHaveAttribute('dateTime', '2026-11-09T08:30:00Z');
     const c = rowOf('MAQ-C');
-    expect(within(c).getByText('Sem comunicação')).toBeInTheDocument();
-    expect(within(c).getByText(/Último sinal:/)).toHaveTextContent('Último sinal: nunca');
+    // nunca "online" antes do primeiro contato
+    expect(within(c).getByText('Ainda sem comunicação')).toBeInTheDocument();
+    expect(within(c).queryByText(/^(Online|Offline)$/)).toBeNull();
+    expect(within(c).getByText(/Último contato:/)).toHaveTextContent('Último contato: nenhum');
     const d = rowOf('Worker D');
-    expect(within(d).getByText('Sem Agent')).toBeInTheDocument();
+    expect(within(d).getByText('Sem máquina vinculada')).toBeInTheDocument();
     expect(within(d).getByText('—')).toBeInTheDocument();
-    expect(within(d).queryByText(/Sem comunicação|Conectada/)).toBeNull();
+    expect(within(d).queryByText(/^(Online|Offline|Ainda sem comunicação)$/)).toBeNull();
     // nunca diz que a máquina foi desligada; a falta de sinal não muda nada no servidor
     expect(document.body.textContent).not.toMatch(/Desligada|Desligado/);
     expect(
-      screen.getByText(/A falta de sinal não revoga a credencial, não libera o Worker, não retira workspaces e não encerra execuções. Quando o sinal voltar, a máquina aparece conectada de novo, sem novo pareamento./),
+      screen.getByText(/a falta de contato não revoga a credencial, não libera o Worker e não retira workspaces. Desvincular no Agent não avisa a Platform: aqui a máquina continua vinculada, fica offline e só deixa de estar vinculada quando alguém revogar o vínculo. A lista se atualiza sozinha a cada 30 segundos enquanto a página está aberta. Quando o contato voltar, a máquina aparece online de novo, sem novo pareamento./),
     ).toBeInTheDocument();
   });
 
@@ -279,7 +284,7 @@ describe('Workers: vincular e gerenciar o Agent (T07)', () => {
     await confirmIn('Revogar vínculo');
     expect(await screen.findByText(/Vínculo revogado: o Worker Worker financeiro está livre/)).toBeInTheDocument();
     expect(api.sent('POST', `/api/v1/o/${ORG}/agents/${AG}/revoke`)[0].body).toEqual({ reason: 'ADMINISTRATIVE' });
-    expect(within(await waitFor(() => rowOf('Worker financeiro'))).getByText('Sem Agent')).toBeInTheDocument();
+    expect(within(await waitFor(() => rowOf('Worker financeiro'))).getByText('Sem máquina vinculada')).toBeInTheDocument();
   });
 
   it('sem agent_credential.manage: nem Vincular Agent nem Renovar credencial; Revogar vínculo continua com agent.manage', async () => {
@@ -370,7 +375,7 @@ describe('perfis de permissão em Workers (R1)', () => {
     expect(listGets()).toBe(0); // a lista que exige worker.manage nem é pedida
     const row = within(region).getAllByRole('row').find((r) => r.textContent?.includes('ESTACAO-01'))!;
     expect(row).toHaveTextContent('Worker 11111111…');
-    expect(row).toHaveTextContent('Conectada');
+    expect(row).toHaveTextContent('Online');
     const revoked = within(region).getAllByRole('row').find((r) => r.textContent?.includes('ESTACAO-ANTIGA'))!;
     expect(within(revoked).queryByRole('button')).toBeNull();
 

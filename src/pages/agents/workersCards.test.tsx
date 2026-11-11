@@ -107,12 +107,12 @@ describe('Workers em cartões, por perfil (T07 + T08 R1)', () => {
     const linked = cardOf(r, 'Worker financeiro');
     expect(linked).toHaveTextContent('Máquina vinculada');
     expect(linked).toHaveTextContent('ESTACAO-01');
-    expect(linked).toHaveTextContent('Conectada');
+    expect(linked).toHaveTextContent('Online');
     expect(within(linked).getByRole('button', { name: 'Retirar autorização de Financeiro do Worker Worker financeiro' })).toBeInTheDocument();
     expect(within(linked).getByRole('button', { name: 'Renovar credencial de ESTACAO-01' })).toBeInTheDocument();
     expect(within(linked).getByRole('button', { name: 'Revogar vínculo de ESTACAO-01 com Worker financeiro' })).toBeInTheDocument();
     const livre = cardOf(r, 'Worker livre');
-    expect(livre).toHaveTextContent('Sem Agent');
+    expect(livre).toHaveTextContent('Sem máquina vinculada');
     expect(within(livre).getByRole('button', { name: 'Vincular Agent a Worker livre' })).toBeInTheDocument();
     const gets = workersGets();
     size.resize(1300);
@@ -174,9 +174,9 @@ describe('Máquinas vinculadas em cartões (agent.manage sem worker.manage, R1)'
     await waitFor(() => expect(r).toHaveAttribute('data-format', 'cartoes'));
     expect(within(r).queryByRole('table')).toBeNull();
     const ativa = cardOf(r, 'ESTACAO-01');
-    expect(ativa).toHaveTextContent('Agent ativo');
+    expect(ativa).toHaveTextContent('Vinculada');
     expect(ativa).toHaveTextContent('Worker 11111111…');
-    expect(ativa).toHaveTextContent('Conectada');
+    expect(ativa).toHaveTextContent('Online');
     expect(within(ativa).getByRole('button', { name: 'Renovar credencial de ESTACAO-01' })).toBeInTheDocument();
     const revogar = within(ativa).getByRole('button', { name: 'Revogar vínculo de ESTACAO-01 com Worker 11111111…' });
     revogar.focus();
