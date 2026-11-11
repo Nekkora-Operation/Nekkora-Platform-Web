@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Badge, Button, Stack, StateView, Table, Text, type TableColumn } from 'nekkora-lib';
+import { Alert, Badge, Button, Stack, StateView, Text, type TableColumn } from 'nekkora-lib';
 import { cancelAgentCode, listAgents, type Agent, type AgentCode } from '../../api/agents';
 import { isApiError } from '../../api/http';
 import { useSession } from '../../area/session';
 import { ForbiddenState } from '../admin/shared';
 import { DateTimeText, LoadErrorState } from '../product/shared';
 import { OneTimeCode, RevokeLinkDialog, RotateCredentialDialog, type LinkedAgent } from './agentDialogs';
+import { ResponsiveTable } from './ResponsiveTable';
 
 const AGENT_STATUS: Record<NonNullable<Agent['status']>, { label: string; tone: 'success' | 'warning' | 'neutral' | 'danger' }> = {
   PENDING: { label: 'Agent pendente', tone: 'neutral' },
@@ -63,12 +64,14 @@ export function LinkedAgentsView({ has }: { has: (p: string) => boolean }) {
   const worker = (a: Agent) => (a.workerId ? `Worker ${a.workerId.slice(0, 8)}…` : 'Sem Worker');
   const linked = (a: Agent): LinkedAgent => ({ agentId: a.agentId!, name: name(a), workerName: worker(a) });
   const columns: TableColumn<Agent>[] = [
+    // o nome sozinho (título do cartão no modo estreito); situação, versão e validade ficam na coluna Agent
+    { key: 'maquina', header: 'Máquina', align: 'center', render: (a) => <span className="pw-break">{name(a)}</span> },
     {
-      key: 'maquina',
-      header: 'Máquina',
+      key: 'agent',
+      header: 'Agent',
+      align: 'center',
       render: (a) => (
         <Stack gap={1}>
-          <span className="pw-break">{name(a)}</span>
           {a.status && (
             <span>
               <Badge tone={AGENT_STATUS[a.status].tone}>{AGENT_STATUS[a.status].label}</Badge>
@@ -83,10 +86,11 @@ export function LinkedAgentsView({ has }: { has: (p: string) => boolean }) {
         </Stack>
       ),
     },
-    { key: 'worker', header: 'Worker', render: (a) => <span title={a.workerId ?? undefined}>{worker(a)}</span> },
+    { key: 'worker', header: 'Worker', align: 'center', render: (a) => <span title={a.workerId ?? undefined}>{worker(a)}</span> },
     {
       key: 'comunicacao',
       header: 'Comunicação',
+      align: 'center',
       render: (a) => (
         <Stack gap={1}>
           <span>
@@ -103,13 +107,14 @@ export function LinkedAgentsView({ has }: { has: (p: string) => boolean }) {
     {
       key: 'acoes',
       header: 'Ações',
+      align: 'center',
       render: (a) =>
         a.status === 'REVOKED' ? (
           <Text variant="body-sm" color="secondary">
             Nenhuma: vínculo revogado
           </Text>
         ) : (
-          <div className="pw-form__row">
+          <div className="pw-workers__actions">
             {canRotate && (
               <Button size="sm" variant="ghost" onClick={() => setRotating(linked(a))} aria-label={`Renovar credencial de ${name(a)}`}>
                 Renovar credencial
@@ -151,9 +156,16 @@ export function LinkedAgentsView({ has }: { has: (p: string) => boolean }) {
         (list.items.length === 0 ? (
           <StateView status="neutral" title="Nenhuma máquina vinculada." description="Uma máquina aparece aqui depois que o Agent dela resgata um código de pareamento." />
         ) : (
-          <div className="pw-prod__scroll" role="region" aria-label="Máquinas vinculadas" tabIndex={0}>
-            <Table columns={columns} data={list.items} rowKey="agentId" size="sm" caption="Máquinas vinculadas da organização." />
-          </div>
+          // mesma lista responsiva da T08: tabela quando cabe, cartões quando não cabe, com as mesmas colunas e permissões
+          <ResponsiveTable
+            className="pw-prod__scroll pw-workers"
+            label="Máquinas vinculadas"
+            columns={columns}
+            data={list.items}
+            rowKey="agentId"
+            title="maquina"
+            caption="Máquinas vinculadas da organização."
+          />
         ))}
 
       <RotateCredentialDialog
