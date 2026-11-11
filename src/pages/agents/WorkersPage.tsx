@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Badge, Button, Input, Select, Stack, StateView, Table, Text, type TableColumn } from 'nekkora-lib';
+import { Alert, Badge, Button, Input, Select, Stack, StateView, Text, type TableColumn } from 'nekkora-lib';
 import { authorizeWorkerInWorkspace, cancelAgentCode, createWorker, listWorkers, revokeWorkerInWorkspace, type AgentCode, type Worker } from '../../api/agents';
 import { hasReason, isApiError } from '../../api/http';
 import { useInternalArea } from '../../area/InternalShell';
@@ -8,14 +8,22 @@ import { StepUpDialog } from '../../components/StepUpDialog';
 import { accessRefusal, orgStepUp } from '../access/shared';
 import { ForbiddenState } from '../admin/shared';
 import { DateTimeText, LoadErrorState, PageHeader } from '../product/shared';
+import './workers.css';
 import { OneTimeCode, PairAgentDialog, RevokeLinkDialog, RotateCredentialDialog, type FreeWorker, type LinkedAgent } from './agentDialogs';
 import { LinkedAgentsView } from './linkedAgents';
+import { ResponsiveTable } from './ResponsiveTable';
 
 const STATUS: Record<NonNullable<Worker['status']>, { label: string; tone: 'success' | 'warning' | 'neutral' }> = {
   ACTIVE: { label: 'Ativo', tone: 'success' },
   SUSPENDED: { label: 'Suspenso', tone: 'warning' },
   RETIRED: { label: 'Aposentado', tone: 'neutral' },
 };
+
+/** T08: texto de abertura da tela. */
+export const WORKERS_INTRO = 'Crie Workers, vincule as máquinas e escolha em quais workspaces elas podem executar automações.';
+
+/** T08: o destino do "Retirar" legível por teclado e leitor de tela (o workspace e o Worker do item). */
+export const removeLabel = (workspace: string, worker: string) => `Retirar autorização de ${workspace} do Worker ${worker}`;
 
 const AGENT_STATUS: Record<NonNullable<Worker['agentStatus']>, { label: string; tone: 'success' | 'warning' | 'neutral' | 'danger' }> = {
   PENDING: { label: 'Agent pendente', tone: 'neutral' },
@@ -86,11 +94,12 @@ function WorkersManagement() {
   const machineName = (w: Worker) => w.agentName ?? `Agent ${w.agentId!.slice(0, 8)}…`;
   const linked = (w: Worker): LinkedAgent => ({ agentId: w.agentId!, name: machineName(w), workerName: w.name ?? '' });
   const columns: TableColumn<Worker>[] = [
-    { key: 'nome', header: 'Worker', render: (w) => <span className="pw-break">{w.name}</span> },
-    { key: 'situacao', header: 'Situação do Worker', render: (w) => (w.status ? <Badge tone={STATUS[w.status].tone}>{STATUS[w.status].label}</Badge> : '—') },
+    { key: 'nome', header: 'Worker', align: 'center', render: (w) => <span className="pw-break">{w.name}</span> },
+    { key: 'situacao', header: 'Situação do Worker', align: 'center', render: (w) => (w.status ? <Badge tone={STATUS[w.status].tone}>{STATUS[w.status].label}</Badge> : '—') },
     {
       key: 'maquina',
       header: 'Máquina vinculada',
+      align: 'center',
       render: (w) =>
         w.agentId ? (
           <Stack gap={1}>
@@ -115,6 +124,7 @@ function WorkersManagement() {
     {
       key: 'comunicacao',
       header: 'Comunicação',
+      align: 'center',
       render: (w) =>
         w.agentId ? (
           <Stack gap={1}>
@@ -134,13 +144,19 @@ function WorkersManagement() {
     {
       key: 'workspaces',
       header: 'Workspaces autorizados',
+      align: 'center',
       render: (w) =>
         w.workspaceIds?.length ? (
-          <ul className="pw-identity__orgs" aria-label={`Workspaces de ${w.name}`}>
+          <ul className="pw-workers__ws" aria-label={`Workspaces autorizados de ${w.name}`}>
             {w.workspaceIds.map((id) => (
-              <li key={id} className="pw-form__row">
-                <span>{wsName(id)}</span>
-                <Button size="sm" variant="ghost" onClick={() => setPending({ kind: 'remove', worker: w, workspaceId: id })} aria-label={`Retirar ${w.name} de ${wsName(id)}`}>
+              <li key={id} className="pw-workers__ws-item">
+                <span className="pw-workers__ws-name">{wsName(id)}</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setPending({ kind: 'remove', worker: w, workspaceId: id })}
+                  aria-label={removeLabel(wsName(id), w.name ?? '')}
+                >
                   Retirar
                 </Button>
               </li>
@@ -155,8 +171,9 @@ function WorkersManagement() {
     {
       key: 'acoes',
       header: 'Ações',
+      align: 'center',
       render: (w) => (
-        <div className="pw-form__row">
+        <div className="pw-workers__actions">
           {w.status === 'ACTIVE' && (
             <Button
               size="sm"
@@ -200,7 +217,7 @@ function WorkersManagement() {
     <Stack gap={5}>
       <PageHeader
         title="Workers"
-        subtitle="Onde as automações podem rodar. Um Worker recebe autorizações só nos workspaces em que está autorizado."
+        subtitle={WORKERS_INTRO}
         onRefresh={() => void load()}
         actions={
           canCreate ? (
@@ -246,9 +263,8 @@ function WorkersManagement() {
           />
         ) : (
           <>
-            <div className="pw-prod__scroll" role="region" aria-label="Lista de Workers" tabIndex={0}>
-              <Table columns={columns} data={list.items} rowKey="workerId" size="sm" caption="Workers da organização." />
-            </div>
+            {/* R1: tabela quando cabe; cartões quando não cabe (janela estreita, zoom de 200%), com as MESMAS colunas */}
+            <ResponsiveTable className="pw-prod__scroll pw-workers" label="Lista de Workers" columns={columns} data={list.items} rowKey="workerId" title="nome" caption="Workers da organização." />
             <Text variant="body-sm" color="secondary">
               Sem comunicação quer dizer que a Platform não recebe sinal da máquina há alguns minutos, não que ela foi desligada. A
               falta de sinal não revoga a credencial, não libera o Worker, não retira workspaces e não encerra execuções. Quando o
