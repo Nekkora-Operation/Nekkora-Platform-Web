@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { confirmStepUp, LAB, signUpAndEnroll, type Person, newVersionWithPackage } from './support/lab';
+import { confirmStepUp, LAB, pairNewWorker, signUpAndEnroll, type Person, newVersionWithPackage } from './support/lab';
 
 /**
  * M4 (J12) contra a API REAL e o Agent REAL (empacotado, cópia do laboratório: tools/lab/agent.ps1). A execução local
@@ -63,15 +63,10 @@ test('J12: código emitido na tela, pareamento do Agent real, presença, Worker 
   await confirmStepUp(page, ana, 'Publicar');
   await expect(page.getByText('Publicada (imutável)')).toBeVisible();
 
-  // código de pareamento com Worker novo (step-up); aparece só agora
-  await page.goto(`/o/${org}/agents`);
-  await expect(page.getByText('Nenhum Agent pareado.')).toBeVisible();
-  await page.getByRole('button', { name: 'Parear novo Agent' }).click();
-  const dialog = page.getByRole('alertdialog');
-  await dialog.getByLabel(/^Nome da máquina/).fill('LAB-FRONT-01');
-  await dialog.getByLabel(/^Nome do Worker/).fill('Worker do laboratório');
-  await confirmStepUp(page, ana, 'Gerar código');
-  const code = (await page.getByLabel('Código de uso único').innerText()).trim();
+  // T07: Workers → Criar Worker (sem Agent) → Vincular Agent (código para esse Worker, step-up); aparece só agora
+  await page.goto(`/o/${org}/workers`);
+  await expect(page.getByText('Nenhum Worker criado.')).toBeVisible();
+  const code = await pairNewWorker(page, org, ana, 'Worker do laboratório', 'LAB-FRONT-01');
   expect(code).toMatch(/^nkp1\./);
 
   // a pessoa abre o Agent real e cola o código (teclado enviado à janela do Agent)
@@ -79,21 +74,21 @@ test('J12: código emitido na tela, pareamento do Agent real, presença, Worker 
   agent('parear', `${code}\n`);
   await page.getByRole('button', { name: 'Concluir' }).click();
 
-  // o Agent aparece ativo; a conexão depende do heartbeat dele (CONNECTED até 180 s do último sinal)
+  // a máquina aparece na linha do Worker depois do resgate; a comunicação depende do heartbeat (CONNECTED até 180 s do último sinal)
   const agentsText = async () => {
     await page.getByRole('button', { name: 'Atualizar' }).click();
-    await page.getByRole('region', { name: 'Lista de Agents' }).waitFor({ timeout: 15_000 });
-    return page.getByRole('region', { name: 'Lista de Agents' }).innerText().catch(() => '');
+    await page.getByRole('region', { name: 'Lista de Workers' }).waitFor({ timeout: 15_000 });
+    return page.getByRole('region', { name: 'Lista de Workers' }).innerText().catch(() => '');
   };
   let seen = '';
   await page.waitForTimeout(5_000);
   console.log(`AGENTS: ${(await agentsText()).replace(/\s+/g, ' ')}`);
   await expect
     .poll(async () => (seen = await agentsText()), { timeout: 60_000, intervals: [3_000] })
-    .toMatch(/LAB-FRONT-01[\s\S]*Ativo/);
+    .toMatch(/LAB-FRONT-01[\s\S]*Agent ativo/);
   await expect
     .poll(async () => (seen = await agentsText()), { timeout: 240_000, intervals: [10_000] })
-    .toMatch(/LAB-FRONT-01[\s\S]*Conectado/);
+    .toMatch(/LAB-FRONT-01[\s\S]*Conectada/);
   // a listagem nunca devolve o código
   await expect(page.getByText(code)).toHaveCount(0);
 

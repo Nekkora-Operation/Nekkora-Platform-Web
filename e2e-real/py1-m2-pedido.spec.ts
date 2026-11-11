@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { confirmStepUp, LAB, signUpAndEnroll, type Person, newVersionWithPackage } from './support/lab';
+import { confirmStepUp, LAB, pairNewWorker, signUpAndEnroll, type Person, workersText, newVersionWithPackage } from './support/lab';
 
 /**
  * AGENT-PYTHON-001 — Marco 2 com Web, API e Agent REAIS: um projeto Python externo é empacotado pelo gerador (build =
@@ -151,22 +151,12 @@ test('M2: pacote externo publicado, aprovado na máquina e disparado pela Platfo
   expect(art).toBe(`2|nekkora-agent/external-python-fingerprint/1|${fingerprint}|${zipSha}`);
 
   // ---------- pareamento, Worker no workspace e autorização da versão
-  await page.goto(`/o/${org}/agents`);
-  await page.getByRole('button', { name: 'Parear novo Agent' }).click();
-  await page.getByRole('alertdialog').getByLabel(/^Nome da máquina/).fill('ESTACAO-PY1-M2');
-  await page.getByRole('alertdialog').getByLabel(/^Nome do Worker/).fill('Worker pedidos');
-  await confirmStepUp(page, ana, 'Gerar código');
-  const code = (await page.getByLabel('Código de uso único').innerText()).trim();
+  // T07: Workers → Criar Worker → Vincular Agent
+  const code = await pairNewWorker(page, org, ana, 'Worker pedidos', 'ESTACAO-PY1-M2');
   agent('iniciar');
   agent('parear', `${code}\n`);
   await page.getByRole('button', { name: 'Concluir' }).click();
-  const agentsText = async () => {
-    await page.goto(`/o/${org}/agents`);
-    await page.getByRole('heading', { name: 'Agents' }).waitFor();
-    await page.waitForTimeout(1_500);
-    return page.locator('main').innerText();
-  };
-  await expect.poll(agentsText, { timeout: 240_000, intervals: [10_000] }).toMatch(/ESTACAO-PY1-M2[\s\S]*Conectado/);
+  await expect.poll(() => workersText(page, org), { timeout: 240_000, intervals: [10_000] }).toMatch(/ESTACAO-PY1-M2[\s\S]*Conectada/);
   await page.goto(`/o/${org}/workers`);
   await page.getByRole('button', { name: 'Autorizar Worker pedidos num workspace' }).click();
   await page.getByRole('alertdialog').getByLabel('Workspace').selectOption(workspaceId);
@@ -274,9 +264,10 @@ test('M2: pacote externo publicado, aprovado na máquina e disparado pela Platfo
   // ---------- S6: credencial revogada — o pedido existe, a máquina não o recebe, nada inicia
   agent('parar');
   const s6 = await execute(page, ana, versionUrl, 3);
-  await page.goto(`/o/${org}/agents`);
-  await page.getByRole('button', { name: 'Revogar ESTACAO-PY1-M2' }).click();
-  await confirmStepUp(page, ana, 'Revogar Agent');
+  // T07: revogar o vínculo na linha do Worker (o Worker fica livre; a máquina não é contatada)
+  await page.goto(`/o/${org}/workers`);
+  await page.getByRole('button', { name: 'Revogar vínculo de ESTACAO-PY1-M2 com Worker pedidos' }).click();
+  await confirmStepUp(page, ana, 'Revogar vínculo');
   await page.waitForTimeout(2_000);
   agent('iniciar');
   await page.waitForTimeout(45_000);

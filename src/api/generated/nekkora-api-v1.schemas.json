@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "baf0c77843c79648d23e97d05ec7f138c8b3714f744f81cf5a7b9ca1f2b1add5",
+  "openapiSha256": "61acf1ea1bf09b9b08b3e4d34744a1dc56945eedfd6679c967713caaeec304bd",
   "schemas": {
     "Error": {
       "type": "object",
@@ -29,6 +29,7 @@
           "enum": [
             "workspace_name_taken",
             "step_up_required",
+            "worker_limit_reached",
             "draft_exists",
             "draft_changed"
           ]
@@ -2535,9 +2536,107 @@
                   "type": "string",
                   "format": "uuid"
                 }
+              },
+              "agentName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "agentStatus": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "PENDING",
+                  "ACTIVE",
+                  "SUSPENDED",
+                  "REVOKED",
+                  null
+                ]
+              },
+              "agentVersion": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "installationId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "lastHeartbeatAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "connectivity": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "CONNECTED",
+                  "DISCONNECTED",
+                  null
+                ]
+              },
+              "credentialExpiresAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
               }
             }
           }
+        }
+      }
+    },
+    "WorkerCreateRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        }
+      }
+    },
+    "WorkerCreated": {
+      "type": "object",
+      "required": [
+        "workerId",
+        "name",
+        "status"
+      ],
+      "properties": {
+        "workerId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ACTIVE"
+          ]
         }
       }
     },
@@ -7533,6 +7632,60 @@
           }
         },
         "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "createWorker": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/workers",
+      "responses": {
+        "201": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/WorkerCreated"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/Error"

@@ -1,0 +1,141 @@
+/*
+ * PLATFORM-AGENT-V2-002, T08 — legibilidade da tabela de Workers. Regras LOCAIS a esta tabela (.pw-workers): as demais
+ * tabelas da Lib e da aplicação não mudam. Cabeçalhos e células centralizados na horizontal (align do Table) e na vertical
+ * (aqui); em "Workspaces autorizados", um par nome + "Retirar" por item, SEMPRE lado a lado (R1): a lista é uma grade de
+ * duas colunas (nome | botão) compartilhada pelos itens (subgrid), então os botões ficam alinhados entre si e um nome
+ * longo quebra dentro da própria coluna, sem descer o botão para outra linha, em janela estreita e com zoom de 200%.
+ */
+.pw-workers .nk-table__th,
+.pw-workers .nk-table__td {
+  vertical-align: middle;
+  text-align: center;
+}
+
+.pw-workers__ws {
+  list-style: none;
+  margin: 0 auto;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 28ch) auto;
+  column-gap: var(--nk-space-2);
+  row-gap: var(--nk-space-2);
+  width: max-content;
+  max-width: 100%;
+}
+
+/* cada item ocupa uma linha da grade da lista (mesmas colunas: os botões se alinham) */
+.pw-workers__ws-item {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+}
+
+/* sem subgrid: o item tem as próprias duas colunas (continua lado a lado; só o alinhamento entre itens se perde) */
+@supports not (grid-template-columns: subgrid) {
+  .pw-workers__ws-item {
+    grid-template-columns: minmax(0, 28ch) auto;
+    column-gap: var(--nk-space-2);
+  }
+}
+
+/* nome longo quebra dentro da própria coluna, junto ao botão, sem empurrar nem sobrepor */
+.pw-workers__ws-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: end;
+}
+
+.pw-workers__ws-item > button {
+  justify-self: start;
+  white-space: nowrap;
+}
+
+/* T07 + T08: acoes da linha lado a lado, centralizadas, quebrando em janela estreita */
+.pw-workers__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--nk-space-2);
+}
+
+/*
+ * R1: nomes de Worker e de máquina quebram só entre palavras nesta tabela. Com "anywhere" (regra geral .pw-break), a
+ * coluna encolhia até uma letra em janela estreita e com zoom de 200% ("Estaçã / o fiscal"). Uma palavra maior que a
+ * coluna ainda quebra, sem sobrepor.
+ */
+.pw-workers .pw-break {
+  overflow-wrap: break-word;
+}
+
+/*
+ * R1: em cartões (quando a tabela não cabe; ResponsiveTable): um cartão por Worker, com o nome como título e cada
+ * coluna da tabela como rótulo + valor. Os pares nome do workspace + "Retirar" continuam juntos, lado a lado.
+ */
+.pw-rtable--cards {
+  overflow: visible;
+}
+
+.pw-rtable__cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--nk-space-3);
+}
+
+.pw-rtable__card {
+  border: 1px solid var(--nk-color-border);
+  border-radius: var(--nk-radius-md);
+  padding: var(--nk-space-3) var(--nk-space-4);
+}
+
+.pw-rtable__title {
+  margin: 0 0 var(--nk-space-2);
+  font-size: var(--nk-font-size-sm);
+  font-weight: var(--nk-font-weight-semibold);
+  color: var(--nk-color-text);
+}
+
+.pw-rtable__fields {
+  margin: 0;
+  display: grid;
+  gap: var(--nk-space-3);
+}
+
+.pw-rtable__field {
+  display: grid;
+  gap: var(--nk-space-1);
+}
+
+.pw-rtable__field dt {
+  font-size: var(--nk-font-size-xs);
+  color: var(--nk-color-text-secondary);
+}
+
+.pw-rtable__field dd {
+  margin: 0;
+  min-width: 0;
+}
+
+/* nos cartões, os pares do workspace ficam alinhados à esquerda: nome e "Retirar" na mesma linha */
+.pw-rtable--cards .pw-workers__ws {
+  margin: 0;
+}
+
+.pw-rtable--cards .pw-workers__ws-name {
+  text-align: start;
+}
+
+/* ações do cartão lado a lado, quebrando quando não couberem */
+.pw-rtable--cards .pw-rtable__field--acoes dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nk-space-2);
+}
+
+/* T07 + T08 nos cartões: as ações da linha começam à esquerda */
+.pw-rtable--cards .pw-workers__actions {
+  justify-content: flex-start;
+}

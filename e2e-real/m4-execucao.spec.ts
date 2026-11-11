@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { confirmStepUp, LAB, signUpAndEnroll, type Person, newVersionWithPackage } from './support/lab';
+import { confirmStepUp, LAB, pairNewWorker, signUpAndEnroll, type Person, newVersionWithPackage } from './support/lab';
 
 /**
  * J13–J15 com o Agent REAL e a API REAL, em sessão ASSISTIDA (FRONT-V1-002).
@@ -110,14 +110,8 @@ async function setup(page: Page, person: Person) {
   await confirmStepUp(page, person, 'Publicar');
   await expect(page.getByText('Publicada (imutável)')).toBeVisible();
 
-  // pareamento (código só na tela, entregue ao Agent pela entrada padrão do script)
-  await page.goto(`/o/${org}/agents`);
-  await page.getByRole('button', { name: 'Parear novo Agent' }).click();
-  const dialog = page.getByRole('alertdialog');
-  await dialog.getByLabel(/^Nome da máquina/).fill('LAB-FRONT-02');
-  await dialog.getByLabel(/^Nome do Worker/).fill('Worker do laboratório');
-  await confirmStepUp(page, person, 'Gerar código');
-  const code = (await page.getByLabel('Código de uso único').innerText()).trim();
+  // T07: Workers → Criar Worker → Vincular Agent (código só na tela, entregue ao Agent pela entrada padrão do script)
+  const code = await pairNewWorker(page, org, person, 'Worker do laboratório', 'LAB-FRONT-02');
   agent('iniciar');
   agent('parear', [], `${code}\n`);
   await page.getByRole('button', { name: 'Concluir' }).click();
@@ -133,9 +127,9 @@ async function setup(page: Page, person: Person) {
         },
         { timeout: 240_000, intervals: [10_000] },
       )
-      .toMatch(/LAB-FRONT-02[\s\S]*Conectado/);
+      .toMatch(/LAB-FRONT-02[\s\S]*Conectada/);
   } finally {
-    step(`Agents na tela: ${seen.slice(0, 600)}`);
+    step(`Workers na tela: ${seen.slice(0, 600)}`);
   }
 
   await page.goto(`/o/${org}/workers`);

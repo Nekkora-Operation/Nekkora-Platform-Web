@@ -1549,11 +1549,15 @@ export interface paths {
         };
         /**
          * Lista os Workers
-         * @description Exige worker.manage. Situacao, Agent associado e workspaces autorizados.
+         * @description Exige worker.manage. Situacao, Agent associado e workspaces autorizados. T07 (campos aditivos): maquina vinculada (agentName, agentStatus, agentVersion, installationId, credentialExpiresAt; null = sem Agent) e comunicacao (lastHeartbeatAt e connectivity, mesma janela de GET /agents). Ausencia de sinal nao altera nada no servidor.
          */
         get: operations["listWorkers"];
         put?: never;
-        post?: never;
+        /**
+         * Cria um Worker sem Agent (T07)
+         * @description PLATFORM-AGENT-V2-002, T07. Exige worker.manage. Cria o Worker ACTIVE sem Agent, sem codigo e sem execucao; o Agent e vinculado depois por POST /agent-enrollments com workerId. Capacidade decidida no banco (010) com a organizacao travada: limite atingido (zero antes da ativacao) -> 409 conflict + reason worker_limit_reached, nada gravado. Nome de 1 a 80 caracteres (espacos nas extremidades retirados). Auditado (agent_admin_events 7).
+         */
+        post: operations["createWorker"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1864,10 +1868,10 @@ export interface components {
             /** @enum {string} */
             error: "invalid_request" | "unauthenticated" | "forbidden" | "not_found" | "conflict" | "already_member" | "account_exists" | "account_unavailable" | "rate_limited" | "internal_error" | "service_unavailable" | "unsupported_contract";
             /**
-             * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, draft_exists, draft_changed; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
+             * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached, draft_exists, draft_changed; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
              * @enum {string}
              */
-            reason?: "workspace_name_taken" | "step_up_required" | "draft_exists" | "draft_changed";
+            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "draft_exists" | "draft_changed";
         };
         /**
          * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
@@ -2621,7 +2625,38 @@ export interface components {
                 /** Format: uuid */
                 agentId?: string | null;
                 workspaceIds?: string[];
+                /** @description T07: maquina vinculada (null = sem Agent) */
+                agentName?: string | null;
+                /** @enum {string|null} */
+                agentStatus?: "PENDING" | "ACTIVE" | "SUSPENDED" | "REVOKED" | null;
+                agentVersion?: string | null;
+                /** Format: uuid */
+                installationId?: string | null;
+                /**
+                 * Format: date-time
+                 * @description T07: ultimo sinal conhecido da maquina vinculada
+                 */
+                lastHeartbeatAt?: string | null;
+                /**
+                 * @description T07: null = sem Agent
+                 * @enum {string|null}
+                 */
+                connectivity?: "CONNECTED" | "DISCONNECTED" | null;
+                /** Format: date-time */
+                credentialExpiresAt?: string | null;
+                /** Format: date-time */
+                createdAt?: string;
             }[];
+        };
+        WorkerCreateRequest: {
+            name: string;
+        };
+        WorkerCreated: {
+            /** Format: uuid */
+            workerId: string;
+            name: string;
+            /** @enum {string} */
+            status: "ACTIVE";
         };
         WorkerWorkspace: {
             /** Format: uuid */
@@ -6100,6 +6135,40 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    createWorker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkerCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Worker criado */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerCreated"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };

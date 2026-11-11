@@ -75,6 +75,15 @@ export function listWorkers(org: string): Promise<S['WorkerList']> {
   return send(org, 'listWorkers', '/workers');
 }
 
+/**
+ * PLATFORM-AGENT-V2-002, T07 — cria um Worker ATIVO sem Agent (worker.manage, sem step-up). Não emite código nem inicia
+ * execução; o Agent é vinculado depois com `createPairingCode({ workerId })`. Limite atingido (zero antes da ativação):
+ * 409 conflict + worker_limit_reached, nada gravado.
+ */
+export function createWorker(org: string, name: string): Promise<S['WorkerCreated']> {
+  return send(org, 'createWorker', '/workers', { method: 'POST', body: { name } });
+}
+
 /** Autoriza o Worker no workspace (step-up). Idempotente: 200 (já autorizado) ou 201. */
 export function authorizeWorkerInWorkspace(org: string, workerId: string, workspaceId: string): Promise<S['WorkerWorkspace']> {
   return send(org, 'authorizeWorkerInWorkspace', `/workers/${id(workerId)}/workspaces/${id(workspaceId)}`, { method: 'PUT' });
