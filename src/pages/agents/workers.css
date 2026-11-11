@@ -50,3 +50,12 @@
   justify-self: start;
   white-space: nowrap;
 }
+
+/*
+ * R1: nomes de Worker e de máquina quebram só entre palavras nesta tabela. Com "anywhere" (regra geral .pw-break), a
+ * coluna encolhia até uma letra em janela estreita e com zoom de 200% ("Estaçã / o fiscal"). Uma palavra maior que a
+ * coluna ainda quebra, sem sobrepor.
+ */
+.pw-workers .pw-break {
+  overflow-wrap: break-word;
+}
