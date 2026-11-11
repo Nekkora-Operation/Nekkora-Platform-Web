@@ -9,6 +9,7 @@ import { accessRefusal, orgStepUp } from '../access/shared';
 import { ForbiddenState } from '../admin/shared';
 import { DateTimeText, LoadErrorState, PageHeader } from '../product/shared';
 import { OneTimeCode, PairAgentDialog, RevokeLinkDialog, RotateCredentialDialog, type FreeWorker, type LinkedAgent } from './agentDialogs';
+import { LinkedAgentsView } from './linkedAgents';
 
 const STATUS: Record<NonNullable<Worker['status']>, { label: string; tone: 'success' | 'warning' | 'neutral' }> = {
   ACTIVE: { label: 'Ativo', tone: 'success' },
@@ -35,7 +36,7 @@ type Pending = { kind: 'authorize'; worker: Worker } | { kind: 'remove'; worker:
  * gerenciar o vínculo (renovar a credencial, revogar). Três dimensões separadas: a situação do Worker, a máquina
  * vinculada (só quando a lista do servidor a traz, depois do resgate do código) e a comunicação (último sinal).
  */
-export function WorkersPage() {
+function WorkersManagement() {
   const { org, expired } = useSession();
   const { workspaces, permissions } = useInternalArea();
   const has = (p: string) => permissions.status === 'ready' && (permissions.data.organization.permissions as string[]).includes(p);
@@ -360,4 +361,26 @@ export function WorkersPage() {
       </StepUpDialog>
     </Stack>
   );
+}
+
+/**
+ * PLATFORM-AGENT-V2-002 R1 — quem administra Workers (`worker.manage`) vê a tela completa. Quem administra só Agents
+ * (`agent.manage`, sem `worker.manage`) vê as máquinas vinculadas, com as ações que já tinha na antiga tela de Agents.
+ * Enquanto as permissões carregam, nada é pedido. Se falharem, a tela completa tenta a lista e a API decide; o aviso de
+ * permissões não carregadas, com nova tentativa, fica no topo da área (InternalShell).
+ */
+export function WorkersPage() {
+  const { permissions } = useInternalArea();
+  const has = (p: string) => permissions.status === 'ready' && (permissions.data.organization.permissions as string[]).includes(p);
+  // a visão depende das permissões: nenhuma lista é pedida antes delas
+  if (permissions.status === 'loading') return <StateView status="loading" title="Carregando Workers…" />;
+  if (permissions.status === 'ready' && !has('worker.manage') && has('agent.manage')) {
+    return (
+      <Stack gap={5}>
+        <PageHeader title="Workers" subtitle="Máquinas vinculadas aos Workers desta organização." />
+        <LinkedAgentsView has={has} />
+      </Stack>
+    );
+  }
+  return <WorkersManagement />;
 }

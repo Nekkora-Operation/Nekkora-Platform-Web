@@ -169,8 +169,10 @@ export function InternalShell() {
       label: 'Execução local',
       items: [
         { id: 'supervisao', label: 'Supervisão', href: orgPath.agentRuns(org), icon: 'pulse', active: section === 'supervisao' },
-        // PLATFORM-AGENT-V2-002, T07: Workers é a entrada única (a máquina vinculada é gerida na linha do Worker); /agents leva até lá
-        ...(permissions.status === 'ready' && permissions.data.organization.permissions.includes('worker.manage')
+        // PLATFORM-AGENT-V2-002, T07: Workers é a entrada única (a máquina vinculada é gerida na linha do Worker); /agents leva até lá.
+        // R1: quem administra só Agents (agent.manage) também entra, para as ações que tinha na antiga tela de Agents.
+        ...(permissions.status === 'ready' &&
+        (permissions.data.organization.permissions.includes('worker.manage') || permissions.data.organization.permissions.includes('agent.manage'))
           ? [{ id: 'workers', label: 'Workers', href: orgPath.workers(org), icon: 'server' as const, active: section === 'workers' }]
           : []),
       ],

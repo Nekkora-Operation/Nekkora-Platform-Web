@@ -323,3 +323,112 @@ describe('compatibilidade com Agents (T07)', () => {
     expect(api.sent('GET', `/api/v1/o/${ORG}/agents`)).toEqual([]);
   });
 });
+
+/** Agent como a API devolve na lista de Agents (agent.manage). */
+const agentItem = (over: W = {}): W => ({
+  agentId: AG,
+  name: 'ESTACAO-01',
+  installationId: INST,
+  agentVersion: '2.1.0',
+  status: 'ACTIVE',
+  workerId: W1,
+  registeredAt: T,
+  lastHeartbeatAt: T,
+  connectivity: 'CONNECTED',
+  contractVersion: '1.0.0',
+  capabilities: [],
+  credentialExpiresAt: '2027-02-10T12:00:00Z',
+  ...over,
+});
+
+describe('perfis de permissão em Workers (R1)', () => {
+  const AGENTS_ONLY = ['agent.manage', 'agent_credential.manage', 'worker_agent.assign'];
+  let agents: W[];
+  beforeEach(() => {
+    agents = [agentItem(), agentItem({ agentId: W2, name: 'ESTACAO-ANTIGA', status: 'REVOKED', workerId: null })];
+    api.on('GET', `/api/v1/o/${ORG}/agents`, 'listAgents', () => ({ status: 200, body: { items: agents } }));
+    // a lista de Workers exige worker.manage na API
+    api.on('GET', `/api/v1/o/${ORG}/workers`, 'listWorkers', { status: 403, body: { error: 'forbidden' } });
+  });
+
+  it('agent.manage + agent_credential.manage SEM worker.manage, por URL direta: máquinas vinculadas com Renovar e Revogar; sem Criar Worker; menu com Workers', async () => {
+    permissions(AGENTS_ONLY);
+    api.on('POST', `/api/v1/o/${ORG}/agents/${AG}/credential-rotations`, 'createAgentRotationCode', {
+      status: 201,
+      body: { enrollmentId: ENR, code: CODE, expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(), workerId: W1, agentId: AG },
+    });
+    api.on('POST', `/api/v1/o/${ORG}/agents/${AG}/revoke`, 'revokeAgent', () => {
+      agents = [agentItem({ status: 'REVOKED' })];
+      return { status: 204 };
+    });
+    await openPage();
+    const region = await screen.findByRole('region', { name: 'Máquinas vinculadas' });
+    expect(screen.getByText(/Você administra os Agents desta organização, mas não os Workers/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Criar Worker' })).toBeNull();
+    const nav = await screen.findByRole('navigation', { name: 'Navegação principal' });
+    expect(within(nav).getByRole('link', { name: 'Workers' })).toBeInTheDocument();
+    expect(listGets()).toBe(0); // a lista que exige worker.manage nem é pedida
+    const row = within(region).getAllByRole('row').find((r) => r.textContent?.includes('ESTACAO-01'))!;
+    expect(row).toHaveTextContent('Worker 11111111…');
+    expect(row).toHaveTextContent('Conectada');
+    const revoked = within(region).getAllByRole('row').find((r) => r.textContent?.includes('ESTACAO-ANTIGA'))!;
+    expect(within(revoked).queryByRole('button')).toBeNull();
+
+    fireEvent.click(within(row).getByRole('button', { name: 'Renovar credencial de ESTACAO-01' }));
+    await confirmIn('Gerar código');
+    expect(await screen.findByLabelText('Código de uso único')).toHaveTextContent(CODE);
+    fireEvent.click(screen.getByRole('button', { name: 'Concluir' }));
+    const again = await waitFor(() => within(screen.getByRole('region', { name: 'Máquinas vinculadas' })).getAllByRole('row').find((r) => r.textContent?.includes('ESTACAO-01'))!);
+    fireEvent.click(within(again).getByRole('button', { name: 'Revogar vínculo de ESTACAO-01 com Worker 11111111…' }));
+    await confirmIn('Revogar vínculo');
+    expect(await screen.findByText(/Vínculo revogado: Worker 11111111… está livre/)).toBeInTheDocument();
+    expect(api.sent('POST', `/api/v1/o/${ORG}/agents/${AG}/revoke`)).toHaveLength(1);
+    expect(workerPosts()).toEqual([]);
+    nothingElse();
+  });
+
+  it('agent.manage sozinho: Revogar sim, Renovar não (exige agent_credential.manage)', async () => {
+    permissions(['agent.manage']);
+    await openPage();
+    const region = await screen.findByRole('region', { name: 'Máquinas vinculadas' });
+    const row = within(region).getAllByRole('row').find((r) => r.textContent?.includes('ESTACAO-01'))!;
+    expect(within(row).getByRole('button', { name: /Revogar vínculo/ })).toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: /Renovar credencial/ })).toBeNull();
+  });
+
+  it('/o/{org}/agents (link antigo) com agent.manage sem worker.manage leva às máquinas vinculadas em Workers', async () => {
+    permissions(AGENTS_ONLY);
+    renderApp(`/o/${ORG}/agents`);
+    await waitFor(() => expect(location()).toBe(`/o/${ORG}/workers`));
+    expect(await screen.findByRole('region', { name: 'Máquinas vinculadas' })).toBeInTheDocument();
+  });
+
+  it('worker.manage sem permissões de Agent: tela completa, sem Vincular, Renovar nem Revogar', async () => {
+    permissions(['worker.manage', 'worker_workspace.authorize']);
+    workers = [withAgent(), free(W2, 'Worker livre')];
+    api.on('GET', `/api/v1/o/${ORG}/workers`, 'listWorkers', () => ({ status: 200, body: { items: workers } }));
+    await openPage();
+    const linked = await waitFor(() => rowOf('ESTACAO-01'));
+    expect(screen.getByRole('button', { name: 'Criar Worker' })).toBeInTheDocument();
+    expect(within(linked).queryByRole('button', { name: /Renovar credencial|Revogar vínculo/ })).toBeNull();
+    expect(within(rowOf('Worker livre')).queryByRole('button', { name: /Vincular Agent/ })).toBeNull();
+    expect(api.sent('GET', `/api/v1/o/${ORG}/agents`)).toEqual([]);
+  });
+
+  it('sem worker.manage nem agent.manage, por URL direta: sem item no menu e a API decide (sem permissão)', async () => {
+    permissions(['agent_credential.manage']);
+    await openPage();
+    expect(await screen.findByText(/Você não tem permissão para ver os Workers/)).toBeInTheDocument();
+    const nav = await screen.findByRole('navigation', { name: 'Navegação principal' });
+    expect(within(nav).queryByRole('link', { name: 'Workers' })).toBeNull();
+    expect(api.sent('GET', `/api/v1/o/${ORG}/agents`)).toEqual([]);
+  });
+
+  it('acessibilidade (axe) das máquinas vinculadas', async () => {
+    permissions(AGENTS_ONLY);
+    await openPage();
+    await screen.findByRole('region', { name: 'Máquinas vinculadas' });
+    const result = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false }, region: { enabled: false } } });
+    expect(result.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+  });
+});
