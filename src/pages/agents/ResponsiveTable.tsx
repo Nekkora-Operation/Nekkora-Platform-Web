@@ -7,9 +7,9 @@ import { Table, type TableColumn } from 'nekkora-lib';
  * - Um formato por vez: só um conjunto de controles existe no DOM, sem nada escondido que o teclado alcance.
  * - As MESMAS colunas (cabeçalho + render) alimentam os dois formatos: dados, permissões e ações são uma lógica só, e
  *   a consulta fica na página (trocar de formato não pede nada à API).
- * - O ponto de troca vem do conteúdo, não de uma largura fixa: a tabela vira cartões quando precisa de mais largura do
- *   que a região tem (rolagem horizontal) e volta quando a região passa a comportar a largura que ela pediu. Sem
- *   medida (ResizeObserver ausente), fica a tabela.
+ * - O ponto de troca vem do espaço: a tabela vira cartões quando precisa de mais largura do que a região tem (rolagem
+ *   horizontal) OU quando a região fica abaixo de `minTableWidth` (referência de ~900 px: janela estreita, zoom de 200%),
+ *   e volta quando a região comporta as duas coisas. Sem medida (ResizeObserver ausente), fica a tabela.
  */
 export function ResponsiveTable<T extends object>({
   columns,
@@ -19,6 +19,7 @@ export function ResponsiveTable<T extends object>({
   label,
   className,
   title,
+  minTableWidth = 900,
 }: {
   columns: TableColumn<T>[];
   data: T[];
@@ -29,6 +30,8 @@ export function ResponsiveTable<T extends object>({
   className?: string;
   /** Coluna que vira o título de cada cartão (as demais viram pares rótulo/valor). */
   title: string;
+  /** Abaixo desta largura da região, cartões mesmo que a tabela caiba (referência da revisão: ~900 px). */
+  minTableWidth?: number;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<'table' | 'cards'>('table');
@@ -41,11 +44,12 @@ export function ResponsiveTable<T extends object>({
     if (!el || typeof ResizeObserver === 'undefined') return;
     const check = () => {
       if (mode === 'table') {
-        if (el.scrollWidth > el.clientWidth + 1) {
-          needed.current = el.scrollWidth;
+        const overflow = el.scrollWidth > el.clientWidth + 1;
+        if (overflow || el.clientWidth < minTableWidth) {
+          if (overflow) needed.current = el.scrollWidth;
           setMode('cards');
         }
-      } else if (needed.current > 0 && el.clientWidth >= needed.current) {
+      } else if (el.clientWidth >= Math.max(needed.current, minTableWidth)) {
         setMode('table');
       }
     };
@@ -53,7 +57,7 @@ export function ResponsiveTable<T extends object>({
     const ro = new ResizeObserver(check);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [mode, data, columns]);
+  }, [mode, data, columns, minTableWidth]);
 
   const head = columns.find((c) => c.key === title);
   const rest = columns.filter((c) => c.key !== title);
