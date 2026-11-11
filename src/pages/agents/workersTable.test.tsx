@@ -131,10 +131,11 @@ describe('tabela de Workers (T08)', () => {
  */
 describe('Workers em cartões quando a tabela não cabe (T08 R1)', () => {
   let width = 600;
-  const NEEDED = 1100;
+  let NEEDED = 1100;
   let observers: (() => void)[] = [];
   beforeEach(() => {
     width = 600;
+    NEEDED = 1100;
     observers = [];
     vi.stubGlobal(
       'ResizeObserver',
@@ -236,6 +237,19 @@ describe('Workers em cartões quando a tabela não cabe (T08 R1)', () => {
     await vi.waitFor(() => expect(r).toHaveAttribute('data-format', 'cartoes'));
     const result = await axe.run(r, { rules: { 'color-contrast': { enabled: false } } });
     expect(result.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+  });
+
+  it('a tabela caberia, mas a região é estreita (< ~900 px): cartões; com 900 px ou mais, tabela', async () => {
+    NEEDED = 500; // tabela compacta: cabe em 600 px
+    renderApp(`/o/${ORG}/workers`);
+    const r = await region();
+    await vi.waitFor(() => expect(r).toHaveAttribute('data-format', 'cartoes'));
+    resize(899);
+    expect(r).toHaveAttribute('data-format', 'cartoes');
+    resize(900);
+    await vi.waitFor(() => expect(r).toHaveAttribute('data-format', 'tabela'));
+    resize(880);
+    await vi.waitFor(() => expect(r).toHaveAttribute('data-format', 'cartoes'));
   });
 
   it('desktop (a tabela cabe): tabela, sem cartões', async () => {
