@@ -164,7 +164,7 @@ async function confirmReset(name = CAIO, { reason = 'Dispositivo perdido', totpC
   }
   const dialog = await screen.findByRole('alertdialog', { name: retry ? `Tentar de novo: redefinir o MFA de ${name}?` : `Redefinir o MFA de ${name}?` });
   fireEvent.click(within(dialog).getByRole('radio', { name: reason }));
-  fireEvent.change(within(dialog).getByLabelText(/Código do seu aplicativo autenticador/), { target: { value: totpCode } });
+  fireEvent.change(await within(dialog).findByLabelText(/Código do seu aplicativo autenticador/), { target: { value: totpCode } });
   fireEvent.click(within(dialog).getByRole('button', { name: retry ? 'Redefinir de novo' : 'Redefinir MFA' }));
   return dialog;
 }
@@ -197,7 +197,7 @@ describe('redefinir MFA: sucesso', () => {
     fireEvent.click(within(dialog).getByRole('radio', { name: 'Suspeita de comprometimento' }));
     expect(confirm).toBeDisabled(); // falta o código
     const typed = code();
-    fireEvent.change(within(dialog).getByLabelText(/Código do seu aplicativo autenticador/), { target: { value: typed } });
+    fireEvent.change(await within(dialog).findByLabelText(/Código do seu aplicativo autenticador/), { target: { value: typed } });
     expect(confirm).toBeEnabled();
     fireEvent.click(confirm);
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
@@ -248,7 +248,7 @@ describe('cancelamento e duplicidade', () => {
     fireEvent.click(btn);
     let dialog = await screen.findByRole('alertdialog');
     fireEvent.click(within(dialog).getByRole('radio', { name: 'Outro motivo' }));
-    fireEvent.change(within(dialog).getByLabelText(/Código do seu aplicativo autenticador/), { target: { value: code() } });
+    fireEvent.change(await within(dialog).findByLabelText(/Código do seu aplicativo autenticador/), { target: { value: code() } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
     await waitFor(() => expect(btn).toHaveFocus());
     fireEvent.click(btn);

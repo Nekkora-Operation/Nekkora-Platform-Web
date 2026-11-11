@@ -166,7 +166,7 @@ describe('organizações', () => {
     await user().type(await screen.findByLabelText(lbl('Nome da organização')), 'Acme');
     await user().click(screen.getByRole('button', { name: 'Continuar' }));
     const dialog = await screen.findByRole('alertdialog');
-    fireEvent.change(within(dialog).getByLabelText(/Código do seu aplicativo autenticador/), { target: { value: '123456' } });
+    fireEvent.change(await within(dialog).findByLabelText(/Código do seu aplicativo autenticador/), { target: { value: '123456' } });
     await user().click(within(dialog).getByRole('button', { name: 'Criar organização' }));
     expect(await within(dialog).findByText(/A organização pode ter sido criada/)).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Criar organização' })).toBeDisabled();
@@ -184,7 +184,7 @@ describe('organizações', () => {
     await user().type(await screen.findByLabelText(lbl('Nome da organização')), 'Acme');
     await user().click(screen.getByRole('button', { name: 'Continuar' }));
     const dialog = await screen.findByRole('alertdialog');
-    fireEvent.change(within(dialog).getByLabelText(/Código do seu aplicativo autenticador/), { target: { value: '123456' } });
+    fireEvent.change(await within(dialog).findByLabelText(/Código do seu aplicativo autenticador/), { target: { value: '123456' } });
     await user().click(within(dialog).getByRole('button', { name: 'Criar organização' }));
     expect(await within(dialog).findByText(/A organização pode ter sido criada/)).toBeInTheDocument();
     expect(within(dialog).queryByText(/Nada foi criado/)).not.toBeInTheDocument();
@@ -200,7 +200,7 @@ describe('organizações', () => {
     await user().type(await screen.findByLabelText(lbl('Nome da organização')), 'Acme');
     await user().click(screen.getByRole('button', { name: 'Continuar' }));
     const dialog = await screen.findByRole('alertdialog');
-    fireEvent.change(within(dialog).getByLabelText(/Código do seu aplicativo autenticador/), { target: { value: '123456' } });
+    fireEvent.change(await within(dialog).findByLabelText(/Código do seu aplicativo autenticador/), { target: { value: '123456' } });
     await user().click(within(dialog).getByRole('button', { name: 'Criar organização' }));
     expect(await within(dialog).findByText(/Não foi possível confirmar sua identidade com este código/)).toBeInTheDocument();
     expect(api.sent('POST', '/api/v1/organizations')).toEqual([]);
@@ -229,7 +229,7 @@ describe('vinculação de conta antiga', () => {
     await user().click(screen.getByRole('button', { name: 'Conferir conta antiga' }));
     await user().click(await screen.findByRole('button', { name: 'Vincular à minha identidade' }));
     const dialog = await screen.findByRole('alertdialog');
-    fireEvent.change(within(dialog).getByLabelText(/Código do seu aplicativo autenticador/), { target: { value: '654321' } });
+    fireEvent.change(await within(dialog).findByLabelText(/Código do seu aplicativo autenticador/), { target: { value: '654321' } });
     await user().click(within(dialog).getByRole('button', { name: 'Vincular' }));
     expect(await within(dialog).findByText(/A conta pode ter sido vinculada/)).toBeInTheDocument();
     await user().click(within(dialog).getByRole('button', { name: 'Cancelar' }));
