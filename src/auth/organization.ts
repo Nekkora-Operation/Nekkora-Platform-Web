@@ -38,9 +38,14 @@ export const orgPath = {
   workspaces: (org: string) => `/o/${org}/workspaces`,
   workspace: (org: string, id: string) => `/o/${org}/workspaces/${encodeURIComponent(id)}`,
   automation: (org: string, id: string) => `/o/${org}/automacoes/${encodeURIComponent(id)}`,
+  /** T04: criar automação (só o nome, ou com a primeira versão e o ZIP). */
+  newAutomation: (org: string, workspaceId: string) => `/o/${org}/workspaces/${encodeURIComponent(workspaceId)}/nova-automacao`,
+  /** T09 (PLATFORM-AGENT-V2-002): formulário de nova versão; nada é gravado até a Platform aceitar o ZIP. */
+  newVersion: (org: string, automationId: string) => `/o/${org}/automacoes/${encodeURIComponent(automationId)}/nova-versao`,
   /** M3: versão (ciclo de vida: pacote, conferência, publicação). */
   version: (org: string, id: string) => `/o/${org}/versoes/${encodeURIComponent(id)}`,
   /** M4: execução local (Agents, Workers) e supervisão das execuções registradas pelo Agent. */
+  /** Endereço antigo (compatibilidade, T07): leva a Workers, a entrada única. */
   agents: (org: string) => `/o/${org}/agents`,
   workers: (org: string) => `/o/${org}/workers`,
   agentRuns: (org: string) => `/o/${org}/supervisao`,

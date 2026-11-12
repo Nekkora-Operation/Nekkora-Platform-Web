@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { isApiError } from '../api/http';
 import { effectiveInWorkspace, listMyWorkspacePermissions } from '../api/permissions';
 import type { PermissionCode, WorkspacePermissions } from '../api/v1';
@@ -8,21 +8,28 @@ import { useSession } from './session';
 /** Páginas de P02 lidas no máximo para achar um workspace (100 por página). Além disso, a tela não oferece a ação. */
 const MAX_PAGES = 10;
 
-export type WorkspacePermissionState = { status: 'loading' } | { status: 'ready'; has: (p: PermissionCode) => boolean } | { status: 'unknown' };
+export type WorkspacePermissionState =
+  | { status: 'loading' }
+  | { status: 'ready'; has: (p: PermissionCode) => boolean }
+  /** Não foi possível conferir (429, rede, falha das permissões da organização): NÃO quer dizer "sem permissão". */
+  | { status: 'unknown'; retry: () => void };
 
 /**
  * Permissões EFETIVAS num workspace = P01.allWorkspaces ∪ P02 (atribuição explícita daquele workspace). Só decide o que
- * a tela OFERECE: cada rota autoriza no backend. Sem P01 ou com falha: `unknown` — a tela não oferece a ação (o endereço
- * direto continua com a API decidindo).
+ * a tela OFERECE: cada rota autoriza no backend. Sem P01 ou com falha: `unknown`, com `retry` — a tela não oferece a
+ * ação, mas diz que não conseguiu conferir e permite tentar de novo (R1); o endereço direto continua com a API decidindo.
  */
 export function useWorkspacePermissions(workspaceId: string | undefined): WorkspacePermissionState {
   const { org, expired } = useSession();
-  const { permissions } = useInternalArea();
+  const { permissions, reloadPermissions } = useInternalArea();
   const [state, setState] = useState<WorkspacePermissionState>({ status: 'loading' });
+  const [attempt, setAttempt] = useState(0);
+  // falha nas permissões da organização: relê P01 (o efeito roda de novo quando ela voltar); falha só em P02: relê P02
+  const retry = useCallback(() => (permissions.status === 'error' ? reloadPermissions() : setAttempt((n) => n + 1)), [permissions.status, reloadPermissions]);
 
   useEffect(() => {
     if (!workspaceId || permissions.status === 'loading') return setState({ status: 'loading' });
-    if (permissions.status === 'error') return setState({ status: 'unknown' });
+    if (permissions.status === 'error') return setState({ status: 'unknown', retry });
     // outro workspace (ou P01 relido): a resposta anterior não vale até a nova leitura terminar
     setState({ status: 'loading' });
     let alive = true;
@@ -41,12 +48,12 @@ export function useWorkspacePermissions(workspaceId: string | undefined): Worksp
     })().catch((e) => {
       if (!alive) return;
       if (isApiError(e, 'unauthenticated')) return expired();
-      setState({ status: 'unknown' });
+      setState({ status: 'unknown', retry });
     });
     return () => {
       alive = false;
     };
-  }, [org, workspaceId, permissions, expired]);
+  }, [org, workspaceId, permissions, expired, retry, attempt]);
 
   return state;
 }

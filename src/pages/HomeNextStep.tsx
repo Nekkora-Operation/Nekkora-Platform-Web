@@ -119,6 +119,10 @@ function FirstAutomationStep({ workspace }: { workspace: Workspace }) {
           <Button leftIcon="plus" onClick={() => navigate(orgPath.workspace(org, workspace.workspaceId), { state: { openCreate: true } })}>
             Criar primeira automação
           </Button>
+        ) : perms.status === 'unknown' ? (
+          <Button variant="secondary" onClick={perms.retry}>
+            Tentar novamente
+          </Button>
         ) : (
           <RouteLink to={orgPath.workspace(org, workspace.workspaceId)}>Abrir o workspace {workspace.name}</RouteLink>
         )
@@ -128,7 +132,10 @@ function FirstAutomationStep({ workspace }: { workspace: Workspace }) {
         ? `Os seus workspaces ainda não têm automações. Comece pelo workspace ${workspace.name}.`
         : perms.status === 'loading'
           ? 'Os seus workspaces ainda não têm automações.'
-          : 'Os seus workspaces ainda não têm automações. Quem administra o workspace pode cadastrar a primeira.'}
+          : perms.status === 'unknown'
+            ? // R1: falha ao conferir (429, rede) não é falta de permissão
+              `Os seus workspaces ainda não têm automações. Não foi possível verificar suas permissões no workspace ${workspace.name} agora; tente de novo.`
+            : 'Os seus workspaces ainda não têm automações. Quem administra o workspace pode cadastrar a primeira.'}
     </StepCard>
   );
 }

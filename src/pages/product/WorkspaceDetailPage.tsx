@@ -1,12 +1,10 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
-import { createAutomation } from '../../api/lifecycle';
 import { useWorkspacePermissions } from '../../area/useWorkspacePermissions';
-import { StepUpDialog } from '../../components/StepUpDialog';
-import { accessRefusal } from '../access/shared';
+import { PermissionsUnverified } from '../../area/PermissionsUnverified';
 import { LocalRunAuthorizations } from '../agents/LocalRunAuthorizations';
 import { Link as RouterLink, useParams } from 'react-router';
-import { Alert, Button, Card, Input, DescriptionList, Heading, Link, LoadMore, Stack, StateView, Table, type TableColumn } from 'nekkora-lib';
+import { Button, Card, DescriptionList, Heading, Link, LoadMore, Stack, StateView, Table, type TableColumn } from 'nekkora-lib';
 import { isApiError } from '../../api/http';
 import { getWorkspace, listAutomations } from '../../api/product';
 import type { Automation } from '../../api/v1';
@@ -25,20 +23,18 @@ export function WorkspaceDetailPage() {
 
 /** Detalhe do workspace (L02) e suas automações (L03, paginadas por cursor). */
 function WorkspaceDetail({ workspaceId }: { workspaceId: string }) {
-  const { org, expired } = useSession();
+  const { org } = useSession();
   const navigate = useNavigate();
   const perms = useWorkspacePermissions(workspaceId);
   const canManage = perms.status === 'ready' && perms.has('automation.manage');
   // "Criar primeira automação" na página inicial chega com o pedido de abrir o diálogo (só se a permissão efetiva permitir)
   const openRequested = (useLocation().state as { openCreate?: boolean } | null)?.openCreate === true;
-  const [creating, setCreating] = useState(false);
   const [openHandled, setOpenHandled] = useState(false);
+  // T04: criar é uma página própria (nome, primeira versão e ZIP, com retomada)
   if (openRequested && !openHandled && perms.status !== 'loading') {
     setOpenHandled(true);
-    if (canManage) setCreating(true);
+    if (canManage) navigate(orgPath.newAutomation(org, workspaceId), { replace: true });
   }
-  const [newName, setNewName] = useState('');
-  const [createUncertain, setCreateUncertain] = useState(false);
   const back = useBackTarget(orgPath.workspaces(org));
   const backState = useBackState();
   const [refresh, setRefresh] = useState(0);
@@ -104,34 +100,13 @@ function WorkspaceDetail({ workspaceId }: { workspaceId: string }) {
         refreshing={workspace.refreshing}
         actions={
           canManage && w.status === 'active' ? (
-            <Button size="sm" leftIcon="plus" disabled={createUncertain} onClick={() => setCreating(true)}>
+            <Button size="sm" leftIcon="plus" onClick={() => navigate(orgPath.newAutomation(org, workspaceId))}>
               Criar automação
             </Button>
           ) : undefined
         }
       />
-      {createUncertain && <Alert tone="warning">Não foi possível confirmar se a automação foi criada. Atualize a lista antes de criar de novo.</Alert>}
-      <StepUpDialog
-        open={creating}
-        title="Criar automação"
-        guard={{ operation: 'automation.create', target: w.workspaceId }}
-        confirmLabel="Criar automação"
-        ready={newName.trim().length > 0 && [...newName.trim()].length <= 80}
-        action={() => createAutomation(org, w.workspaceId, newName.trim())}
-        onDone={(a) => {
-          setCreating(false);
-          setNewName('');
-          if (a.automationId) navigate(orgPath.automation(org, a.automationId));
-          else onRefresh();
-        }}
-        onClose={() => setCreating(false)}
-        refusalText={(e) => accessRefusal(e, { conflict: 'O workspace não está ativo.', notFound: 'Você não tem acesso a este workspace para criar automações.' })}
-        uncertainText="Não foi possível confirmar se a automação foi criada. Feche e atualize a lista antes de tentar de novo."
-        onUnauthenticated={expired}
-        onOutcome={(k) => k === 'uncertain' && setCreateUncertain(true)}
-      >
-        <Input label="Nome da automação" required fullWidth maxLength={80} value={newName} onChange={(e) => setNewName(e.target.value)} hint="Até 80 caracteres." />
-      </StepUpDialog>
+      {perms.status === 'unknown' && <PermissionsUnverified actions="Criar automação e a execução local" onRetry={perms.retry} />}
       <Card variant="surface" padding="lg">
         <Stack gap={4}>
           <DescriptionList

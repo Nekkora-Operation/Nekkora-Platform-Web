@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, Button, CodeInput, ConfirmDialog, Input, Stack } from 'nekkora-lib';
-import { ApiError, isApiError } from '../api/http';
+import { Alert, Button, CodeInput, ConfirmDialog, Input, Stack, Text } from 'nekkora-lib';
+import { ApiError, hasReason, isApiError } from '../api/http';
 import { NO_TAB_LOCK_TEXT, operations, opKey, type OpView } from '../api/pendingOps';
 import { stepUpMethods } from '../api/stepUpMethod';
 import { useOperationScope } from './operationScope';
@@ -9,6 +9,25 @@ const TOTP_DIGITS = 6;
 
 /** Desfecho de um ato sensível confirmado com step-up. */
 export type StepUpOutcome = 'refused-identity' | 'refused' | 'uncertain' | 'unauthenticated';
+
+/**
+ * PLATFORM-V2-001, T01 — na sessão de ORGANIZAÇÃO, uma confirmação aceita vale por uma hora (janela fixa, no servidor) para
+ * as ações sensíveis comuns. O diálogo envia o ato sem pedir o fator; só quando a API responde 403 forbidden + step_up_required (nada
+ * foi feito) ele pede o código (ou a senha, na sessão sem MFA), mantendo os campos do ato, e envia o ato UMA vez depois da
+ * confirmação aceita. Na sessão de identidade continua como antes: o fator imediatamente antes do ato.
+ */
+export const STEP_UP_NEEDED_TEXT = 'Para continuar, confirme a sua identidade. Nada foi feito ainda. A confirmação vale por uma hora nas ações sensíveis desta organização.';
+/**
+ * Quais ações aproveitam a hora (as que a API confere com a janela de 60 min, AccessActions.requireStepUp) e quais não:
+ * a redefinição do MFA de outra pessoa (prova própria de 5 min) e tudo o que é da sessão de identidade (Minha conta,
+ * criar organização, vincular conta, aceitar convite), que continua com 5 min no banco. Dito na tela para não prometer
+ * uma hora e surpreender a pessoa em Minha conta.
+ */
+export const ORG_HOUR_SCOPE_TEXT =
+  'A hora vale para: publicar versões, convidar e reenviar convites, atribuir e trocar papéis, aprovar, renovar ou manter na revisão acessos de clientes, emitir códigos e revogar Agents, autorizar computadores e execuções, e pedir ou cancelar execuções. Não vale para redefinir a autenticação de outra pessoa, que pede um código dos últimos 5 minutos, nem para Minha conta: trocar a senha ou o fator e as outras ações da sua conta continuam pedindo a confirmação, que vale 5 minutos.';
+export const IDENTITY_SCOPE_TEXT =
+  'Nesta área da sua conta, a confirmação vale 5 minutos. A confirmação de uma hora vale só para ações dentro de uma organização.';
+const STEP_UP_STILL_NEEDED_TEXT = 'A Platform ainda pede a confirmação para este ato. Nada foi feito. Confirme de novo.';
 
 /**
  * Classifica a falha do ATO (o step-up já foi aceito). Recusa documentada (4xx, 429, 503 de dependência fora) = nada
@@ -73,8 +92,8 @@ const IDENTITY_SESSION_ONLY =
 const timeOf = (at: number) => new Date(at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 
 /**
- * Confirmação de ato sensível com step-up IMEDIATAMENTE antes (contrato: prova de até 5 min, só TOTP). Um envio = step-up
- * e, só se ele for aceito, o ato. Recusa do step-up = nada enviado. Falha sem resposta no ato = incerteza declarada: o
+ * Confirmação de ato sensível. Identidade: step-up IMEDIATAMENTE antes (prova de até 5 min); um envio = step-up e, só se ele
+ * for aceito, o ato. Organização (T01): o ato primeiro; o fator só quando a API responder step_up_required. Recusa do step-up = nada enviado. Falha sem resposta no ato = incerteza declarada: o
  * diálogo bloqueia nova confirmação (sem reenvio silencioso) e pede conferência. O código vive só no campo e é limpo
  * ao usar e ao fechar.
  */
@@ -135,7 +154,13 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
     };
   }, []);
 
-  const needsCode = !!stepUp;
+  // T01: na organização, o fator só é pedido quando a API disser que falta (step_up_required)
+  const onDemand = !!stepUp && !!scope.org;
+  const [asking, setAsking] = useState(!onDemand);
+  useEffect(() => {
+    if (open) setAsking(!onDemand);
+  }, [open, onDemand]);
+  const needsCode = !!stepUp && asking;
   // API 029: sem autenticação em duas etapas, a sessão confirma com a SENHA (o cliente chama a rota certa)
   const byPassword = needsCode && stepUpMethods.get(scope.org) === 'password';
   const secretReady = !needsCode || (byPassword ? code.length > 0 : code.length === TOTP_DIGITS);
@@ -166,7 +191,7 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
     setBusy(true);
     try {
       try {
-        if (stepUp) await stepUp(typed);
+        if (stepUp && needsCode) await stepUp(typed);
       } catch (e) {
         finish('not-sent');
         if (!alive.current) return;
@@ -186,6 +211,15 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
       try {
         result = await action();
       } catch (e) {
+        if (onDemand && hasReason(e, 'forbidden', 'step_up_required')) {
+          // recusa documentada sem efeito: o registro fecha como recusado e a pessoa confirma e decide de novo
+          finish('refused');
+          if (!alive.current) return;
+          const already = needsCode;
+          setAsking(true);
+          setOutcome({ kind: 'refused', text: already ? STEP_UP_STILL_NEEDED_TEXT : STEP_UP_NEEDED_TEXT });
+          return;
+        }
         const kind = classifyActionError(e);
         // a conclusão é registrada mesmo que a pessoa já tenha saído da tela
         finish(kind === 'uncertain' ? 'unknown' : 'refused');
@@ -247,12 +281,20 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
               value={code}
               onChange={(e) => setCode(e.target.value)}
               disabled={busy}
-              hint="A sua conta não usa autenticação em duas etapas: a senha confirma a sua identidade imediatamente antes do ato. Você pode ativar a autenticação em duas etapas em Segurança da conta."
+              hint={
+                onDemand
+                  ? 'A sua conta não usa autenticação em duas etapas: a senha confirma a sua identidade por uma hora nas ações sensíveis desta organização. Você pode ativar a autenticação em duas etapas em Segurança da conta.'
+                  : 'A sua conta não usa autenticação em duas etapas: a senha confirma a sua identidade imediatamente antes do ato. Você pode ativar a autenticação em duas etapas em Segurança da conta.'
+              }
             />
           ) : (
           <CodeInput
             label="Código do seu aplicativo autenticador"
-            hint="Confirma a sua identidade imediatamente antes do ato. Códigos de recuperação não são aceitos aqui."
+            hint={
+              onDemand
+                ? 'Confirma a sua identidade por uma hora nas ações sensíveis desta organização. Códigos de recuperação não são aceitos aqui.'
+                : 'Confirma a sua identidade imediatamente antes do ato. Códigos de recuperação não são aceitos aqui.'
+            }
             length={TOTP_DIGITS}
             value={code}
             onValueChange={setCode}
@@ -260,6 +302,7 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
           />
           ))
         )}
+        {needsCode && !blockedByRecord && outcome?.kind !== 'uncertain' && <Text>{onDemand ? ORG_HOUR_SCOPE_TEXT : IDENTITY_SCOPE_TEXT}</Text>}
       </Stack>
     </ConfirmDialog>
   );

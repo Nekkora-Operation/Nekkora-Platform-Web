@@ -163,9 +163,74 @@ export async function signInWithTotp(page: Page, person: Person) {
   await expect(page).toHaveURL(/\/organizacoes$/);
 }
 
-/** Confirma um diálogo de step-up com o próximo código do autenticador. */
-export async function confirmStepUp(page: Page, person: Person, confirmLabel: string) {
+/**
+ * Confirma um diálogo de ato sensível com o próximo código do autenticador. Identidade: o código vem antes do ato.
+ * Organização (PLATFORM-V2-001, T01): o ato vai primeiro; o código só é pedido se a API responder step_up_required (fora
+ * da hora de uma confirmação anterior). Devolve se o código foi pedido.
+ */
+/**
+ * PLATFORM-AGENT-V2-002, T09: na página da automação, "Nova versão" só abre o formulário (nada é gravado); a versão nasce
+ * quando a Platform aceita o ZIP, e a tela leva ao rascunho criado. Devolve o endereço da página da versão.
+ */
+export async function newVersionWithPackage(page: Page, zipPath: string): Promise<string> {
+  await page.getByRole('button', { name: 'Nova versão' }).click();
+  await expect(page).toHaveURL(/\/automacoes\/[0-9a-f-]{36}\/nova-versao$/);
+  await page.getByLabel('Arquivo .zip do pacote').setInputFiles(zipPath);
+  await page.getByRole('button', { name: 'Enviar o pacote e criar o rascunho' }).click();
+  await expect(page).toHaveURL(/\/versoes\/[0-9a-f-]{36}$/);
+  await expect(page.getByText('Rascunho criado com o pacote conferido pela Platform.')).toBeVisible();
+  return page.url();
+}
+
+export async function confirmStepUp(page: Page, person: Person, confirmLabel: string): Promise<boolean> {
   const dialog = page.getByRole('alertdialog');
-  await dialog.getByLabel('Código do seu aplicativo autenticador').fill(await person.auth.next());
-  await dialog.getByRole('button', { name: confirmLabel }).click();
+  const code = dialog.getByLabel('Código do seu aplicativo autenticador');
+  const confirm = dialog.getByRole('button', { name: confirmLabel });
+  if (await code.isVisible()) {
+    await code.fill(await person.auth.next());
+    await confirm.click();
+    return true;
+  }
+  await confirm.click();
+  await Promise.race([dialog.waitFor({ state: 'hidden' }), code.waitFor({ state: 'visible' }), dialog.getByRole('alert').first().waitFor({ state: 'visible' })]);
+  if (!(await code.isVisible())) return false;
+  await code.fill(await person.auth.next());
+  await confirm.click();
+  return true;
+}
+
+/**
+ * PLATFORM-AGENT-V2-002, T07 — Workers é a entrada única: Criar Worker (sem Agent, sem código, sem execução). Espera a
+ * confirmação na tela; recusa (por exemplo, limite de Workers) fica no diálogo para o teste conferir.
+ */
+export async function createWorker(page: Page, org: string, workerName: string) {
+  await page.goto(`/o/${org}/workers`);
+  await page.getByRole('heading', { name: 'Workers', level: 1 }).waitFor();
+  await page.getByRole('button', { name: 'Criar Worker' }).click();
+  const dialog = page.getByRole('alertdialog');
+  await dialog.getByLabel(/^Nome do Worker/).fill(workerName);
+  await dialog.getByRole('button', { name: 'Criar Worker' }).click();
+}
+
+/** T07: "Vincular Agent" na linha do Worker (código para ESSE Worker, com step-up); devolve o código de uso único. */
+export async function linkAgent(page: Page, person: Person, workerName: string, machineName: string): Promise<string> {
+  await page.getByRole('button', { name: `Vincular Agent a ${workerName}` }).click();
+  await page.getByRole('alertdialog').getByLabel(/^Nome da máquina/).fill(machineName);
+  await confirmStepUp(page, person, 'Gerar código');
+  return (await page.getByLabel('Código de uso único').innerText()).trim();
+}
+
+/** T07: Workers → Criar Worker → Vincular Agent. Devolve o código de pareamento (aparece só na tela). */
+export async function pairNewWorker(page: Page, org: string, person: Person, workerName: string, machineName: string): Promise<string> {
+  await createWorker(page, org, workerName);
+  await expect(page.getByText(`Worker ${workerName} criado, sem Agent.`, { exact: false })).toBeVisible();
+  return linkAgent(page, person, workerName, machineName);
+}
+
+/** T07: texto da lista de Workers (máquina vinculada e comunicação aparecem na linha do Worker). */
+export async function workersText(page: Page, org: string): Promise<string> {
+  await page.goto(`/o/${org}/workers`);
+  const region = page.getByRole('region', { name: 'Lista de Workers' });
+  await region.waitFor({ timeout: 15_000 });
+  return region.innerText().catch(() => '');
 }

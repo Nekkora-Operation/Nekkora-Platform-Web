@@ -136,13 +136,26 @@ export function apiErrorFrom(status: number, body: unknown, retryAfter: string |
   const b = body as { error?: unknown; reason?: unknown } | undefined;
   if (b && typeof b === 'object') {
     if (typeof b.error === 'string' && KNOWN.has(b.error)) code = b.error as ApiErrorCode;
-    if (code === 'package_rejected' && typeof b.reason === 'string' && /^[a-z_]{1,64}$/.test(b.reason)) reason = b.reason;
+    // motivo de vocabulário fechado: pacote recusado (422) e, PLATFORM-V2-001, conflito (409) e recusa (403) com motivo
+    if ((code === 'package_rejected' || code === 'conflict' || code === 'forbidden') && typeof b.reason === 'string' && /^[a-z_]{1,64}$/.test(b.reason)) reason = b.reason;
+  } else if (status === 429) {
+    // R1: 429 sem o corpo da API vem do limite do gateway (nginx, por IP): é limite, não erro "do nosso lado"; nada foi feito
+    code = 'rate_limited';
   } else if (status === 502 || status === 503 || status === 504) {
     // sem o corpo da API: resposta do proxy — numa escrita, não se sabe se o pedido chegou
     code = 'gateway';
   }
   const retry = Number(retryAfter);
   return new ApiError(code, status, Number.isFinite(retry) && retry > 0 ? retry : undefined, requestId, reason);
+}
+
+/**
+ * Erro de código CONHECIDO com um motivo do contrato (PLATFORM-V2-001): ex. conflict + workspace_name_taken (nome de
+ * workspace em uso na organização) ou forbidden + step_up_required (ato sensível da sessão de organização sem confirmação
+ * de identidade válida). Nada foi feito. Quem não conhece o motivo trata o código como sempre (recusa).
+ */
+export function hasReason(e: unknown, code: ApiErrorCode, reason: string): boolean {
+  return e instanceof ApiError && e.code === code && e.reason === reason;
 }
 
 /** Correlação segura (X-Request-Id), só no formato esperado. */

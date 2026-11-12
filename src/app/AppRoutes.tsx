@@ -1,5 +1,6 @@
-import { Outlet, Route, Routes } from 'react-router';
+import { Navigate, Outlet, Route, Routes, useParams } from 'react-router';
 import { features } from '../config';
+import { orgPath } from '../auth/organization';
 import { IdentityFlowProvider } from '../auth/flow';
 import { AcceptInvitationPage } from '../identity/AcceptInvitationPage';
 import { AccessEventsPage } from '../pages/access/AccessEventsPage';
@@ -19,11 +20,12 @@ import { GrantsPage } from '../pages/admin/GrantsPage';
 import { MembersPage } from '../pages/admin/MembersPage';
 import { ExecutionsPage } from '../pages/ExecutionsPage';
 import { AutomationDetailPage } from '../pages/product/AutomationDetailPage';
+import { NewVersionPage } from '../pages/product/NewVersionPage';
 import { ExecutionDetailPage } from '../pages/product/ExecutionDetailPage';
 import { WorkspaceDetailPage } from '../pages/product/WorkspaceDetailPage';
 import { WorkspacesPage } from '../pages/product/WorkspacesPage';
 import { VersionPage } from '../pages/product/VersionPage';
-import { AgentsPage } from '../pages/agents/AgentsPage';
+import { NewAutomationPage } from '../pages/product/NewAutomationPage';
 import { WorkersPage } from '../pages/agents/WorkersPage';
 import { AgentRunPage, AgentRunsPage } from '../pages/agents/supervision';
 import { InternalHome, OrgAccountPage } from '../pages/HomePage';
@@ -34,6 +36,12 @@ import { ResetPasswordPage } from '../pages/ResetPasswordPage';
 import { NoOrganizationPage, NotFoundInOrganizationPage } from '../pages/StatusPages';
 import { VerifyEmailPage } from '../pages/VerifyEmailPage';
 import { OrganizationRoute } from './organization';
+
+/** Endereço antigo de Agents (links e favoritos): leva à tela de Workers, que reúne todos os atos sobre a máquina. */
+function AgentsToWorkers() {
+  const { orgId } = useParams();
+  return <Navigate to={orgPath.workers(orgId ?? '')} replace />;
+}
 
 /** Telas de entrada da identidade (mesmas páginas da entrada por organização, com o fluxo da identidade). */
 function IdentityFlowOutlet() {
@@ -82,10 +90,13 @@ export function AppRoutes() {
           <Route path="execucoes/:executionId" element={<ExecutionDetailPage />} />
           <Route path="workspaces" element={<WorkspacesPage />} />
           <Route path="workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
+          <Route path="workspaces/:workspaceId/nova-automacao" element={<NewAutomationPage />} />
           <Route path="automacoes/:automationId" element={<AutomationDetailPage />} />
+          <Route path="automacoes/:automationId/nova-versao" element={<NewVersionPage />} />
           <Route path="versoes/:versionId" element={<VersionPage />} />
           {/* M4: execução local e supervisão */}
-          <Route path="agents" element={<AgentsPage />} />
+          {/* PLATFORM-AGENT-V2-002, T07: Workers é a entrada única; o endereço antigo de Agents continua levando até lá */}
+          <Route path="agents" element={<AgentsToWorkers />} />
           <Route path="workers" element={<WorkersPage />} />
           <Route path="supervisao" element={<AgentRunsPage />} />
           <Route path="supervisao/:runId" element={<AgentRunPage />} />

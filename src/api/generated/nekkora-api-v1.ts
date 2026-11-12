@@ -119,8 +119,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Step-up com TOTP na sessao (exigido pelo reset administrativo de MFA)
-         * @description Codigo TOTP errado -> 403 forbidden (step_up); so codigo TOTP (recoveryCode nao aceito). Sessao do login por organizacao: TOTP do fator local, R1/R4, caminho inalterado. Sessao VINCULADA (nascida da troca, contrato P4): TOTP do fator da IDENTIDADE de origem. O CSRF desta sessao de organizacao continua exigido (o CSRF da sessao de identidade nao o substitui) e o cookie __Host-nekkora_id e exigido EM ADICAO, resolvendo exatamente a sessao de identidade que originou esta sessao (unica rota em que os dois cookies valem juntos). Cookie ausente, de outra identidade ou de outra sessao da mesma identidade: 403 sem conferir o codigo. Numa so transacao, na ordem global da 017 (identidade -> sessao de identidade -> organizacao -> conta -> sessao de organizacao), com a revalidacao da sessao de organizacao sob o lock, anti-replay no fator da identidade (um codigo aceito aqui nao serve para outro step-up, global ou de outra organizacao, nem para o login), step-up SO nesta sessao de organizacao (nem na de identidade, nem em outra sessao), eventos mfa_events 6 e identity_events 14 (ORG_STEP_UP) no mesmo commit, e as duas sessoes e a janela do passo reconferidas antes do commit. Codigo errado ou replay: 403, contado em R8m (identidade global). Sessao que caiu durante as esperas: 401, sem efeito.
+         * Confirmacao de identidade com TOTP na sessao: abre a janela fixa de 60 min das acoes sensiveis comuns (T01)
+         * @description PLATFORM-V2-001, T01: o 204 abre uma janela FIXA de 60 minutos, contada deste instante, para as acoes sensiveis comuns DESTA sessao (convites, papeis, concessoes, Agents e Workers, autorizacao de execucao, publicacao, pedidos de execucao); usar acoes nao estende o prazo, e cada ato continua conferindo sessao, organizacao e permissao. Prova propria mais curta: o reset administrativo de MFA exige a confirmacao dos ultimos 5 minutos. Sem confirmacao valida, o ato responde 403 forbidden com reason step_up_required (nada feito). O codigo nunca e guardado nem reaproveitado (anti-replay). Codigo TOTP errado -> 403 forbidden (step_up); so codigo TOTP (recoveryCode nao aceito). Sessao do login por organizacao: TOTP do fator local, R1/R4, caminho inalterado. Sessao VINCULADA (nascida da troca, contrato P4): TOTP do fator da IDENTIDADE de origem. O CSRF desta sessao de organizacao continua exigido (o CSRF da sessao de identidade nao o substitui) e o cookie __Host-nekkora_id e exigido EM ADICAO, resolvendo exatamente a sessao de identidade que originou esta sessao (unica rota em que os dois cookies valem juntos). Cookie ausente, de outra identidade ou de outra sessao da mesma identidade: 403 sem conferir o codigo. Numa so transacao, na ordem global da 017 (identidade -> sessao de identidade -> organizacao -> conta -> sessao de organizacao), com a revalidacao da sessao de organizacao sob o lock, anti-replay no fator da identidade (um codigo aceito aqui nao serve para outro step-up, global ou de outra organizacao, nem para o login), step-up SO nesta sessao de organizacao (nem na de identidade, nem em outra sessao), eventos mfa_events 6 e identity_events 14 (ORG_STEP_UP) no mesmo commit, e as duas sessoes e a janela do passo reconferidas antes do commit. Codigo errado ou replay: 403, contado em R8m (identidade global). Sessao que caiu durante as esperas: 401, sem efeito.
          */
         post: operations["mfaStepUp"];
         delete?: never;
@@ -139,7 +139,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 029: reconfirma a senha na sessao de organizacao VINCULADA sem segundo fator (vale 5 min, so nesta sessao)
+         * 029: reconfirma a senha na sessao de organizacao VINCULADA sem segundo fator (abre a mesma janela fixa do step-up, T01; so nesta sessao)
          * @description Sessao de organizacao nascida da troca a partir de sessao de identidade sem MFA (identidade que nunca confirmou fator), com o cookie __Host-nekkora_id da sessao de identidade de origem EXATA em adicao ao CSRF desta sessao (como o step-up vinculado). Grava password_step_up_at nesta sessao de organizacao e o evento 19 com a organizacao. Substitui o step-up por TOTP nesta sessao para as acoes sensiveis (convites, papeis, concessoes, Agent e Workers, autorizacao de execucao, publicacao, reset administrativo). Sessao do login por organizacao, sessao com MFA, senha errada ou cookie de outra sessao de identidade: 403, sem efeito.
          */
         post: operations["orgPasswordConfirm"];
@@ -628,7 +628,7 @@ export interface paths {
         put?: never;
         /**
          * Cria uma organizacao com a identidade como ORG_ADMIN (exige step-up da identidade de ate 5 min)
-         * @description P2 (contrato de 2026-10-13). Sessao de identidade nao restrita (cookie __Host-nekkora_id) e CSRF dela. Corpo: name e legalName opcional, cada um com 1 a 120 pontos de codigo, sem espaco nas pontas e sem caractere de controle (fora disso: 400). Uma transacao que chama so identity_create_organization: a funcao reconfere, sob o lock da identidade, sessao nao restrita, step-up de ate 5 min, identidade ACTIVE e verificada e o teto de 10, e cria organizacao, conta, vinculo, ORG_ADMIN e o evento 6 (ORG_CREATED) no mesmo commit. Recusa da funcao: 403 generico; sessao que caiu: 401. R11 (3 reservas por identidade a cada 24 h; devolvidas quando a criacao comprovadamente nao aconteceu, mantidas em resultado desconhecido; Redis fora: 503) e R12. Chave propria (nekkora.criacao-organizacao.enabled) e a da entrada geral: qualquer uma desligada, 404. Em seguida, a troca (/api/v1/sessions/organization) da a sessao de organizacao.
+         * @description P2 (contrato de 2026-10-13). Sessao de identidade nao restrita (cookie __Host-nekkora_id) e CSRF dela. Corpo: name e legalName opcional, cada um com 1 a 120 pontos de codigo, sem espaco nas pontas e sem caractere de controle (fora disso: 400). Uma transacao que chama so identity_create_organization: a funcao reconfere, sob o lock da identidade, sessao nao restrita, step-up de ate 5 min, identidade ACTIVE e verificada e o teto de 10, e cria organizacao, conta, vinculo, ORG_ADMIN e o evento 6 (ORG_CREATED) no mesmo commit. Recusa da funcao: 403 generico; sessao que caiu: 401. R11 (3 reservas por identidade a cada 24 h; devolvidas quando a criacao comprovadamente nao aconteceu, mantidas em resultado desconhecido; Redis fora: 503) e R12. Chave propria (nekkora.criacao-organizacao.enabled) e a da entrada geral: qualquer uma desligada, 404. Em seguida, a troca (/api/v1/sessions/organization) da a sessao de organizacao. PLATFORM-AGENT-V2-003 T10 (034): o nome e unico entre as organizacoes CRIADAS PELA MESMA IDENTIDADE pelo cadastro (autoria, nao propriedade; espacos internos repetidos e maiusculas/minusculas nao distinguem; acentos e pontuacao distinguem). Repetido: 409 conflict + reason organization_name_taken, nada criado (a reserva de R11 e devolvida). Outras identidades, e organizacoes em que a pessoa so participa por convite, nao contam. Concorrentes da mesma identidade: uma criada, a outra 409. A organizacao nova recebe um identificador legivel unico e estavel (handle).
          */
         post: operations["identityCreateOrganization"];
         delete?: never;
@@ -826,7 +826,7 @@ export interface paths {
         put?: never;
         /**
          * Emite convite para a organizacao (org.manage e autoridade sobre o papel; step-up)
-         * @description Contrato de 2026-10-27, secao 4 (023). Corpo: email e, opcional, um papel: ORG_ADMIN (sem workspaceId) ou WORKSPACE_ADMIN/OPERATOR/VIEWER com workspaceId de workspace ativo da organizacao. Exige org.manage, a permissao de atribuir o papel (role.assign_admin_roles ou role.assign_operator_viewer) e step-up de ate 5 min na mesma sessao, reconferidos depois do lock da organizacao. Prazo de 7 dias; token de 32 bytes so no e-mail (fila cifrada, link /o/{org}/convite#token=), o banco guarda o SHA-256. Um convite aberto por organizacao e e-mail: outro aberto e no prazo -> 409 (use o reenvio); um aberto vencido e fechado (motivo EXPIRADO) no mesmo ato. Destinataria ja cadastrada na organizacao -> 409, exceto a readmissao (conta ligada a identidade, ativa, com vinculo retirado). Auditoria (access_events 1). Chave nekkora.convites.enabled com a entrada geral: desligada, 404.
+         * @description Contrato de 2026-10-27, secao 4 (023). Corpo: email e, opcional, um papel: ORG_ADMIN (sem workspaceId) ou WORKSPACE_ADMIN/OPERATOR/VIEWER com workspaceId de workspace ativo da organizacao. Exige org.manage, a permissao de atribuir o papel (role.assign_admin_roles ou role.assign_operator_viewer) e confirmacao na janela da sessao (T01), reconferidos depois do lock da organizacao. Prazo de 7 dias; token de 32 bytes so no e-mail (fila cifrada, link /o/{org}/convite#token=), o banco guarda o SHA-256. Um convite aberto por organizacao e e-mail: outro aberto e no prazo -> 409 (use o reenvio); um aberto vencido e fechado (motivo EXPIRADO) no mesmo ato. Destinataria ja cadastrada na organizacao -> 409, exceto a readmissao (conta ligada a identidade, ativa, com vinculo retirado). Auditoria (access_events 1). Chave nekkora.convites.enabled com a entrada geral: desligada, 404.
          */
         post: operations["issueInvitation"];
         delete?: never;
@@ -1217,7 +1217,7 @@ export interface paths {
         put?: never;
         /**
          * Cria um workspace interno da organizacao
-         * @description Exige workspace.lifecycle (permissao da organizacao). Nasce ACTIVE. Auditado (automation_admin_events, ato 1).
+         * @description Exige workspace.lifecycle (permissao da organizacao). Nasce ACTIVE. Auditado (automation_admin_events, ato 1). Nome unico na organizacao (031): sem distincao de maiusculas/minusculas nem espacos nas extremidades; o nome visivel e guardado como digitado, sem esses espacos. Outro workspace (de qualquer situacao) com o mesmo nome -> 409 conflict com reason workspace_name_taken.
          */
         post: operations["createWorkspace"];
         delete?: never;
@@ -1240,7 +1240,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Renomeia um workspace da organizacao (PLATFORM-V2-001, T03)
+         * @description Exige workspace.lifecycle. Mesma regra de nome da criacao. Nome igual ao atual (depois de retirar os espacos das extremidades) nao grava nada e devolve o workspace; mudar so maiusculas/minusculas do proprio nome e permitido. Outro workspace da organizacao com o mesmo nome -> 409 conflict com reason workspace_name_taken. Trocar responsavel nao libera nome. Auditado (automation_admin_events, ato 7) quando o nome muda.
+         */
+        patch: operations["renameWorkspace"];
         trace?: never;
     };
     "/api/v1/o/{org}/workspaces/{workspaceId}/automations": {
@@ -1293,7 +1297,7 @@ export interface paths {
         put?: never;
         /**
          * Cria uma versao DRAFT (numero atribuido pelo banco)
-         * @description Exige automation.manage no workspace da automacao; automacao e workspace ACTIVE, senao 409. O numero e MAX+1 com a automacao travada (005): criacoes concorrentes nunca repetem numero. command_json nasce com contract_version 1, runtime, entrypoint main.py, arguments, parameters e secret_bindings vazios; o artefato vem pelo PUT do artefato. Auditado (ato 3).
+         * @description Exige automation.manage no workspace da automacao; automacao e workspace ACTIVE, senao 409. T09 (032): no maximo um rascunho por automacao; ja havendo um, 409 conflict + reason draft_exists, nada criado (a Web nova cria o rascunho so com o pacote aceito, em PUT /automations/{automationId}/draft/artifact; esta rota fica para a Web V1). O numero e MAX+1 com a automacao travada (005): criacoes concorrentes nunca repetem numero. command_json nasce com contract_version 1, runtime, entrypoint main.py, arguments, parameters e secret_bindings vazios; o artefato vem pelo PUT do artefato. Auditado (ato 3).
          */
         post: operations["createAutomationVersion"];
         delete?: never;
@@ -1485,7 +1489,7 @@ export interface paths {
         };
         /**
          * Lista os Agents da organizacao
-         * @description Exige agent.manage. Identidade, Worker, versao informada, ultimo contato, conectividade (CONNECTED ate 180 s do ultimo heartbeat), capacidades e validade da credencial; nunca o hash.
+         * @description Exige agent.manage. Identidade, Worker, versao informada, ultimo contato, conectividade (ver abaixo), capacidades e validade da credencial; nunca o hash. Comunicacao (PLATFORM-AGENT-V2-003, T11): CONNECTED so com o Agent ACTIVE, vinculado (associacao ativa ao Worker) e ultimo contato autenticado (heartbeat aceito, relogio do servidor) nos ultimos 180 s; o Agent bate a cada 60 s. Revogado, suspenso ou sem associacao: DISCONNECTED mesmo com sinal recente (sinal antigo nao reativa vinculo). Sem nenhum contato: DISCONNECTED com lastHeartbeatAt nulo (ainda sem comunicacao). A ausencia de sinal nao muda estado: nao revoga, nao libera o Worker, nao retira workspaces, nao encerra execucoes. Desvinculo pela maquina (PLATFORM-AGENT-V2-004, T13): quando o Agent confirma "Desvincular esta maquina" e a Platform recebe o pedido, o Agent fica REVOKED com endedBy MACHINE e o Worker fica livre (sem pessoa como autora; auditoria propria). Enquanto o pedido nao chega (maquina sem rede, Agent fechado) ou com um Agent anterior (desvinculo so local, T06), o Agent continua ACTIVE ate uma pessoa revogar, e a comunicacao expira para DISCONNECTED. endedBy: quem encerrou um Agent REVOKED (ADMINISTRATION = Revogar vinculo; MACHINE = a propria maquina); null enquanto nao encerrado.
          */
         get: operations["listAgents"];
         put?: never;
@@ -1545,11 +1549,15 @@ export interface paths {
         };
         /**
          * Lista os Workers
-         * @description Exige worker.manage. Situacao, Agent associado e workspaces autorizados.
+         * @description Exige worker.manage. Situacao, Agent associado e workspaces autorizados. T07 (campos aditivos): maquina vinculada (agentName, agentStatus, agentVersion, installationId, credentialExpiresAt; null = sem Agent) e comunicacao (lastHeartbeatAt e connectivity, mesma janela de GET /agents). Ausencia de sinal nao altera nada no servidor.
          */
         get: operations["listWorkers"];
         put?: never;
-        post?: never;
+        /**
+         * Cria um Worker sem Agent (T07)
+         * @description PLATFORM-AGENT-V2-002, T07. Exige worker.manage. Cria o Worker ACTIVE sem Agent, sem codigo e sem execucao; o Agent e vinculado depois por POST /agent-enrollments com workerId. Capacidade decidida no banco (010) com a organizacao travada: limite atingido (zero antes da ativacao) -> 409 conflict + reason worker_limit_reached, nada gravado. Nome de 1 a 80 caracteres (espacos nas extremidades retirados). Auditado (agent_admin_events 7).
+         */
+        post: operations["createWorker"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1595,7 +1603,7 @@ export interface paths {
         put?: never;
         /**
          * Autoriza execucao local de uma versao publicada num Worker (step-up)
-         * @description AGENT-PYTHON-001 (030): com sourceKind = EXTERNAL_MONITORED o corpo leva automationId (e nao automationVersionId) e a autorizacao e de MONITORAMENTO de Python externo, sem versao e sem impressao (a Platform nao conhece codigo, caminho nem argumento); sourceKind de pacote no corpo e 400 (a origem de pacote vem da regra da versao: package-fingerprint/1 = STUDIO_PACKAGE, external-python-fingerprint/1 = EXTERNAL_PACKAGE). Exige automation.execute no workspace e step-up. Vincula organizacao, workspace, Worker AUTORIZADO no workspace, versao PUBLICADA e o pacote imutavel (packageFingerprint = command_json.agent_package.fingerprint da versao, com agent_package.fingerprint_rule = nekkora-agent/package-fingerprint/1; NAO e command_json.artifact.sha256, que mede os bytes do artefato). validUntil posterior a agora e ate 366 dias (fora disso, 400); automacao ou workspace inativo, 409. Versao rascunho ou sem artefato, ou Worker sem autorizacao no workspace: 409. A 025 reconfere tudo no banco. Auditoria (agent_admin_events 10).
+         * @description AGENT-PYTHON-001 (030): com sourceKind = EXTERNAL_MONITORED o corpo leva automationId (e nao automationVersionId) e a autorizacao e de MONITORAMENTO de Python externo, sem versao e sem impressao (a Platform nao conhece codigo, caminho nem argumento); sourceKind de pacote no corpo e 400 (a origem de pacote vem da regra da versao: package-fingerprint/1 = STUDIO_PACKAGE, external-python-fingerprint/1 = EXTERNAL_PACKAGE). Exige automation.execute no workspace e step-up. Vincula organizacao, workspace, Worker AUTORIZADO no workspace, versao PUBLICADA e o pacote imutavel (packageFingerprint = command_json.agent_package.fingerprint da versao, com agent_package.fingerprint_rule = nekkora-agent/package-fingerprint/1; NAO e command_json.artifact.sha256, que mede os bytes do artefato). validUntil posterior a agora e ate 366 dias (fora disso, 400); automacao ou workspace inativo, 409. Versao rascunho ou sem artefato, ou Worker sem autorizacao no workspace: 409. A 025 reconfere tudo no banco. Auditoria (agent_admin_events 10). PLATFORM-AGENT-V2-003 T12 (033): no maximo UMA autorizacao VIGENTE (nao revogada e validUntil depois do horario do servidor) por escopo: mesma autorizacao do Worker no workspace e mesma versao (pacote) ou mesma automacao (monitoramento). Havendo uma, 409 conflict + reason local_run_authorization_exists: nada gravado, auditado, estendido, substituido ou revogado (a Web rele a lista e mostra a vigente); repetir o mesmo pedido depois de perder a resposta tambem cai aqui e nunca cria outra. A regra e do banco (gatilho com trava do escopo): duas abas, duas pessoas ou chamadas diretas nunca gravam duas. Depois de revogada ou vencida, uma nova e aceita e a anterior fica no historico. Outros Workers, versoes, automacoes e workspaces nao sao afetados.
          */
         post: operations["createLocalRunAuthorization"];
         delete?: never;
@@ -1748,6 +1756,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/automations/{automationId}/draft/artifact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Envia o pacote do rascunho da automacao; o rascunho nasce quando o ZIP e aceito (T09)
+         * @description PLATFORM-AGENT-V2-002, T09. Exige automation.manage; automacao e workspace ACTIVE. O ZIP e inspecionado antes de qualquer escrita: recusado -> 422 package_rejected, nada criado e o pacote anterior preservado. Sem rascunho e sem expectativa: cria a versao DRAFT (numero MAX+1) e o artefato na mesma transacao -> 201. Com rascunho e a expectativa igual a ele (expectedDraftVersionId e, se ele ja tem pacote, expectedSha256 do pacote atual): substitui o pacote da MESMA versao -> 200. Expectativa diferente do rascunho atual (outra aba ou pessoa, ou o rascunho esperado foi publicado): 409 conflict + reason draft_changed, nada sobrescrito; exceto se o rascunho ja tem exatamente estes bytes (repeticao apos resposta perdida) -> 200 com o mesmo rascunho. No maximo um rascunho por automacao, garantido no banco (032). Nao publica nem executa nada. runtime e argument (repetivel, ate 20) valem so para o rascunho criado.
+         */
+        put: operations["putAutomationDraftPackage"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/automation-versions/{version}": {
         parameters: {
             query?: never;
@@ -1839,6 +1867,11 @@ export interface components {
         Error: {
             /** @enum {string} */
             error: "invalid_request" | "unauthenticated" | "forbidden" | "not_found" | "conflict" | "already_member" | "account_exists" | "account_unavailable" | "rate_limited" | "internal_error" | "service_unavailable" | "unsupported_contract";
+            /**
+             * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached, draft_exists, draft_changed, local_run_authorization_exists, organization_name_taken; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
+             * @enum {string}
+             */
+            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken";
         };
         /**
          * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
@@ -2143,7 +2176,7 @@ export interface components {
             stepUpMethod: components["schemas"]["StepUpMethod"];
         };
         /**
-         * @description 029: como ESTA sessao prova a pessoa nas acoes sensiveis. password so em sessao sem segundo fator de identidade que nunca confirmou fator (POST .../password-confirm, vale 5 min); totp em todas as demais (POST .../step-up). A senha nunca substitui o codigo de quem tem fator.
+         * @description 029: como ESTA sessao prova a pessoa nas acoes sensiveis. password so em sessao sem segundo fator de identidade que nunca confirmou fator (POST .../password-confirm; identidade: vale 5 min; organizacao: abre a janela fixa das acoes comuns, T01); totp em todas as demais (POST .../step-up). A senha nunca substitui o codigo de quem tem fator.
          * @enum {string}
          */
         StepUpMethod: "totp" | "password";
@@ -2199,6 +2232,8 @@ export interface components {
                 /** Format: uuid */
                 organizationId: string;
                 name: string;
+                /** @description T10 (034): identificador legivel, unico e estavel da organizacao (nao muda com o nome). Distingue organizacoes de mesmo nome. Nao e credencial e nao da acesso: as rotas continuam pelo organizationId. Nulo so antes da 034 */
+                handle: string | null;
                 /** @description codigos dos papeis ativos do vinculo interno, em ordem */
                 roles: string[];
                 activationState: components["schemas"]["OrganizationActivationState"];
@@ -2580,6 +2615,11 @@ export interface components {
                 capabilities?: ("RUN_LOCAL" | "OBS_1_0" | "SUPERVISOR_REPORT_1_0" | "EXTERNAL_PYTHON_1_0" | "RUN_REQUEST_1_0")[];
                 /** Format: date-time */
                 credentialExpiresAt?: string | null;
+                /**
+                 * @description T13: quem encerrou o vinculo (so com status REVOKED)
+                 * @enum {string|null}
+                 */
+                endedBy?: "ADMINISTRATION" | "MACHINE" | null;
             }[];
         };
         WorkerList: {
@@ -2592,7 +2632,38 @@ export interface components {
                 /** Format: uuid */
                 agentId?: string | null;
                 workspaceIds?: string[];
+                /** @description T07: maquina vinculada (null = sem Agent) */
+                agentName?: string | null;
+                /** @enum {string|null} */
+                agentStatus?: "PENDING" | "ACTIVE" | "SUSPENDED" | "REVOKED" | null;
+                agentVersion?: string | null;
+                /** Format: uuid */
+                installationId?: string | null;
+                /**
+                 * Format: date-time
+                 * @description T07: ultimo sinal conhecido da maquina vinculada
+                 */
+                lastHeartbeatAt?: string | null;
+                /**
+                 * @description T07: null = sem Agent. T11: CONNECTED so com o Agent ACTIVE e contato autenticado nos ultimos 180 s (heartbeat a cada 60 s); ver listAgents
+                 * @enum {string|null}
+                 */
+                connectivity?: "CONNECTED" | "DISCONNECTED" | null;
+                /** Format: date-time */
+                credentialExpiresAt?: string | null;
+                /** Format: date-time */
+                createdAt?: string;
             }[];
+        };
+        WorkerCreateRequest: {
+            name: string;
+        };
+        WorkerCreated: {
+            /** Format: uuid */
+            workerId: string;
+            name: string;
+            /** @enum {string} */
+            status: "ACTIVE";
         };
         WorkerWorkspace: {
             /** Format: uuid */
@@ -2710,8 +2781,11 @@ export interface components {
             deliveries?: number;
             /** Format: date-time */
             decidedAt?: string | null;
-            /** @enum {string|null} */
-            decisionReason?: "PACKAGE_NOT_PRESENT" | "PACKAGE_NOT_APPROVED" | "AUTHORIZATION_UNUSABLE" | "ENVIRONMENT_INCOMPATIBLE" | "BUSY" | "EXPIRED" | "LAUNCH_NOT_ATTEMPTED" | null;
+            /**
+             * @description AGENT_UNLINKED (T13): recusado porque a maquina se desvinculou antes de decidir
+             * @enum {string|null}
+             */
+            decisionReason?: "PACKAGE_NOT_PRESENT" | "PACKAGE_NOT_APPROVED" | "AUTHORIZATION_UNUSABLE" | "ENVIRONMENT_INCOMPATIBLE" | "BUSY" | "EXPIRED" | "LAUNCH_NOT_ATTEMPTED" | "AGENT_UNLINKED" | null;
             agentExecutionId?: string | null;
             /** Format: date-time */
             notStartedAt?: string | null;
@@ -2754,6 +2828,9 @@ export interface components {
         WorkspaceCreateRequest: {
             name: string;
             description?: string | null;
+        };
+        WorkspaceRenameRequest: {
+            name: string;
         };
         AutomationCreateRequest: {
             name: string;
@@ -3124,7 +3201,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Conta externa, sem a permissao exigida, ou Origin/CSRF invalido */
+        /** @description Conta externa, sem a permissao exigida, ou Origin/CSRF invalido (forbidden). Nas acoes sensiveis da sessao de organizacao, com tudo o mais conferido e sem confirmacao de identidade valida na janela: forbidden com reason step_up_required (T01; confirme e repita o ato) */
         Forbidden: {
             headers: {
                 [name: string]: unknown;
@@ -3161,6 +3238,36 @@ export interface components {
                 /**
                  * @example {
                  *       "error": "internal_error"
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Ja existe um workspace com esse nome nesta organizacao (031; maiusculas/minusculas e espacos nas extremidades nao distinguem). Codigo conflict (o cliente que nao conhece o motivo ve a recusa comum) com reason workspace_name_taken */
+        WorkspaceNameTaken: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": "conflict",
+                 *       "reason": "workspace_name_taken"
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description O ato nao cabe no estado atual. Com reason local_run_authorization_exists (T12, 033): o escopo ja tem uma autorizacao vigente, nada foi gravado. Sem reason: as recusas da 025/030 (versao nao publicada ou sem impressao, Worker sem autorizacao no workspace, automacao ou workspace inativo). O cliente que nao conhece o motivo ve a recusa comum */
+        LocalRunAuthorizationConflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": "conflict",
+                 *       "reason": "local_run_authorization_exists"
                  *     }
                  */
                 "application/json": components["schemas"]["Error"];
@@ -4198,6 +4305,21 @@ export interface operations {
                 };
             };
             404: components["responses"]["SignupDisabled"];
+            /** @description T10 (034): esta identidade ja criou, pelo cadastro, uma organizacao com esse nome; nada foi criado. Codigo conflict com reason organization_name_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "conflict",
+                     *       "reason": "organization_name_taken"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };
@@ -5385,6 +5507,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["WorkspaceNameTaken"];
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };
@@ -5418,6 +5541,42 @@ export interface operations {
             404: components["responses"]["NotFound"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["CatalogInconsistent"];
+        };
+    };
+    renameWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                workspaceId: components["parameters"]["WorkspaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkspaceRenameRequest"];
+            };
+        };
+        responses: {
+            /** @description Workspace com o nome em vigor */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LifecycleWorkspace"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["WorkspaceNameTaken"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     listAutomations: {
@@ -6020,6 +6179,40 @@ export interface operations {
             503: components["responses"]["ServiceUnavailable"];
         };
     };
+    createWorker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkerCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Worker criado */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerCreated"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
     authorizeWorkerInWorkspace: {
         parameters: {
             query?: never;
@@ -6156,7 +6349,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
+            409: components["responses"]["LocalRunAuthorizationConflict"];
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };
@@ -6431,6 +6624,67 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    putAutomationDraftPackage: {
+        parameters: {
+            query?: {
+                /** @description ausente = espera que nao exista rascunho */
+                expectedDraftVersionId?: string;
+                /** @description sha256 do pacote atual do rascunho esperado; ausente = rascunho sem pacote */
+                expectedSha256?: string;
+                runtime?: string;
+                argument?: string[];
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                automationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/zip": string;
+            };
+        };
+        responses: {
+            /** @description Pacote do rascunho existente substituido (ou repeticao com os mesmos bytes) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LifecycleVersion"];
+                };
+            };
+            /** @description Rascunho criado com o pacote aceito */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LifecycleVersion"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            /** @description Pacote recusado: nada criado, pacote anterior preservado */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageRejected"];
+                };
+            };
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };

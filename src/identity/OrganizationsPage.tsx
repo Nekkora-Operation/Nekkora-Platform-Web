@@ -154,8 +154,14 @@ export function OrganizationsPage() {
                       <Text as="h2" variant="h4">
                         {o.name}
                       </Text>
+                      {/* T10 (PLATFORM-AGENT-V2-003): identificador legível e estável, distingue organizações de mesmo nome; não dá acesso */}
+                      {o.handle && (
+                        <Text variant="body-sm" color="secondary" className="pw-identity__handle">
+                          Identificador: <code>{o.handle}</code>
+                        </Text>
+                      )}
                       <Text variant="body-sm" color="secondary">
-                        {o.roles.length ? o.roles.map((r) => ROLE_LABEL[r] ?? r).join(', ') : 'Sem papel na organização'}
+                        Seu papel: {o.roles.length ? o.roles.map((r) => ROLE_LABEL[r] ?? r).join(', ') : 'sem papel na organização'}
                       </Text>
                       <div className="pw-identity__badges">
                         <Badge tone={activation.tone} dot>
@@ -173,7 +179,7 @@ export function OrganizationsPage() {
                       onClick={() => void enter(o)}
                       loading={entering === o.organizationId}
                       disabled={entering !== null && entering !== o.organizationId}
-                      aria-label={`Entrar em ${o.name}`}
+                      aria-label={o.handle ? `Entrar em ${o.name} (${o.handle})` : `Entrar em ${o.name}`}
                     >
                       Entrar
                     </Button>

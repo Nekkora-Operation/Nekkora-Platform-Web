@@ -129,8 +129,9 @@ describe('área interna', () => {
     const nav = await screen.findByRole('navigation', { name: 'Navegação principal' });
     const links = within(nav).getAllByRole('link').map((l) => l.textContent);
     expect(links.slice(0, 4)).toEqual(['Início', 'Workspaces', 'Execuções', 'Supervisão']);
-    // M4: Agents e Workers aparecem só com a P01 (agent.manage / worker.manage); nada além das telas implementadas
-    expect(links.slice(4).every((l) => ['Agents', 'Workers', 'Minha conta', 'Membros', 'Convites', 'Clientes', 'Concessões', 'Auditoria de acessos'].includes(l ?? ''))).toBe(true);
+    // M4: Workers aparece só com a P01 (worker.manage); T07: sem item separado de Agents (Workers é a entrada única)
+    expect(links.slice(4).every((l) => ['Workers', 'Minha conta', 'Membros', 'Convites', 'Clientes', 'Concessões', 'Auditoria de acessos'].includes(l ?? ''))).toBe(true);
+    expect(links).not.toContain('Agents');
     expect(within(nav).getByRole('link', { name: 'Execuções' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getAllByText('Ana Souza').length).toBeGreaterThan(0);
     // PLATFORM-LOCAL-002: o e-mail saiu do menu e da página inicial; fica em Minha conta

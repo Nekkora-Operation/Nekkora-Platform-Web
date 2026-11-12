@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { confirmStepUp, LAB, signUpAndEnroll, type Person } from './support/lab';
+import { confirmStepUp, LAB, pairNewWorker, signUpAndEnroll, type Person, newVersionWithPackage } from './support/lab';
 
 /**
  * J13–J15 com o Agent REAL e a API REAL, em sessão ASSISTIDA (FRONT-V1-002).
@@ -100,27 +100,18 @@ async function setup(page: Page, person: Person) {
   await expect(page.getByRole('heading', { name: 'Operações' })).toBeVisible();
   const workspaceId = /workspaces\/([0-9a-f-]{36})/.exec(page.url())![1];
   await page.getByRole('button', { name: 'Criar automação' }).click();
-  await page.getByRole('alertdialog').getByLabel(/^Nome da automação/).fill('Biografias da Wikipédia');
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar automação' }).click();
-  await page.getByRole('button', { name: 'Nova versão' }).click();
-  await expect(page).toHaveURL(/\/versoes\/[0-9a-f-]{36}$/);
-  const versionUrl = page.url();
-  await page.getByLabel('Arquivo .zip do pacote').setInputFiles(PKG_ZIP);
-  await page.getByRole('button', { name: 'Enviar pacote' }).click();
-  await expect(page.getByText('Pacote recebido e conferido pela Platform.')).toBeVisible();
+  // T04: criação em página própria; aqui, o caminho só com o nome (rascunho)
+  await page.getByLabel(/^Nome da automação/).fill('Biografias da Wikipédia');
+  await page.getByRole('radio', { name: /Só o nome, como rascunho/ }).check();
+  await page.getByRole('button', { name: 'Salvar rascunho' }).click();
+  // T09: a versão nasce com o ZIP aceito no formulário "Nova versão"
+  const versionUrl = await newVersionWithPackage(page, PKG_ZIP);
   await page.getByRole('button', { name: 'Publicar versão' }).click();
-  await page.getByRole('alertdialog').getByLabel('Conferi o pacote desta versão.').check();
   await confirmStepUp(page, person, 'Publicar');
   await expect(page.getByText('Publicada (imutável)')).toBeVisible();
 
-  // pareamento (código só na tela, entregue ao Agent pela entrada padrão do script)
-  await page.goto(`/o/${org}/agents`);
-  await page.getByRole('button', { name: 'Parear novo Agent' }).click();
-  const dialog = page.getByRole('alertdialog');
-  await dialog.getByLabel(/^Nome da máquina/).fill('LAB-FRONT-02');
-  await dialog.getByLabel(/^Nome do Worker/).fill('Worker do laboratório');
-  await confirmStepUp(page, person, 'Gerar código');
-  const code = (await page.getByLabel('Código de uso único').innerText()).trim();
+  // T07: Workers → Criar Worker → Vincular Agent (código só na tela, entregue ao Agent pela entrada padrão do script)
+  const code = await pairNewWorker(page, org, person, 'Worker do laboratório', 'LAB-FRONT-02');
   agent('iniciar');
   agent('parear', [], `${code}\n`);
   await page.getByRole('button', { name: 'Concluir' }).click();
@@ -136,9 +127,9 @@ async function setup(page: Page, person: Person) {
         },
         { timeout: 240_000, intervals: [10_000] },
       )
-      .toMatch(/LAB-FRONT-02[\s\S]*Conectado/);
+      .toMatch(/LAB-FRONT-02[\s\S]*Conectada/);
   } finally {
-    step(`Agents na tela: ${seen.slice(0, 600)}`);
+    step(`Workers na tela: ${seen.slice(0, 600)}`);
   }
 
   await page.goto(`/o/${org}/workers`);

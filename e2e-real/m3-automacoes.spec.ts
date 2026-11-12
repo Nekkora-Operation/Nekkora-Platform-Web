@@ -36,25 +36,30 @@ test('J10/J11: automação, versão, ZIP inválido recusado, pacote real conferi
   await expect(page.getByRole('heading', { name: 'Operações' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Criar automação' }).click();
-  await page.getByRole('alertdialog').getByLabel(/^Nome da automação/).fill('Biografias da Wikipédia');
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar automação' }).click();
+  // T04: criação em página própria; aqui, o caminho só com o nome (rascunho)
+  await page.getByLabel(/^Nome da automação/).fill('Biografias da Wikipédia');
+  await page.getByRole('radio', { name: /Só o nome, como rascunho/ }).check();
+  await page.getByRole('button', { name: 'Salvar rascunho' }).click();
   await expect(page.getByRole('heading', { name: 'Biografias da Wikipédia' })).toBeVisible();
 
+  // T09: "Nova versão" só abre o formulário; nada é gravado até a Platform aceitar o ZIP
   await page.getByRole('button', { name: 'Nova versão' }).click();
+  await expect(page).toHaveURL(new RegExp(`/o/${org}/automacoes/[0-9a-f-]{36}/nova-versao$`));
+
+  // J11: ZIP inválido → 422 com motivo de vocabulário fechado; nenhuma versão criada, a pessoa continua no formulário
+  await page.getByLabel('Arquivo .zip do pacote').setInputFiles(INVALID);
+  await page.getByRole('button', { name: 'Enviar o pacote e criar o rascunho' }).click();
+  await expect(page.getByText(/O pacote foi recusado pela conferência da Platform: o arquivo não é um ZIP válido/)).toBeVisible();
+  await expect(page.getByText(/Nenhuma versão foi criada/)).toBeVisible();
+  await expect(page).toHaveURL(/\/nova-versao$/);
+
+  // pacote real: conferido pelo servidor (sha256 dos bytes ≠ impressão do pacote); o rascunho nasce com ele
+  await page.getByLabel('Arquivo .zip do pacote').setInputFiles(REAL);
+  await page.getByRole('button', { name: 'Enviar o pacote e criar o rascunho' }).click();
   await expect(page).toHaveURL(new RegExp(`/o/${org}/versoes/[0-9a-f-]{36}$`));
   const versionId = /versoes\/([0-9a-f-]{36})/.exec(page.url())![1];
   await expect(page.getByText('Rascunho', { exact: true })).toBeVisible();
-  await expect(page.getByText('Esta versão ainda não tem pacote.')).toBeVisible();
-
-  // J11: ZIP inválido → 422 com motivo de vocabulário fechado
-  await page.getByLabel('Arquivo .zip do pacote').setInputFiles(INVALID);
-  await page.getByRole('button', { name: 'Enviar pacote' }).click();
-  await expect(page.getByText(/O pacote foi recusado pela conferência da Platform: o arquivo não é um ZIP válido/)).toBeVisible();
-
-  // pacote real: conferido pelo servidor (sha256 dos bytes ≠ impressão do pacote)
-  await page.getByLabel('Arquivo .zip do pacote').setInputFiles(REAL);
-  await page.getByRole('button', { name: 'Enviar pacote' }).click();
-  await expect(page.getByText('Pacote recebido e conferido pela Platform.')).toBeVisible();
+  await expect(page.getByText('Rascunho criado com o pacote conferido pela Platform.')).toBeVisible();
   await expect(page.getByText(sha256(REAL), { exact: true }).first()).toBeVisible();
   await expect(page.getByText(REAL_FINGERPRINT, { exact: true })).toBeVisible();
   await expect(page.getByText(/declarado no manifesto, não verificado|Não declarado/)).toBeVisible();
@@ -62,9 +67,12 @@ test('J10/J11: automação, versão, ZIP inválido recusado, pacote real conferi
   // a pessoa abre a publicação (valores conferidos fixados) …
   await page.getByRole('button', { name: 'Publicar versão' }).click();
   const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toContainText('Depois de publicada, esta versão não poderá ser alterada.');
+  await expect(dialog).not.toContainText(sha256(REAL)); // identificação técnica oculta por padrão
+  await dialog.getByRole('button', { name: 'Conferir identificação técnica' }).click();
   await expect(dialog).toContainText(sha256(REAL));
-  await dialog.getByLabel('Impressão esperada (opcional)').fill(REAL_FINGERPRINT);
-  await dialog.getByLabel('Conferi o pacote desta versão.').check();
+  await dialog.getByLabel('Comparar com um valor (opcional)').fill(REAL_FINGERPRINT);
+  await expect(dialog).toContainText('Confere com a impressão do conteúdo.');
 
   // … e, em outra aba, o artefato do rascunho é trocado (mesmo conteúdo, outros bytes)
   const other = await context.newPage();
@@ -82,8 +90,8 @@ test('J10/J11: automação, versão, ZIP inválido recusado, pacote real conferi
 
   // conferir de novo e publicar
   await page.getByRole('button', { name: 'Publicar versão' }).click();
+  await dialog.getByRole('button', { name: 'Conferir identificação técnica' }).click();
   await expect(dialog).toContainText(sha256(STORED));
-  await dialog.getByLabel('Conferi o pacote desta versão.').check();
   await confirmStepUp(page, ana, 'Publicar');
   await expect(page.getByText('Publicada (imutável)')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Enviar pacote' })).toHaveCount(0);

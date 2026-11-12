@@ -1,29 +1,30 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
-import { Link as RouterLink, useParams } from 'react-router';
-import { Alert, Badge, Button, Card, Checkbox, DescriptionList, Heading, Input, Link, Stack, StateView, Text, Textarea } from 'nekkora-lib';
-import { ApiError, isApiError } from '../../api/http';
+import { Link as RouterLink, useLocation, useParams } from 'react-router';
+import { Alert, Badge, Button, Card, DescriptionList, Heading, Input, Link, Stack, StateView, Text, Textarea } from 'nekkora-lib';
+import { hasReason, isApiError } from '../../api/http';
 import {
   ARTIFACT_MAX_BYTES,
   getAutomationVersion,
   localSha256,
-  PACKAGE_REASON,
   publishAutomationVersion,
   updateAutomationVersionDraft,
-  uploadArtifact,
+  uploadDraftPackage,
   type LifecycleVersion,
-  type PackageRejectedReason,
   type UploadHandle,
 } from '../../api/lifecycle';
 import { getAutomation } from '../../api/product';
 import { useSession } from '../../area/session';
 import { useWorkspacePermissions } from '../../area/useWorkspacePermissions';
+import { PermissionsUnverified } from '../../area/PermissionsUnverified';
 import { orgPath } from '../../auth/organization';
 import { StepUpDialog } from '../../components/StepUpDialog';
 import { useResource } from '../../hooks/useResource';
 import { orgStepUp } from '../access/shared';
 import { LocalRunAuthorizations } from '../agents/LocalRunAuthorizations';
 import { DateTimeText, LoadErrorState, NotFoundState, PageHeader, isMissing } from './shared';
+import { compareTechnical, PublishSummary, type Reviewed } from './PublishSummary';
 import { uploadOutcome } from './uploadOutcome';
+import { checkCommand, draftRefusal, mib, PackageBrief } from './draftPackage';
 import './shared.css';
 import '../../identity/identity.css';
 
@@ -34,23 +35,9 @@ type Upload =
   | { phase: 'refused'; text: string }
   | { phase: 'uncertain' }
   /** `unknown`: sem SHA-256 local (Web Crypto indisponível) não há como comparar; mostra o que a Platform tem. */
-  | { phase: 'reconciled'; arrived: 'yes' | 'no' | 'unknown'; serverSha256?: string | null };
-
-const mib = (n: number) => `${(n / 1024 / 1024).toFixed(n < 1024 * 1024 ? 2 : 1)} MiB`;
-
-function uploadRefusal(e: unknown): string {
-  if (e instanceof ApiError && e.code === 'package_rejected') {
-    const reason = e.reason ? PACKAGE_REASON[e.reason as PackageRejectedReason] : undefined;
-    return `O pacote foi recusado pela conferência da Platform: ${reason ?? 'motivo não informado'}. A versão continua como estava.`;
-  }
-  if (isApiError(e, 'service_unavailable'))
-    return 'O armazenamento de pacotes não está disponível neste ambiente (ou está temporariamente fora). Nada foi gravado; tente mais tarde ou procure a operação.';
-  if (isApiError(e, 'conflict')) return 'Esta versão já foi publicada e não aceita pacote novo. Crie uma nova versão.';
-  if (isApiError(e, 'forbidden', 'not_found')) return 'Você não tem permissão para enviar pacotes nesta automação. Nada foi gravado.';
-  if (isApiError(e, 'rate_limited')) return 'Muitas tentativas em pouco tempo. Aguarde antes de enviar de novo.';
-  if (e instanceof ApiError && e.status === 413) return 'O arquivo passa do limite aceito (50 MiB). Nada foi gravado.';
-  return 'O envio não foi aceito. A versão continua como estava.';
-}
+  | { phase: 'reconciled'; arrived: 'yes' | 'no' | 'unknown'; serverSha256?: string | null }
+  /** T09: o rascunho mudou desde a leitura (outra aba ou pessoa enviou, ou foi publicado): nada sobrescrito. */
+  | { phase: 'changed'; fresh: LifecycleVersion | null };
 
 /** Linha "valor técnico" (hash, impressão): monoespaçado, quebrável, copiável por seleção. */
 function Hash({ value }: { value: string | null | undefined }) {
@@ -75,14 +62,22 @@ export function VersionPage() {
   const [localHash, setLocalHash] = useState<string | null>(null);
   const [upload, setUpload] = useState<Upload>({ phase: 'idle' });
   const handle = useRef<UploadHandle | null>(null);
+  const sending = useRef(false);
+  /** Chegada da página "Nova versão" (T09): o rascunho acabou de nascer com o pacote aceito. */
+  const created = (useLocation().state as { draftCreated?: boolean } | null)?.draftCreated === true;
   const [runtime, setRuntime] = useState('');
   const [args, setArgs] = useState('');
   const [draftMsg, setDraftMsg] = useState<{ tone: 'success' | 'danger' | 'warning'; text: string } | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [reviewed, setReviewed] = useState<{ sha256: string; fingerprint: string } | null>(null);
-  const [checked, setChecked] = useState(false);
-  const [expectedFp, setExpectedFp] = useState('');
+  /**
+   * Pacote conferido, fixado ao abrir a publicação (T05): é exatamente o que vai na expectativa do POST; a API recusa (409)
+   * se o rascunho mudar até lá. Os dados de apresentação ficam fixados junto, para o diálogo não mudar sob a pessoa.
+   */
+  const [reviewed, setReviewed] = useState<Reviewed | null>(null);
+  /** "Conferir identificação técnica": fechado por padrão; só para quem precisa comparar o arquivo. */
+  const [technical, setTechnical] = useState(false);
+  const [compare, setCompare] = useState('');
   const [publishMsg, setPublishMsg] = useState<{ tone: 'success' | 'warning'; text: string } | null>(null);
 
   useEffect(() => {
@@ -124,23 +119,37 @@ export function VersionPage() {
     setLocalHash(await localSha256(f).catch(() => null));
   };
 
+  /**
+   * T09: o pacote vai pelo PUT do rascunho da automação com a expectativa do que esta tela mostra (este rascunho e o
+   * SHA-256 do pacote atual, ou nenhum): se outra aba ou pessoa trocou o pacote, ou publicou, a API recusa (409
+   * draft_changed) e nada é sobrescrito. Um envio por vez; nunca reenvia sozinho.
+   */
   const send = () => {
-    if (!file || upload.phase === 'sending') return;
+    if (!file || sending.current || version.refreshing) return;
+    sending.current = true;
+    const expected = { draftVersionId: versionId, sha256: art?.sha256 ?? null };
     setUpload({ phase: 'sending', sent: 0, total: file.size });
-    const h = uploadArtifact(org, versionId, file, (sent, total) => setUpload({ phase: 'sending', sent, total }));
+    const h = uploadDraftPackage(org, data.automationId!, file, expected, (sent, total) => setUpload({ phase: 'sending', sent, total }));
     handle.current = h;
     h.promise
       .then(() => {
         setUpload({ phase: 'done' });
         version.refresh();
       })
-      .catch((e) => {
+      .catch(async (e) => {
         const outcome = uploadOutcome(e);
         if (outcome === 'expired') return expired();
-        setUpload(outcome === 'uncertain' ? { phase: 'uncertain' } : { phase: 'refused', text: uploadRefusal(e) });
+        if (hasReason(e, 'conflict', 'draft_changed')) {
+          // relê o rascunho para mostrar qual pacote ficou; a expectativa do próximo envio passa a ser a dele
+          const fresh = await getAutomationVersion(org, versionId).catch(() => null);
+          version.refresh();
+          return setUpload({ phase: 'changed', fresh });
+        }
+        setUpload(outcome === 'uncertain' ? { phase: 'uncertain' } : { phase: 'refused', text: draftRefusal(e, art?.sha256 ? 'previous' : 'empty') });
       })
       .finally(() => {
         handle.current = null;
+        sending.current = false;
       });
   };
 
@@ -159,16 +168,12 @@ export function VersionPage() {
   };
 
   const saveDraft = async () => {
-    const list = args
-      .split('\n')
-      .map((a) => a.trim())
-      .filter(Boolean);
-    if (runtime && !/^python3\.[0-9]{1,2}$/.test(runtime)) return setDraftMsg({ tone: 'danger', text: 'Use o formato python3.N (por exemplo, python3.12).' });
-    if (list.length > 20 || list.some((a) => a.length > 200)) return setDraftMsg({ tone: 'danger', text: 'Até 20 argumentos, cada um com até 200 caracteres.' });
+    const command = checkCommand(runtime, args);
+    if (!command.ok) return setDraftMsg({ tone: 'danger', text: command.text });
     setSavingDraft(true);
     setDraftMsg(null);
     try {
-      await updateAutomationVersionDraft(org, versionId, { ...(runtime ? { runtime } : {}), arguments: list });
+      await updateAutomationVersionDraft(org, versionId, { ...(command.runtime ? { runtime: command.runtime } : {}), arguments: command.arguments });
       setDraftMsg({ tone: 'success', text: 'Rascunho atualizado.' });
       version.refresh();
     } catch (e) {
@@ -185,11 +190,34 @@ export function VersionPage() {
     }
   };
 
-  const fpMismatch = !!expectedFp.trim() && !!reviewed && expectedFp.trim().toLowerCase() !== reviewed.fingerprint;
+  const comparison = compareTechnical(compare, reviewed);
+  const openPublish = () => {
+    if (!art?.sha256 || !art?.fingerprint) return;
+    setReviewed({
+      sha256: art.sha256,
+      fingerprint: art.fingerprint,
+      fingerprintRule: art.fingerprintRule ?? null,
+      kind: art.packageKind === 'EXTERNAL_PYTHON' ? 'EXTERNAL_PYTHON' : 'STUDIO',
+      sizeBytes: art.sizeBytes ?? null,
+      filesCount: art.filesCount ?? null,
+      packageName: art.packageName ?? null,
+      packageVersion: art.packageVersion ?? null,
+      receivedAt: art.receivedAt ?? null,
+      // nome do arquivo só quando é, comprovadamente, o que este navegador enviou (mesmo SHA-256)
+      fileName: file && localHash && localHash === art.sha256 ? file.name : null,
+    });
+    setTechnical(false);
+    setCompare('');
+    setPublishMsg(null);
+    setPublishing(true);
+  };
 
   return (
     <Stack gap={6}>
       <PageHeader title={`${name} — versão ${data.versionNumber ?? ''}`} subtitle="Versão da automação" back={back} onRefresh={version.refresh} refreshing={version.refreshing} />
+      {perms.status === 'unknown' && (
+        <PermissionsUnverified actions={draft ? 'Enviar o pacote, Publicar versão e a execução local' : 'As ações de execução local'} onRetry={perms.retry} />
+      )}
 
       <Card variant="surface" padding="lg">
         <DescriptionList
@@ -214,6 +242,13 @@ export function VersionPage() {
         />
       </Card>
 
+      {created && draft && upload.phase === 'idle' && (
+        <Alert tone="success" title="Rascunho criado com o pacote conferido pela Platform.">
+          A versão {data.versionNumber} passou a existir quando a Platform aceitou o pacote e já está salva, mesmo que você
+          saia desta página. Nada foi publicado nem executado: revise abaixo e publique quando quiser.
+        </Alert>
+      )}
+
       {!draft && (
         <Alert tone="info" title="Versão publicada: não muda mais.">
           Para alterar comando ou pacote, crie uma nova versão na automação. Publicar não executa nada nem autoriza
@@ -229,6 +264,21 @@ export function VersionPage() {
         <Heading level={2} id="pacote-titulo" className="pw-prod__section-title">
           Pacote
         </Heading>
+        {upload.phase === 'changed' && (
+          <Alert tone="warning" title="O rascunho mudou desde que você abriu esta página. Nada foi sobrescrito.">
+            {!upload.fresh ? (
+              'Outra aba ou pessoa alterou este rascunho e o seu envio não foi aplicado. Atualize a página para ver o pacote atual antes de decidir.'
+            ) : upload.fresh.status !== 'DRAFT' ? (
+              'A versão foi publicada em outra aba ou por outra pessoa, e o seu envio não foi aplicado. Para mudar o pacote, crie uma nova versão na automação.'
+            ) : (
+              <>
+                Outra aba ou pessoa enviou um pacote a este rascunho; o seu envio não foi aplicado. Ficou na Platform{' '}
+                <PackageBrief artifact={upload.fresh.artifact} />. Confira abaixo e, se ainda quiser trocar pelo seu arquivo, envie
+                de novo: o próximo envio considera o pacote que ficou.
+              </>
+            )}
+          </Alert>
+        )}
         {art ? (
           <Card variant="outlined" padding="lg">
             <Stack gap={3}>
@@ -279,6 +329,7 @@ export function VersionPage() {
                 O Studio gera uma pasta com o pacote. Compacte o CONTEÚDO dela num arquivo .zip (o manifest.json na raiz) e
                 envie aqui. A Platform confere o manifesto e o hash de cada arquivo; o navegador não abre nem executa o
                 pacote. O Studio não publica automaticamente.
+                {art && ' O pacote atual continua valendo até a Platform aceitar o novo; um arquivo recusado não muda nada.'}
               </Text>
               {/* campo de arquivo composto com as classes do Field da lib (o Field não é exportado e o Input da lib
                   controla `value`, o que o navegador proíbe em type=file) — encaminhado à equipe da lib */}
@@ -341,7 +392,9 @@ export function VersionPage() {
                 <Alert tone={upload.arrived === 'yes' ? 'success' : 'info'}>
                   {upload.arrived === 'yes'
                     ? 'Conferido: a Platform tem o pacote com o mesmo SHA-256 do arquivo escolhido.'
-                    : 'A versão não tem o pacote deste arquivo. Você pode enviar de novo.'}
+                    : upload.serverSha256
+                      ? 'Conferido: o pacote deste arquivo não chegou; o rascunho continua com o pacote mostrado acima. Nada é reenviado sozinho: você pode enviar de novo.'
+                      : 'Conferido: o pacote deste arquivo não chegou; o rascunho continua sem pacote. Nada é reenviado sozinho: você pode enviar de novo.'}
                 </Alert>
               )}
               {upload.phase === 'reconciled' && upload.arrived === 'unknown' && (
@@ -357,7 +410,7 @@ export function VersionPage() {
                 </Alert>
               )}
               <div>
-                <Button onClick={send} disabled={!file || upload.phase === 'sending' || upload.phase === 'uncertain'} loading={upload.phase === 'sending'}>
+                <Button onClick={send} disabled={!file || upload.phase === 'sending' || upload.phase === 'uncertain' || version.refreshing} loading={upload.phase === 'sending'}>
                   Enviar pacote
                 </Button>
               </div>
@@ -399,16 +452,7 @@ export function VersionPage() {
                 autoriza execução.
               </Text>
               <div>
-                <Button
-                  disabled={!art?.sha256 || !art?.fingerprint}
-                  onClick={() => {
-                    setReviewed({ sha256: art!.sha256!, fingerprint: art!.fingerprint! });
-                    setChecked(false);
-                    setExpectedFp('');
-                    setPublishMsg(null);
-                    setPublishing(true);
-                  }}
-                >
+                <Button disabled={!art?.sha256 || !art?.fingerprint} onClick={openPublish}>
                   Publicar versão
                 </Button>
               </div>
@@ -428,12 +472,12 @@ export function VersionPage() {
 
       <StepUpDialog<LifecycleVersion>
         open={publishing}
-        title={`Publicar a versão ${data.versionNumber ?? ''}?`}
+        title={`Publicar a versão ${data.versionNumber ?? ''} de ${name}?`}
         guard={{ operation: 'version.publish', target: versionId }}
         confirmLabel="Publicar"
-        ready={checked && !fpMismatch}
+        ready={!!reviewed && comparison.status !== 'mismatch' && comparison.status !== 'malformed'}
         stepUp={orgStepUp(org)}
-        action={() => publishAutomationVersion(org, versionId, reviewed!)}
+        action={() => publishAutomationVersion(org, versionId, { sha256: reviewed!.sha256, fingerprint: reviewed!.fingerprint })}
         onDone={() => {
           setPublishing(false);
           setPublishMsg({ tone: 'success', text: 'Versão publicada. Ela não muda mais.' });
@@ -454,24 +498,16 @@ export function VersionPage() {
         onOutcome={(k) => k === 'uncertain' && setPublishMsg({ tone: 'warning', text: 'O resultado da publicação não foi confirmado. Atualize a versão e confira.' })}
       >
         {reviewed && (
-          <>
-            <Text>A publicação usa exatamente o pacote que você conferiu:</Text>
-            <DescriptionList
-              items={[
-                { key: 'sha', term: 'SHA-256 dos bytes', description: <Hash value={reviewed.sha256} />, wide: true },
-                { key: 'fp', term: 'Impressão do pacote', description: <Hash value={reviewed.fingerprint} />, wide: true },
-              ]}
-            />
-            <Input
-              label="Impressão esperada (opcional)"
-              hint="Cole a impressão informada pelo Studio ou pelo Agent para comparar."
-              value={expectedFp}
-              onChange={(e) => setExpectedFp(e.target.value)}
-              error={fpMismatch ? 'Diferente da impressão do pacote recebido. Não publique: confira o pacote.' : undefined}
-              spellCheck={false}
-            />
-            <Checkbox label="Conferi o pacote desta versão." checked={checked} onChange={(e) => setChecked(e.target.checked)} />
-          </>
+          <PublishSummary
+            automation={name}
+            versionNumber={data.versionNumber}
+            reviewed={reviewed}
+            technical={technical}
+            onToggleTechnical={() => setTechnical((t) => !t)}
+            compare={compare}
+            onCompare={setCompare}
+            comparison={comparison}
+          />
         )}
       </StepUpDialog>
     </Stack>

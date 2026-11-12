@@ -50,7 +50,7 @@ function area(opts: { activation?: 'AGUARDANDO_ATIVACAO' | 'ATIVADA'; perms?: st
   );
   api.on('GET', '/api/v1/me/organizations', 'identityOrganizations', {
     status: 200,
-    body: { organizations: [{ organizationId: ORG, name: 'Acme', roles: ['ORG_ADMIN'], activationState: opts.activation ?? 'ATIVADA' }], canCreateOrganization: true },
+    body: { organizations: [{ organizationId: ORG, name: 'Acme', roles: ['ORG_ADMIN'], activationState: opts.activation ?? 'ATIVADA', handle: 'acme' }], canCreateOrganization: true },
   });
 }
 
@@ -86,12 +86,12 @@ describe('entrada geral (área da identidade)', () => {
     session();
     api.on('GET', '/api/v1/me/organizations', 'identityOrganizations', {
       status: 200,
-      body: { organizations: [{ organizationId: ORG, name: 'Acme', roles: ['ORG_ADMIN'], activationState: 'AGUARDANDO_ATIVACAO' }], canCreateOrganization: true },
+      body: { organizations: [{ organizationId: ORG, name: 'Acme', roles: ['ORG_ADMIN'], activationState: 'AGUARDANDO_ATIVACAO', handle: 'acme' }], canCreateOrganization: true },
     });
     renderApp('/organizacoes');
     const list = await screen.findByRole('list', { name: 'Organizações' });
     expect(within(list).getByRole('heading', { name: 'Acme' })).toBeInTheDocument();
-    expect(within(list).getByRole('button', { name: 'Entrar em Acme' })).toBeInTheDocument();
+    expect(within(list).getByRole('button', { name: 'Entrar em Acme (acme)' })).toBeInTheDocument();
     expect(list.textContent).not.toMatch(/0a6e1f9c/);
     expect(screen.queryByRole('button', { name: 'Criar minha primeira organização' })).toBeNull();
   });
@@ -134,15 +134,15 @@ describe('página inicial da organização: próximo passo', () => {
     expect(screen.queryByText(/^0 /)).toBeNull();
   });
 
-  it('workspace sem automações, com permissão: "Criar primeira automação" abre o diálogo no workspace', async () => {
+  it('workspace sem automações, com permissão: "Criar primeira automação" leva à criação no workspace (T04)', async () => {
     area({ perms: ['workspace.lifecycle', 'automation.manage', 'automation.read'], workspaces: [workspace()] });
     api.on('GET', `/api/v1/o/${ORG}/workspaces/${WS}/automations`, 'listAutomations', { status: 200, body: { items: [], nextCursor: null } });
     api.on('GET', `/api/v1/o/${ORG}/executions`, 'listExecutions', { status: 200, body: { items: [], nextCursor: null } });
     api.on('GET', `/api/v1/o/${ORG}/workspaces/${WS}`, 'getWorkspace', { status: 200, body: workspace() });
     renderApp(`/o/${ORG}`);
     await user().click(await screen.findByRole('button', { name: 'Criar primeira automação' }));
-    await waitFor(() => expect(location()).toBe(`/o/${ORG}/workspaces/${WS}`));
-    expect(await screen.findByRole('alertdialog', { name: 'Criar automação' })).toBeInTheDocument();
+    await waitFor(() => expect(location()).toBe(`/o/${ORG}/workspaces/${WS}/nova-automacao`));
+    expect(await screen.findByRole('heading', { name: 'Nova automação' })).toBeInTheDocument();
   });
 
   it('automações que falharam ao carregar: diz que não carregou (não oferece criar a "primeira")', async () => {

@@ -13,7 +13,7 @@ import {
 } from '../../api/agents';
 import { RunRequestDialog, RunRequestPanel } from './runRequests';
 import { SOURCE_KIND } from './supervision';
-import { isApiError } from '../../api/http';
+import { hasReason, isApiError } from '../../api/http';
 import { useSession } from '../../area/session';
 import { orgPath } from '../../auth/organization';
 import { StepUpDialog } from '../../components/StepUpDialog';
@@ -27,6 +27,16 @@ const dayFromNow = (days: number) => {
   const d = new Date(Date.now() + days * 86_400_000);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
+
+/** Data curta para textos de opção (os <option> não aceitam componente). */
+const dateText = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '—');
+
+/**
+ * PLATFORM-AGENT-V2-003, T12 (API 033): no máximo UMA autorização vigente por escopo — o Worker no workspace e a versão
+ * (pacote) ou a automação (monitoramento). Repetir o pedido responde 409 conflict + reason local_run_authorization_exists e
+ * não grava nada.
+ */
+export const EXISTS_REASON = 'local_run_authorization_exists';
 
 function stateOf(a: LocalRunAuthorization): { label: string; tone: 'success' | 'neutral' | 'warning' } {
   if (a.revokedAt) return { label: 'Revogada', tone: 'neutral' };
@@ -97,11 +107,6 @@ export function LocalRunAuthorizations({
     };
   }, [load, org]);
 
-  const workerName = (id?: string) => workers?.find((w) => w.workerId === id)?.name ?? short(id);
-  const eligible = (workers ?? []).filter((w) => w.status === 'ACTIVE' && w.workspaceIds?.includes(workspaceId));
-  const untilDate = until ? new Date(`${until}T23:59:59`) : null;
-  const untilOk = !!untilDate && untilDate.getTime() > Date.now() && untilDate.getTime() <= Date.now() + MAX_DAYS * 86_400_000;
-
   const items =
     list.status === 'ready'
       ? list.items.filter((a) =>
@@ -110,6 +115,36 @@ export function LocalRunAuthorizations({
             : !version || a.automationVersionId === version.automationVersionId,
         )
       : [];
+  const workerName = (id?: string) => workers?.find((w) => w.workerId === id)?.name ?? short(id);
+  /** T12: a autorização VIGENTE deste escopo para o Worker (a lista já está filtrada pela versão ou pela automação). */
+  const currentFor = (id: string) => (list.status === 'ready' ? items.find((a) => a.workerId === id && stateOf(a).label === 'Vigente') : undefined);
+  const eligible = (workers ?? []).filter((w) => w.status === 'ACTIVE' && w.workspaceIds?.includes(workspaceId));
+  const untilDate = until ? new Date(`${until}T23:59:59`) : null;
+  const untilOk = !!untilDate && untilDate.getTime() > Date.now() && untilDate.getTime() <= Date.now() + MAX_DAYS * 86_400_000;
+  const current = UUID.test(workerId) ? currentFor(workerId) : undefined;
+  // só oferece criar com a lista conferida: sem ela, a tela não sabe se já há uma vigente (o servidor recusa de qualquer forma)
+  const canCreate = list.status === 'ready' && UUID.test(workerId) && untilOk && !current;
+  const scopeText = automation ? 'o monitoramento desta automação' : 'esta versão';
+  const workerOptions = eligible.map((w) => {
+    const c = currentFor(w.workerId!);
+    return { value: w.workerId!, label: c ? `${w.name ?? w.workerId!} (já autorizado até ${dateText(c.validUntil)})` : (w.name ?? w.workerId!) };
+  });
+  const existsText = `Este Worker já tem uma autorização vigente para ${scopeText}. Nada foi criado: a autorização atual aparece na lista abaixo. Para autorizar de novo, revogue a atual ou aguarde o vencimento.`;
+  const currentNotice = current ? (
+    <Alert tone="info" live="polite" title="Já autorizado">
+      Este Worker já tem uma autorização vigente para {scopeText}, válida até <DateTimeText iso={current.validUntil} />. Não é preciso autorizar de novo. Para
+      trocar a validade, revogue a atual na lista abaixo e autorize outra; depois do vencimento, uma nova autorização pode ser feita.
+    </Alert>
+  ) : list.status === 'error' && UUID.test(workerId) ? (
+    <Text variant="body-sm" color="secondary">
+      Não foi possível conferir as autorizações atuais. Tente carregar a lista de novo antes de autorizar.
+    </Text>
+  ) : null;
+  const onRefused = (k: string) => {
+    // releitura depois da recusa (inclusive a da autorização já vigente): a tela mostra o estado atual, sem presumir quem criou
+    if (k === 'refused') void load();
+  };
+
   const columns: TableColumn<LocalRunAuthorization>[] = [
     { key: 'estado', header: 'Situação', render: (a) => <Badge tone={stateOf(a).tone}>{stateOf(a).label}</Badge> },
     ...(version
@@ -170,7 +205,7 @@ export function LocalRunAuthorizations({
                 value={workerId}
                 placeholder={eligible.length ? 'Escolha um Worker' : 'Nenhum Worker autorizado neste workspace'}
                 onChange={(e) => setWorkerId(e.target.value)}
-                options={eligible.map((w) => ({ value: w.workerId!, label: w.name ?? w.workerId! }))}
+                options={workerOptions}
                 hint="Só Workers ativos e autorizados no workspace (tela de Workers)."
               />
             ) : (
@@ -184,8 +219,9 @@ export function LocalRunAuthorizations({
               />
             )}
             <Input label="Vale até" type="date" fullWidth value={until} onChange={(e) => setUntil(e.target.value)} hint="Data futura, até 366 dias." error={until && !untilOk ? 'Escolha uma data futura dentro de 366 dias.' : undefined} />
+            {currentNotice}
             <div>
-              <Button disabled={!UUID.test(workerId) || !untilOk} onClick={() => setCreating(true)}>
+              <Button disabled={!canCreate} onClick={() => setCreating(true)}>
                 Autorizar execução local
               </Button>
             </div>
@@ -207,7 +243,7 @@ export function LocalRunAuthorizations({
                 value={workerId}
                 placeholder={eligible.length ? 'Escolha um Worker' : 'Nenhum Worker autorizado neste workspace'}
                 onChange={(e) => setWorkerId(e.target.value)}
-                options={eligible.map((w) => ({ value: w.workerId!, label: w.name ?? w.workerId! }))}
+                options={workerOptions}
               />
             ) : (
               <Input
@@ -222,8 +258,9 @@ export function LocalRunAuthorizations({
             <Text variant="body-sm" color="secondary">
               Identificador da automação para o comando vincular: <code className="pw-hash">{automation.automationId}</code>
             </Text>
+            {currentNotice}
             <div>
-              <Button disabled={!UUID.test(workerId) || !untilOk} onClick={() => setCreating(true)}>
+              <Button disabled={!canCreate} onClick={() => setCreating(true)}>
                 Autorizar monitoramento
               </Button>
             </div>
@@ -267,13 +304,18 @@ export function LocalRunAuthorizations({
           }}
           onClose={() => setCreating(false)}
           refusalText={(e) =>
-            accessRefusal(e, {
-              conflict: 'A versão não está publicada com pacote, o Worker não está autorizado neste workspace, ou a automação/workspace não está ativo.',
-            })
+            hasReason(e, 'conflict', EXISTS_REASON)
+              ? existsText
+              : accessRefusal(e, {
+                  conflict: 'A versão não está publicada com pacote, o Worker não está autorizado neste workspace, ou a automação/workspace não está ativo.',
+                })
           }
           uncertainText="Não foi possível confirmar a autorização. Feche e confira a lista de autorizações antes de repetir."
           onUnauthenticated={expired}
-          onOutcome={(k) => k === 'uncertain' && setNotice({ tone: 'warning', text: 'O resultado da última autorização não foi confirmado. Confira a lista.' })}
+          onOutcome={(k) => {
+            if (k === 'uncertain') setNotice({ tone: 'warning', text: 'O resultado da última autorização não foi confirmado. Confira a lista.' });
+            onRefused(k);
+          }}
         >
           <Text>
             Worker: {workerName(workerId)}. Vale até <DateTimeText iso={untilDate?.toISOString() ?? null} />. A autorização é para o pacote imutável desta versão.
@@ -298,9 +340,14 @@ export function LocalRunAuthorizations({
             void load();
           }}
           onClose={() => setCreating(false)}
-          refusalText={(e) => accessRefusal(e, { conflict: 'O Worker não está autorizado neste workspace, ou a automação/workspace não está ativo.' })}
+          refusalText={(e) =>
+            hasReason(e, 'conflict', EXISTS_REASON)
+              ? existsText
+              : accessRefusal(e, { conflict: 'O Worker não está autorizado neste workspace, ou a automação/workspace não está ativo.' })
+          }
           uncertainText="Não foi possível confirmar a autorização. Feche e confira a lista antes de repetir."
           onUnauthenticated={expired}
+          onOutcome={onRefused}
         >
           <Text>
             Worker: {workerName(workerId)}. Vale até <DateTimeText iso={untilDate?.toISOString() ?? null} />. Sem versão e sem impressão: o código fica na máquina.

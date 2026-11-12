@@ -130,24 +130,27 @@ test('FRONT-V1-004: 504 do gateway depois do envio (step-up e upload) mantém o 
     await page.getByRole('alertdialog').getByRole('button', { name: 'Criar workspace' }).click();
     await expect(page.getByRole('heading', { name: 'Operações' })).toBeVisible();
     await page.getByRole('button', { name: 'Criar automação' }).click();
-    await page.getByRole('alertdialog').getByLabel(/^Nome da automação/).fill('Biografias da Wikipédia');
-    await page.getByRole('alertdialog').getByRole('button', { name: 'Criar automação' }).click();
+    // T04: criação em página própria; aqui, o caminho só com o nome (rascunho)
+    await page.getByLabel(/^Nome da automação/).fill('Biografias da Wikipédia');
+    await page.getByRole('radio', { name: /Só o nome, como rascunho/ }).check();
+    await page.getByRole('button', { name: 'Salvar rascunho' }).click();
+    // T09: "Nova versão" só abre o formulário; o rascunho nasce com o ZIP aceito (PUT do rascunho da automação)
     await page.getByRole('button', { name: 'Nova versão' }).click();
-    await expect(page).toHaveURL(/\/versoes\/[0-9a-f-]{36}$/);
-    const artifactUrl = /\/api\/v1\/o\/[0-9a-f-]{36}\/automation-versions\/[0-9a-f-]{36}\/artifact$/;
+    await expect(page).toHaveURL(/\/automacoes\/[0-9a-f-]{36}\/nova-versao$/);
+    const artifactUrl = /\/api\/v1\/o\/[0-9a-f-]{36}\/automations\/[0-9a-f-]{36}\/draft\/artifact(\?.*)?$/;
     const uploads = countRequests(page, 'PUT', artifactUrl);
     await page.getByLabel('Arquivo .zip do pacote').setInputFiles(PKG);
     const frozeUpload = await freezeApiOnFirst(page, 'PUT', artifactUrl);
-    await page.getByRole('button', { name: 'Enviar pacote' }).click();
+    await page.getByRole('button', { name: 'Enviar o pacote e criar o rascunho' }).click();
     try {
-      await expect(page.getByText('O envio foi interrompido ou ficou sem resposta.')).toBeVisible({ timeout: 120_000 });
+      await expect(page.getByText('Não foi possível confirmar o resultado.')).toBeVisible({ timeout: 120_000 });
     } finally {
       if (frozeUpload()) lab('api', 'retomar');
     }
     expect(frozeUpload(), 'o envio do pacote passou pela API congelada').toBe(true);
     expect(uploads.map((u) => u.status), 'um único PUT, respondido 504 pelo gateway').toEqual([504]);
-    await expect(page.getByText('Os bytes podem ter chegado. Nada é reenviado automaticamente', { exact: false })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Enviar pacote' })).toBeDisabled();
+    await expect(page.getByText('Os bytes do pacote podem ter chegado e criado o rascunho. Nada é reenviado automaticamente', { exact: false })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Enviar o pacote e criar o rascunho' })).toBeDisabled();
     await expect(page.getByLabel('Arquivo .zip do pacote')).toBeDisabled();
     expect(await page.locator('main').innerText()).not.toMatch(ABSENCE);
     await page.waitForTimeout(15_000);
@@ -155,8 +158,9 @@ test('FRONT-V1-004: 504 do gateway depois do envio (step-up e upload) mantém o 
     log(`upload: PUT único respondido ${uploads[0]?.status}; tela em "resultado não confirmado", envio e arquivo bloqueados`);
 
     // conferência explícita da pessoa: a tela compara com o que a Platform tem
-    await page.getByRole('button', { name: 'Conferir a versão' }).click();
-    const verdict = page.getByText(/Conferido: a Platform tem o pacote|A versão não tem o pacote deste arquivo|Não foi possível comparar/);
+    await page.getByRole('button', { name: 'Conferir agora' }).click();
+    // mesmo SHA-256: leva ao rascunho criado; sem rascunho: libera o reenvio; outro pacote: leva ao rascunho existente
+    const verdict = page.getByText(/Rascunho criado com o pacote conferido pela Platform|Conferido: o pacote não chegou|Esta automação já tem um rascunho/);
     await expect(verdict).toBeVisible({ timeout: 60_000 });
     log(`upload: conferência depois de descongelar: "${(await verdict.innerText()).trim()}"`);
     expect(uploads).toHaveLength(1);
