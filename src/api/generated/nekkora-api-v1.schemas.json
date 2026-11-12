@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "61acf1ea1bf09b9b08b3e4d34744a1dc56945eedfd6679c967713caaeec304bd",
+  "openapiSha256": "512ba89ba0844060309584cab1aeb3615b89196b3b21873c0e7058ec36676ff3",
   "schemas": {
     "Error": {
       "type": "object",
@@ -31,7 +31,8 @@
             "step_up_required",
             "worker_limit_reached",
             "draft_exists",
-            "draft_changed"
+            "draft_changed",
+            "local_run_authorization_exists"
           ]
         }
       }

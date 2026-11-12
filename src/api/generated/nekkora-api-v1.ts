@@ -1603,7 +1603,7 @@ export interface paths {
         put?: never;
         /**
          * Autoriza execucao local de uma versao publicada num Worker (step-up)
-         * @description AGENT-PYTHON-001 (030): com sourceKind = EXTERNAL_MONITORED o corpo leva automationId (e nao automationVersionId) e a autorizacao e de MONITORAMENTO de Python externo, sem versao e sem impressao (a Platform nao conhece codigo, caminho nem argumento); sourceKind de pacote no corpo e 400 (a origem de pacote vem da regra da versao: package-fingerprint/1 = STUDIO_PACKAGE, external-python-fingerprint/1 = EXTERNAL_PACKAGE). Exige automation.execute no workspace e step-up. Vincula organizacao, workspace, Worker AUTORIZADO no workspace, versao PUBLICADA e o pacote imutavel (packageFingerprint = command_json.agent_package.fingerprint da versao, com agent_package.fingerprint_rule = nekkora-agent/package-fingerprint/1; NAO e command_json.artifact.sha256, que mede os bytes do artefato). validUntil posterior a agora e ate 366 dias (fora disso, 400); automacao ou workspace inativo, 409. Versao rascunho ou sem artefato, ou Worker sem autorizacao no workspace: 409. A 025 reconfere tudo no banco. Auditoria (agent_admin_events 10).
+         * @description AGENT-PYTHON-001 (030): com sourceKind = EXTERNAL_MONITORED o corpo leva automationId (e nao automationVersionId) e a autorizacao e de MONITORAMENTO de Python externo, sem versao e sem impressao (a Platform nao conhece codigo, caminho nem argumento); sourceKind de pacote no corpo e 400 (a origem de pacote vem da regra da versao: package-fingerprint/1 = STUDIO_PACKAGE, external-python-fingerprint/1 = EXTERNAL_PACKAGE). Exige automation.execute no workspace e step-up. Vincula organizacao, workspace, Worker AUTORIZADO no workspace, versao PUBLICADA e o pacote imutavel (packageFingerprint = command_json.agent_package.fingerprint da versao, com agent_package.fingerprint_rule = nekkora-agent/package-fingerprint/1; NAO e command_json.artifact.sha256, que mede os bytes do artefato). validUntil posterior a agora e ate 366 dias (fora disso, 400); automacao ou workspace inativo, 409. Versao rascunho ou sem artefato, ou Worker sem autorizacao no workspace: 409. A 025 reconfere tudo no banco. Auditoria (agent_admin_events 10). PLATFORM-AGENT-V2-003 T12 (033): no maximo UMA autorizacao VIGENTE (nao revogada e validUntil depois do horario do servidor) por escopo: mesma autorizacao do Worker no workspace e mesma versao (pacote) ou mesma automacao (monitoramento). Havendo uma, 409 conflict + reason local_run_authorization_exists: nada gravado, auditado, estendido, substituido ou revogado (a Web rele a lista e mostra a vigente); repetir o mesmo pedido depois de perder a resposta tambem cai aqui e nunca cria outra. A regra e do banco (gatilho com trava do escopo): duas abas, duas pessoas ou chamadas diretas nunca gravam duas. Depois de revogada ou vencida, uma nova e aceita e a anterior fica no historico. Outros Workers, versoes, automacoes e workspaces nao sao afetados.
          */
         post: operations["createLocalRunAuthorization"];
         delete?: never;
@@ -1868,10 +1868,10 @@ export interface components {
             /** @enum {string} */
             error: "invalid_request" | "unauthenticated" | "forbidden" | "not_found" | "conflict" | "already_member" | "account_exists" | "account_unavailable" | "rate_limited" | "internal_error" | "service_unavailable" | "unsupported_contract";
             /**
-             * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached, draft_exists, draft_changed; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
+             * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached, draft_exists, draft_changed, local_run_authorization_exists; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
              * @enum {string}
              */
-            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "draft_exists" | "draft_changed";
+            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "draft_exists" | "draft_changed" | "local_run_authorization_exists";
         };
         /**
          * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
@@ -3243,6 +3243,21 @@ export interface components {
                  * @example {
                  *       "error": "conflict",
                  *       "reason": "workspace_name_taken"
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description O ato nao cabe no estado atual. Com reason local_run_authorization_exists (T12, 033): o escopo ja tem uma autorizacao vigente, nada foi gravado. Sem reason: as recusas da 025/030 (versao nao publicada ou sem impressao, Worker sem autorizacao no workspace, automacao ou workspace inativo). O cliente que nao conhece o motivo ve a recusa comum */
+        LocalRunAuthorizationConflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": "conflict",
+                 *       "reason": "local_run_authorization_exists"
                  *     }
                  */
                 "application/json": components["schemas"]["Error"];
@@ -6309,7 +6324,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
+            409: components["responses"]["LocalRunAuthorizationConflict"];
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };
