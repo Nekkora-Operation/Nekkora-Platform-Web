@@ -94,12 +94,19 @@ export function InternalShell() {
   // Nome da organização aberta (PLATFORM-LOCAL-001): a sessão de organização não traz o nome (D1/D7), mas a lista da
   // identidade traz. Sem sessão de identidade (entrada antiga por organização) ou em erro, fica o identificador abreviado.
   const [orgName, setOrgName] = useState<string | null | undefined>(undefined);
+  // T10 (PLATFORM-AGENT-V2-003): o identificador legível acompanha o nome (organizações de mesmo nome ficam distinguíveis)
+  const [orgHandle, setOrgHandle] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
     setOrgName(undefined);
+    setOrgHandle(null);
     myOrganizations()
       .then((list) => {
-        if (alive) setOrgName(list.organizations.find((o) => o.organizationId === org)?.name ?? null);
+        const found = list.organizations.find((o) => o.organizationId === org);
+        if (alive) {
+          setOrgName(found?.name ?? null);
+          setOrgHandle(found?.handle ?? null);
+        }
       })
       .catch(() => {
         if (alive) setOrgName(null);
@@ -228,8 +235,9 @@ export function InternalShell() {
         }
         actions={
           <div className="pw-shell__account">
-            <span className="pw-shell__org" title={org} aria-label={`Organização aberta: ${orgLabel}`}>
+            <span className="pw-shell__org" title={org} aria-label={`Organização aberta: ${orgLabel}${orgHandle ? ` (${orgHandle})` : ''}`}>
               {orgLabel}
+              {orgHandle && <span className="pw-shell__org-handle"> · {orgHandle}</span>}
             </span>
             <Link as={RouterLink} to={identityPath.organizations} size="sm" variant="subtle">
               Trocar organização

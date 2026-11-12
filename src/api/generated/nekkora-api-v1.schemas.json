@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "e1ada3ea9fdd4bc7b46681b3422b2ddbcd247351e3a160813aa9740c6241626b",
+  "openapiSha256": "2c4e89418dbfa18658c0c75a4bf339d0b490c310eea177f4d996aec5851c0adc",
   "schemas": {
     "Error": {
       "type": "object",
@@ -31,7 +31,9 @@
             "step_up_required",
             "worker_limit_reached",
             "draft_exists",
-            "draft_changed"
+            "draft_changed",
+            "local_run_authorization_exists",
+            "organization_name_taken"
           ]
         }
       }
@@ -1373,7 +1375,8 @@
               "organizationId",
               "name",
               "roles",
-              "activationState"
+              "activationState",
+              "handle"
             ],
             "properties": {
               "organizationId": {
@@ -1382,6 +1385,14 @@
               },
               "name": {
                 "type": "string"
+              },
+              "handle": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                "maxLength": 48
               },
               "roles": {
                 "type": "array",
@@ -5102,6 +5113,12 @@
           }
         },
         "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/Error"

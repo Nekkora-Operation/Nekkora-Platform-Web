@@ -30,7 +30,7 @@ beforeEach(() => {
   api.on('GET', '/api/v1/me/session', 'identitySessionState', { status: 200, body: { restricted: false, csrfToken: 'id', mfaEnabled: true, stepUpMethod: 'totp' } });
   api.on('GET', '/api/v1/me/organizations', 'identityOrganizations', {
     status: 200,
-    body: { organizations: [{ organizationId: ORG, name: 'Acme', roles: ['ORG_ADMIN'], activationState: 'AGUARDANDO_ATIVACAO' }], canCreateOrganization: true },
+    body: { organizations: [{ organizationId: ORG, name: 'Acme', roles: ['ORG_ADMIN'], activationState: 'AGUARDANDO_ATIVACAO', handle: 'acme' }], canCreateOrganization: true },
   });
   api.on('GET', `/api/v1/o/${ORG}/me`, 'getMe', {
     status: 200,
