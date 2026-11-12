@@ -5,7 +5,7 @@ import type { RunRequest } from '../../api/agents';
 import { sessionMemory } from '../../app/notices';
 import { renderApp } from '../../test/render';
 import { RouteApi } from '../../test/routeApi';
-import { requestStage } from './runRequests';
+import { decisionReasonText, requestStage } from './runRequests';
 import { durationText, outcomeLabel } from './supervision';
 import { responseViolations } from '../../api/validate';
 
@@ -146,5 +146,8 @@ describe('textos do desfecho e do pedido', () => {
     expect(linked({ state: 'OUTCOME_UNKNOWN', code: 'AGT-EXE-025', process: 'ENDED', outcome: 'UNKNOWN', startedAt: null }).label).toMatch(/Desfecho reportado: Desfecho desconhecido/);
     expect(requestStage(req({ state: 'EXPIRED' })).done).toBe(true);
     expect(requestStage(req({ state: 'REFUSED' })).label).toBe('Recusada pela máquina');
+    // PLATFORM-AGENT-V2-004, T13: recusado porque a máquina se desvinculou antes de decidir (não vai para outra máquina)
+    expect(decisionReasonText('AGENT_UNLINKED')).toBe('a máquina foi desvinculada antes de decidir');
+    expect(decisionReasonText('LAUNCH_NOT_ATTEMPTED')).toBe('o processo comprovadamente não foi criado');
   });
 });

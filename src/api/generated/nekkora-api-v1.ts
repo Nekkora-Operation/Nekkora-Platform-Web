@@ -1489,7 +1489,7 @@ export interface paths {
         };
         /**
          * Lista os Agents da organizacao
-         * @description Exige agent.manage. Identidade, Worker, versao informada, ultimo contato, conectividade (ver abaixo), capacidades e validade da credencial; nunca o hash. Comunicacao (PLATFORM-AGENT-V2-003, T11): CONNECTED so com o Agent ACTIVE, vinculado (associacao ativa ao Worker) e ultimo contato autenticado (heartbeat aceito, relogio do servidor) nos ultimos 180 s; o Agent bate a cada 60 s. Revogado, suspenso ou sem associacao: DISCONNECTED mesmo com sinal recente (sinal antigo nao reativa vinculo). Sem nenhum contato: DISCONNECTED com lastHeartbeatAt nulo (ainda sem comunicacao). A ausencia de sinal nao muda estado: nao revoga, nao libera o Worker, nao retira workspaces, nao encerra execucoes. O desvinculo feito so no Agent (T06) nao chega a Platform: o Agent continua ACTIVE ate uma pessoa revogar, e a comunicacao expira para DISCONNECTED.
+         * @description Exige agent.manage. Identidade, Worker, versao informada, ultimo contato, conectividade (ver abaixo), capacidades e validade da credencial; nunca o hash. Comunicacao (PLATFORM-AGENT-V2-003, T11): CONNECTED so com o Agent ACTIVE, vinculado (associacao ativa ao Worker) e ultimo contato autenticado (heartbeat aceito, relogio do servidor) nos ultimos 180 s; o Agent bate a cada 60 s. Revogado, suspenso ou sem associacao: DISCONNECTED mesmo com sinal recente (sinal antigo nao reativa vinculo). Sem nenhum contato: DISCONNECTED com lastHeartbeatAt nulo (ainda sem comunicacao). A ausencia de sinal nao muda estado: nao revoga, nao libera o Worker, nao retira workspaces, nao encerra execucoes. Desvinculo pela maquina (PLATFORM-AGENT-V2-004, T13): quando o Agent confirma "Desvincular esta maquina" e a Platform recebe o pedido, o Agent fica REVOKED com endedBy MACHINE e o Worker fica livre (sem pessoa como autora; auditoria propria). Enquanto o pedido nao chega (maquina sem rede, Agent fechado) ou com um Agent anterior (desvinculo so local, T06), o Agent continua ACTIVE ate uma pessoa revogar, e a comunicacao expira para DISCONNECTED. endedBy: quem encerrou um Agent REVOKED (ADMINISTRATION = Revogar vinculo; MACHINE = a propria maquina); null enquanto nao encerrado.
          */
         get: operations["listAgents"];
         put?: never;
@@ -2615,6 +2615,11 @@ export interface components {
                 capabilities?: ("RUN_LOCAL" | "OBS_1_0" | "SUPERVISOR_REPORT_1_0" | "EXTERNAL_PYTHON_1_0" | "RUN_REQUEST_1_0")[];
                 /** Format: date-time */
                 credentialExpiresAt?: string | null;
+                /**
+                 * @description T13: quem encerrou o vinculo (so com status REVOKED)
+                 * @enum {string|null}
+                 */
+                endedBy?: "ADMINISTRATION" | "MACHINE" | null;
             }[];
         };
         WorkerList: {
@@ -2776,8 +2781,11 @@ export interface components {
             deliveries?: number;
             /** Format: date-time */
             decidedAt?: string | null;
-            /** @enum {string|null} */
-            decisionReason?: "PACKAGE_NOT_PRESENT" | "PACKAGE_NOT_APPROVED" | "AUTHORIZATION_UNUSABLE" | "ENVIRONMENT_INCOMPATIBLE" | "BUSY" | "EXPIRED" | "LAUNCH_NOT_ATTEMPTED" | null;
+            /**
+             * @description AGENT_UNLINKED (T13): recusado porque a maquina se desvinculou antes de decidir
+             * @enum {string|null}
+             */
+            decisionReason?: "PACKAGE_NOT_PRESENT" | "PACKAGE_NOT_APPROVED" | "AUTHORIZATION_UNUSABLE" | "ENVIRONMENT_INCOMPATIBLE" | "BUSY" | "EXPIRED" | "LAUNCH_NOT_ATTEMPTED" | "AGENT_UNLINKED" | null;
             agentExecutionId?: string | null;
             /** Format: date-time */
             notStartedAt?: string | null;

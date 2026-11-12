@@ -27,18 +27,25 @@ export const LINK: Record<Status, { label: string; tone: 'success' | 'warning' |
 
 /** Explicação comum às duas listas (Workers e Máquinas vinculadas). */
 export const PRESENCE_TEXT =
-  'Vínculo e comunicação são coisas diferentes. Online quer dizer que a máquina fez contato com a Platform nos últimos 3 minutos (o Agent faz contato a cada minuto). Offline quer dizer que não há contato recente: não que a máquina foi desligada ou desvinculada, nem que uma execução terminou; a falta de contato não revoga a credencial, não libera o Worker e não retira workspaces. Desvincular no Agent não avisa a Platform: aqui a máquina continua vinculada, fica offline e só deixa de estar vinculada quando alguém revogar o vínculo. A lista se atualiza sozinha a cada 30 segundos enquanto a página está aberta.';
+  'Vínculo e comunicação são coisas diferentes. Online quer dizer que a máquina fez contato com a Platform nos últimos 3 minutos (o Agent faz contato a cada minuto). Offline quer dizer que não há contato recente: não que a máquina foi desligada ou desvinculada, nem que uma execução terminou; a falta de contato não revoga a credencial, não libera o Worker e não retira workspaces. Desvincular no Agent pede à Platform o encerramento do vínculo: quando ela confirma, o Worker fica sem máquina vinculada e pode ser vinculado de novo. Sem conexão (ou com o Agent fechado), o pedido espera na máquina e aqui ela aparece vinculada e offline; quem administra pode revogar o vínculo nesta tela. Agents de versões anteriores só desvinculam na máquina. A lista se atualiza sozinha a cada 30 segundos enquanto a página está aberta.';
 
 export const timeText = (at: number) => new Date(at).toLocaleTimeString('pt-BR');
 
 export type Freshness = { fetchedAt: number | null; failure: { at: number; error: unknown } | null };
 
-/** Vínculo da máquina (situação do Agent na Platform). */
-export function LinkBadge({ status }: { status?: Status | null }) {
+/** PLATFORM-AGENT-V2-004, T13: um vínculo encerrado pela própria máquina ("Desvincular esta máquina" no Agent). */
+export const ENDED_BY_MACHINE = { label: 'Desvinculada pela máquina', tone: 'neutral' as const };
+
+/**
+ * Vínculo da máquina (situação do Agent na Platform). T13: REVOKED com {@code endedBy} MACHINE é o desvínculo feito no
+ * Agent (sem pessoa); os demais REVOKED são a revogação pela administração.
+ */
+export function LinkBadge({ status, endedBy }: { status?: Status | null; endedBy?: 'ADMINISTRATION' | 'MACHINE' | null }) {
   if (!status) return null;
+  const l = status === 'REVOKED' && endedBy === 'MACHINE' ? ENDED_BY_MACHINE : LINK[status];
   return (
     <span>
-      <Badge tone={LINK[status].tone}>{LINK[status].label}</Badge>
+      <Badge tone={l.tone}>{l.label}</Badge>
     </span>
   );
 }
@@ -52,11 +59,13 @@ export function CommunicationCell({
   connectivity,
   lastHeartbeatAt,
   freshness,
+  endedBy,
 }: {
   status?: Status | null;
   connectivity?: string | null;
   lastHeartbeatAt?: string | null;
   freshness: Freshness;
+  endedBy?: 'ADMINISTRATION' | 'MACHINE' | null;
 }) {
   const last = (
     <Text variant="body-sm" color="secondary">
@@ -66,7 +75,7 @@ export function CommunicationCell({
   if (status !== 'ACTIVE')
     return (
       <Stack gap={1}>
-        <Text variant="body-sm">{status === 'REVOKED' ? 'Não se aplica: vínculo revogado' : 'Não se aplica: vínculo não está ativo'}</Text>
+        <Text variant="body-sm">{status === 'REVOKED' ? (endedBy === 'MACHINE' ? 'Não se aplica: máquina desvinculada' : 'Não se aplica: vínculo revogado') : 'Não se aplica: vínculo não está ativo'}</Text>
         {lastHeartbeatAt && last}
       </Stack>
     );

@@ -46,7 +46,7 @@ export function LinkedAgentsView({ has }: { has: (p: string) => boolean }) {
       align: 'center',
       render: (a) => (
         <Stack gap={1}>
-          <LinkBadge status={a.status} />
+          <LinkBadge status={a.status} endedBy={a.endedBy} />
           <Text variant="body-sm" color="secondary">
             Versão do Agent: {a.agentVersion ?? 'não informada'}
           </Text>
@@ -61,7 +61,7 @@ export function LinkedAgentsView({ has }: { has: (p: string) => boolean }) {
       key: 'comunicacao',
       header: 'Comunicação',
       align: 'center',
-      render: (a) => <CommunicationCell status={a.status} connectivity={a.connectivity} lastHeartbeatAt={a.lastHeartbeatAt} freshness={freshness} />,
+      render: (a) => <CommunicationCell status={a.status} connectivity={a.connectivity} lastHeartbeatAt={a.lastHeartbeatAt} freshness={freshness} endedBy={a.endedBy} />,
     },
     {
       key: 'acoes',

@@ -20,7 +20,12 @@ const REASON: Record<string, string> = {
   BUSY: 'a máquina já está executando outra automação',
   EXPIRED: 'o pedido venceu antes da decisão',
   LAUNCH_NOT_ATTEMPTED: 'o processo comprovadamente não foi criado',
+  // PLATFORM-AGENT-V2-004, T13: a máquina se desvinculou antes de decidir; o pedido não vai para outra máquina
+  AGENT_UNLINKED: 'a máquina foi desvinculada antes de decidir',
 };
+
+/** Motivo da decisão da máquina, em texto (desconhecido: o código como veio). */
+export const decisionReasonText = (r: string) => REASON[r] ?? r;
 
 /**
  * O que a tela pode afirmar de um pedido. Entregar ou aceitar NÃO prova início: "Execução iniciada" só com o instante de
@@ -111,7 +116,7 @@ export function RunRequestPanel({ runRequestId, onChanged }: { runRequestId: str
               description: q.decidedAt ? (
                 <>
                   <DateTimeText iso={q.decidedAt} /> · {q.state === 'REFUSED' ? 'recusada' : 'aceita'}
-                  {q.decisionReason ? ` (${REASON[q.decisionReason] ?? q.decisionReason})` : ''}
+                  {q.decisionReason ? ` (${decisionReasonText(q.decisionReason)})` : ''}
                 </>
               ) : (
                 'ainda não'

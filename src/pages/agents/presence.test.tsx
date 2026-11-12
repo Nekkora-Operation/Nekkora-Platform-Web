@@ -223,3 +223,66 @@ describe('T11: vínculo e comunicação separados', () => {
     expect(agentGets()).toBe(before + 1);
   });
 });
+
+/**
+ * PLATFORM-AGENT-V2-004, T13 — "Desvincular esta máquina" no Agent passa a encerrar o vínculo na Platform. A tela reflete a
+ * conclusão na próxima releitura (até 30 s com a página visível), sem recarregar: o Worker fica "Sem máquina vinculada",
+ * com "Vincular Agent" para quem pode parear, e continua administrativamente ativo. Antes da conclusão (pedido esperando na
+ * máquina), continua vinculada e offline, com "Revogar vínculo".
+ */
+describe('T13: desvínculo pela máquina', () => {
+  it('Workers: pedido esperando na máquina = vinculada e offline (com Revogar vínculo); confirmado = Sem máquina vinculada + Vincular Agent, sem recarregar', async () => {
+    workersReply = { status: 200, body: { items: [worker({ connectivity: 'DISCONNECTED', lastHeartbeatAt: '2026-11-10T11:50:00Z' })] } };
+    await openWorkers();
+    const row = rowOf('Worker financeiro');
+    expect(within(row).getByText('Vinculada')).toBeInTheDocument();
+    expect(within(row).getByText('Offline')).toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: /Revogar vínculo/ })).toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: /Vincular Agent/ })).toBeNull();
+    // a Platform confirmou o desvínculo pedido pela máquina: a próxima releitura (30 s) traz o Worker livre
+    workersReply = {
+      status: 200,
+      body: { items: [worker({ agentId: null, agentName: null, agentStatus: null, agentVersion: null, installationId: null, lastHeartbeatAt: null, connectivity: null, credentialExpiresAt: null })] },
+    };
+    await tick(REFRESH_MS);
+    await waitFor(() => expect(within(rowOf('Worker financeiro')).getByText('Sem máquina vinculada')).toBeInTheDocument());
+    const free = rowOf('Worker financeiro');
+    expect(within(free).getByText('Ativo')).toBeInTheDocument();
+    expect(within(free).getByRole('button', { name: 'Vincular Agent a Worker financeiro' })).toBeInTheDocument();
+    expect(within(free).queryByRole('button', { name: /Revogar vínculo/ })).toBeNull();
+    expect(within(free).queryByText(/^(Online|Offline)$/)).toBeNull();
+  });
+
+  it('Workers: falha ou 429 na releitura depois do pedido não deduz desvínculo nem offline (continua "Não confirmada")', async () => {
+    await openWorkers();
+    workersReply = { status: 429, body: { error: 'rate_limited' }, headers: { 'Retry-After': '30' } };
+    await tick(REFRESH_MS);
+    const row = rowOf('Worker financeiro');
+    await waitFor(() => expect(within(row).getByText('Não confirmada')).toBeInTheDocument());
+    expect(within(row).getByText('Vinculada')).toBeInTheDocument();
+    expect(within(row).queryByText('Sem máquina vinculada')).toBeNull();
+  });
+
+  it('Máquinas vinculadas: encerrado pela máquina aparece "Desvinculada pela máquina" (nunca online); revogado pela administração continua "Vínculo revogado"', async () => {
+    permissions(['agent.manage', 'agent_credential.manage']);
+    agentsReply = {
+      status: 200,
+      body: {
+        items: [
+          agent({ status: 'REVOKED', workerId: null, connectivity: 'CONNECTED', credentialExpiresAt: null, endedBy: 'MACHINE' }),
+          agent({ agentId: AG2, name: 'ESTACAO-02', status: 'REVOKED', workerId: null, connectivity: 'DISCONNECTED', credentialExpiresAt: null, endedBy: 'ADMINISTRATION' }),
+        ],
+      },
+    };
+    renderApp(`/o/${ORG}/workers`);
+    await waitFor(() => rowOf('ESTACAO-02'));
+    const machine = rowOf('ESTACAO-01');
+    expect(within(machine).getByText('Desvinculada pela máquina')).toBeInTheDocument();
+    expect(within(machine).getByText('Não se aplica: máquina desvinculada')).toBeInTheDocument();
+    expect(within(machine).queryByText('Online')).toBeNull();
+    expect(within(machine).queryByText('Vínculo revogado')).toBeNull();
+    const admin = rowOf('ESTACAO-02');
+    expect(within(admin).getByText('Vínculo revogado')).toBeInTheDocument();
+    expect(within(admin).getByText('Não se aplica: vínculo revogado')).toBeInTheDocument();
+  });
+});
