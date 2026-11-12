@@ -256,7 +256,7 @@ describe('Workers: vincular e gerenciar o Agent (T07)', () => {
     // nunca diz que a máquina foi desligada; a falta de sinal não muda nada no servidor
     expect(document.body.textContent).not.toMatch(/Desligada|Desligado/);
     expect(
-      screen.getByText(/a falta de contato não revoga a credencial, não libera o Worker e não retira workspaces. Desvincular no Agent não avisa a Platform: aqui a máquina continua vinculada, fica offline e só deixa de estar vinculada quando alguém revogar o vínculo. A lista se atualiza sozinha a cada 30 segundos enquanto a página está aberta. Quando o contato voltar, a máquina aparece online de novo, sem novo pareamento./),
+      screen.getByText(/a falta de contato não revoga a credencial, não libera o Worker e não retira workspaces. Desvincular no Agent pede à Platform o encerramento do vínculo: quando ela confirma, o Worker fica sem máquina vinculada e pode ser vinculado de novo. Sem conexão \(ou com o Agent fechado\), o pedido espera na máquina e aqui ela aparece vinculada e offline; quem administra pode revogar o vínculo nesta tela. Agents de versões anteriores só desvinculam na máquina. A lista se atualiza sozinha a cada 30 segundos enquanto a página está aberta. Quando o contato voltar, a máquina aparece online de novo, sem novo pareamento./),
     ).toBeInTheDocument();
   });
 
