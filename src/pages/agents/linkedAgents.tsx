@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Badge, Button, Stack, StateView, Text, type TableColumn } from 'nekkora-lib';
+import { useEffect, useState } from 'react';
+import { Alert, Button, Stack, StateView, Text, type TableColumn } from 'nekkora-lib';
 import { cancelAgentCode, listAgents, type Agent, type AgentCode } from '../../api/agents';
 import { isApiError } from '../../api/http';
 import { useSession } from '../../area/session';
@@ -7,13 +7,7 @@ import { ForbiddenState } from '../admin/shared';
 import { DateTimeText, LoadErrorState } from '../product/shared';
 import { OneTimeCode, RevokeLinkDialog, RotateCredentialDialog, type LinkedAgent } from './agentDialogs';
 import { ResponsiveTable } from './ResponsiveTable';
-
-const AGENT_STATUS: Record<NonNullable<Agent['status']>, { label: string; tone: 'success' | 'warning' | 'neutral' | 'danger' }> = {
-  PENDING: { label: 'Agent pendente', tone: 'neutral' },
-  ACTIVE: { label: 'Agent ativo', tone: 'success' },
-  SUSPENDED: { label: 'Agent suspenso', tone: 'warning' },
-  REVOKED: { label: 'Agent revogado', tone: 'danger' },
-};
+import { CommunicationCell, FreshnessNotice, LinkBadge, PRESENCE_TEXT, useLiveList } from './presence';
 
 /** Explicação para quem administra Agents sem administrar Workers. */
 export const AGENTS_ONLY_TEXT =
@@ -28,32 +22,12 @@ export const AGENTS_ONLY_TEXT =
  */
 export function LinkedAgentsView({ has }: { has: (p: string) => boolean }) {
   const { org, expired } = useSession();
-  const [list, setList] = useState<{ status: 'loading' } | { status: 'ready'; items: Agent[] } | { status: 'error'; error: unknown }>({ status: 'loading' });
+  // T11: releitura a cada 30 s com a página visível; falha mantém os dados como não confirmados
+  const { list, freshness, load, refresh } = useLiveList(async () => (await listAgents(org)).items, [org], expired);
   const [notice, setNotice] = useState<{ tone: 'success' | 'warning'; text: string } | null>(null);
   const [rotating, setRotating] = useState<LinkedAgent | null>(null);
   const [revoking, setRevoking] = useState<LinkedAgent | null>(null);
   const [code, setCode] = useState<{ code: AgentCode; purpose: string } | null>(null);
-  const generation = useRef(0);
-
-  const load = useCallback(async () => {
-    const gen = ++generation.current;
-    setList({ status: 'loading' });
-    try {
-      const data = await listAgents(org);
-      if (gen === generation.current) setList({ status: 'ready', items: data.items });
-    } catch (e) {
-      if (gen !== generation.current) return;
-      if (isApiError(e, 'unauthenticated')) return expired();
-      setList({ status: 'error', error: e });
-    }
-  }, [org, expired]);
-
-  useEffect(() => {
-    void load();
-    return () => {
-      generation.current++;
-    };
-  }, [load]);
   useEffect(() => () => setCode(null), []);
 
   if (list.status === 'error' && isApiError(list.error, 'forbidden')) return <ForbiddenState area="os Agents" onRetry={() => void load()} />;
@@ -72,11 +46,7 @@ export function LinkedAgentsView({ has }: { has: (p: string) => boolean }) {
       align: 'center',
       render: (a) => (
         <Stack gap={1}>
-          {a.status && (
-            <span>
-              <Badge tone={AGENT_STATUS[a.status].tone}>{AGENT_STATUS[a.status].label}</Badge>
-            </span>
-          )}
+          <LinkBadge status={a.status} />
           <Text variant="body-sm" color="secondary">
             Versão do Agent: {a.agentVersion ?? 'não informada'}
           </Text>
@@ -91,18 +61,7 @@ export function LinkedAgentsView({ has }: { has: (p: string) => boolean }) {
       key: 'comunicacao',
       header: 'Comunicação',
       align: 'center',
-      render: (a) => (
-        <Stack gap={1}>
-          <span>
-            <Badge tone={a.connectivity === 'CONNECTED' ? 'success' : 'neutral'} dot>
-              {a.connectivity === 'CONNECTED' ? 'Conectada' : 'Sem comunicação'}
-            </Badge>
-          </span>
-          <Text variant="body-sm" color="secondary">
-            Último sinal: <DateTimeText iso={a.lastHeartbeatAt} empty="nunca" />
-          </Text>
-        </Stack>
-      ),
+      render: (a) => <CommunicationCell status={a.status} connectivity={a.connectivity} lastHeartbeatAt={a.lastHeartbeatAt} freshness={freshness} />,
     },
     {
       key: 'acoes',
@@ -134,6 +93,7 @@ export function LinkedAgentsView({ has }: { has: (p: string) => boolean }) {
     <Stack gap={4}>
       <Alert tone="info">{AGENTS_ONLY_TEXT}</Alert>
       {notice && <Alert tone={notice.tone}>{notice.text}</Alert>}
+      {list.status === 'ready' && <FreshnessNotice freshness={freshness} onRetry={() => void refresh()} />}
       {code && (
         <section aria-label={code.purpose}>
           <Stack gap={2}>
@@ -167,6 +127,11 @@ export function LinkedAgentsView({ has }: { has: (p: string) => boolean }) {
             caption="Máquinas vinculadas da organização."
           />
         ))}
+      {list.status === 'ready' && list.items.length > 0 && (
+        <Text variant="body-sm" color="secondary">
+          {PRESENCE_TEXT}
+        </Text>
+      )}
 
       <RotateCredentialDialog
         agent={rotating}
