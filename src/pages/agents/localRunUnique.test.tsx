@@ -162,7 +162,10 @@ describe('T12: uma autorização vigente por escopo (monitoramento)', () => {
     const listReads = api.sent('GET', LIST).length;
     fireEvent.click(button());
     const dialog = await screen.findByRole('alertdialog');
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Autorizar monitoramento' }));
+    // o registro da operação (proteção contra repetição) é lido ao abrir: só então a confirmação libera
+    const confirm = within(dialog).getByRole('button', { name: 'Autorizar monitoramento' });
+    await waitFor(() => expect(confirm).toBeEnabled());
+    fireEvent.click(confirm);
     expect(await within(dialog).findByText(/Este Worker já tem uma autorização vigente para o monitoramento desta automação\. Nada foi criado/)).toBeInTheDocument();
     expect(created).toBe(true);
     expect(posts()).toHaveLength(1);
