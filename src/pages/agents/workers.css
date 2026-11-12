@@ -4,6 +4,8 @@
  * (aqui); em "Workspaces autorizados", um par nome + "Retirar" por item, SEMPRE lado a lado (R1): a lista é uma grade de
  * duas colunas (nome | botão) compartilhada pelos itens (subgrid), então os botões ficam alinhados entre si e um nome
  * longo quebra dentro da própria coluna, sem descer o botão para outra linha, em janela estreita e com zoom de 200%.
+ * T14 (PLATFORM-AGENT-V2-004): a coluna do nome mede o MAIOR nome da lista, até 28ch (fit-content). Com minmax(0, 28ch)
+ * ela tinha sempre 28ch: um nome curto ("Teste1") ficava na ponta de um espaço vazio e o par saía do centro da célula.
  */
 .pw-workers .nk-table__th,
 .pw-workers .nk-table__td {
@@ -16,7 +18,7 @@
   margin: 0 auto;
   padding: 0;
   display: grid;
-  grid-template-columns: minmax(0, 28ch) auto;
+  grid-template-columns: fit-content(28ch) auto;
   column-gap: var(--nk-space-2);
   row-gap: var(--nk-space-2);
   width: max-content;
@@ -34,7 +36,7 @@
 /* sem subgrid: o item tem as próprias duas colunas (continua lado a lado; só o alinhamento entre itens se perde) */
 @supports not (grid-template-columns: subgrid) {
   .pw-workers__ws-item {
-    grid-template-columns: minmax(0, 28ch) auto;
+    grid-template-columns: fit-content(28ch) auto;
     column-gap: var(--nk-space-2);
   }
 }
@@ -119,13 +121,31 @@
   min-width: 0;
 }
 
-/* nos cartões, os pares do workspace ficam alinhados à esquerda: nome e "Retirar" na mesma linha */
+/*
+ * T14 (PLATFORM-AGENT-V2-004): nos cartões, cada par é uma linha própria, alinhada à esquerda — o "Retirar" vem logo
+ * depois do SEU nome (não no fim de uma coluna comum: com nomes de tamanhos diferentes, o botão de um nome curto ficava
+ * longe dele). Nome longo quebra ao lado do botão, que fica centralizado na vertical.
+ */
 .pw-rtable--cards .pw-workers__ws {
   margin: 0;
+  grid-template-columns: minmax(0, 1fr);
+  width: auto;
+}
+
+.pw-rtable--cards .pw-workers__ws-item {
+  grid-column: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-2);
 }
 
 .pw-rtable--cards .pw-workers__ws-name {
   text-align: start;
+  flex: 0 1 auto;
+}
+
+.pw-rtable--cards .pw-workers__ws-item > button {
+  flex: none;
 }
 
 /* ações do cartão lado a lado, quebrando quando não couberem */
