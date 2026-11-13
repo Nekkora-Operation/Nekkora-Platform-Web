@@ -617,6 +617,146 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/desktop/authorizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Navegador: abre o pedido de autorizacao do aplicativo desktop (PKCE S256, redirect de loopback)
+         * @description AGENT-CLIENT-LOGIN-001, contrato desktop-login/1. Com ou sem sessao de identidade. O pedido inteiro e validado e guardado no servidor por 5 min; o navegador recebe so o cookie opaco __Host-nekkora_desk (HttpOnly, Secure, SameSite=Strict). clientId: exatamente nekkora-agent-client (cliente publico, sem segredo). redirectUri: exatamente http://127.0.0.1:<porta>/callback, porta 1024-65535 (so a porta varia; localhost, outro host, outro caminho, consulta ou fragmento: 400). codeChallengeMethod: so S256 (plain ou ausente: 400). Nada do pedido volta na resposta. Abrir o pedido nao autoriza nada. Chave nekkora.desktop-login.enabled E a entrada geral: desligada, 404.
+         */
+        post: operations["desktopAuthorizationStart"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/desktop/authorization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Navegador: o aplicativo e a conta que vai autorizar a entrada
+         * @description Para a pagina de confirmacao: mostra SEMPRE a conta da sessao de identidade, mesmo com sessao ja aberta (nenhuma entrada silenciosa). Sem pedido vivo no cookie __Host-nekkora_desk: 404. Sessao restrita a recuperacao: 403.
+         */
+        get: operations["desktopAuthorizationPending"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/desktop/authorization/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Navegador: a pessoa autenticada autoriza a entrada; emite o codigo de uso unico
+         * @description So com a sessao de identidade plena (login e MFA concluidos; nao restrita) e o CSRF dela, reconferida no banco no instante da aprovacao. Consome o pedido (uso unico) e emite o codigo de autorizacao (60 s, uso unico), preso ao pedido, a identidade e a ESTA sessao de identidade. redirectTo e montado pelo servidor a partir do redirect ja validado: http://127.0.0.1:<porta>/callback?code=...&state=...&iss=<origem publica>. Evento 21 (037).
+         */
+        post: operations["desktopAuthorizationApprove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/desktop/authorization/deny": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Navegador: recusa o pedido (com ou sem sessao); devolve o retorno com error=access_denied
+         * @description Consome o pedido. redirectTo: http://127.0.0.1:<porta>/callback?error=access_denied&state=...&iss=... Nenhum codigo e emitido.
+         */
+        post: operations["desktopAuthorizationDeny"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/desktop/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Aplicativo: troca o codigo pela sessao do desktop (RFC 6749 4.1.3 + PKCE RFC 7636)
+         * @description Chamado pelo aplicativo, por TLS, SEM cookie, SEM Origin e SEM CSRF: vale o codigo com o code_verifier. Corpo application/x-www-form-urlencoded, cada parametro uma unica vez e nenhum na URL. O codigo e consumido antes de qualquer conferencia (PKCE, cliente ou redirect errados tambem o queimam). Reapresentar um codigo ja trocado: invalid_grant E a sessao que ele emitiu e revogada. A sessao de identidade que autorizou precisa continuar ativa. Resposta: token opaco Bearer, 15 min, sem refresh_token, escopo identity. Erros no formato da RFC 6749 5.2. Evento 22.
+         */
+        post: operations["desktopToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/desktop/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Aplicativo: a propria pessoa e o prazo que resta a sessao do desktop
+         * @description Authorization: Bearer <token>. Cookies sao ignorados. Vale so enquanto a sessao existe (15 min, sem renovacao: usar nao estende) E a sessao de identidade que a autorizou continua ativa no banco - logout no navegador e as revogacoes ja existentes (troca/redefinicao de senha, MFA, codigo de recuperacao) a encerram. Escopo identity: nenhuma organizacao, Worker ou permissao. O token nao autentica nenhuma outra rota da API.
+         */
+        get: operations["desktopSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/desktop/session/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Aplicativo: encerra a propria sessao do desktop (idempotente; sem chave e fora dos limitadores)
+         * @description Authorization: Bearer <token>, sem cookie e sem CSRF. Token ausente, desconhecido ou ja encerrado: 204, sem efeito. A sessao do navegador nao muda. Evento 23.
+         */
+        post: operations["desktopSessionRevoke"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organizations": {
         parameters: {
             query?: never;
@@ -2167,6 +2307,58 @@ export interface components {
         RecoveryCodes: {
             /** @description Conjunto novo; o anterior foi invalidado. Mostrado uma unica vez */
             recoveryCodes: string[];
+        };
+        /** @description Parametros da RFC 6749 4.1.1 e da RFC 7636 4.3, com os nomes em camelCase do contrato da Web */
+        DesktopAuthorizationRequest: {
+            /** @enum {string} */
+            responseType: "code";
+            /** @enum {string} */
+            clientId: "nekkora-agent-client";
+            redirectUri: string;
+            state: string;
+            codeChallenge: string;
+            /** @enum {string} */
+            codeChallengeMethod: "S256";
+            /** @enum {string} */
+            scope: "identity";
+        };
+        DesktopAuthorizationPending: {
+            application: string;
+            account: components["schemas"]["DesktopAccount"];
+        };
+        DesktopAccount: {
+            email: string;
+        };
+        DesktopRedirect: {
+            /** @description Sempre http://127.0.0.1:<porta>/callback?..., montado pelo servidor */
+            redirectTo: string;
+        };
+        DesktopTokenRequest: {
+            /** @enum {string} */
+            grant_type: "authorization_code";
+            code: string;
+            redirect_uri: string;
+            client_id: string;
+            code_verifier: string;
+        };
+        DesktopToken: {
+            access_token: string;
+            /** @enum {string} */
+            token_type: "Bearer";
+            expires_in: number;
+            /** @enum {string} */
+            scope: "identity";
+        };
+        DesktopTokenError: {
+            /** @enum {string} */
+            error: "invalid_request" | "invalid_client" | "invalid_grant" | "unsupported_grant_type";
+        };
+        DesktopSession: {
+            account: components["schemas"]["DesktopAccount"];
+            /** @enum {string} */
+            scope: "identity";
+            /** @description Segundos que restam; nao aumenta com o uso */
+            expiresIn: number;
         };
         IdentitySessionState: {
             restricted: boolean;
@@ -4264,6 +4456,173 @@ export interface operations {
             404: components["responses"]["SignupDisabled"];
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    desktopAuthorizationStart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DesktopAuthorizationRequest"];
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["CsrfForbidden"];
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    desktopAuthorizationPending: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pedido vivo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesktopAuthorizationPending"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["RestrictedIdentitySession"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    desktopAuthorizationApprove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Autorizado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesktopRedirect"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["CsrfForbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    desktopAuthorizationDeny: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recusado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesktopRedirect"];
+                };
+            };
+            403: components["responses"]["CsrfForbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    desktopToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["DesktopTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Sessao do desktop emitida (Cache-Control: no-store) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesktopToken"];
+                };
+            };
+            /** @description Troca recusada */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesktopTokenError"];
+                };
+            };
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    desktopSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sessao do desktop valida */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesktopSession"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    desktopSessionRevoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
         };
     };
     identityCreateOrganization: {

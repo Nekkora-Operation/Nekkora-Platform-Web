@@ -8,6 +8,7 @@ import { identityPath, useAuthFlow } from '../auth/flow';
 import { commonMessage, INVALID_CREDENTIALS, SESSION_EXPIRED, SIGNED_OUT_UNCONFIRMED, UNAVAILABLE, type UserMessage } from '../auth/messages';
 import { orgPath } from '../auth/organization';
 import { features } from '../config';
+import { desktopPending } from '../desktop/pending';
 import { ErrorAlert } from './ErrorAlert';
 
 const NOTICES = {
@@ -88,6 +89,9 @@ export function LoginPage() {
         )
       }
     >
+      {flow.kind === 'identity' && desktopPending() && (
+        <Alert tone="info">Você está entrando no aplicativo Nekkora Agent. Depois do login, confirme a conta para concluir.</Alert>
+      )}
       {noticeInfo && !error && <Alert tone={noticeInfo.tone}>{noticeInfo.text}</Alert>}
       {error === 'credentials' && <Alert tone="danger">{INVALID_CREDENTIALS}</Alert>}
       {error === 'unavailable' && <Alert tone="warning">{UNAVAILABLE}</Alert>}
