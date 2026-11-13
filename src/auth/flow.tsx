@@ -2,6 +2,7 @@ import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import * as orgAuth from '../api/auth';
 import { csrfStore } from '../api/csrf';
 import * as identity from '../api/identity';
+import { desktopPending } from '../desktop/pending';
 import { orgPath } from './organization';
 
 /**
@@ -51,6 +52,8 @@ export const identityPath = {
   /** API 029: ativação voluntária da autenticação em duas etapas. */
   activateMfa: '/conta/ativar-autenticacao',
   linkAccount: '/vincular-conta',
+  /** Entrada no aplicativo desktop Nekkora Agent: pedido, confirmação da conta e retorno ao aplicativo. */
+  desktop: '/entrar/aplicativo',
 };
 
 export function identityFlow(): AuthFlow {
@@ -70,7 +73,8 @@ export function identityFlow(): AuthFlow {
       mfaSetup: identityPath.mfaSetup,
       forgotPassword: identityPath.recoverPassword,
     },
-    home: (restricted) => (restricted ? identityPath.replaceFactor : identityPath.organizations),
+    // entrada no aplicativo desktop em andamento nesta aba: depois do login, a confirmação da conta (nunca automática)
+    home: (restricted) => (restricted ? identityPath.replaceFactor : desktopPending() ? identityPath.desktop : identityPath.organizations),
     codesContext: 'Identidade Nekkora',
   };
 }

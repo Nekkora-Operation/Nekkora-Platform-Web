@@ -29,6 +29,7 @@ import { NewAutomationPage } from '../pages/product/NewAutomationPage';
 import { WorkersPage } from '../pages/agents/WorkersPage';
 import { AgentRunPage, AgentRunsPage } from '../pages/agents/supervision';
 import { InternalHome, OrgAccountPage } from '../pages/HomePage';
+import { DesktopAuthorizePage } from '../pages/DesktopAuthorizePage';
 import { LoginPage } from '../pages/LoginPage';
 import { MfaPage } from '../pages/MfaPage';
 import { MfaSetupPage } from '../pages/MfaSetupPage';
@@ -69,6 +70,8 @@ export function AppRoutes() {
         <Route path="/entrar/verificacao" element={<MfaPage />} />
         <Route path="/entrar/configurar-autenticador" element={<MfaSetupPage />} />
       </Route>
+      {/* entrada no aplicativo desktop (Nekkora Agent): pedido, confirmação da conta e retorno local */}
+      <Route path="/entrar/aplicativo" element={<DesktopAuthorizePage />} />
       <Route path="/recuperar-senha" element={<RecoverPasswordRoute />} />
       <Route path="/cadastro" element={<SignupPage />} />
       <Route path="/cadastro/confirmar" element={<SignupConfirmPage />} />
