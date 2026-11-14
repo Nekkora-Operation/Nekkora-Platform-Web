@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "a3bef387084b3fd886756bb4d40cf5d5d3ad68141019e83a43ec9483c0969b3c",
+  "openapiSha256": "eaf3d9465a3bc35f5288d0a6f11756806accd30a6afce7a79c00dc26f33302d7",
   "schemas": {
     "Error": {
       "type": "object",
@@ -1232,7 +1232,8 @@
         "scope": {
           "type": "string",
           "enum": [
-            "identity"
+            "identity",
+            "identity navigation"
           ]
         }
       }
@@ -1241,7 +1242,8 @@
       "type": "object",
       "required": [
         "application",
-        "account"
+        "account",
+        "scope"
       ],
       "properties": {
         "application": {
@@ -1249,6 +1251,13 @@
         },
         "account": {
           "$ref": "#/components/schemas/DesktopAccount"
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "identity",
+            "identity navigation"
+          ]
         }
       }
     },
@@ -1329,7 +1338,8 @@
         "scope": {
           "type": "string",
           "enum": [
-            "identity"
+            "identity",
+            "identity navigation"
           ]
         }
       }
@@ -1365,11 +1375,331 @@
         "scope": {
           "type": "string",
           "enum": [
-            "identity"
+            "identity",
+            "identity navigation"
           ]
         },
         "expiresIn": {
           "type": "integer"
+        }
+      }
+    },
+    "DesktopPerson": {
+      "type": "object",
+      "required": [
+        "email",
+        "displayName"
+      ],
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        }
+      }
+    },
+    "DesktopOrganization": {
+      "type": "object",
+      "required": [
+        "organizationId",
+        "name",
+        "handle",
+        "activationState"
+      ],
+      "properties": {
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "handle": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "activationState": {
+          "type": "string",
+          "enum": [
+            "AGUARDANDO_ATIVACAO",
+            "ATIVADA"
+          ]
+        }
+      }
+    },
+    "DesktopOrganizationList": {
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/components/schemas/DesktopOrganization"
+          }
+        }
+      }
+    },
+    "DesktopWorkspace": {
+      "type": "object",
+      "required": [
+        "workspaceId",
+        "name"
+      ],
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "DesktopWorkspacePage": {
+      "type": "object",
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/DesktopWorkspace"
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "DesktopPackage": {
+      "type": "object",
+      "required": [
+        "name",
+        "version",
+        "fingerprint"
+      ],
+      "properties": {
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fingerprint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "DesktopPublishedVersion": {
+      "type": "object",
+      "required": [
+        "automationVersionId",
+        "versionNumber",
+        "publishedAt",
+        "package"
+      ],
+      "properties": {
+        "automationVersionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "versionNumber": {
+          "type": "integer"
+        },
+        "publishedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "package": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/DesktopPackage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "DesktopAutomation": {
+      "type": "object",
+      "required": [
+        "automationId",
+        "name",
+        "latestPublishedVersion"
+      ],
+      "properties": {
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "latestPublishedVersion": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/DesktopPublishedVersion"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "DesktopCapabilities": {
+      "type": "object",
+      "required": [
+        "rename",
+        "execute"
+      ],
+      "properties": {
+        "rename": {
+          "type": "boolean"
+        },
+        "execute": {
+          "type": "boolean"
+        }
+      }
+    },
+    "DesktopAutomationPage": {
+      "type": "object",
+      "required": [
+        "items",
+        "nextCursor",
+        "capabilities"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/DesktopAutomation"
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "capabilities": {
+          "$ref": "#/components/schemas/DesktopCapabilities"
+        }
+      }
+    },
+    "DesktopAutomationVersion": {
+      "type": "object",
+      "required": [
+        "automationVersionId",
+        "versionNumber",
+        "status",
+        "publishedAt",
+        "package"
+      ],
+      "properties": {
+        "automationVersionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "versionNumber": {
+          "type": "integer"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "published"
+          ]
+        },
+        "publishedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "package": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/DesktopPackage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "DesktopAutomationVersionPage": {
+      "type": "object",
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/DesktopAutomationVersion"
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "DesktopAutomationRename": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        }
+      }
+    },
+    "DesktopAutomationRenamed": {
+      "type": "object",
+      "required": [
+        "automationId",
+        "name"
+      ],
+      "properties": {
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
         }
       }
     },
@@ -5521,6 +5851,312 @@
         "204": {
           "contentType": null,
           "schema": null
+        }
+      }
+    },
+    "desktopMe": {
+      "method": "GET",
+      "path": "/api/v1/desktop/me",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/DesktopPerson"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "desktopOrganizations": {
+      "method": "GET",
+      "path": "/api/v1/desktop/organizations",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/DesktopOrganizationList"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "desktopWorkspaces": {
+      "method": "GET",
+      "path": "/api/v1/desktop/organizations/{org}/workspaces",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/DesktopWorkspacePage"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "500": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "desktopAutomations": {
+      "method": "GET",
+      "path": "/api/v1/desktop/organizations/{org}/workspaces/{workspace}/automations",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/DesktopAutomationPage"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "500": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "desktopAutomationVersions": {
+      "method": "GET",
+      "path": "/api/v1/desktop/organizations/{org}/automations/{automation}/versions",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/DesktopAutomationVersionPage"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "500": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "desktopAutomationRename": {
+      "method": "PATCH",
+      "path": "/api/v1/desktop/organizations/{org}/automations/{automation}",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/DesktopAutomationRenamed"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "500": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
         }
       }
     },

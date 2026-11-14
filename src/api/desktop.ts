@@ -68,12 +68,17 @@ export async function startDesktopAuthorization(body: DesktopAuthorizationReques
 export interface DesktopPending {
   application: string;
   email: string;
+  /**
+   * O que o aplicativo pediu, como a API guardou (nunca o que veio na URL): `false` = só a própria conta; `true` = também a
+   * navegação (organizações, ambientes e automações da pessoa, e renomear automações onde ela já tem essa permissão).
+   */
+  navigation: boolean;
 }
 
 /** Pedido vivo e a conta que vai autorizar. 401: sem sessão; 403: sessão restrita; 404: sem pedido (expirou ou já foi usado). */
 export async function pendingDesktopAuthorization(): Promise<DesktopPending> {
   const data = await send<S['DesktopAuthorizationPending']>('desktopAuthorizationPending', '/api/v1/desktop/authorization');
-  return { application: data.application, email: data.account.email };
+  return { application: data.application, email: data.account.email, navigation: data.scope === 'identity navigation' };
 }
 
 /** Autoriza com a sessão de identidade. Devolve o retorno local do aplicativo, já conferido. */

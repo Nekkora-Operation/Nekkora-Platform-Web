@@ -168,8 +168,16 @@ export function DesktopAuthorizePage() {
           <Text as="p" variant="h4" data-testid="desktop-account">
             {view.pending.email}
           </Text>
+          {view.pending.navigation && (
+            <Text as="p" color="secondary" data-testid="desktop-scope">
+              O aplicativo poderá ver o seu nome, as organizações de que você participa e os ambientes e automações a que você tem
+              acesso, e renomear automações onde você já tem essa permissão. Ele não recebe nenhuma permissão nova.
+            </Text>
+          )}
           <Text as="p" variant="caption" color="muted">
-            Confirme só se foi você quem clicou em Entrar no aplicativo. Nenhuma organização é escolhida agora.
+            {view.pending.navigation
+              ? 'Confirme só se foi você quem clicou em Entrar no aplicativo. A organização é escolhida depois, no próprio aplicativo.'
+              : 'Confirme só se foi você quem clicou em Entrar no aplicativo. Nenhuma organização é escolhida agora.'}
           </Text>
         </div>
         <div className="pw-form">

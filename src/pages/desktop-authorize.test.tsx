@@ -44,11 +44,50 @@ const sessao = () =>
     body: { restricted: false, csrfToken: 'id-csrf', mfaEnabled: false, stepUpMethod: 'password' },
   });
 const pedidoAceito = () => api.on('POST', '/api/v1/desktop/authorizations', 'desktopAuthorizationStart', { status: 204 });
-const pedidoVivo = (email = 'ana@empresa.com') =>
+const pedidoVivo = (email = 'ana@empresa.com', scope: 'identity' | 'identity navigation' = 'identity') =>
   api.on('GET', '/api/v1/desktop/authorization', 'desktopAuthorizationPending', {
     status: 200,
-    body: { application: 'Nekkora Agent', account: { email } },
+    body: { application: 'Nekkora Agent', account: { email }, scope },
   });
+
+describe('o que o aplicativo pediu (AGENT-CLIENT-NAVEGACAO-001)', () => {
+  it('escopo de navegação: a página diz o que o aplicativo poderá ver, pelo que a API guardou', async () => {
+    pedidoAceito();
+    pedidoVivo('ana@empresa.com', 'identity navigation');
+    sessao();
+    renderApp(`/entrar/aplicativo${QUERY.replace('scope=identity', 'scope=identity%20navigation')}`);
+    expect(await screen.findByTestId('desktop-account')).toHaveTextContent('ana@empresa.com');
+    const texto = screen.getByTestId('desktop-scope');
+    expect(texto).toHaveTextContent('as organizações de que você participa');
+    expect(texto).toHaveTextContent('ambientes e automações a que você tem acesso');
+    expect(texto).toHaveTextContent('renomear automações onde você já tem essa permissão');
+    expect(texto).toHaveTextContent('Ele não recebe nenhuma permissão nova');
+    expect(screen.getByText(/A organização é escolhida depois, no próprio aplicativo/)).toBeInTheDocument();
+    // o pedido foi entregue à API com o escopo que veio do aplicativo, sem alteração
+    expect(api.sent('POST', '/api/v1/desktop/authorizations')[0].body).toMatchObject({ scope: 'identity navigation' });
+    // e continua exigindo o clique
+    expect(api.sent('POST', '/api/v1/desktop/authorization/approve')).toHaveLength(0);
+  });
+
+  it('escopo só de identidade: nada sobre organizações é prometido', async () => {
+    pedidoAceito();
+    pedidoVivo();
+    sessao();
+    renderApp(`/entrar/aplicativo${QUERY}`);
+    expect(await screen.findByTestId('desktop-account')).toHaveTextContent('ana@empresa.com');
+    expect(screen.queryByTestId('desktop-scope')).toBeNull();
+    expect(screen.getByText(/Nenhuma organização é escolhida agora/)).toBeInTheDocument();
+  });
+
+  it('o texto vem do que a API devolve, não do que está na URL', async () => {
+    pedidoAceito();
+    pedidoVivo('ana@empresa.com', 'identity'); // a API guardou só identidade
+    sessao();
+    renderApp(`/entrar/aplicativo${QUERY.replace('scope=identity', 'scope=identity%20navigation')}`);
+    expect(await screen.findByTestId('desktop-account')).toBeInTheDocument();
+    expect(screen.queryByTestId('desktop-scope')).toBeNull();
+  });
+});
 
 describe('pedido do aplicativo', () => {
   it('entrega o pedido à API uma única vez, com os nomes do contrato e o CSRF de pré-autenticação', async () => {
@@ -118,7 +157,7 @@ describe('login antes da confirmação', () => {
     pedidoAceito();
     let logado = false;
     api.on('GET', '/api/v1/desktop/authorization', 'desktopAuthorizationPending', () =>
-      logado ? { status: 200, body: { application: 'Nekkora Agent', account: { email: 'ana@empresa.com' } } } : { status: 401, body: { error: 'unauthenticated' } },
+      logado ? { status: 200, body: { application: 'Nekkora Agent', account: { email: 'ana@empresa.com' }, scope: 'identity' } } : { status: 401, body: { error: 'unauthenticated' } },
     );
     api.on('POST', '/api/v1/auth/login', 'identityLogin', () => {
       logado = true;
