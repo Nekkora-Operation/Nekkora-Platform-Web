@@ -44,13 +44,37 @@ const sessao = () =>
     body: { restricted: false, csrfToken: 'id-csrf', mfaEnabled: false, stepUpMethod: 'password' },
   });
 const pedidoAceito = () => api.on('POST', '/api/v1/desktop/authorizations', 'desktopAuthorizationStart', { status: 204 });
-const pedidoVivo = (email = 'ana@empresa.com', scope: 'identity' | 'identity navigation' = 'identity') =>
+const pedidoVivo = (email = 'ana@empresa.com', scope: 'identity' | 'identity navigation' | 'identity navigation packages' = 'identity') =>
   api.on('GET', '/api/v1/desktop/authorization', 'desktopAuthorizationPending', {
     status: 200,
     body: { application: 'Nekkora Agent', account: { email }, scope },
   });
 
 describe('o que o aplicativo pediu (AGENT-CLIENT-NAVEGACAO-001)', () => {
+  it('escopo de pacotes (AGENT-CLIENT-PACOTES-001): além da navegação, a página diz que o aplicativo poderá baixar pacotes', async () => {
+    pedidoAceito();
+    pedidoVivo('ana@empresa.com', 'identity navigation packages');
+    sessao();
+    renderApp(`/entrar/aplicativo${QUERY.replace('scope=identity', 'scope=identity%20navigation%20packages')}`);
+    expect(await screen.findByTestId('desktop-account')).toHaveTextContent('ana@empresa.com');
+    expect(screen.getByTestId('desktop-scope')).toHaveTextContent('as organizações de que você participa');
+    const pacotes = screen.getByTestId('desktop-scope-packages');
+    expect(pacotes).toHaveTextContent('baixar para este computador o pacote das versões publicadas');
+    expect(pacotes).toHaveTextContent('que você já pode executar ou gerenciar');
+    expect(pacotes).toHaveTextContent('Baixar não executa nada');
+    expect(api.sent('POST', '/api/v1/desktop/authorizations')[0].body).toMatchObject({ scope: 'identity navigation packages' });
+    expect(api.sent('POST', '/api/v1/desktop/authorization/approve')).toHaveLength(0);
+  });
+
+  it('escopo de navegação (aplicativo anterior): nada sobre baixar pacotes', async () => {
+    pedidoAceito();
+    pedidoVivo('ana@empresa.com', 'identity navigation');
+    sessao();
+    renderApp(`/entrar/aplicativo${QUERY.replace('scope=identity', 'scope=identity%20navigation')}`);
+    await screen.findByTestId('desktop-scope');
+    expect(screen.queryByTestId('desktop-scope-packages')).toBeNull();
+  });
+
   it('escopo de navegação: a página diz o que o aplicativo poderá ver, pelo que a API guardou', async () => {
     pedidoAceito();
     pedidoVivo('ana@empresa.com', 'identity navigation');

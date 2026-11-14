@@ -786,7 +786,7 @@ export interface paths {
         };
         /**
          * Aplicativo: as organizacoes da pessoa
-         * @description Escopo "identity navigation". As organizacoes resolvidas na aprovacao do login (ate 200) que passam na conferencia de AGORA: sessao de identidade de origem ativa e nao restrita, conta interna ativa ligada a identidade, vinculo ativo e organizacao ativa. A que deixou de passar some da lista, sem erro; a que a pessoa ganhou depois do login so aparece no login seguinte. Ordem: nome e organizationId (a da lista da Web). Sem cursor. Duas organizacoes podem ter o mesmo nome: handle e organizationId as distinguem. Pessoa sem organizacao: 200 com items vazio.
+         * @description Escopo "identity navigation". Contrato desktop-navigation/2 (AGENT-CLIENT-NAVEGACAO-002): as organizacoes da pessoa AGORA (ate 200), resolvidas a cada requisicao para a identidade da sessao: sessao de identidade de origem ativa e nao restrita, conta interna ativa ligada a identidade, vinculo ativo e organizacao ativa. A que a pessoa ganhou depois do login (convite aceito, organizacao criada) aparece na requisicao seguinte, com o mesmo token; a que deixou de passar some da lista, sem erro. A leitura nao renova a sessao do aplicativo. asOf = "request" identifica este comportamento; no contrato desktop-navigation/1 o campo nao existia e a lista era a da aprovacao do login. Organizacao aguardando ativacao aparece como na Web; nada e ativado. Ordem: nome e organizationId (a da lista da Web). Sem cursor. Duas organizacoes podem ter o mesmo nome: handle e organizationId as distinguem. Pessoa sem organizacao: 200 com items vazio.
          */
         get: operations["desktopOrganizations"];
         put?: never;
@@ -849,6 +849,26 @@ export interface paths {
          * @description Escopo "identity navigation". A mesma regra e a mesma consulta de GET /api/v1/o/{org}/automations/{automationId}/versions (automation.read efetiva no workspace da automacao; fora do alcance: 404 identico). Ordem: versionNumber decrescente. package: o pacote recebido da versao, ou null.
          */
         get: operations["desktopAutomationVersions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/desktop/organizations/{org}/automations/{automation}/versions/{version}/package": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Aplicativo: baixar o pacote (ZIP) de uma versao publicada
+         * @description AGENT-CLIENT-PACOTES-001, contrato desktop-navigation/3. Exige sessao do aplicativo com o escopo "identity navigation packages" (a sessao de escopo "identity navigation" recebe 403: token anterior nao ganha o download) e, no workspace da automacao, automation.execute ou automation.manage (quem so tem automation.read ve os metadados e recebe 403 aqui). Identidade, organizacao, vinculo, automacao, versao e permissao sao conferidos a cada requisicao; nada alem dos ids do caminho vem do aplicativo. Organizacao, automacao ou versao fora do alcance, ou versao de outra automacao: 404. Automacao ou workspace inativo, versao nao publicada, versao sem pacote, ou arquivo ausente ou corrompido no armazenamento: 409, sem bytes. Resposta: os bytes guardados, relidos e conferidos pelo sha256, direto desta rota (sem redirecionamento e sem URL temporaria); Content-Length, Cache-Control no-store, X-Artifact-Sha256 e X-Package-Fingerprint, iguais ao sha256 e ao fingerprint que a lista de versoes informa. Cada download autorizado e auditado (ato 9 da 040), sem token, URL ou conteudo. A rota nao executa, nao publica e nao altera a versao.
+         */
+        get: operations["desktopVersionPackage"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2443,7 +2463,7 @@ export interface components {
              * @description Texto exato. identity: a propria conta. identity navigation: tambem as rotas de navegacao (desktop-navigation/1)
              * @enum {string}
              */
-            scope: "identity" | "identity navigation";
+            scope: "identity" | "identity navigation" | "identity navigation packages";
         };
         DesktopAuthorizationPending: {
             application: string;
@@ -2452,7 +2472,7 @@ export interface components {
              * @description O escopo pedido, para a pagina de confirmacao
              * @enum {string}
              */
-            scope: "identity" | "identity navigation";
+            scope: "identity" | "identity navigation" | "identity navigation packages";
         };
         DesktopAccount: {
             email: string;
@@ -2475,7 +2495,7 @@ export interface components {
             token_type: "Bearer";
             expires_in: number;
             /** @enum {string} */
-            scope: "identity" | "identity navigation";
+            scope: "identity" | "identity navigation" | "identity navigation packages";
         };
         DesktopTokenError: {
             /** @enum {string} */
@@ -2484,7 +2504,7 @@ export interface components {
         DesktopSession: {
             account: components["schemas"]["DesktopAccount"];
             /** @enum {string} */
-            scope: "identity" | "identity navigation";
+            scope: "identity" | "identity navigation" | "identity navigation packages";
             /** @description Segundos que restam; nao aumenta com o uso */
             expiresIn: number;
         };
@@ -2504,6 +2524,11 @@ export interface components {
         };
         DesktopOrganizationList: {
             items: components["schemas"]["DesktopOrganization"][];
+            /**
+             * @description request: lista resolvida nesta requisicao (desktop-navigation/2). Ausente em servidor do contrato /1, em que a lista era a da aprovacao do login
+             * @enum {string}
+             */
+            asOf: "request";
         };
         DesktopWorkspace: {
             /** Format: uuid */
@@ -2519,6 +2544,13 @@ export interface components {
             version: string | null;
             /** @description Impressao do pacote calculada pelo servidor (64 hex) */
             fingerprint: string | null;
+            /** @description Contrato /3: sha256 do ZIP guardado; o aplicativo confere depois de baixar */
+            sha256: string;
+            /**
+             * Format: int64
+             * @description Contrato /3: tamanho do ZIP guardado, em bytes
+             */
+            sizeBytes: number;
         };
         DesktopPublishedVersion: {
             /** Format: uuid */
@@ -2539,6 +2571,8 @@ export interface components {
             rename: boolean;
             /** @description automation.execute no workspace */
             execute: boolean;
+            /** @description Contrato /3: a sessao tem o escopo de pacotes E a pessoa tem automation.execute ou automation.manage no workspace. Ausente em servidor anterior */
+            download: boolean;
         };
         DesktopAutomationPage: {
             items: components["schemas"]["DesktopAutomation"][];
@@ -3673,7 +3707,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Rotas de navegacao do aplicativo: a sessao do desktop nao tem o escopo "identity navigation" (login feito com "identity"); entre de novo pedindo o escopo. Na renomeacao tambem: automacao visivel sem automation.manage no workspace */
+        /** @description Rotas de navegacao do aplicativo: a sessao do desktop nao tem o escopo exigido ("identity navigation"; no download do pacote, "identity navigation packages"); entre de novo pedindo o escopo. Na renomeacao tambem: automacao visivel sem automation.manage no workspace. No download tambem: automacao visivel sem automation.execute nem automation.manage */
         DesktopScopeForbidden: {
             headers: {
                 [name: string]: unknown;
@@ -3720,7 +3754,7 @@ export interface components {
     parameters: {
         /** @description malformado -> 401 (nenhuma sessao e resolvida) */
         Org: string;
-        /** @description Uma das organizacoes de GET /api/v1/desktop/organizations. Malformado -> 400; fora da lista da sessao -> 404 */
+        /** @description Uma das organizacoes de GET /api/v1/desktop/organizations. Malformado -> 400; organizacao em que a pessoa nao tem acesso AGORA (conferido a cada requisicao) -> 404 */
         DesktopOrg: string;
         /** @description malformado -> 400 */
         WorkspaceId: string;
@@ -4909,7 +4943,7 @@ export interface operations {
             };
             header?: never;
             path: {
-                /** @description Uma das organizacoes de GET /api/v1/desktop/organizations. Malformado -> 400; fora da lista da sessao -> 404 */
+                /** @description Uma das organizacoes de GET /api/v1/desktop/organizations. Malformado -> 400; organizacao em que a pessoa nao tem acesso AGORA (conferido a cada requisicao) -> 404 */
                 org: components["parameters"]["DesktopOrg"];
             };
             cookie?: never;
@@ -4944,7 +4978,7 @@ export interface operations {
             };
             header?: never;
             path: {
-                /** @description Uma das organizacoes de GET /api/v1/desktop/organizations. Malformado -> 400; fora da lista da sessao -> 404 */
+                /** @description Uma das organizacoes de GET /api/v1/desktop/organizations. Malformado -> 400; organizacao em que a pessoa nao tem acesso AGORA (conferido a cada requisicao) -> 404 */
                 org: components["parameters"]["DesktopOrg"];
                 workspace: string;
             };
@@ -4980,7 +5014,7 @@ export interface operations {
             };
             header?: never;
             path: {
-                /** @description Uma das organizacoes de GET /api/v1/desktop/organizations. Malformado -> 400; fora da lista da sessao -> 404 */
+                /** @description Uma das organizacoes de GET /api/v1/desktop/organizations. Malformado -> 400; organizacao em que a pessoa nao tem acesso AGORA (conferido a cada requisicao) -> 404 */
                 org: components["parameters"]["DesktopOrg"];
                 automation: string;
             };
@@ -5006,12 +5040,51 @@ export interface operations {
             503: components["responses"]["ServiceUnavailable"];
         };
     };
+    desktopVersionPackage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Uma das organizacoes de GET /api/v1/desktop/organizations. Malformado -> 400; organizacao em que a pessoa nao tem acesso AGORA (conferido a cada requisicao) -> 404 */
+                org: components["parameters"]["DesktopOrg"];
+                /** @description malformado -> 400 */
+                automation: string;
+                /** @description malformado -> 400 */
+                version: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ZIP da versao publicada */
+            200: {
+                headers: {
+                    /** @description sha256 dos bytes */
+                    "X-Artifact-Sha256"?: string;
+                    /** @description impressao do pacote */
+                    "X-Package-Fingerprint"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["DesktopScopeForbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["CatalogInconsistent"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
     desktopAutomationRename: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                /** @description Uma das organizacoes de GET /api/v1/desktop/organizations. Malformado -> 400; fora da lista da sessao -> 404 */
+                /** @description Uma das organizacoes de GET /api/v1/desktop/organizations. Malformado -> 400; organizacao em que a pessoa nao tem acesso AGORA (conferido a cada requisicao) -> 404 */
                 org: components["parameters"]["DesktopOrg"];
                 automation: string;
             };

@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "eaf3d9465a3bc35f5288d0a6f11756806accd30a6afce7a79c00dc26f33302d7",
+  "openapiSha256": "a6210f5c3a95b2276552581fe98ded7c5aaf3b1cc1279e25edee5cc66d441624",
   "schemas": {
     "Error": {
       "type": "object",
@@ -1233,7 +1233,8 @@
           "type": "string",
           "enum": [
             "identity",
-            "identity navigation"
+            "identity navigation",
+            "identity navigation packages"
           ]
         }
       }
@@ -1256,7 +1257,8 @@
           "type": "string",
           "enum": [
             "identity",
-            "identity navigation"
+            "identity navigation",
+            "identity navigation packages"
           ]
         }
       }
@@ -1339,7 +1341,8 @@
           "type": "string",
           "enum": [
             "identity",
-            "identity navigation"
+            "identity navigation",
+            "identity navigation packages"
           ]
         }
       }
@@ -1376,7 +1379,8 @@
           "type": "string",
           "enum": [
             "identity",
-            "identity navigation"
+            "identity navigation",
+            "identity navigation packages"
           ]
         },
         "expiresIn": {
@@ -1433,7 +1437,8 @@
     "DesktopOrganizationList": {
       "type": "object",
       "required": [
-        "items"
+        "items",
+        "asOf"
       ],
       "properties": {
         "items": {
@@ -1442,6 +1447,12 @@
           "items": {
             "$ref": "#/components/schemas/DesktopOrganization"
           }
+        },
+        "asOf": {
+          "type": "string",
+          "enum": [
+            "request"
+          ]
         }
       }
     },
@@ -1487,7 +1498,9 @@
       "required": [
         "name",
         "version",
-        "fingerprint"
+        "fingerprint",
+        "sha256",
+        "sizeBytes"
       ],
       "properties": {
         "name": {
@@ -1507,6 +1520,14 @@
             "string",
             "null"
           ]
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "format": "int64"
         }
       }
     },
@@ -1573,13 +1594,17 @@
       "type": "object",
       "required": [
         "rename",
-        "execute"
+        "execute",
+        "download"
       ],
       "properties": {
         "rename": {
           "type": "boolean"
         },
         "execute": {
+          "type": "boolean"
+        },
+        "download": {
           "type": "boolean"
         }
       }
@@ -6075,6 +6100,67 @@
           }
         },
         "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "500": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "desktopVersionPackage": {
+      "method": "GET",
+      "path": "/api/v1/desktop/organizations/{org}/automations/{automation}/versions/{version}/package",
+      "responses": {
+        "200": {
+          "contentType": "application/zip",
+          "schema": {
+            "type": "string",
+            "format": "binary"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/Error"

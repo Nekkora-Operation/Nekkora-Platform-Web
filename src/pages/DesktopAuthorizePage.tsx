@@ -174,6 +174,12 @@ export function DesktopAuthorizePage() {
               acesso, e renomear automações onde você já tem essa permissão. Ele não recebe nenhuma permissão nova.
             </Text>
           )}
+          {view.pending.packages && (
+            <Text as="p" color="secondary" data-testid="desktop-scope-packages">
+              Também poderá baixar para este computador o pacote das versões publicadas das automações que você já pode executar
+              ou gerenciar. Baixar não executa nada.
+            </Text>
+          )}
           <Text as="p" variant="caption" color="muted">
             {view.pending.navigation
               ? 'Confirme só se foi você quem clicou em Entrar no aplicativo. A organização é escolhida depois, no próprio aplicativo.'
