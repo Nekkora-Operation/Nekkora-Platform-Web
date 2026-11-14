@@ -142,6 +142,42 @@ export function publishAutomationVersion(org: string, versionId: string, expecte
 }
 
 /** SHA-256 local dos bytes escolhidos (auxiliar: a conferência do servidor é a autoridade). */
+/**
+ * Bytes do pacote de uma versão (GET .../artifact/content; exige automation.manage). A API relê e confere os bytes; aqui o
+ * SHA-256 recebido é conferido de novo contra o que a página da versão mostra, antes de entregar o arquivo à pessoa. Não
+ * executa nada e não altera a versão.
+ */
+export async function downloadVersionArtifact(org: string, versionId: string, expectedSha256: string): Promise<Blob> {
+  let res: Response;
+  try {
+    res = await fetch(`/api/v1/o/${org}/automation-versions/${versionId}/artifact/content`, {
+      method: 'GET',
+      headers: { Accept: 'application/zip, application/json' },
+      credentials: 'same-origin',
+      cache: 'no-store',
+      redirect: 'error',
+      referrerPolicy: 'no-referrer',
+    });
+  } catch {
+    throw new ApiError('network', 0);
+  }
+  const requestId = safeRequestId(res.headers.get('X-Request-Id'));
+  if (!res.ok) {
+    let body: unknown;
+    try {
+      body = await res.json();
+    } catch {
+      body = undefined;
+    }
+    throw apiErrorFrom(res.status, body, res.headers.get('Retry-After'), requestId);
+  }
+  const blob = await res.blob();
+  const sha = await localSha256(blob);
+  // sem como conferir (navegador sem crypto.subtle) ou conteúdo diferente do anunciado: não entrega o arquivo
+  if (!sha || sha !== expectedSha256 || res.headers.get('X-Artifact-Sha256') !== expectedSha256) throw new ApiError('unexpected', res.status, undefined, requestId);
+  return new Blob([blob], { type: 'application/zip' });
+}
+
 export async function localSha256(file: Blob): Promise<string | null> {
   if (!globalThis.crypto?.subtle) return null; // contexto sem Web Crypto
   const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());

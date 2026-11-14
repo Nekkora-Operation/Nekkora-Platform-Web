@@ -73,12 +73,18 @@ export interface DesktopPending {
    * navegação (organizações, ambientes e automações da pessoa, e renomear automações onde ela já tem essa permissão).
    */
   navigation: boolean;
+  /**
+   * AGENT-CLIENT-PACOTES-001: o aplicativo pediu também o download do pacote das versões publicadas (escopo
+   * `identity navigation packages`). Inclui a navegação.
+   */
+  packages: boolean;
 }
 
 /** Pedido vivo e a conta que vai autorizar. 401: sem sessão; 403: sessão restrita; 404: sem pedido (expirou ou já foi usado). */
 export async function pendingDesktopAuthorization(): Promise<DesktopPending> {
   const data = await send<S['DesktopAuthorizationPending']>('desktopAuthorizationPending', '/api/v1/desktop/authorization');
-  return { application: data.application, email: data.account.email, navigation: data.scope === 'identity navigation' };
+  const packages = data.scope === 'identity navigation packages';
+  return { application: data.application, email: data.account.email, navigation: packages || data.scope === 'identity navigation', packages };
 }
 
 /** Autoriza com a sessão de identidade. Devolve o retorno local do aplicativo, já conferido. */
