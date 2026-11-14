@@ -98,7 +98,7 @@ describe('validador', () => {
     walk(Object.values(contract.schemas));
     walk(Object.values(contract.operations).flatMap((o) => Object.values(o.responses).map((r) => r.schema)));
     expect([...found].filter((k) => !supported.has(k))).toEqual([]);
-    expect(Object.keys(contract.operations)).toHaveLength(113); // AGENT-CLIENT-LOGIN-001: + 7 rotas do login do aplicativo desktop; 030: + 4 rotas do pedido de execução; T03 (031): + renameWorkspace; PLATFORM-AGENT-V2-002 T07: + createWorker; T09 (032): + putAutomationDraftPackage; todas as operações do OpenAPI (GET, POST, PUT, PATCH e DELETE) em e04a57c
+    expect(Object.keys(contract.operations)).toHaveLength(119); // AGENT-CLIENT-NAVEGACAO-001: + 6 rotas de navegação do aplicativo desktop; AGENT-CLIENT-LOGIN-001: + 7 rotas do login do aplicativo desktop; 030: + 4 rotas do pedido de execução; T03 (031): + renameWorkspace; PLATFORM-AGENT-V2-002 T07: + createWorker; T09 (032): + putAutomationDraftPackage; todas as operações do OpenAPI (GET, POST, PUT, PATCH e DELETE) em e04a57c
   });
 
   it('validated: erro "unexpected" que leva só caminhos e regras, nunca valores', () => {
