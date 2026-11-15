@@ -14,6 +14,12 @@ let identitySession: string | undefined;
  * da mesma origem (`remote`). O cookie de sessão é um só por origem: a troca feita em outra aba vale para esta.
  */
 const boundaryListeners = new Set<(remote: boolean, scope: SessionScope) => void>();
+/**
+ * Avisados quando a sessão TERMINA (saída ou expiração), nesta aba ou em outra: diferente de uma troca de sessão (login),
+ * o que a pessoa deixou em memória para continuar depois (convite aberto, token de link, método de confirmação) não pode
+ * sobreviver a uma saída. Um login NÃO dispara este aviso (o convite aberto antes da entrada continua valendo).
+ */
+const endListeners = new Set<() => void>();
 
 /**
  * Alcance da fronteira: `organization` = só a sessão de organização mudou (entrar numa organização emite outro cookie de
@@ -40,20 +46,25 @@ const forget = () => {
   identitySession = undefined;
 };
 
-const boundary = (remote: boolean, scope: SessionScope) => {
-  if (!remote) channel?.postMessage(scope === 'organization' ? { tipo: 'sessao-alterada', alcance: 'organizacao' } : { tipo: 'sessao-alterada' });
+const boundary = (remote: boolean, scope: SessionScope, end = false) => {
+  if (!remote) {
+    channel?.postMessage(
+      scope === 'organization' ? { tipo: 'sessao-alterada', alcance: 'organizacao' } : end ? { tipo: 'sessao-alterada', fim: true } : { tipo: 'sessao-alterada' },
+    );
+  }
+  if (end) for (const l of endListeners) l();
   for (const l of boundaryListeners) l(remote, scope);
 };
 
 channel?.addEventListener('message', (e: MessageEvent) => {
-  const data = e.data as { tipo?: unknown; alcance?: unknown } | null;
+  const data = e.data as { tipo?: unknown; alcance?: unknown; fim?: unknown } | null;
   if (data?.tipo !== 'sessao-alterada') return;
   // a sessão desta aba deixou de valer: esquece os tokens (sem reenviar o aviso) e avisa quem guarda estado da sessão;
   // só a de organização mudou → a identidade desta aba (desafio MFA em curso, sessão) continua
   const scope: SessionScope = data.alcance === 'organizacao' ? 'organization' : 'all';
   if (scope === 'organization') forgetOrganization();
   else forget();
-  boundary(true, scope);
+  boundary(true, scope, scope === 'all' && data.fim === true);
 });
 
 export const csrfStore = {
@@ -98,10 +109,25 @@ export const csrfStore = {
     identitySession = t;
     boundary(false, 'all');
   },
-  /** Esquece tudo (logout, sessão expirada, testes): também é fronteira de sessão. */
+  /** Esquece os tokens (troca de fator, testes): fronteira de sessão SEM fim (uma sessão nova vem em seguida). */
   clear: () => {
     forget();
     boundary(false, 'all');
+  },
+  /**
+   * A sessão TERMINOU (logout, mesmo sem confirmação do servidor, ou sessão expirada): esquece os tokens, avisa as outras
+   * abas e zera o estado da pessoa que pertencia a ela (`onSessionEnd`).
+   */
+  end: () => {
+    forget();
+    boundary(false, 'all', true);
+  },
+  /** Fim de sessão nesta aba ou em outra (ver `endListeners`). */
+  onSessionEnd: (listener: () => void) => {
+    endListeners.add(listener);
+    return () => {
+      endListeners.delete(listener);
+    };
   },
   /**
    * Estado mantido em memória que pertence a UMA sessão (ex.: registro de escritas, área autenticada) se zera nas

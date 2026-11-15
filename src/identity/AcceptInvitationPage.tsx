@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router';
 import { Alert, Button, Link, StateView, Text } from 'nekkora-lib';
+import { csrfStore } from '../api/csrf';
 import { ApiError, isApiError } from '../api/http';
 import { acceptInvitation, enterOrganization, identitySession, identityStepUp } from '../api/identity';
 import { AuthScreen } from '../app/AuthScreen';
@@ -23,6 +24,11 @@ export const pendingInvitation = {
     pending = null;
   },
 };
+// saída ou expiração (nesta aba ou em outra): o convite aberto não fica para a próxima pessoa neste navegador. Um login
+// não dispara isto (o convite aberto antes da entrada continua valendo para quem entrou)
+csrfStore.onSessionEnd(() => {
+  pending = null;
+});
 
 type Probe = 'loading' | 'session' | 'restricted' | 'none' | 'unavailable' | { error: UserMessage };
 type Result = 'accepted' | 'invalid' | 'already_member' | 'account_exists' | 'account_unavailable';

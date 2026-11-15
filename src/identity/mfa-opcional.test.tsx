@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { me, stepUp } from '../api/auth';
 import { csrfStore } from '../api/csrf';
@@ -48,8 +48,13 @@ describe('conta nova sem autenticação em duas etapas', () => {
   it('entra só com a senha: sem tela de código nem QR, direto nas organizações', async () => {
     api.on('POST', '/api/v1/auth/login', 'identityLogin', { status: 200, body: { status: 'authenticated', csrfToken: 'id-csrf' } });
     semMfa();
+    // antes da entrada não há sessão (a tela de entrada confere ao abrir): o 401 vale até o login
+    api.on('GET', '/api/v1/me/session', 'identitySessionState', () =>
+      api.sent('POST', '/api/v1/auth/login').length === 0 ? { status: 401, body: { error: 'unauthenticated' } } : { status: 200, body: { restricted: false, csrfToken: 'id-csrf', mfaEnabled: false, stepUpMethod: 'password' } },
+    );
     vazia();
     renderApp('/entrar');
+    await waitFor(() => expect(api.sent('GET', '/api/v1/me/session').length).toBeGreaterThan(0));
     await user().type(screen.getByLabelText(lbl('E-mail')), 'ana@empresa.com');
     await user().type(screen.getByLabelText(lbl('Senha')), PASSWORD);
     await user().click(screen.getByRole('button', { name: 'Entrar' }));

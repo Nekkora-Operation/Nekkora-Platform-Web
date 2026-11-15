@@ -5,6 +5,7 @@ import { ApiError, isApiError } from '../api/http';
 import { confirmSignup, resendSignupConfirmation, signup } from '../api/identity';
 import { AuthScreen } from '../app/AuthScreen';
 import { identityPath } from '../auth/flow';
+import { onboarding } from '../auth/onboarding';
 import { consumeInitialLinkToken } from '../auth/linkToken';
 import { commonMessage, type UserMessage } from '../auth/messages';
 import { meetsPasswordPolicy, PASSWORD_MAX, PASSWORD_MIN, passwordLength } from '../auth/passwordPolicy';
@@ -182,6 +183,7 @@ export function SignupConfirmPage() {
       await confirmSignup(token, password, displayName.trim());
       setPassword('');
       setConfirmation('');
+      onboarding.markSignupCompleted();
       setState('success');
     } catch (e) {
       // 400 = link inválido para a API (vencido, já usado, revogado, substituído por reenvio). Os campos já foram conferidos
@@ -250,7 +252,7 @@ export function SignupConfirmPage() {
         <StateView
           status="success"
           title="Agora entre com seu e-mail e a senha escolhida."
-          description="No primeiro acesso você vai configurar o aplicativo autenticador. O cadastro não cria organização: depois de entrar, você pode criar uma ou aceitar um convite."
+          description="Ao entrar, vamos sugerir ativar a verificação em duas etapas (opcional, recomendada). O cadastro não cria organização: depois de entrar, você pode criar uma ou aceitar um convite."
           actions={
             <Button fullWidth onClick={() => navigate(identityPath.login, { replace: true })}>
               Entrar

@@ -103,7 +103,12 @@ describe('entrada geral', () => {
     api.on('POST', '/api/v1/auth/login', 'identityLogin', { status: 200, body: { status: 'mfa_required', csrfToken: 'desafio' } });
     api.on('POST', '/api/v1/auth/mfa/verify', 'identityVerifyMfa', { status: 200, body: { csrfToken: 'id-csrf', restricted: true } });
     session(true);
+    // antes da entrada não há sessão (a tela de entrada confere ao abrir): o 401 vale até o login
+    api.on('GET', '/api/v1/me/session', 'identitySessionState', () =>
+      api.sent('POST', '/api/v1/auth/login').length === 0 ? { status: 401, body: { error: 'unauthenticated' } } : { status: 200, body: { restricted: true, csrfToken: 'id-csrf', mfaEnabled: true, stepUpMethod: 'totp' } },
+    );
     renderApp('/entrar');
+    await waitFor(() => expect(api.sent('GET', '/api/v1/me/session').length).toBeGreaterThan(0));
     await user().type(screen.getByLabelText(lbl('E-mail')), 'ana@empresa.com');
     await user().type(screen.getByLabelText(lbl('Senha')), PASSWORD);
     await user().click(screen.getByRole('button', { name: 'Entrar' }));

@@ -202,7 +202,13 @@ describe('login antes da confirmação', () => {
 
   it('sem entrada do aplicativo em andamento, o login continua indo para as organizações', async () => {
     api.on('POST', '/api/v1/auth/login', 'identityLogin', { status: 200, body: { status: 'authenticated', csrfToken: 'id-csrf' } });
-    sessao();
+    // como a API: sem sessão (401) até a entrada — a tela de entrada confere a sessão ao abrir e, se já houvesse uma,
+    // iria direto ao destino sem mostrar o formulário
+    api.on('GET', '/api/v1/me/session', 'identitySessionState', () =>
+      api.sent('POST', '/api/v1/auth/login').length === 0
+        ? { status: 401, body: { error: 'unauthenticated' } }
+        : { status: 200, body: { restricted: false, csrfToken: 'id-csrf', mfaEnabled: false, stepUpMethod: 'password' } },
+    );
     api.on('GET', '/api/v1/me/organizations', 'identityOrganizations', { status: 200, body: { organizations: [], canCreateOrganization: true } });
     renderApp('/entrar');
     expect(screen.queryByText(/Você está entrando no aplicativo/)).not.toBeInTheDocument();

@@ -75,7 +75,7 @@ export function useSessionLoader(org: string) {
     ended.current = true;
     window.clearTimeout(watch.current);
     const hadSession = sessionMemory.hadSession();
-    csrfStore.clear();
+    csrfStore.end();
     sessionMemory.reset();
     const nav: NavState = hadSession ? { notice: 'session-expired' } : {};
     void reentryPath(org).then((to) => navigateRef.current(to, { replace: true, state: nav }));

@@ -62,3 +62,7 @@
 .pw-break {
   overflow-wrap: anywhere;
 }
+
+/* Oferta da verificação em duas etapas depois do cadastro: a configuração é o foco; seguir sem ela, discreto */
+.pw-protect__steps { margin: 0; padding-left: 1.25rem; display: grid; gap: var(--nk-space-1); }
+.pw-protect__skip { opacity: 0.85; }
