@@ -261,7 +261,12 @@ function WorkersManagement() {
         onDone={(c) => {
           const w = pairing;
           setPairing(null);
-          setCode({ code: c, purpose: `Código de pareamento para ${w?.name ?? 'o Worker'}` });
+          setCode({
+            code: c,
+            purpose: c.remoteExecution
+              ? `Código de habilitação para execução remota de ${w?.name ?? 'o Worker'}`
+              : `Código de pareamento para ${w?.name ?? 'o Worker'}`,
+          });
         }}
         onClose={() => setPairing(null)}
       />

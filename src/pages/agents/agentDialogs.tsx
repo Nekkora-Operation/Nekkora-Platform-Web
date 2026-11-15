@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button, Card, Input, RadioGroup, Stack, Text } from 'nekkora-lib';
+import { Alert, Button, Card, Checkbox, Input, RadioGroup, Stack, Text } from 'nekkora-lib';
 import { createPairingCode, createRotationCode, revokeAgent, type AgentCode } from '../../api/agents';
-import { isApiError } from '../../api/http';
+import { hasReason, isApiError } from '../../api/http';
 import { useSession } from '../../area/session';
 import { StepUpDialog } from '../../components/StepUpDialog';
 import { accessRefusal, orgStepUp } from '../access/shared';
@@ -32,10 +32,18 @@ export function OneTimeCode({ code, onCancel, onDone }: { code: AgentCode; onCan
   return (
     <Card variant="outlined" padding="lg">
       <Stack gap={3}>
-        <Alert tone="warning" title="Este código aparece só agora.">
-          Use-o no Agent da máquina ({'"'}Parear com a Platform{'"'}). Ele é temporário e de uso único; ao sair desta tela ele não
-          pode ser exibido de novo — se perder, cancele e gere outro.
-        </Alert>
+        {code.remoteExecution ? (
+          <Alert tone="warning" title="Este código aparece só agora.">
+            Use-o no Nekkora Agent do computador, no menu da conta, em {'"'}Execução remota{'"'} → {'"'}Habilitar este computador{'"'}. A
+            máquina só fica habilitada depois que alguém confirmar nela; o código sozinho não habilita nada. Ele é temporário e
+            de uso único; ao sair desta tela ele não pode ser exibido de novo — se perder, cancele e gere outro.
+          </Alert>
+        ) : (
+          <Alert tone="warning" title="Este código aparece só agora.">
+            Use-o no Agent da máquina ({'"'}Parear com a Platform{'"'}). Ele é temporário e de uso único; ao sair desta tela ele não
+            pode ser exibido de novo — se perder, cancele e gere outro.
+          </Alert>
+        )}
         <code className="pw-break pw-hash pw-code" aria-label="Código de uso único">
           {code.code}
         </code>
@@ -92,6 +100,10 @@ export function OneTimeCode({ code, onCancel, onDone }: { code: AgentCode; onCan
   );
 }
 
+/** Recurso desligado no servidor: 409 conflict + reason remote_execution_unavailable, nada gravado. */
+export const REMOTE_UNAVAILABLE_REASON = 'remote_execution_unavailable';
+export const REMOTE_UNAVAILABLE_TEXT = 'A execução remota não está disponível nesta Platform. Nenhum código foi gerado.';
+
 /** Worker sem Agent a que o código de pareamento se destina. */
 export type FreeWorker = { workerId: string; name: string };
 /** Máquina (Agent) vinculada a um Worker. */
@@ -105,11 +117,13 @@ export function PairAgentDialog({ worker, onDone, onClose }: { worker: FreeWorke
   const { org, expired } = useSession();
   const [agentName, setAgentName] = useState('');
   const [minutes, setMinutes] = useState('15');
+  const [remote, setRemote] = useState(false);
   const workerId = worker?.workerId;
   useEffect(() => {
     if (!worker) return;
     setAgentName(worker.name);
     setMinutes('15');
+    setRemote(false);
     // só ao abrir para um Worker (o nome digitado não é sobrescrito enquanto o diálogo está aberto)
   }, [workerId]);
   const ready = agentName.trim().length > 0 && agentName.trim().length <= 80 && Number(minutes) >= 5 && Number(minutes) <= 60;
@@ -123,12 +137,22 @@ export function PairAgentDialog({ worker, onDone, onClose }: { worker: FreeWorke
       ready={ready}
       stepUp={orgStepUp(org)}
       action={() =>
-        worker ? createPairingCode(org, { workerId: worker.workerId, agentName: agentName.trim(), expiresInMinutes: Number(minutes) }) : Promise.reject()
+        worker
+          ? createPairingCode(org, {
+              workerId: worker.workerId,
+              agentName: agentName.trim(),
+              expiresInMinutes: Number(minutes),
+              // só quando marcado: sem a opção, o pedido é o de sempre, campo por campo
+              ...(remote ? { remoteExecution: true as const } : {}),
+            })
+          : Promise.reject()
       }
       onDone={onDone}
       onClose={onClose}
       refusalText={(e) =>
-        accessRefusal(e, {
+        hasReason(e, 'conflict', REMOTE_UNAVAILABLE_REASON)
+          ? REMOTE_UNAVAILABLE_TEXT
+          : accessRefusal(e, {
           conflict: 'Este Worker já tem um Agent vinculado. Atualize a lista.',
           forbidden: 'O código não foi gerado: faltam permissões (Agents, credenciais, vínculo de Workers) ou a organização ainda não foi ativada.',
         })
@@ -150,6 +174,12 @@ export function PairAgentDialog({ worker, onDone, onClose }: { worker: FreeWorke
         hint="Nome lógico informado por você; nada é coletado da máquina."
       />
       <Input label="Validade do código (minutos)" type="number" min={5} max={60} value={minutes} onChange={(e) => setMinutes(e.target.value)} hint="De 5 a 60." />
+      <Checkbox
+        label="Habilitar esta máquina para execução remota"
+        checked={remote}
+        onChange={(e) => setRemote(e.target.checked)}
+        hint="O código passa a servir para habilitar o computador a receber execuções solicitadas pela Platform. A habilitação só vale depois de confirmada no próprio computador, e você fica registrado como quem habilitou. Não autoriza nenhuma automação: as autorizações de workspace e de versão continuam valendo como hoje."
+      />
     </StepUpDialog>
   );
 }
