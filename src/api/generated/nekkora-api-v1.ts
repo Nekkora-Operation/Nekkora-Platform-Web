@@ -2244,6 +2244,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/remote-executions/{execution}/attempts/{attempt}/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Os arquivos de resultado de uma tentativa e o fechamento do envio
+         * @description Exige logs.read no ambiente da solicitacao (fora do alcance: 404). Resultado e o que a automacao gravou na pasta de saida e a maquina enviou depois do termino: no maximo 50 arquivos, 20 MiB cada, 50 MiB no total por tentativa. closure null: a maquina ainda nao fechou o envio (pode haver arquivo a caminho, ou ela nao voltou). closure.skippedByLimit: quantos arquivos ela deixou de enviar por limite. Arquivo que falta ou excede o limite NAO muda o estado da tentativa. available false: os bytes foram removidos pela retencao; o metadado fica.
+         */
+        get: operations["listRemoteAttemptResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/remote-executions/{execution}/attempts/{attempt}/results/{number}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Baixa um arquivo de resultado
+         * @description Exige logs.read no ambiente da solicitacao. Os bytes sao relidos e conferidos pelo SHA-256; a resposta e sempre um anexo (application/octet-stream, nosniff), nunca interpretada pelo navegador. O download fica na trilha da automacao. Bytes removidos pela retencao, ausentes ou que nao conferem: 409 conflict, reason remote_result_unavailable.
+         */
+        get: operations["downloadRemoteAttemptResult"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/remote-executions/{execution}/cancel": {
         parameters: {
             query?: never;
@@ -2359,7 +2399,7 @@ export interface components {
              * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached, draft_exists, draft_changed, local_run_authorization_exists, organization_name_taken; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
              * @enum {string}
              */
-            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken";
+            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_result_unavailable" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken";
         };
         /**
          * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
@@ -3241,6 +3281,28 @@ export interface components {
             inInventory: boolean;
             /** Format: date-time */
             selectedAt: string;
+        };
+        RemoteAttemptResults: {
+            /** Format: uuid */
+            attemptId: string;
+            items: {
+                number: number;
+                /** @description Nome relativo a pasta de saida da execucao; nunca um caminho absoluto */
+                fileName: string;
+                sizeBytes: number;
+                sha256: string;
+                /** Format: date-time */
+                receivedAt: string;
+                /** @description Os bytes ainda estao guardados */
+                available: boolean;
+            }[];
+            closure: {
+                sent: number;
+                /** @description Arquivos que a maquina deixou de enviar por limite */
+                skippedByLimit: number;
+                /** Format: date-time */
+                closedAt: string;
+            } | null;
         };
         RemoteExecution: {
             /** Format: uuid */
@@ -8337,6 +8399,76 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listRemoteAttemptResults: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                execution: string;
+                /** @description malformado -> 400 */
+                attempt: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resultados da tentativa */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteAttemptResults"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    downloadRemoteAttemptResult: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                execution: string;
+                /** @description malformado -> 400 */
+                attempt: string;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bytes do arquivo */
+            200: {
+                headers: {
+                    /** @description SHA-256 dos bytes */
+                    "Nekkora-Result-Sha256"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };
