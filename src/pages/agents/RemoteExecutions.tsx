@@ -122,6 +122,7 @@ export function RemoteExecutions({
   canExecute,
   canManage,
   canReadLogs,
+  externalPackage,
 }: {
   workspaceId: string;
   automationId: string;
@@ -130,6 +131,8 @@ export function RemoteExecutions({
   canManage: boolean;
   /** Pode ver registros e resultados (logs.read): só então a tela oferece os arquivos de resultado. */
   canReadLogs: boolean;
+  /** O pacote desta versão é um pacote Python externo: o único tipo que a execução remota aceita nesta versão do produto. */
+  externalPackage: boolean;
 }) {
   const { org, expired } = useSession();
   const [absent, setAbsent] = useState(false);
@@ -263,7 +266,7 @@ export function RemoteExecutions({
       key: 'acao',
       header: 'Ação',
       render: (c) =>
-        canExecute && c.requestable ? (
+        canExecute && c.requestable && externalPackage ? (
           <Button size="sm" onClick={() => setRequesting(c)} aria-label={`Solicitar execução em ${c.agentName}`}>
             Solicitar execução
           </Button>
@@ -302,6 +305,15 @@ export function RemoteExecutions({
         Solicita que a {versionLabel} rode numa máquina habilitada. Solicitar não é iniciar: a máquina recebe na próxima consulta e a Platform confere de
         novo, antes de iniciar, que a autorização da versão para o Worker dela continua valendo.
       </Text>
+      <Text variant="body-sm" color="secondary">
+        A execução remota aceita apenas pacotes Python externos compatíveis. Pacotes no formato Studio não são executados remotamente nesta versão.
+      </Text>
+      {!externalPackage && (
+        <Alert tone="warning" title="Esta versão não pode ser executada remotamente">
+          O pacote desta versão está no formato Studio. A execução remota aceita apenas pacotes Python externos compatíveis, por isso não é possível
+          solicitar a execução desta versão numa máquina.
+        </Alert>
+      )}
       {notice && <Alert tone={notice.tone}>{notice.text}</Alert>}
       {poll.error != null && <Alert tone="warning">Não foi possível atualizar agora. O que está na tela é da última leitura.</Alert>}
       {data.candidates.length > 0 && (

@@ -489,6 +489,7 @@ export function VersionPage() {
           canExecute={perms.status === 'ready' && perms.has('automation.execute')}
           canManage={perms.status === 'ready' && perms.has('automation.manage')}
           canReadLogs={perms.status === 'ready' && perms.has('logs.read')}
+          externalPackage={data.artifact?.packageKind === 'EXTERNAL_PYTHON'}
         />
       )}
 
