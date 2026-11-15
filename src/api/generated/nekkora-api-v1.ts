@@ -3272,7 +3272,7 @@ export interface components {
                 workerName: string;
                 state: components["schemas"]["RemoteAttemptState"];
                 /** @enum {string|null} */
-                refusalReason: "BUSY" | "PAUSED" | "PACKAGE_INVALID" | "ENVIRONMENT_GONE" | "ENVIRONMENT_INCOMPATIBLE" | "DEPENDENCIES_MISSING" | "DISK_PRESSURE" | "CLIENT_INCOMPATIBLE" | "AUTHORIZATION_MISSING" | "AUTHORIZATION_REVOKED" | "AUTHORIZATION_EXPIRED" | "WORKER_NOT_AUTHORIZED" | "MACHINE_NOT_LINKED" | "MACHINE_NOT_ENABLED" | "MACHINE_INCOMPATIBLE" | null;
+                refusalReason: "BUSY" | "PAUSED" | "PACKAGE_INVALID" | "ENVIRONMENT_GONE" | "ENVIRONMENT_INCOMPATIBLE" | "DEPENDENCIES_MISSING" | "DISK_PRESSURE" | "CLIENT_INCOMPATIBLE" | "SESSION_UNAVAILABLE" | "AUTHORIZATION_MISSING" | "AUTHORIZATION_REVOKED" | "AUTHORIZATION_EXPIRED" | "WORKER_NOT_AUTHORIZED" | "MACHINE_NOT_LINKED" | "MACHINE_NOT_ENABLED" | "MACHINE_INCOMPATIBLE" | null;
                 /**
                  * @description LOST: o prazo da maquina venceu; nao muda o estado
                  * @enum {string}
