@@ -617,6 +617,286 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/desktop/authorizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Navegador: abre o pedido de autorizacao do aplicativo desktop (PKCE S256, redirect de loopback)
+         * @description AGENT-CLIENT-LOGIN-001, contrato desktop-login/1. Com ou sem sessao de identidade. O pedido inteiro e validado e guardado no servidor por 5 min; o navegador recebe so o cookie opaco __Host-nekkora_desk (HttpOnly, Secure, SameSite=Strict). clientId: exatamente nekkora-agent-client (cliente publico, sem segredo). redirectUri: exatamente http://127.0.0.1:<porta>/callback, porta 1024-65535 (so a porta varia; localhost, outro host, outro caminho, consulta ou fragmento: 400). codeChallengeMethod: so S256 (plain ou ausente: 400). scope: exatamente "identity" ou exatamente "identity navigation" (AGENT-CLIENT-NAVEGACAO-001; qualquer outro texto, ordem, caixa ou espaco a mais: 400). Nada do pedido volta na resposta. Abrir o pedido nao autoriza nada. Chave nekkora.desktop-login.enabled E a entrada geral: desligada, 404.
+         */
+        post: operations["desktopAuthorizationStart"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/desktop/authorization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Navegador: o aplicativo e a conta que vai autorizar a entrada
+         * @description Para a pagina de confirmacao: mostra SEMPRE a conta da sessao de identidade, mesmo com sessao ja aberta (nenhuma entrada silenciosa), e o escopo PEDIDO (scope), para a pagina dizer a pessoa o que ela esta concedendo: "identity" (so a propria conta) ou "identity navigation" (tambem ver organizacoes, workspaces, automacoes e versoes, e renomear automacao onde ela ja pode). Sem pedido vivo no cookie __Host-nekkora_desk: 404. Sessao restrita a recuperacao: 403.
+         */
+        get: operations["desktopAuthorizationPending"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/desktop/authorization/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Navegador: a pessoa autenticada autoriza a entrada; emite o codigo de uso unico
+         * @description So com a sessao de identidade plena (login e MFA concluidos; nao restrita) e o CSRF dela, reconferida no banco no instante da aprovacao. Consome o pedido (uso unico) e emite o codigo de autorizacao (60 s, uso unico), preso ao pedido, a identidade e a ESTA sessao de identidade. redirectTo e montado pelo servidor a partir do redirect ja validado: http://127.0.0.1:<porta>/callback?code=...&state=...&iss=<origem publica>. Evento 21 (037). Com o escopo "identity navigation", a aprovacao tambem resolve, com a sessao de identidade desta requisicao, as organizacoes elegiveis da pessoa (as mesmas de GET /api/v1/me/organizations, ate 200) e as leva com o codigo; o token do navegador nao e guardado. Organizacao em que a pessoa entrar depois so aparece no login seguinte.
+         */
+        post: operations["desktopAuthorizationApprove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/desktop/authorization/deny": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Navegador: recusa o pedido (com ou sem sessao); devolve o retorno com error=access_denied
+         * @description Consome o pedido. redirectTo: http://127.0.0.1:<porta>/callback?error=access_denied&state=...&iss=... Nenhum codigo e emitido.
+         */
+        post: operations["desktopAuthorizationDeny"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/desktop/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Aplicativo: troca o codigo pela sessao do desktop (RFC 6749 4.1.3 + PKCE RFC 7636)
+         * @description Chamado pelo aplicativo, por TLS, SEM cookie, SEM Origin e SEM CSRF: vale o codigo com o code_verifier. Corpo application/x-www-form-urlencoded, cada parametro uma unica vez e nenhum na URL. O codigo e consumido antes de qualquer conferencia (PKCE, cliente ou redirect errados tambem o queimam). Reapresentar um codigo ja trocado: invalid_grant E a sessao que ele emitiu e revogada. A sessao de identidade que autorizou precisa continuar ativa. Resposta: token opaco Bearer, 15 min, sem refresh_token, com o escopo do pedido aprovado (identity ou identity navigation; a troca nao pede nem amplia escopo). Erros no formato da RFC 6749 5.2. Evento 22.
+         */
+        post: operations["desktopToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/desktop/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Aplicativo: a propria pessoa e o prazo que resta a sessao do desktop
+         * @description Authorization: Bearer <token>. Cookies sao ignorados. Vale so enquanto a sessao existe (15 min, sem renovacao: usar nao estende) E a sessao de identidade que a autorizou continua ativa no banco - logout no navegador e as revogacoes ja existentes (troca/redefinicao de senha, MFA, codigo de recuperacao) a encerram. Devolve o escopo da sessao (identity ou identity navigation); nenhuma organizacao, Worker ou permissao aqui. Fora de /api/v1/desktop/ o token nao autentica nenhuma rota da API.
+         */
+        get: operations["desktopSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/desktop/session/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Aplicativo: encerra a propria sessao do desktop (idempotente; sem chave e fora dos limitadores)
+         * @description Authorization: Bearer <token>, sem cookie e sem CSRF. Token ausente, desconhecido ou ja encerrado: 204, sem efeito. A sessao do navegador nao muda. Evento 23.
+         */
+        post: operations["desktopSessionRevoke"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/desktop/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Aplicativo: a propria pessoa (e-mail e nome)
+         * @description AGENT-CLIENT-NAVEGACAO-001, contrato desktop-navigation/1. Authorization: Bearer <token> de sessao do desktop com o escopo "identity navigation"; cookies sao ignorados; Cache-Control: no-store. Sessao com escopo "identity": 403. Token ausente, invalido, vencido ou com a sessao de identidade de origem encerrada: 401.
+         */
+        get: operations["desktopMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/desktop/organizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Aplicativo: as organizacoes da pessoa
+         * @description Escopo "identity navigation". Contrato desktop-navigation/2 (AGENT-CLIENT-NAVEGACAO-002): as organizacoes da pessoa AGORA (ate 200), resolvidas a cada requisicao para a identidade da sessao: sessao de identidade de origem ativa e nao restrita, conta interna ativa ligada a identidade, vinculo ativo e organizacao ativa. A que a pessoa ganhou depois do login (convite aceito, organizacao criada) aparece na requisicao seguinte, com o mesmo token; a que deixou de passar some da lista, sem erro. A leitura nao renova a sessao do aplicativo. asOf = "request" identifica este comportamento; no contrato desktop-navigation/1 o campo nao existia e a lista era a da aprovacao do login. Organizacao aguardando ativacao aparece como na Web; nada e ativado. Ordem: nome e organizationId (a da lista da Web). Sem cursor. Duas organizacoes podem ter o mesmo nome: handle e organizationId as distinguem. Pessoa sem organizacao: 200 com items vazio.
+         */
+        get: operations["desktopOrganizations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/desktop/organizations/{org}/workspaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Aplicativo: workspaces ativos que a pessoa ve na organizacao
+         * @description Escopo "identity navigation". A mesma regra e a mesma consulta de GET /api/v1/o/{org}/workspaces?status=active: workspaces ATIVOS em que o vinculo da pessoa tem automation.read efetiva (papel organizacional ou de workspace), lida a cada requisicao. Ordem: nome (48 primeiros caracteres, ordenacao "C") e workspaceId. limit de 1 a 100 (padrao 25). cursor: opaco e assinado, preso a esta rota, organizacao e vinculo; de outro contexto: 400. Organizacao inexistente, de outra pessoa ou em que ela deixou de ter acesso: 404 identico. Sem workspace visivel: 200 vazio.
+         */
+        get: operations["desktopWorkspaces"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/desktop/organizations/{org}/workspaces/{workspace}/automations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Aplicativo: automacoes ativas do workspace, com a ultima versao publicada e o que a pessoa pode fazer
+         * @description Escopo "identity navigation". A mesma regra e a mesma consulta de GET /api/v1/o/{org}/workspaces/{workspaceId}/automations?status=active: workspace sem automation.read efetiva, inexistente ou de outra organizacao: 404 identico. So automacoes ATIVAS; ordem: nome (48 primeiros caracteres, ordenacao "C") e automationId. latestPublishedVersion: a publicada de maior numero, ou null; package: o pacote recebido dessa versao (nome, versao e impressao), ou null se ela nao tem. capabilities vale para o workspace, na requisicao: rename = automation.manage; execute = automation.execute. Nenhum conteudo de arquivo, hash de arquivo, comando, segredo ou dado de outra pessoa.
+         */
+        get: operations["desktopAutomations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/desktop/organizations/{org}/automations/{automation}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Aplicativo: versoes da automacao, da mais nova para a mais antiga
+         * @description Escopo "identity navigation". A mesma regra e a mesma consulta de GET /api/v1/o/{org}/automations/{automationId}/versions (automation.read efetiva no workspace da automacao; fora do alcance: 404 identico). Ordem: versionNumber decrescente. package: o pacote recebido da versao, ou null.
+         */
+        get: operations["desktopAutomationVersions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/desktop/organizations/{org}/automations/{automation}/versions/{version}/package": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Aplicativo: baixar o pacote (ZIP) de uma versao publicada
+         * @description AGENT-CLIENT-PACOTES-001, contrato desktop-navigation/3. Exige sessao do aplicativo com o escopo "identity navigation packages" (a sessao de escopo "identity navigation" recebe 403: token anterior nao ganha o download) e, no workspace da automacao, automation.execute ou automation.manage (quem so tem automation.read ve os metadados e recebe 403 aqui). Identidade, organizacao, vinculo, automacao, versao e permissao sao conferidos a cada requisicao; nada alem dos ids do caminho vem do aplicativo. Organizacao, automacao ou versao fora do alcance, ou versao de outra automacao: 404. Automacao ou workspace inativo, versao nao publicada, versao sem pacote, ou arquivo ausente ou corrompido no armazenamento: 409, sem bytes. Resposta: os bytes guardados, relidos e conferidos pelo sha256, direto desta rota (sem redirecionamento e sem URL temporaria); Content-Length, Cache-Control no-store, X-Artifact-Sha256 e X-Package-Fingerprint, iguais ao sha256 e ao fingerprint que a lista de versoes informa. Cada download autorizado e auditado (ato 9 da 040), sem token, URL ou conteudo. A rota nao executa, nao publica e nao altera a versao.
+         */
+        get: operations["desktopVersionPackage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/desktop/organizations/{org}/automations/{automation}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Aplicativo: renomeia a automacao (so o nome)
+         * @description Escopo "identity navigation". Sem cookie e sem CSRF: vale o token Bearer. Nome pela regra da criacao de automacao (1 a 80 caracteres, sem caracteres de controle, nao so espacos; os espacos das extremidades sao retirados): fora dela, 400. Automacao fora do alcance de leitura da pessoa (inexistente, de outra organizacao ou de workspace sem acesso): 404 identico. Visivel, mas sem automation.manage no workspace dela: 403. Automacao ou workspace nao ativo: 409. So o nome da automacao muda: versoes, artefatos, manifestos, impressoes e conteudo publicado nao sao tocados. Nome igual ao atual: 200, sem gravar. Nome de automacao nao e unico. Auditoria: automation_admin_events, ato 8 (038), com o vinculo de quem renomeou.
+         */
+        patch: operations["desktopAutomationRename"];
+        trace?: never;
+    };
     "/api/v1/organizations": {
         parameters: {
             query?: never;
@@ -2168,6 +2448,160 @@ export interface components {
             /** @description Conjunto novo; o anterior foi invalidado. Mostrado uma unica vez */
             recoveryCodes: string[];
         };
+        /** @description Parametros da RFC 6749 4.1.1 e da RFC 7636 4.3, com os nomes em camelCase do contrato da Web */
+        DesktopAuthorizationRequest: {
+            /** @enum {string} */
+            responseType: "code";
+            /** @enum {string} */
+            clientId: "nekkora-agent-client";
+            redirectUri: string;
+            state: string;
+            codeChallenge: string;
+            /** @enum {string} */
+            codeChallengeMethod: "S256";
+            /**
+             * @description Texto exato. identity: a propria conta. identity navigation: tambem as rotas de navegacao (desktop-navigation/1)
+             * @enum {string}
+             */
+            scope: "identity" | "identity navigation" | "identity navigation packages";
+        };
+        DesktopAuthorizationPending: {
+            application: string;
+            account: components["schemas"]["DesktopAccount"];
+            /**
+             * @description O escopo pedido, para a pagina de confirmacao
+             * @enum {string}
+             */
+            scope: "identity" | "identity navigation" | "identity navigation packages";
+        };
+        DesktopAccount: {
+            email: string;
+        };
+        DesktopRedirect: {
+            /** @description Sempre http://127.0.0.1:<porta>/callback?..., montado pelo servidor */
+            redirectTo: string;
+        };
+        DesktopTokenRequest: {
+            /** @enum {string} */
+            grant_type: "authorization_code";
+            code: string;
+            redirect_uri: string;
+            client_id: string;
+            code_verifier: string;
+        };
+        DesktopToken: {
+            access_token: string;
+            /** @enum {string} */
+            token_type: "Bearer";
+            expires_in: number;
+            /** @enum {string} */
+            scope: "identity" | "identity navigation" | "identity navigation packages";
+        };
+        DesktopTokenError: {
+            /** @enum {string} */
+            error: "invalid_request" | "invalid_client" | "invalid_grant" | "unsupported_grant_type";
+        };
+        DesktopSession: {
+            account: components["schemas"]["DesktopAccount"];
+            /** @enum {string} */
+            scope: "identity" | "identity navigation" | "identity navigation packages";
+            /** @description Segundos que restam; nao aumenta com o uso */
+            expiresIn: number;
+        };
+        DesktopPerson: {
+            email: string;
+            displayName: string;
+        };
+        DesktopOrganization: {
+            /** Format: uuid */
+            organizationId: string;
+            /** @description Nao e unico entre organizacoes */
+            name: string;
+            /** @description Identificador legivel e estavel da organizacao (034) */
+            handle: string | null;
+            /** @enum {string} */
+            activationState: "AGUARDANDO_ATIVACAO" | "ATIVADA";
+        };
+        DesktopOrganizationList: {
+            items: components["schemas"]["DesktopOrganization"][];
+            /**
+             * @description request: lista resolvida nesta requisicao (desktop-navigation/2). Ausente em servidor do contrato /1, em que a lista era a da aprovacao do login
+             * @enum {string}
+             */
+            asOf: "request";
+        };
+        DesktopWorkspace: {
+            /** Format: uuid */
+            workspaceId: string;
+            name: string;
+        };
+        DesktopWorkspacePage: {
+            items: components["schemas"]["DesktopWorkspace"][];
+            nextCursor: string | null;
+        };
+        DesktopPackage: {
+            name: string | null;
+            version: string | null;
+            /** @description Impressao do pacote calculada pelo servidor (64 hex) */
+            fingerprint: string | null;
+            /** @description Contrato /3: sha256 do ZIP guardado; o aplicativo confere depois de baixar */
+            sha256: string;
+            /**
+             * Format: int64
+             * @description Contrato /3: tamanho do ZIP guardado, em bytes
+             */
+            sizeBytes: number;
+        };
+        DesktopPublishedVersion: {
+            /** Format: uuid */
+            automationVersionId: string;
+            versionNumber: number;
+            /** Format: date-time */
+            publishedAt: string;
+            package: components["schemas"]["DesktopPackage"] | null;
+        };
+        DesktopAutomation: {
+            /** Format: uuid */
+            automationId: string;
+            name: string;
+            latestPublishedVersion: components["schemas"]["DesktopPublishedVersion"] | null;
+        };
+        DesktopCapabilities: {
+            /** @description automation.manage no workspace */
+            rename: boolean;
+            /** @description automation.execute no workspace */
+            execute: boolean;
+            /** @description Contrato /3: a sessao tem o escopo de pacotes E a pessoa tem automation.execute ou automation.manage no workspace. Ausente em servidor anterior */
+            download: boolean;
+        };
+        DesktopAutomationPage: {
+            items: components["schemas"]["DesktopAutomation"][];
+            nextCursor: string | null;
+            capabilities: components["schemas"]["DesktopCapabilities"];
+        };
+        DesktopAutomationVersion: {
+            /** Format: uuid */
+            automationVersionId: string;
+            versionNumber: number;
+            /** @enum {string} */
+            status: "draft" | "published";
+            /** Format: date-time */
+            publishedAt: string | null;
+            package: components["schemas"]["DesktopPackage"] | null;
+        };
+        DesktopAutomationVersionPage: {
+            items: components["schemas"]["DesktopAutomationVersion"][];
+            nextCursor: string | null;
+        };
+        DesktopAutomationRename: {
+            /** @description Sem caracteres de controle; nao so espacos */
+            name: string;
+        };
+        DesktopAutomationRenamed: {
+            /** Format: uuid */
+            automationId: string;
+            name: string;
+        };
         IdentitySessionState: {
             restricted: boolean;
             csrfToken: string;
@@ -3273,6 +3707,20 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description Rotas de navegacao do aplicativo: a sessao do desktop nao tem o escopo exigido ("identity navigation"; no download do pacote, "identity navigation packages"); entre de novo pedindo o escopo. Na renomeacao tambem: automacao visivel sem automation.manage no workspace. No download tambem: automacao visivel sem automation.execute nem automation.manage */
+        DesktopScopeForbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": "forbidden"
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description O estado atual impede o ato (convite pendente, destinataria ja cadastrada, concessao duplicada ou fora do estado, papel ja ativo, vinculo inativo) */
         Conflict: {
             headers: {
@@ -3306,6 +3754,8 @@ export interface components {
     parameters: {
         /** @description malformado -> 401 (nenhuma sessao e resolvida) */
         Org: string;
+        /** @description Uma das organizacoes de GET /api/v1/desktop/organizations. Malformado -> 400; organizacao em que a pessoa nao tem acesso AGORA (conferido a cada requisicao) -> 404 */
+        DesktopOrg: string;
         /** @description malformado -> 400 */
         WorkspaceId: string;
         /** @description malformado -> 400 */
@@ -4263,6 +4713,405 @@ export interface operations {
             403: components["responses"]["RestrictedIdentitySession"];
             404: components["responses"]["SignupDisabled"];
             429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    desktopAuthorizationStart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DesktopAuthorizationRequest"];
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["CsrfForbidden"];
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    desktopAuthorizationPending: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pedido vivo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesktopAuthorizationPending"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["RestrictedIdentitySession"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    desktopAuthorizationApprove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Autorizado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesktopRedirect"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["CsrfForbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    desktopAuthorizationDeny: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recusado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesktopRedirect"];
+                };
+            };
+            403: components["responses"]["CsrfForbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    desktopToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["DesktopTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Sessao do desktop emitida (Cache-Control: no-store) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesktopToken"];
+                };
+            };
+            /** @description Troca recusada */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesktopTokenError"];
+                };
+            };
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    desktopSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sessao do desktop valida */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesktopSession"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    desktopSessionRevoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+        };
+    };
+    desktopMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A pessoa da sessao */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesktopPerson"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["DesktopScopeForbidden"];
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    desktopOrganizations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Organizacoes da pessoa (pode ser vazia) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesktopOrganizationList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["DesktopScopeForbidden"];
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    desktopWorkspaces: {
+        parameters: {
+            query?: {
+                /** @description Opaco e assinado: base64url(payload) "." base64url(HMAC-SHA256). Vinculado a rota, organizacao, vinculo da sessao, recurso pai, filtros (impressao canonica; limit fora) e ordenacao. Posicao = chave de ordenacao de tamanho limitado (prefixo de 48 pontos de codigo + id, ou campos de tamanho fixo); id da chave como impressao de 11 caracteres. O servidor nunca emite cursor maior que 872 caracteres (pior caso calculado, documento secao 1.5.1); aceita ate 1024. Nao e autoridade: autorizacao reaplicada a cada pagina. Malformado, adulterado, de outra rota/organizacao/vinculo/pai, com filtros ou ordenacao diferentes, ou de chave desconhecida (inclusive apos rotacao da chave) -> 400. Sem expiracao por tempo. Chave: decisao DC-15 (subchave derivada; a rotacao invalida os cursores). */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description fora de 1-100 ou nao inteiro -> 400; pode mudar entre paginas */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                /** @description Uma das organizacoes de GET /api/v1/desktop/organizations. Malformado -> 400; organizacao em que a pessoa nao tem acesso AGORA (conferido a cada requisicao) -> 404 */
+                org: components["parameters"]["DesktopOrg"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pagina de workspaces (pode ser vazia) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesktopWorkspacePage"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["DesktopScopeForbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["CatalogInconsistent"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    desktopAutomations: {
+        parameters: {
+            query?: {
+                /** @description Opaco e assinado: base64url(payload) "." base64url(HMAC-SHA256). Vinculado a rota, organizacao, vinculo da sessao, recurso pai, filtros (impressao canonica; limit fora) e ordenacao. Posicao = chave de ordenacao de tamanho limitado (prefixo de 48 pontos de codigo + id, ou campos de tamanho fixo); id da chave como impressao de 11 caracteres. O servidor nunca emite cursor maior que 872 caracteres (pior caso calculado, documento secao 1.5.1); aceita ate 1024. Nao e autoridade: autorizacao reaplicada a cada pagina. Malformado, adulterado, de outra rota/organizacao/vinculo/pai, com filtros ou ordenacao diferentes, ou de chave desconhecida (inclusive apos rotacao da chave) -> 400. Sem expiracao por tempo. Chave: decisao DC-15 (subchave derivada; a rotacao invalida os cursores). */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description fora de 1-100 ou nao inteiro -> 400; pode mudar entre paginas */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                /** @description Uma das organizacoes de GET /api/v1/desktop/organizations. Malformado -> 400; organizacao em que a pessoa nao tem acesso AGORA (conferido a cada requisicao) -> 404 */
+                org: components["parameters"]["DesktopOrg"];
+                workspace: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pagina de automacoes (pode ser vazia) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesktopAutomationPage"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["DesktopScopeForbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["CatalogInconsistent"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    desktopAutomationVersions: {
+        parameters: {
+            query?: {
+                /** @description Opaco e assinado: base64url(payload) "." base64url(HMAC-SHA256). Vinculado a rota, organizacao, vinculo da sessao, recurso pai, filtros (impressao canonica; limit fora) e ordenacao. Posicao = chave de ordenacao de tamanho limitado (prefixo de 48 pontos de codigo + id, ou campos de tamanho fixo); id da chave como impressao de 11 caracteres. O servidor nunca emite cursor maior que 872 caracteres (pior caso calculado, documento secao 1.5.1); aceita ate 1024. Nao e autoridade: autorizacao reaplicada a cada pagina. Malformado, adulterado, de outra rota/organizacao/vinculo/pai, com filtros ou ordenacao diferentes, ou de chave desconhecida (inclusive apos rotacao da chave) -> 400. Sem expiracao por tempo. Chave: decisao DC-15 (subchave derivada; a rotacao invalida os cursores). */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description fora de 1-100 ou nao inteiro -> 400; pode mudar entre paginas */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                /** @description Uma das organizacoes de GET /api/v1/desktop/organizations. Malformado -> 400; organizacao em que a pessoa nao tem acesso AGORA (conferido a cada requisicao) -> 404 */
+                org: components["parameters"]["DesktopOrg"];
+                automation: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pagina de versoes (pode ser vazia) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesktopAutomationVersionPage"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["DesktopScopeForbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["CatalogInconsistent"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    desktopVersionPackage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Uma das organizacoes de GET /api/v1/desktop/organizations. Malformado -> 400; organizacao em que a pessoa nao tem acesso AGORA (conferido a cada requisicao) -> 404 */
+                org: components["parameters"]["DesktopOrg"];
+                /** @description malformado -> 400 */
+                automation: string;
+                /** @description malformado -> 400 */
+                version: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ZIP da versao publicada */
+            200: {
+                headers: {
+                    /** @description sha256 dos bytes */
+                    "X-Artifact-Sha256"?: string;
+                    /** @description impressao do pacote */
+                    "X-Package-Fingerprint"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["DesktopScopeForbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["CatalogInconsistent"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    desktopAutomationRename: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Uma das organizacoes de GET /api/v1/desktop/organizations. Malformado -> 400; organizacao em que a pessoa nao tem acesso AGORA (conferido a cada requisicao) -> 404 */
+                org: components["parameters"]["DesktopOrg"];
+                automation: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DesktopAutomationRename"];
+            };
+        };
+        responses: {
+            /** @description Renomeada (ou ja tinha esse nome) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesktopAutomationRenamed"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["DesktopScopeForbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["CatalogInconsistent"];
             503: components["responses"]["ServiceUnavailable"];
         };
     };

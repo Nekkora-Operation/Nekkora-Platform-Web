@@ -4,6 +4,7 @@ import { csrfStore } from '../api/csrf';
 import { stepUpMethods } from '../api/stepUpMethod';
 import { sessionMemory } from '../app/notices';
 import { onboarding } from '../auth/onboarding';
+import { clearDesktopPending, markDesktopPending } from '../desktop/pending';
 import { resetLinkTokenCapture } from '../auth/linkToken';
 import { lbl, location, openLink, user } from '../test/helpers';
 import { renderApp } from '../test/render';
@@ -86,6 +87,26 @@ describe('primeira entrada depois do cadastro', () => {
     expect(await screen.findByRole('button', { name: 'Criar minha primeira organização' })).toBeInTheDocument();
     expect(location()).toBe('/organizacoes');
     expect(onboarding.takeSignupCompleted()).toBe(false);
+  });
+});
+
+describe('entrada no aplicativo desktop em andamento', () => {
+  it('a oferta não entra no meio: a pessoa vai à confirmação do aplicativo e a oferta fica para a próxima entrada', async () => {
+    sessao(false);
+    api.on('GET', '/api/v1/desktop/authorization', 'desktopAuthorizationPending', {
+      status: 200,
+      body: { application: 'Nekkora Agent', account: { email: 'ana@empresa.com' }, scope: 'identity' },
+    });
+    onboarding.markSignupCompleted();
+    markDesktopPending();
+    renderApp('/entrar');
+    await user().type(screen.getByLabelText(lbl('E-mail')), 'ana@empresa.com');
+    await user().type(screen.getByLabelText(lbl('Senha')), PASSWORD);
+    await user().click(screen.getByRole('button', { name: 'Entrar' }));
+    await waitFor(() => expect(location()).toBe('/entrar/aplicativo'));
+    expect(screen.queryByRole('heading', { name: 'Proteja sua conta' })).not.toBeInTheDocument();
+    expect(onboarding.takeSignupCompleted()).toBe(true); // a oferta não foi consumida: aparece na próxima entrada
+    clearDesktopPending();
   });
 });
 

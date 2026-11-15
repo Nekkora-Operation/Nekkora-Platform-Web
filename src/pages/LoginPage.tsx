@@ -10,6 +10,7 @@ import { useExistingSession } from '../auth/useExistingSession';
 import { commonMessage, INVALID_CREDENTIALS, SESSION_EXPIRED, SIGNED_OUT_UNCONFIRMED, UNAVAILABLE, type UserMessage } from '../auth/messages';
 import { orgPath } from '../auth/organization';
 import { features } from '../config';
+import { desktopPending } from '../desktop/pending';
 import { ErrorAlert } from './ErrorAlert';
 
 const NOTICES = {
@@ -49,8 +50,10 @@ export function LoginPage() {
     setError(null);
     try {
       const next = await flow.login(email.trim(), password);
-      // primeira entrada depois do cadastro, sem autenticação em duas etapas: oferece configurar antes de seguir
-      if (next === 'signed-in' && flow.kind === 'identity' && onboarding.takeSignupCompleted()) navigate(identityPath.protectAccount, { replace: true });
+      // primeira entrada depois do cadastro, sem autenticação em duas etapas: oferece configurar antes de seguir.
+      // Com uma entrada no aplicativo desktop em andamento nesta aba, a oferta NÃO entra no meio: a pessoa vai à
+      // confirmação da conta (que tem prazo), e a oferta fica guardada para a próxima entrada.
+      if (next === 'signed-in' && flow.kind === 'identity' && !desktopPending() && onboarding.takeSignupCompleted()) navigate(identityPath.protectAccount, { replace: true });
       else if (next === 'signed-in') navigate(flow.home(false), { replace: true });
       else navigate(next === 'mfa' ? flow.paths.mfa : flow.paths.mfaSetup);
     } catch (e) {
@@ -97,6 +100,9 @@ export function LoginPage() {
         )
       }
     >
+      {flow.kind === 'identity' && desktopPending() && (
+        <Alert tone="info">Você está entrando no aplicativo Nekkora Agent. Depois do login, confirme a conta para concluir.</Alert>
+      )}
       {noticeInfo && !error && <Alert tone={noticeInfo.tone}>{noticeInfo.text}</Alert>}
       {error === 'credentials' && <Alert tone="danger">{INVALID_CREDENTIALS}</Alert>}
       {error === 'unavailable' && <Alert tone="warning">{UNAVAILABLE}</Alert>}

@@ -23,6 +23,7 @@ import { orgStepUp } from '../access/shared';
 import { LocalRunAuthorizations } from '../agents/LocalRunAuthorizations';
 import { DateTimeText, LoadErrorState, NotFoundState, PageHeader, isMissing } from './shared';
 import { compareTechnical, PublishSummary, type Reviewed } from './PublishSummary';
+import { DownloadPackage } from './DownloadPackage';
 import { uploadOutcome } from './uploadOutcome';
 import { checkCommand, draftRefusal, mib, PackageBrief } from './draftPackage';
 import './shared.css';
@@ -313,6 +314,14 @@ export function VersionPage() {
                 autorização de execução local usa. São medidas diferentes: um ZIP refeito com o mesmo conteúdo pode ter
                 outro SHA-256 e a mesma impressão. A origem do gerador é só declarada, não uma assinatura.
               </Text>
+              {!draft && art.sha256 && can('automation.manage') && (
+                <DownloadPackage
+                  org={org}
+                  versionId={versionId}
+                  sha256={art.sha256}
+                  fileName={`${art.packageName ?? 'pacote'}-${art.packageVersion ?? art.sha256.slice(0, 12)}.zip`.replace(/[^A-Za-z0-9._-]/g, '_')}
+                />
+              )}
             </Stack>
           </Card>
         ) : (

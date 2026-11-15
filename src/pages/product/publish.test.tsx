@@ -253,3 +253,39 @@ describe('compareTechnical', () => {
     expect(compareTechnical('xyz', r)).toEqual({ status: 'malformed' });
   });
 });
+
+describe('Baixar pacote da versão publicada (AGENT-CLIENT-PACOTES-001, T03)', () => {
+  const abrir = async (status: 'DRAFT' | 'PUBLISHED') => {
+    api.on('GET', `/api/v1/o/${ORG}/automation-versions/${VERSION}`, 'getAutomationVersion', { status: 200, body: version({ status, external: true }) });
+    renderApp(`/o/${ORG}/versoes/${VERSION}`);
+    await screen.findByText('SHA-256 dos bytes do ZIP');
+  };
+
+  it('versão publicada, com automation.manage: o botão aparece e diz que baixar não executa', async () => {
+    await abrir('PUBLISHED');
+    expect(await screen.findByRole('button', { name: 'Baixar pacote' })).toBeEnabled();
+    expect(screen.getByText(/Baixar não executa nada/)).toBeInTheDocument();
+  });
+
+  it('rascunho: não há download (só a versão publicada é baixada)', async () => {
+    await abrir('DRAFT');
+    await screen.findByRole('button', { name: 'Publicar versão' });
+    expect(screen.queryByRole('button', { name: 'Baixar pacote' })).toBeNull();
+  });
+
+  it('sem automation.manage (quem só lê): o botão não aparece', async () => {
+    api.on('GET', `/api/v1/o/${ORG}/me/permissions`, 'getMyPermissions', {
+      status: 200,
+      body: {
+        organizationId: ORG,
+        membershipId: VERSION,
+        organization: { roles: [], permissions: [] },
+        allWorkspaces: { permissions: ['automation.read'] },
+        hasWorkspaceAssignments: false,
+      },
+    });
+    await abrir('PUBLISHED');
+    await screen.findByText('Publicada (imutável)');
+    expect(screen.queryByRole('button', { name: 'Baixar pacote' })).toBeNull();
+  });
+});
