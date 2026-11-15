@@ -12,6 +12,7 @@ import { useSession } from '../../area/session';
 import { useCursorList } from '../../hooks/useCursorList';
 import { useResource } from '../../hooks/useResource';
 import { LocalRunAuthorizations } from '../agents/LocalRunAuthorizations';
+import { RuntimeRequirements } from './RuntimeRequirements';
 import { DateTimeText, errorOf, errorText, isMissing, isSubordinateGone, LoadErrorState, NotFoundState, PageHeader, ResourceStatusBadge, RouteLink, useBackTarget, useExpiresOn } from './shared';
 
 const PAGE = 25;
@@ -164,6 +165,9 @@ function AutomationDetail({ automationId }: { automationId: string }) {
           </>
         )}
       </section>
+
+      {/* EXECUCAO-REMOTA-001 (T01c): dependências declaradas na Platform; não mudam o pacote publicado */}
+      <RuntimeRequirements automationId={a.automationId} canManage={canManage} />
 
       {/* AGENT-PYTHON-001 (030): monitoramento de um Python externo disparado pelo agendador do cliente */}
       <LocalRunAuthorizations workspaceId={a.workspaceId} automation={{ automationId: a.automationId, name: a.name }} canExecute={canExecute} />

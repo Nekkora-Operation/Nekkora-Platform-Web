@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "be203a19acefef238148f0a3962486028194dd757742d0ec35a584f0dba92c9d",
+  "openapiSha256": "541af1e519e0d0229715e0e07d6b6ae8dcfb60487dcd6e14012f99ca421bf92f",
   "schemas": {
     "Error": {
       "type": "object",
@@ -31,6 +31,8 @@
             "step_up_required",
             "worker_limit_reached",
             "remote_execution_unavailable",
+            "runtime_requirements_unresolved",
+            "runtime_requirements_changed",
             "draft_exists",
             "draft_changed",
             "local_run_authorization_exists",
@@ -2864,6 +2866,222 @@
                 "type": "string",
                 "format": "date-time"
               }
+            }
+          }
+        }
+      }
+    },
+    "RuntimeRequirementsDeclaration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source"
+      ],
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "PACKAGE",
+            "FILE",
+            "TEXT",
+            "NONE_CONFIRMED"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 262144
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "RuntimeRequirementsAnalysis": {
+      "type": "object",
+      "required": [
+        "lines",
+        "dependencies",
+        "resolved"
+      ],
+      "properties": {
+        "lines": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "number",
+              "text",
+              "kind",
+              "problem"
+            ],
+            "properties": {
+              "number": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "text": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "EXACT",
+                  "DUPLICATE",
+                  "CONFLICT",
+                  "RANGE",
+                  "NO_VERSION",
+                  "MARKER",
+                  "REMOTE",
+                  "LOCAL_PATH",
+                  "INCLUDE",
+                  "OPTION",
+                  "HASH",
+                  "UNKNOWN"
+                ]
+              },
+              "problem": {
+                "type": "boolean"
+              },
+              "dependency": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "resolved": {
+          "type": "boolean"
+        }
+      }
+    },
+    "RuntimeRequirements": {
+      "type": "object",
+      "required": [
+        "automationId",
+        "declared",
+        "published",
+        "effective"
+      ],
+      "properties": {
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "declared": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "revision",
+            "source",
+            "dependencies",
+            "contentSha256",
+            "declaredAt"
+          ],
+          "properties": {
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "PACKAGE",
+                "FILE",
+                "TEXT",
+                "NONE_CONFIRMED"
+              ]
+            },
+            "dependencies": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "contentSha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "declaredAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        "published": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "automationVersionId",
+            "versionNumber",
+            "dependencies"
+          ],
+          "properties": {
+            "automationVersionId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "versionNumber": {
+              "type": "integer"
+            },
+            "dependencies": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "effective": {
+          "type": "object",
+          "required": [
+            "dependencies",
+            "conflicts",
+            "resolved"
+          ],
+          "properties": {
+            "dependencies": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "conflicts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "published",
+                  "declared"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "published": {
+                    "type": "string"
+                  },
+                  "declared": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "resolved": {
+              "type": "boolean"
             }
           }
         }
@@ -9980,6 +10198,156 @@
           }
         },
         "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "getRuntimeRequirements": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/automations/{automation}/runtime-requirements",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/RuntimeRequirements"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "declareRuntimeRequirements": {
+      "method": "PUT",
+      "path": "/api/v1/o/{org}/automations/{automation}/runtime-requirements",
+      "responses": {
+        "201": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/RuntimeRequirements"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "analyzeRuntimeRequirements": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/automations/{automation}/runtime-requirements/analysis",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/RuntimeRequirementsAnalysis"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/Error"
