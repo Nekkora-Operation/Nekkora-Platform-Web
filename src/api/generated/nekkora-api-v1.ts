@@ -1840,6 +1840,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/workspaces/{workspace}/remote-machines/{agent}/python-environments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Inventario de Python de uma maquina habilitada (PLATFORM-CLIENT-EXECUCAO-REMOTA-001, T01c)
+         * @description Exige automation.execute no ambiente. So para maquina habilitada, ativa, associada e com o Worker autorizado NESTE ambiente; qualquer outra situacao: 404. Traz o que a maquina DISSE ter no ultimo inventario: identificador opaco (nunca um caminho), versao do Python, tipo e instantes. Lista vazia: a maquina ainda nao publicou, ou nao achou Python. Nao escolhe ambiente e nao prova que uma automacao roda nele.
+         */
+        get: operations["listRemoteMachinePythonEnvironments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/workers": {
         parameters: {
             query?: never;
@@ -3056,6 +3076,25 @@ export interface components {
              * @enum {boolean}
              */
             remoteExecution?: true;
+        };
+        PythonEnvironmentList: {
+            items: {
+                /** @description Opaco; nunca um caminho */
+                environmentId: string;
+                pythonVersion: string;
+                /** @enum {string} */
+                kind: "INSTALLATION" | "VIRTUAL_ENVIRONMENT";
+                /**
+                 * Format: date-time
+                 * @description Relogio da maquina
+                 */
+                observedAt: string;
+                /**
+                 * Format: date-time
+                 * @description Relogio do servidor
+                 */
+                reportedAt: string;
+            }[];
         };
         RemoteMachineList: {
             items: {
@@ -7077,6 +7116,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RemoteMachineList"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listRemoteMachinePythonEnvironments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                workspace: string;
+                /** @description malformado -> 400 */
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ambientes de Python da maquina */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PythonEnvironmentList"];
                 };
             };
             400: components["responses"]["InvalidRequest"];

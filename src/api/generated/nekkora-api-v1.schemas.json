@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "394de8616ad4d6f5d4dd63c87c0b6905ad2200b25c72d1ec2b220821107d372d",
+  "openapiSha256": "be203a19acefef238148f0a3962486028194dd757742d0ec35a584f0dba92c9d",
   "schemas": {
     "Error": {
       "type": "object",
@@ -2967,6 +2967,51 @@
           "enum": [
             true
           ]
+        }
+      }
+    },
+    "PythonEnvironmentList": {
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "environmentId",
+              "pythonVersion",
+              "kind",
+              "observedAt",
+              "reportedAt"
+            ],
+            "properties": {
+              "environmentId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{43}$"
+              },
+              "pythonVersion": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "INSTALLATION",
+                  "VIRTUAL_ENVIRONMENT"
+                ]
+              },
+              "observedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "reportedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
         }
       }
     },
@@ -8873,6 +8918,54 @@
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/RemoteMachineList"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "listRemoteMachinePythonEnvironments": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/workspaces/{workspace}/remote-machines/{agent}/python-environments",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/PythonEnvironmentList"
           }
         },
         "400": {

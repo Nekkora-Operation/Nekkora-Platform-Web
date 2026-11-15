@@ -194,7 +194,35 @@ describe('Workspace: máquinas habilitadas para execução remota (T01a)', () =>
     expect(screen.getByText(/não reserva a máquina/)).toBeInTheDocument();
     expect(screen.getByText(/não autoriza\s+nenhuma automação/)).toBeInTheDocument();
     // nesta entrega a tela só mostra: nenhum botão de solicitar execução nesta seção
-    expect(within(table).queryByRole('button')).toBeNull();
+    expect(within(table).queryByRole('button', { name: /Executar|Solicitar/ })).toBeNull();
+
+    // T01c: as versões de Python são pedidas só no clique, por máquina; só versão e tipo aparecem
+    const PY = `/api/v1/o/${ORG}/workspaces/${WS}/remote-machines/${AG1}/python-environments`;
+    api.on('GET', PY, 'listRemoteMachinePythonEnvironments', {
+      status: 200,
+      body: {
+        items: [
+          { environmentId: 'a'.repeat(43), pythonVersion: '3.13.1', kind: 'VIRTUAL_ENVIRONMENT', observedAt: T, reportedAt: T },
+          { environmentId: 'b'.repeat(43), pythonVersion: '3.12.4', kind: 'INSTALLATION', observedAt: T, reportedAt: T },
+        ],
+      },
+    });
+    expect(api.sent('GET', /python-environments/)).toEqual([]);
+    fireEvent.click(within(rows[1]).getByRole('button', { name: 'Ver versões de Python de ESTACAO-01' }));
+    const versions = await within(rows[1]).findByRole('list', { name: 'Versões de Python de ESTACAO-01' });
+    expect(within(versions).getByText('Python 3.13.1 (ambiente virtual)')).toBeInTheDocument();
+    expect(within(versions).getByText('Python 3.12.4 (instalação)')).toBeInTheDocument();
+    expect(versions.textContent).not.toContain('a'.repeat(43));
+    expect(api.sent('GET', PY)).toHaveLength(1);
+    // máquina que ainda não informou nada; e falha de leitura, sem inventar versão
+    const PY2 = `/api/v1/o/${ORG}/workspaces/${WS}/remote-machines/${AG2}/python-environments`;
+    let fail = true;
+    api.on('GET', PY2, 'listRemoteMachinePythonEnvironments', () => (fail ? { status: 503, body: { error: 'service_unavailable' } } : { status: 200, body: { items: [] } }));
+    fireEvent.click(within(rows[2]).getByRole('button', { name: 'Ver versões de Python de ESTACAO-02' }));
+    expect(await within(rows[2]).findByText('Não foi possível consultar. Tente de novo.')).toBeInTheDocument();
+    fail = false;
+    fireEvent.click(within(rows[2]).getByRole('button', { name: 'Ver versões de Python de ESTACAO-02' }));
+    expect(await within(rows[2]).findByText(/ainda não informou versões de Python/)).toBeInTheDocument();
 
     // atualizar relê o servidor
     items = [machine({ state: 'PAUSED', receiving: 'PAUSED' })];
