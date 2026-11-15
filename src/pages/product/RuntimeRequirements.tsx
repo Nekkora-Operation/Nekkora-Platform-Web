@@ -250,7 +250,7 @@ export function RuntimeRequirements({ automationId, canManage }: { automationId:
                     <input
                       type="file"
                       accept=".txt,text/plain"
-                      aria-label="Arquivo requirements.txt"
+                      aria-label="Escolher o arquivo requirements.txt"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         setAnalysis(null);
