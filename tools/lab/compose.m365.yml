@@ -1,0 +1,47 @@
+# PLATFORM-LOCAL — e-mail REAL no laboratório local (Microsoft Graph, só de aplicação), no lugar da caixa de homologação.
+# Ligado SÓ por `local.sh email-real ligar` (marcador em ~/.nekkora/front-lab/<id>/email-real) e desligado por
+# `local.sh email-real desligar`. Mesmo desenho da sobreposição da API (ops/homologacao/compose.m365.yml):
+#   - o App ID e o certificado ficam SÓ no AWS Secrets Manager (nekkora/homologacao/platform/m365); a Platform lê o
+#     segredo uma vez, na partida, com credenciais TEMPORÁRIAS da função de leitura (~/.nekkora/front-lab/<id>/m365-aws.env,
+#     1 h, pedidas com o código do MFA por `local.sh email-real credenciais <código>`);
+#   - lista FECHADA de destinatários (ambiente ensaio-*): endereço fora da lista não sai;
+#   - teto GLOBAL de tentativas: o diretório de tentativas é o MESMO do ensaio dono do material M365 (LAB_M365_DIR), de
+#     modo que laboratório e ensaio contam juntos para o mesmo teto;
+#   - saída só pelo proxy-m365 (squid da API: CONNECT 443 para login.microsoftonline.com, graph.microsoft.com e
+#     secretsmanager.sa-east-1.amazonaws.com).
+# Os links das mensagens continuam apontando para a origem do laboratório (http://localhost:5173).
+services:
+  proxy-m365:
+    image: ubuntu/squid:5.2-22.04_beta@sha256:723891b5bc74fe86d271589927c36c6b205fafca48b2bbe4932e3110c7d6bcc7
+    read_only: true
+    tmpfs:
+      - /var/log/squid:uid=13,gid=13,mode=0750
+      - /var/spool/squid:uid=13,gid=13,mode=0750
+      - /var/run:uid=13,gid=13
+      - /run:uid=13,gid=13
+    volumes:
+      - ${LAB_M365_SQUID:?squid.conf da cópia da API}:/etc/squid/squid.conf:ro
+    networks:
+      e2e:
+        ipv4_address: ${E2E_REDE:-10.251.47}.34
+    cpus: 0.5
+    mem_limit: 128m
+
+  platform:
+    env_file:
+      - ${LAB_M365_AWS_ENV:?credenciais temporárias (local.sh email-real credenciais)}
+      - ${LAB_M365_DIR:?material M365}/fila.env
+    environment:
+      NEKKORA_MAIL_TRANSPORTE: m365
+      NEKKORA_MAIL_REMETENTE: no-reply@nekkora.com
+      NEKKORA_M365_TENANT: ae4ed48d-e7d8-4f24-83f2-443e997c5a65
+      NEKKORA_M365_SEGREDO_AWS: nekkora/homologacao/platform/m365
+      NEKKORA_M365_AWS_REGIAO: sa-east-1
+      NEKKORA_M365_PROXY: proxy-m365:3128
+      NEKKORA_MAIL_DESTINATARIOS_PERMITIDOS: ${LAB_M365_DESTINATARIOS:?lista de destinatários controlados}
+      NEKKORA_AVISOS_EMERGENCIA: "true"
+      NEKKORA_MAIL_TENTATIVAS_DIR: /tentativas
+      NEKKORA_MAIL_TENTATIVAS_MAXIMO: "20"
+    volumes:
+      - ${LAB_M365_DIR:?}/tentativas:/tentativas
+    depends_on: [proxy-m365]

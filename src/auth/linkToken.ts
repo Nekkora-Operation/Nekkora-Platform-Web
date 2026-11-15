@@ -9,6 +9,8 @@
  * O token é lido UMA vez e removido da barra de endereços imediatamente (history.replaceState), para não
  * ficar no histórico, em favoritos, capturas de tela ou compartilhamentos. Nunca é exibido nem registrado.
  */
+import { csrfStore } from '../api/csrf';
+
 const FORMAT = /^[A-Za-z0-9_-]{43}$/;
 
 export function takeLinkToken(): string | null {
@@ -35,6 +37,11 @@ export function hasTokenFormat(token: string | null): token is string {
  * interna não perdem nem reutilizam o token.
  */
 let initial: { path: string; token: string | null } | undefined;
+
+// saída ou expiração: um token de link ainda não usado não fica para a próxima pessoa neste navegador
+csrfStore.onSessionEnd(() => {
+  initial = undefined;
+});
 
 export function captureInitialLinkToken(): void {
   const path = window.location.pathname;
