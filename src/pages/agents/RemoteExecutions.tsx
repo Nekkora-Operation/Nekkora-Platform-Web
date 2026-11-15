@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Badge, Button, Card, Heading, Select, Stack, Table, Text, type TableColumn, type Tone } from 'nekkora-lib';
 import {
   cancelRemoteExecution,
@@ -6,12 +6,15 @@ import {
   listRemoteExecutions,
   requestRemoteExecution,
   retryRemoteExecution,
+  selectRemoteMachinePython,
   type RemoteAttempt,
   type RemoteAttemptState,
   type RemoteCandidate,
   type RemoteExecution,
   type RemoteMissing,
+  type RemotePythonChoice,
 } from '../../api/remoteExecutions';
+import { listRemoteMachinePythonEnvironments, type PythonEnvironment } from '../../api/agents';
 import { ApiError, isApiError } from '../../api/http';
 import { useSession } from '../../area/session';
 import { orgPath } from '../../auth/organization';
@@ -79,7 +82,11 @@ export const MISSING: Record<RemoteMissing, string> = {
   MACHINE_PAUSED: 'O recebimento está pausado nesta máquina.',
   MACHINE_INCOMPATIBLE: 'O aplicativo desta máquina não executa solicitações da Platform.',
   MACHINE_BUSY: 'Esta máquina já tem uma execução remota em andamento.',
+  PYTHON_NOT_SELECTED: 'Ainda não foi escolhido o Python desta automação nesta máquina.',
+  PYTHON_NOT_IN_INVENTORY: 'O Python escolhido para esta automação não está mais entre os que esta máquina informou.',
 };
+
+const PYTHON_KIND: Record<string, string> = { INSTALLATION: 'instalação', VIRTUAL_ENVIRONMENT: 'ambiente virtual' };
 
 /** O motivo de uma recusa do servidor, em palavras (a exigência que faltou no momento do pedido). */
 const REQUEST_REFUSAL: Record<string, string> = {
@@ -91,6 +98,8 @@ const REQUEST_REFUSAL: Record<string, string> = {
   remote_machine_paused: MISSING.MACHINE_PAUSED,
   remote_machine_incompatible: MISSING.MACHINE_INCOMPATIBLE,
   remote_machine_busy: MISSING.MACHINE_BUSY,
+  remote_python_not_selected: MISSING.PYTHON_NOT_SELECTED,
+  remote_python_not_in_inventory: 'Esse Python não está mais entre os que a máquina informou. Atualize a lista e escolha outro.',
   remote_machine_not_enabled: 'Esta máquina não está habilitada para execução remota.',
   remote_execution_unavailable: 'A execução remota não está disponível nesta Platform.',
   remote_attempt_not_finished: 'A tentativa anterior ainda não terminou. Só depois do término é possível executar em outra máquina.',
@@ -124,6 +133,23 @@ export function RemoteExecutions({
   const [retrying, setRetrying] = useState<RemoteExecution | null>(null);
   const [retryAgent, setRetryAgent] = useState('');
   const [notice, setNotice] = useState<{ tone: 'success' | 'warning'; text: string } | null>(null);
+  // escolha do Python (T01c parte 3): a máquina, o que ela informou ter e o ambiente marcado
+  const [choosing, setChoosing] = useState<RemoteCandidate | null>(null);
+  const [environments, setEnvironments] = useState<{ status: 'loading' | 'ready' | 'error'; items: PythonEnvironment[] }>({ status: 'loading', items: [] });
+  const [environment, setEnvironment] = useState('');
+  useEffect(() => {
+    if (!choosing) return;
+    let current = true;
+    setEnvironments({ status: 'loading', items: [] });
+    setEnvironment('');
+    listRemoteMachinePythonEnvironments(org, workspaceId, choosing.agentId).then(
+      (r) => current && setEnvironments({ status: 'ready', items: r.items }),
+      () => current && setEnvironments({ status: 'error', items: [] }),
+    );
+    return () => {
+      current = false;
+    };
+  }, [choosing, org, workspaceId]);
   const requestKey = useMemo(() => (requesting ? crypto.randomUUID() : ''), [requesting]);
 
   const poll = usePolling<Data>(
@@ -165,6 +191,8 @@ export function RemoteExecutions({
         : 'Peça a autorização a quem pode executar neste workspace.';
     if (m === 'MACHINE_PAUSED') return 'O recebimento é retomado no próprio computador, em "Execução remota".';
     if (m === 'MACHINE_INCOMPATIBLE') return 'É preciso uma versão do Nekkora Agent que execute solicitações da Platform nesse computador.';
+    if (m === 'PYTHON_NOT_SELECTED' || m === 'PYTHON_NOT_IN_INVENTORY')
+      return canManage ? 'Escolha o Python na coluna "Python desta automação".' : 'Peça a quem gerencia esta automação.';
     return 'Aguarde a execução em andamento nessa máquina terminar.';
   };
 
@@ -178,6 +206,27 @@ export function RemoteExecutions({
           <Text variant="body-sm" color="secondary">
             Worker: {c.workerName}
           </Text>
+        </Stack>
+      ),
+    },
+    {
+      key: 'python',
+      header: 'Python desta automação',
+      render: (c) => (
+        <Stack gap={1}>
+          <span>{c.python ? `Python ${c.python.pythonVersion}` : 'Não escolhido'}</span>
+          {c.python && !c.python.inInventory && (
+            <Text variant="body-sm" color="secondary">
+              A máquina não informa mais este Python.
+            </Text>
+          )}
+          {canManage && (
+            <span>
+              <Button size="sm" variant="ghost" onClick={() => setChoosing(c)} aria-label={`${c.python ? 'Trocar' : 'Escolher'} o Python de ${c.agentName}`}>
+                {c.python ? 'Trocar' : 'Escolher'}
+              </Button>
+            </span>
+          )}
         </Stack>
       ),
     },
@@ -348,6 +397,53 @@ export function RemoteExecutions({
           Se a máquina ainda não recebeu a solicitação, ela é cancelada agora. Se já recebeu, a execução só para quando a máquina obedecer e informar: até lá o
           estado não muda.
         </Text>
+      </StepUpDialog>
+
+      <StepUpDialog<RemotePythonChoice>
+        open={!!choosing}
+        ready={!!environment}
+        title={choosing ? `Escolher o Python desta automação em ${choosing.agentName}?` : ''}
+        guard={{ operation: 'remote-execution.python', target: choosing ? `${automationId}|${choosing.agentId}|${environment}` : undefined }}
+        confirmLabel="Escolher este Python"
+        stepUp={orgStepUp(org)}
+        action={() => (choosing ? selectRemoteMachinePython(org, automationId, choosing.agentId, environment) : Promise.reject())}
+        onDone={(chosen) => {
+          setNotice({ tone: 'success', text: `Python ${chosen.pythonVersion} escolhido para esta automação em ${choosing?.agentName ?? 'a máquina'}.` });
+          setChoosing(null);
+          poll.refresh();
+        }}
+        onClose={() => setChoosing(null)}
+        refusalText={remoteRefusal}
+        uncertainText="Não foi possível confirmar a escolha. Atualize a lista antes de repetir."
+        onUnauthenticated={expired}
+      >
+        <Stack gap={3}>
+          <Text>
+            Vale só para esta automação nesta máquina. A Platform guarda a versão e um identificador que a própria máquina informou, nunca um caminho. Nada é
+            instalado: antes de iniciar, a máquina confere se esse Python ainda existe e se tem as dependências; se não tiver, a execução não inicia e o motivo
+            aparece aqui.
+          </Text>
+          {environments.status === 'loading' && <Text variant="body-sm">Carregando o que a máquina informou…</Text>}
+          {environments.status === 'error' && (
+            <Alert tone="warning">Não foi possível ler as versões de Python desta máquina agora. Feche e tente de novo.</Alert>
+          )}
+          {environments.status === 'ready' && environments.items.length === 0 && (
+            <Alert tone="info">Esta máquina ainda não informou nenhuma versão de Python. O inventário é publicado pelo aplicativo, no próprio computador.</Alert>
+          )}
+          {environments.status === 'ready' && environments.items.length > 0 && (
+            <Select
+              label="Python da máquina"
+              fullWidth
+              value={environment}
+              placeholder="Escolha uma versão"
+              onChange={(e) => setEnvironment(e.target.value)}
+              options={environments.items.map((e, i) => ({
+                value: e.environmentId,
+                label: `Python ${e.pythonVersion} · ${PYTHON_KIND[e.kind] ?? e.kind} · nº ${i + 1}${e.environmentId === choosing?.python?.environmentId ? ' (atual)' : ''}`,
+              }))}
+            />
+          )}
+        </Stack>
       </StepUpDialog>
 
       <StepUpDialog<RemoteExecution>
