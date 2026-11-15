@@ -95,7 +95,7 @@ export function RemoteMachines({ workspaceId }: { workspaceId: string }) {
       {list.status === 'error' && <LoadErrorState error={list.error} onRetry={() => void load()} />}
       {list.status === 'ready' && (
         <>
-          <div className="pw-prod__scroll" role="region" aria-label="Máquinas habilitadas para execução remota" tabIndex={0}>
+          <div className="pw-prod__scroll" role="region" aria-label="Lista de máquinas habilitadas para execução remota" tabIndex={0}>
             <Table columns={columns} data={list.items} rowKey="agentId" size="sm" caption="Máquinas habilitadas para execução remota neste workspace." />
           </div>
           <div>
