@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "575bd18c040f99574ff3ea6d0bf1b3d1c8d6360dcfe236b3b839d0cbe568d218",
+  "openapiSha256": "93a83f9f31f17f396f4fc7a4f0022557882ad0c884a6cb736cee5eb458fa33d5",
   "schemas": {
     "Error": {
       "type": "object",
@@ -3153,6 +3153,7 @@
                   "DEPENDENCIES_MISSING",
                   "DISK_PRESSURE",
                   "CLIENT_INCOMPATIBLE",
+                  "SESSION_UNAVAILABLE",
                   "AUTHORIZATION_MISSING",
                   "AUTHORIZATION_REVOKED",
                   "AUTHORIZATION_EXPIRED",
