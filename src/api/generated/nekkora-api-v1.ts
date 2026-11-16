@@ -3331,6 +3331,16 @@ export interface components {
                 /** Format: date-time */
                 closedAt: string;
             } | null;
+            /** @description A maquina avisou que REMOVEU, pelo prazo de guarda local dela, o que ainda guardava desta tentativa sem a confirmacao de recebimento. null = nenhum aviso. localCount e quanto havia NA MAQUINA quando ela removeu; nao e quanto se perdeu. */
+            retentionLoss: {
+                /** @description Linhas que a maquina tinha capturado. Compare com total (o que a Platform tem) */
+                localCount: number;
+                /**
+                 * Format: date-time
+                 * @description Quando o aviso chegou a Platform
+                 */
+                reportedAt: string;
+            } | null;
         };
         RemoteAttemptResults: {
             /** Format: uuid */
@@ -3352,6 +3362,16 @@ export interface components {
                 skippedByLimit: number;
                 /** Format: date-time */
                 closedAt: string;
+            } | null;
+            /** @description A maquina avisou que REMOVEU, pelo prazo de guarda local dela, o que ainda guardava desta tentativa sem a confirmacao de recebimento. null = nenhum aviso. localCount e quanto havia NA MAQUINA quando ela removeu; nao e quanto se perdeu. */
+            retentionLoss: {
+                /** @description Arquivos que havia na pasta de saida da maquina. Compare com items (o que a Platform tem) */
+                localCount: number;
+                /**
+                 * Format: date-time
+                 * @description Quando o aviso chegou a Platform
+                 */
+                reportedAt: string;
             } | null;
         };
         RemoteExecution: {
