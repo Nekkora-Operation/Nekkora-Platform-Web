@@ -2160,6 +2160,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/automations/{automation}/runtime-requirements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dependencias declaradas, as do pacote publicado e o efetivo
+         * @description Exige automation.read no ambiente da automacao. declared: a revisao vigente da declaracao (null = ninguem declarou). published: as dependencias do manifesto da versao publicada mais recente (null = sem versao publicada). effective: o manifesto mais os acrescimos declarados; a mesma biblioteca declarada com versao ou extras diferentes dos do manifesto aparece em conflicts e deixa resolved em false - o manifesto prevalece e nunca e enfraquecido.
+         */
+        get: operations["getRuntimeRequirements"];
+        /**
+         * Declara as dependencias de execucao (cria a revisao seguinte)
+         * @description Exige automation.manage no ambiente da automacao. source PACKAGE (so as do pacote) ou NONE_CONFIRMED (sem dependencias externas, confirmado): sem text. source FILE (conteudo de um requirements.txt) ou TEXT (digitado): text obrigatorio, lido estaticamente com as regras do aplicativo; so nome==versao (com extras) entra. Qualquer linha que nao se representa (faixa, sem versao, marcador, endereco, caminho, inclusao, opcao, hash, conflito) recusa a declaracao inteira: 409 conflict + reason runtime_requirements_unresolved, nada gravado (use a rota analysis para ver o problema de cada linha). Nenhuma versao e inventada e nada e instalado. expectedRevision: a revisao vista pela pessoa (ausente = nenhuma); se mudou, 409 + runtime_requirements_changed. O pacote publicado nao muda; declarar nao verifica maquina nem autoriza execucao. Auditoria (automation_admin_events 10).
+         */
+        put: operations["declareRuntimeRequirements"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/automations/{automation}/runtime-requirements/analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Le um texto de dependencias e diz, por linha, o que e (nada e gravado)
+         * @description Exige automation.manage no ambiente da automacao. Leitura estatica de um texto no formato do requirements.txt (ate 262144 caracteres): cada linha com conteudo recebe uma situacao; problem true impede declarar. resolved: nenhuma linha com problema. Nada e gravado, instalado ou buscado na rede; inclusoes e enderecos nao sao seguidos.
+         */
+        post: operations["analyzeRuntimeRequirements"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/automation-versions/{version}/publish": {
         parameters: {
             query?: never;
@@ -2191,7 +2235,7 @@ export interface components {
              * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached, draft_exists, draft_changed, local_run_authorization_exists, organization_name_taken; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
              * @enum {string}
              */
-            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "remote_execution_unavailable" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken";
+            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken";
         };
         /**
          * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
@@ -3031,6 +3075,58 @@ export interface components {
                 /** Format: date-time */
                 receivedAt: string;
             }[];
+        };
+        RuntimeRequirementsDeclaration: {
+            /** @enum {string} */
+            source: "PACKAGE" | "FILE" | "TEXT" | "NONE_CONFIRMED";
+            /** @description So com FILE ou TEXT */
+            text?: string;
+            /** @description A revisao vista; ausente = nenhuma declaracao ainda */
+            expectedRevision?: number;
+        };
+        RuntimeRequirementsAnalysis: {
+            lines: {
+                number: number;
+                /** @description A linha sem o comentario, saneada e limitada */
+                text: string;
+                /** @enum {string} */
+                kind: "EXACT" | "DUPLICATE" | "CONFLICT" | "RANGE" | "NO_VERSION" | "MARKER" | "REMOTE" | "LOCAL_PATH" | "INCLUDE" | "OPTION" | "HASH" | "UNKNOWN";
+                problem: boolean;
+                /** @description nome[extras]==versao, so em EXACT */
+                dependency?: string | null;
+            }[];
+            dependencies: string[];
+            resolved: boolean;
+        };
+        RuntimeRequirements: {
+            /** Format: uuid */
+            automationId: string;
+            declared: {
+                revision: number;
+                /** @enum {string} */
+                source: "PACKAGE" | "FILE" | "TEXT" | "NONE_CONFIRMED";
+                /** @description Os acrescimos declarados */
+                dependencies: string[];
+                contentSha256: string;
+                /** Format: date-time */
+                declaredAt: string;
+            } | null;
+            published: {
+                /** Format: uuid */
+                automationVersionId: string;
+                versionNumber: number;
+                /** @description As do manifesto do pacote publicado */
+                dependencies: string[];
+            } | null;
+            effective: {
+                dependencies: string[];
+                conflicts: {
+                    name: string;
+                    published: string;
+                    declared: string;
+                }[];
+                resolved: boolean;
+            };
         };
         AgentPairingRequest: {
             /**
@@ -7838,6 +7934,110 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getRuntimeRequirements: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                automation: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Situacao das dependencias */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeRequirements"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    declareRuntimeRequirements: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                automation: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuntimeRequirementsDeclaration"];
+            };
+        };
+        responses: {
+            /** @description Revisao criada */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeRequirements"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    analyzeRuntimeRequirements: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                automation: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    text: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Situacao de cada linha */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeRequirementsAnalysis"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };
