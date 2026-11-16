@@ -6,7 +6,7 @@ import { sessionMemory } from '../../app/notices';
 import { fakeLocks } from '../../test/fakeLocks';
 import { renderApp } from '../../test/render';
 import { RouteApi } from '../../test/routeApi';
-import { ATTEMPT_STATE, ENDED_UNKNOWN_TEXT, MISSING, REQUEST_REFUSAL, environmentCode } from './RemoteExecutions';
+import { ATTEMPT_STATE, CLOSURE_TEXT, ENDED_UNKNOWN_TEXT, MISSING, REQUEST_REFUSAL, endedUnknownText, environmentCode } from './RemoteExecutions';
 import { permissionsAutoRetry } from '../../area/useWorkspacePermissions';
 
 /**
@@ -67,6 +67,8 @@ const attempt = (over: Row = {}): Row => ({
   receivedAt: null,
   startedAt: null,
   endedAt: null,
+  closureCause: null,
+  lateReport: null,
   ...over,
 });
 const execution = (attempts: Row[], over: Row = {}): Row => ({
@@ -303,9 +305,65 @@ describe('Versão: execução remota (T02)', () => {
     await open();
     const s = await waitFor(section);
     expect(within(s).getByText(/a autorização desta versão para o Worker foi revogada antes do início/)).toBeInTheDocument();
-    expect(within(s).getByText(/Sem comunicação com a máquina no momento\. Isso não encerra a execução/)).toBeInTheDocument();
+    // a comunicação perdida ainda não encerrou nada, e a tela diz o que vai acontecer se a máquina não voltar
+    expect(within(s).getByText(/Sem comunicação com a máquina no momento\. O estado é o último que ela informou\. Se ela não voltar dentro do prazo/)).toBeInTheDocument();
     expect(within(s).getAllByText('Em execução').length).toBeGreaterThan(0);
     expect(within(s).getByText(/código de saída 3/)).toBeInTheDocument();
+  });
+
+  it('encerramento pela Platform: diz a causa, nunca sucesso, falha ou cancelamento, e mostra o relato tardio sem mudar o estado', async () => {
+    candidates = [candidate()];
+    const id = (n: number) => `${String(n).repeat(8)}-${String(n).repeat(4)}-4${String(n).repeat(3)}-8${String(n).repeat(3)}-${String(n).repeat(12)}`;
+    executions = [
+      execution([attempt({ state: 'ENDED_UNKNOWN', closureCause: 'MACHINE_UNLINKED', startedAt: T, endedAt: T })]),
+      execution([attempt({ state: 'ENDED_UNKNOWN', closureCause: 'MACHINE_REVOKED', startedAt: T, endedAt: T })], { remoteExecutionId: id(2), requestedAt: '2026-11-10T11:00:00Z' }),
+      execution(
+        [
+          attempt({
+            state: 'ENDED_UNKNOWN',
+            closureCause: 'COMMUNICATION_LOST',
+            startedAt: T,
+            endedAt: T,
+            lateReport: { state: 'SUCCEEDED', exitCode: 0, reportedAt: '2026-11-10T14:00:00Z' },
+          }),
+        ],
+        { remoteExecutionId: id(3), requestedAt: '2026-11-10T12:00:00Z' },
+      ),
+      execution([attempt({ state: 'REFUSED', refusalReason: 'COMMUNICATION_LOST', closureCause: 'COMMUNICATION_LOST', endedAt: T })], {
+        remoteExecutionId: id(4),
+        requestedAt: '2026-11-10T13:00:00Z',
+      }),
+      execution([attempt({ state: 'REFUSED', refusalReason: 'MACHINE_NOT_LINKED', closureCause: 'MACHINE_REVOKED', endedAt: T })], {
+        remoteExecutionId: id(5),
+        requestedAt: '2026-11-10T13:30:00Z',
+      }),
+    ];
+    await open();
+    const s = await waitFor(section);
+    // em andamento quando o vínculo acabou ou a comunicação se perdeu: resultado não confirmado, com a causa
+    expect(within(s).getByText(CLOSURE_TEXT.MACHINE_UNLINKED.unknown)).toBeInTheDocument();
+    expect(within(s).getByText(CLOSURE_TEXT.MACHINE_REVOKED.unknown)).toBeInTheDocument();
+    expect(within(s).getByText(CLOSURE_TEXT.COMMUNICATION_LOST.unknown)).toBeInTheDocument();
+    expect(within(s).queryByText(ENDED_UNKNOWN_TEXT)).toBeNull();
+    for (const cause of ['MACHINE_UNLINKED', 'MACHINE_REVOKED', 'COMMUNICATION_LOST']) {
+      expect(CLOSURE_TEXT[cause].unknown).toMatch(/Não há confirmação de como a automação terminou, nem de que terminou/);
+      expect(CLOSURE_TEXT[cause].unknown).toMatch(/não comprova sucesso/);
+    }
+    expect(endedUnknownText(null)).toBe(ENDED_UNKNOWN_TEXT);
+    expect(endedUnknownText('MACHINE_REVOKED')).toBe(CLOSURE_TEXT.MACHINE_REVOKED.unknown);
+    // antes de começar: não iniciada, com o motivo e a causa
+    expect(within(s).getByText(/a máquina deixou de se comunicar antes do início/)).toBeInTheDocument();
+    expect(within(s).getByText(CLOSURE_TEXT.COMMUNICATION_LOST.notStarted)).toBeInTheDocument();
+    expect(within(s).getByText(CLOSURE_TEXT.MACHINE_REVOKED.notStarted)).toBeInTheDocument();
+    // nenhum desfecho inventado
+    expect(within(s).queryByText('Concluída')).toBeNull();
+    expect(within(s).queryByText('Falhou')).toBeNull();
+    expect(within(s).queryByText('Cancelada')).toBeNull();
+    expect(within(s).queryByText('Em execução')).toBeNull();
+    // o relato tardio aparece ao lado, dito como tardio; o estado continua "Resultado não confirmado"
+    const late = within(s).getByText(/a máquina voltou e informou que a automação terminou, com código de saída 0/);
+    expect(late.textContent).toMatch(/fora do prazo: fica registrada aqui e não\s+muda o estado desta tentativa/);
+    expect(within(s).getAllByText('Resultado não confirmado').length).toBeGreaterThanOrEqual(3);
   });
 
   it('cancelar: o que a máquina já recebeu só para quando ela disser', async () => {

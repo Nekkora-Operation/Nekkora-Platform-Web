@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "a6926de5aa277a5e6f5273a5ffdc358dc2cb8f983936fa74f0257181802f45d0",
+  "openapiSha256": "23e3e52db798e592e5fa557d93553f4944ecea2f875dd5ba433687d2b6798d20",
   "schemas": {
     "Error": {
       "type": "object",
@@ -3345,7 +3345,9 @@
               "offeredAt",
               "receivedAt",
               "startedAt",
-              "endedAt"
+              "endedAt",
+              "closureCause",
+              "lateReport"
             ],
             "properties": {
               "attemptId": {
@@ -3394,6 +3396,7 @@
                   "MACHINE_NOT_LINKED",
                   "MACHINE_NOT_ENABLED",
                   "MACHINE_INCOMPATIBLE",
+                  "COMMUNICATION_LOST",
                   null
                 ]
               },
@@ -3446,6 +3449,51 @@
                   "null"
                 ],
                 "format": "date-time"
+              },
+              "closureCause": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "MACHINE_UNLINKED",
+                  "MACHINE_REVOKED",
+                  "COMMUNICATION_LOST",
+                  null
+                ]
+              },
+              "lateReport": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "required": [
+                  "state",
+                  "exitCode",
+                  "reportedAt"
+                ],
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "SUCCEEDED",
+                      "FAILED",
+                      "CANCELLED",
+                      "TIMED_OUT",
+                      "ENDED_UNKNOWN"
+                    ]
+                  },
+                  "exitCode": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "reportedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                }
               }
             }
           }

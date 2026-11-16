@@ -69,6 +69,42 @@ export const environmentCode = (environmentId: string) => environmentId.slice(0,
 export const ENDED_UNKNOWN_TEXT =
   'O Agent foi interrompido e não conseguiu confirmar como a automação terminou. Os arquivos recebidos estão disponíveis, mas não comprovam sucesso.';
 
+/**
+ * Quando foi a PLATFORM que encerrou a tentativa (a máquina não informou o desfecho): o que aconteceu, sem inventar resultado.
+ * Vale para "Resultado não confirmado" (a execução podia estar em andamento) e para "Não iniciada" (a Platform nunca chegou a
+ * autorizar o início).
+ */
+export const CLOSURE_TEXT: Record<string, { unknown: string; notStarted: string }> = {
+  MACHINE_UNLINKED: {
+    unknown:
+      'A máquina foi desvinculada da Platform com esta execução em andamento. Não há confirmação de como a automação terminou, nem de que terminou. O que foi recebido até ali está disponível, mas não comprova sucesso.',
+    notStarted: 'A máquina foi desvinculada da Platform antes de a execução começar.',
+  },
+  MACHINE_REVOKED: {
+    unknown:
+      'A máquina foi revogada por quem administra com esta execução em andamento. Não há confirmação de como a automação terminou, nem de que terminou. O que foi recebido até ali está disponível, mas não comprova sucesso.',
+    notStarted: 'A máquina foi revogada por quem administra antes de a execução começar.',
+  },
+  COMMUNICATION_LOST: {
+    unknown:
+      'A máquina deixou de se comunicar durante a execução e não voltou dentro do prazo. Não há confirmação de como a automação terminou, nem de que terminou. O que foi recebido até ali está disponível, mas não comprova sucesso.',
+    notStarted: 'A máquina deixou de se comunicar antes de a execução começar e não voltou dentro do prazo.',
+  },
+};
+
+/** O texto do desfecho incerto: o da causa, quando a Platform encerrou; senão, o do aplicativo que voltou sem prova. */
+export const endedUnknownText = (closureCause: string | null | undefined) =>
+  (closureCause && CLOSURE_TEXT[closureCause]?.unknown) || ENDED_UNKNOWN_TEXT;
+
+/** O que a máquina disse DEPOIS de a Platform encerrar a tentativa por falta de comunicação. Não muda o estado da tentativa. */
+export const LATE_REPORT_STATE: Record<string, string> = {
+  SUCCEEDED: 'a automação terminou',
+  FAILED: 'a automação falhou',
+  CANCELLED: 'a execução foi cancelada',
+  TIMED_OUT: 'a execução foi encerrada por tempo',
+  ENDED_UNKNOWN: 'o processo não está mais em execução, e ela também não sabe como terminou',
+};
+
 const REFUSAL: Record<string, string> = {
   BUSY: 'a máquina já estava executando outra automação',
   PAUSED: 'o recebimento estava pausado na máquina',
@@ -86,6 +122,7 @@ const REFUSAL: Record<string, string> = {
   MACHINE_NOT_LINKED: 'a máquina deixou de estar vinculada ao Worker antes do início',
   MACHINE_NOT_ENABLED: 'a máquina deixou de estar habilitada para execução remota antes do início',
   MACHINE_INCOMPATIBLE: 'o aplicativo da máquina deixou de ser compatível antes do início',
+  COMMUNICATION_LOST: 'a máquina deixou de se comunicar antes do início',
 };
 export const refusalText = (r: string | null | undefined) => (r ? (REFUSAL[r] ?? r) : '');
 
@@ -307,12 +344,25 @@ export function RemoteExecutions({
       </Text>
       {a.state === 'ENDED_UNKNOWN' && (
         <Text variant="body-sm" color="secondary">
-          {ENDED_UNKNOWN_TEXT}
+          {endedUnknownText(a.closureCause)}
+        </Text>
+      )}
+      {a.state === 'REFUSED' && a.closureCause && CLOSURE_TEXT[a.closureCause] && (
+        <Text variant="body-sm" color="secondary">
+          {CLOSURE_TEXT[a.closureCause].notStarted}
+        </Text>
+      )}
+      {a.lateReport && (
+        <Text variant="body-sm" color="secondary">
+          Depois disso, em <DateTimeText iso={a.lateReport.reportedAt} />, a máquina voltou e informou que {LATE_REPORT_STATE[a.lateReport.state] ?? a.lateReport.state}
+          {a.lateReport.exitCode != null ? `, com código de saída ${a.lateReport.exitCode}` : ''}. A informação chegou fora do prazo: fica registrada aqui e não
+          muda o estado desta tentativa.
         </Text>
       )}
       {a.communication === 'LOST' && (
         <Text variant="body-sm" color="secondary">
-          Sem comunicação com a máquina no momento. Isso não encerra a execução: o estado é o último que ela informou.
+          Sem comunicação com a máquina no momento. O estado é o último que ela informou. Se ela não voltar dentro do prazo, a tentativa será encerrada como
+          resultado não confirmado (ou como não iniciada, se ainda não tinha começado).
         </Text>
       )}
       {/* registros: de tentativa que iniciou (em andamento ou terminada), só para quem pode ver registros */}
