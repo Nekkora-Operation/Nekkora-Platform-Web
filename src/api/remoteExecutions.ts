@@ -14,6 +14,7 @@ export type RemoteAttempt = RemoteExecution['attempts'][number];
 export type RemoteAttemptState = S['RemoteAttemptState'];
 export type RemoteCandidate = S['RemoteExecutionCandidateList']['items'][number];
 export type RemoteMissing = RemoteCandidate['missing'][number];
+export type RemotePythonChoice = S['RemotePythonChoice'];
 
 const base = (org: string) => `/api/v1/o/${encodeURIComponent(org)}`;
 const id = (v: string) => encodeURIComponent(v);
@@ -39,6 +40,17 @@ export function requestRemoteExecution(org: string, workspaceId: string, body: {
 
 export function listRemoteExecutions(org: string, workspaceId: string, limit = 25): Promise<{ items: RemoteExecution[] }> {
   return send(org, 'listRemoteExecutions', `/workspaces/${id(workspaceId)}/remote-executions?limit=${limit}`);
+}
+
+/**
+ * Escolhe o ambiente Python de uma automação NUMA máquina habilitada (T01c parte 3). Só um ambiente do inventário atual da
+ * máquina; vai o identificador opaco que ela publicou, nunca um caminho. A escolha de uma máquina não vale para outra.
+ */
+export function selectRemoteMachinePython(org: string, automationId: string, agentId: string, environmentId: string): Promise<RemotePythonChoice> {
+  return send(org, 'selectRemoteMachinePython', `/automations/${id(automationId)}/remote-machines/${id(agentId)}/python-selection`, {
+    method: 'PUT',
+    body: { environmentId },
+  });
 }
 
 /** Pede o cancelamento (step-up). O que a máquina já recebeu só para quando ela disser. */
