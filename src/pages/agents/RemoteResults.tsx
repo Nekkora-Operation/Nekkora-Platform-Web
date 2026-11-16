@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Alert, Button, Stack, Text } from 'nekkora-lib';
 import { downloadRemoteAttemptResult, listRemoteAttemptResults, type RemoteAttemptResults } from '../../api/remoteExecutions';
 import { isApiError } from '../../api/http';
+import { expiredPeriodText } from './RemoteLogs';
 
 /**
  * PLATFORM-CLIENT-EXECUCAO-REMOTA-001, T03 parte b — os arquivos de resultado de UMA tentativa: o que a automação gravou na
@@ -69,7 +70,7 @@ export function RemoteResults({ org, executionId, attemptId, attemptNumber }: { 
       </Stack>
     );
   }
-  const { items, closure, retentionLoss } = state.data;
+  const { items, closure, retentionLoss, expiration } = state.data;
   return (
     <Stack gap={2}>
       {items.length === 0 ? (
@@ -87,7 +88,7 @@ export function RemoteResults({ org, executionId, attemptId, attemptNumber }: { 
                 </Button>
               ) : (
                 <Text variant="body-sm" color="secondary">
-                  O arquivo foi removido da Platform; ficou só o registro de que existiu.
+                  O arquivo expirou e foi removido da Platform; ficou só o registro de que existiu.
                 </Text>
               )}
             </li>
@@ -105,6 +106,7 @@ export function RemoteResults({ org, executionId, attemptId, attemptNumber }: { 
           resultados (50 arquivos, 20 MiB cada, 50 MiB no total). Isso não muda o resultado da execução; os arquivos continuam no computador que executou.
         </Alert>
       )}
+      {expiration && <Alert tone="info">{resultsExpiredText(expiration)}</Alert>}
       {retentionLoss && (
         <Alert tone="warning">
           A máquina avisou, em {day(retentionLoss.reportedAt)}, que removeu a pasta de saída desta execução: venceu o prazo de guarda dela sem a Platform ter
@@ -121,6 +123,15 @@ export function RemoteResults({ org, executionId, attemptId, attemptNumber }: { 
       </div>
     </Stack>
   );
+}
+
+export function resultsExpiredText(x: NonNullable<RemoteAttemptResults['expiration']>): string {
+  const what = x.items === 1 ? '1 arquivo de resultado' : `${x.items.toLocaleString('pt-BR')} arquivos de resultado`;
+  const when = new Date(x.expiredAt).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+  const done = x.confirmedAt
+    ? `${what} ${x.items === 1 ? 'expirou' : 'expiraram'} em ${when} e ${x.items === 1 ? 'foi removido' : 'foram removidos'} da Platform.`
+    : `${what} ${x.items === 1 ? 'expirou' : 'expiraram'} em ${when}; a remoção está em andamento.`;
+  return `${done} ${expiredPeriodText(x)} Ficam o nome, o tamanho e o SHA-256 de cada arquivo. O histórico e o resultado da execução não mudam.`;
 }
 
 /** O dia em que o aviso da máquina chegou à Platform, no calendário de quem lê. */

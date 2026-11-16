@@ -19,6 +19,8 @@ import {
   endedUnknownText,
   environmentCode,
 } from './RemoteExecutions';
+import { logsExpiredText, storedText, writtenText } from './RemoteLogs';
+import { resultsExpiredText } from './RemoteResults';
 import { permissionsAutoRetry } from '../../area/useWorkspacePermissions';
 
 /**
@@ -76,6 +78,15 @@ const check = (over: Row = {}): Row => ({
   current: true,
   ...over,
 });
+const EXPIRED = {
+  expiredAt: '2026-12-23T12:00:00Z',
+  confirmedAt: '2026-12-23T12:00:05Z' as string | null,
+  retentionDays: 30,
+  deliveryEndedAt: '2026-11-23T12:00:00Z',
+  deliveryEnd: 'CLOSED' as 'CLOSED' | 'LOSS_NOTICE' | 'LINK_ENDED',
+  items: 6,
+};
+
 const attempt = (over: Row = {}): Row => ({
   attemptId: '77777777-7777-4777-8777-777777777777',
   attemptNumber: 1,
@@ -669,6 +680,7 @@ describe('Versão: execução remota (T02)', () => {
     const RES = `/api/v1/o/${ORG}/remote-executions/${X1}/attempts/${ATT}/results`;
     let closure: Row | null = null;
     let retentionLoss: Row | null = null;
+    let resultsExpiration: Row | null = null;
     api.on('GET', RES, 'listRemoteAttemptResults', () => ({
       status: 200,
       body: {
@@ -679,7 +691,7 @@ describe('Versão: execução remota (T02)', () => {
         ],
         closure,
         retentionLoss,
-        expiration: null,
+        expiration: resultsExpiration,
       },
     }));
     api.on('GET', `${RES}/1/content`, 'downloadRemoteAttemptResult', { status: 409, body: { error: 'conflict', reason: 'remote_result_unavailable' } });
@@ -691,7 +703,7 @@ describe('Versão: execução remota (T02)', () => {
     const list = await within(s).findByRole('list', { name: 'Resultados da tentativa 1' });
     expect(within(list).getByText('dados/relatório final.csv · 2,0 KiB')).toBeInTheDocument();
     expect(within(list).getByText('antigo.txt · 3 B')).toBeInTheDocument();
-    expect(within(list).getByText(/foi removido da Platform; ficou só o registro/)).toBeInTheDocument();
+    expect(within(list).getByText(/O arquivo expirou e foi removido da Platform; ficou só o registro/)).toBeInTheDocument();
     expect(within(list).queryByRole('button', { name: 'Baixar antigo.txt' })).toBeNull();
     // envio ainda não fechado: a tela não afirma que a lista está completa
     expect(within(s).getByText(/ainda não informou que terminou de enviar os resultados/)).toBeInTheDocument();
@@ -716,6 +728,14 @@ describe('Versão: execução remota (T02)', () => {
     expect(lost.textContent).toMatch(/Isso não muda o\s+resultado da execução/);
     // o estado da execução continua o que a máquina informou
     expect(within(s).getAllByText('Concluída').length).toBeGreaterThan(0);
+    // retenção do servidor: a tela diz que os arquivos expiraram, o prazo, de onde ele contou e o que ficou
+    expect(within(s).queryByText(/arquivos de resultado expiraram/)).toBeNull();
+    resultsExpiration = { ...EXPIRED, items: 2, deliveryEnd: 'LOSS_NOTICE' };
+    fireEvent.click(within(s).getByRole('button', { name: 'Atualizar os resultados da tentativa 1' }));
+    const expired = await within(s).findByText(/2 arquivos de resultado expiraram em 23\/12\/2026 e foram removidos da Platform\./);
+    expect(expired.textContent).toMatch(/por 30 dias depois do fim da entrega \(a máquina avisou que não tinha mais o que enviar em 23\/11\/2026\)/);
+    expect(expired.textContent).toMatch(/Ficam o nome, o tamanho e o SHA-256 de cada arquivo\. O histórico e o resultado da execução não mudam\./);
+    expect(resultsExpiredText({ ...EXPIRED, items: 1, confirmedAt: null })).toMatch(/^1 arquivo de resultado expirou em 23\/12\/2026; a remoção está em andamento\./);
   });
 
   it('registros: quem pode ver registros lê a saída do processo em páginas, com canal, linha cortada, texto removido e o que foi descartado', async () => {
@@ -752,6 +772,7 @@ describe('Versão: execução remota (T02)', () => {
       { attemptId: ATT, items: [line(5, 'EXECUTOR', 'Limite de registros desta execução atingido'), line(6, 'STDOUT', 'fim')], total: 6, automationLines: 5, systemLines: 1, nextAfter: null, closure: null, retentionLoss: null, expiration: null },
       { attemptId: ATT, items: [], total: 6, automationLines: 5, systemLines: 1, nextAfter: null, closure: { lines: 6, droppedLines: 73000, closedAt: T }, retentionLoss: null, expiration: null },
       { attemptId: ATT, items: [], total: 6, automationLines: 5, systemLines: 1, nextAfter: null, closure: null, retentionLoss: { localCount: 1500, reportedAt: '2026-11-23T15:00:00Z' }, expiration: null },
+      { attemptId: ATT, items: [], total: 6, automationLines: 5, systemLines: 1, nextAfter: null, closure: { lines: 6, droppedLines: 0, closedAt: T }, retentionLoss: null, expiration: EXPIRED },
     ];
     api.on('GET', LOGS, 'listRemoteAttemptLogs', (_call, n) => ({ status: 200, body: pages[Math.min(n, pages.length - 1)] }));
     await open();
@@ -768,7 +789,7 @@ describe('Versão: execução remota (T02)', () => {
     expect(within(list).getByText(/2 · .* · saída de erro$/)).toBeInTheDocument();
     expect(within(s).getByText(/sozinho, não indica falha/)).toBeInTheDocument();
     expect(within(list).getByText(/3 · .* · saída · linha cortada no limite de 8 KiB/)).toBeInTheDocument();
-    expect(within(list).getByText(/O texto desta linha foi removido da Platform/)).toBeInTheDocument();
+    expect(within(list).getByText(/O texto desta linha expirou e foi removido da Platform/)).toBeInTheDocument();
     expect(within(s).getByText(/Mostrando 4 de 6 linhas na Platform/)).toBeInTheDocument();
     expect(within(s).getByText(/ainda não informou que terminou de enviar os registros/)).toBeInTheDocument();
     // página seguinte, pela sequência
@@ -776,10 +797,14 @@ describe('Versão: execução remota (T02)', () => {
     expect(await within(list).findByText('fim')).toBeInTheDocument();
     expect(within(list).getByText(/5 · .* · aplicativo da máquina$/)).toBeInTheDocument();
     expect(within(s).getByText(/^6 linhas na Platform\./)).toBeInTheDocument();
+    // o que a automação escreveu e o aviso do aplicativo da máquina são contados separados
+    expect(within(s).getByText(/5 linhas são da automação e 1 é aviso do aplicativo da máquina\./)).toBeInTheDocument();
     expect(within(list).getAllByRole('listitem')).toHaveLength(6);
     // a máquina fecha o envio dizendo quantas linhas descartou por limite: a tela diz, e diz que o resultado não mudou
     fireEvent.click(within(s).getByRole('button', { name: 'Atualizar os registros da tentativa 1' }));
-    expect(await within(s).findByText(/73\.000 linhas não foram guardadas/)).toBeInTheDocument();
+    expect(await within(s).findByText(/73\.000 linhas da automação não foram guardadas/)).toBeInTheDocument();
+    // a conta fecha: escritas = guardadas + descartadas (o aviso do aplicativo não entra)
+    expect(within(s).getByText(/A automação escreveu 73\.005 linhas: 5 guardadas e 73\.000 descartadas\./)).toBeInTheDocument();
     expect(within(s).getByText(/A execução continuou e o resultado dela não mudou/)).toBeInTheDocument();
     expect(within(s).queryByText(/ainda não informou que terminou de enviar os registros/)).toBeNull();
     expect(within(list).getAllByRole('listitem')).toHaveLength(6);
@@ -792,6 +817,17 @@ describe('Versão: execução remota (T02)', () => {
     expect(lost.textContent).toMatch(/Ela tinha capturado 1\.500 linhas; a Platform tem 6\./);
     expect(lost.textContent).toMatch(/não pode mais ser recuperado pela Platform/);
     expect(within(list).getAllByRole('listitem')).toHaveLength(6);
+    expect(within(s).queryByText(/expirou em/)).toBeNull();
+    // retenção do servidor: a tela diz que o conteúdo expirou, o prazo, de onde ele contou e o que ficou
+    fireEvent.click(within(s).getByRole('button', { name: 'Atualizar os registros da tentativa 1' }));
+    const expired = await within(s).findByText(/O texto de 6 linhas expirou em 23\/12\/2026 e foi removido da Platform\./);
+    expect(expired.textContent).toMatch(/guarda esse conteúdo por 30 dias depois do fim da entrega \(a máquina concluiu o envio em 23\/11\/2026\)/);
+    expect(expired.textContent).toMatch(/Fica o registro de que cada linha existiu.*O histórico e o resultado da execução não mudam\./);
+    expect(logsExpiredText({ ...EXPIRED, confirmedAt: null, items: 1, deliveryEnd: 'LINK_ENDED' })).toMatch(
+      /^O texto de 1 linha expirou em 23\/12\/2026; a remoção está em andamento\. .*o vínculo da máquina foi encerrado em 23\/11\/2026/,
+    );
+    expect(storedText(49999, 1)).toBe('49.999 linhas são da automação e 1 é aviso do aplicativo da máquina.');
+    expect(writtenText(49999, 603, false)).toBe('A automação escreveu 50.602 linhas: 49.999 guardadas e 603 descartadas.');
   });
 
   it('registros: sem permissão, ou em tentativa que não iniciou, a tela não oferece; sem leitura, diz que não leu', async () => {
