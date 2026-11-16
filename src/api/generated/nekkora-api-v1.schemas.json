@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "cf42b881141f16275b23a9d34651c3978e7a59eff84fd5362ca3337b9a1aa7d7",
+  "openapiSha256": "7e28318422ba38407ee7f6f6e28e768db45d1d399f2dbf1d15224d99172d7d2b",
   "schemas": {
     "Error": {
       "type": "object",
@@ -42,6 +42,8 @@
             "remote_machine_busy",
             "remote_machine_unconfirmed",
             "remote_previous_result_unconfirmed",
+            "remote_attempt_not_unconfirmed",
+            "remote_attempt_already_reconciled",
             "remote_requirements_not_declared",
             "remote_requirements_conflict",
             "remote_package_not_supported",
@@ -3301,7 +3303,8 @@
               "enum": [
                 "CLOSED",
                 "LOSS_NOTICE",
-                "LINK_ENDED"
+                "LINK_ENDED",
+                "NO_PROGRESS"
               ]
             },
             "items": {
@@ -3453,7 +3456,8 @@
               "enum": [
                 "CLOSED",
                 "LOSS_NOTICE",
-                "LINK_ENDED"
+                "LINK_ENDED",
+                "NO_PROGRESS"
               ]
             },
             "items": {
@@ -3544,7 +3548,9 @@
               "startedAt",
               "endedAt",
               "closureCause",
-              "lateReport"
+              "lateReport",
+              "reconciliations",
+              "machineStillRunningAt"
             ],
             "properties": {
               "attemptId": {
@@ -3691,6 +3697,65 @@
                     "format": "date-time"
                   }
                 }
+              },
+              "reconciliations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "kind",
+                    "at",
+                    "reason",
+                    "verification",
+                    "byMembershipId"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "MACHINE",
+                        "MANUAL"
+                      ]
+                    },
+                    "at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "MACHINE_OFF_OUT_OF_OPERATION",
+                        "PROCESS_ENDED_BY_ADMINISTRATOR",
+                        "OTHER_VERIFIED",
+                        null
+                      ]
+                    },
+                    "verification": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "byMembershipId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  }
+                }
+              },
+              "machineStillRunningAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
               }
             }
           }
@@ -11540,6 +11605,60 @@
       "path": "/api/v1/o/{org}/remote-executions/{execution}/cancel",
       "responses": {
         "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/RemoteExecution"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "reconcileRemoteAttempt": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/remote-executions/{execution}/attempts/{attempt}/reconciliation",
+      "responses": {
+        "201": {
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/RemoteExecution"

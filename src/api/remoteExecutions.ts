@@ -121,13 +121,30 @@ export function cancelRemoteExecution(org: string, remoteExecutionId: string): P
 }
 
 /**
- * Executar novamente em outra máquina (step-up). Só depois que a tentativa anterior terminou. `acknowledgeUnconfirmed`: a
- * pessoa reconhece que a tentativa anterior, encerrada por falta de comunicação, pode ainda estar em andamento — sem isso a
- * Platform recusa (`remote_previous_result_unconfirmed`). Só é enviado quando a pessoa marcou.
+ * Executar novamente em outra máquina (step-up). Só depois que a tentativa anterior terminou — e, se ela terminou com resultado
+ * não confirmado, só depois de reconciliada (pela máquina ou declarada): até lá a Platform recusa
+ * (`remote_previous_result_unconfirmed`).
  */
-export function retryRemoteExecution(org: string, remoteExecutionId: string, agentId: string, acknowledgeUnconfirmed = false): Promise<RemoteExecution> {
-  return send(org, 'retryRemoteExecution', `/remote-executions/${id(remoteExecutionId)}/attempts`, {
+export function retryRemoteExecution(org: string, remoteExecutionId: string, agentId: string): Promise<RemoteExecution> {
+  return send(org, 'retryRemoteExecution', `/remote-executions/${id(remoteExecutionId)}/attempts`, { method: 'POST', body: { agentId } });
+}
+
+export type ReconciliationReason = 'MACHINE_OFF_OUT_OF_OPERATION' | 'PROCESS_ENDED_BY_ADMINISTRATOR' | 'OTHER_VERIFIED';
+
+/**
+ * Reconciliação DECLARADA por quem administra a organização (step-up): para quando não é possível obter a confirmação da
+ * máquina. Não executa nada e não muda o resultado da tentativa; libera uma nova tentativa da solicitação. `acknowledgePartialEffects`
+ * vai sempre `true`: a tela só deixa confirmar depois de a pessoa marcar.
+ */
+export function reconcileRemoteAttempt(
+  org: string,
+  remoteExecutionId: string,
+  attemptId: string,
+  reason: ReconciliationReason,
+  verification: string,
+): Promise<RemoteExecution> {
+  return send(org, 'reconcileRemoteAttempt', `/remote-executions/${id(remoteExecutionId)}/attempts/${id(attemptId)}/reconciliation`, {
     method: 'POST',
-    body: acknowledgeUnconfirmed ? { agentId, acknowledgeUnconfirmed: true } : { agentId },
+    body: { reason, verification, acknowledgePartialEffects: true },
   });
 }

@@ -57,6 +57,8 @@ const expirationDay = (iso: string) => new Date(iso).toLocaleDateString('pt-BR',
 /** O prazo, de onde ele contou e o que ficou. Usado pelos registros e pelos resultados. */
 export function expiredPeriodText(x: Expiration): string {
   const days = x.retentionDays === 1 ? '1 dia' : `${n(x.retentionDays)} dias`;
+  if (x.deliveryEnd === 'NO_PROGRESS')
+    return `A entrega ficou incompleta: a máquina não concluiu o envio e passaram ${days} sem progresso (o último foi em ${expirationDay(x.deliveryEndedAt)}). Isso não indica que tudo foi recebido.`;
   return `A Platform guarda esse conteúdo por ${days} depois do fim da entrega (${DELIVERY_END[x.deliveryEnd] ?? x.deliveryEnd} em ${expirationDay(x.deliveryEndedAt)}).`;
 }
 
