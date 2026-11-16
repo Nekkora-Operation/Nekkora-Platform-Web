@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "fea546ecc167e0df0df850c27f59b49b8f97628f0023168ba00c570e1cecd775",
+  "openapiSha256": "c45c0e7094c3038aed27094bdf51d6408d87c46185bd2e2aaed7eb866d7ac55b",
   "schemas": {
     "Error": {
       "type": "object",
@@ -42,6 +42,7 @@
             "remote_machine_busy",
             "remote_requirements_not_declared",
             "remote_requirements_conflict",
+            "remote_package_not_supported",
             "remote_python_not_selected",
             "remote_python_not_in_inventory",
             "remote_result_unavailable",
@@ -2952,6 +2953,7 @@
                 "items": {
                   "type": "string",
                   "enum": [
+                    "PACKAGE_NOT_SUPPORTED",
                     "REQUIREMENTS_NOT_DECLARED",
                     "REQUIREMENTS_CONFLICT",
                     "AUTHORIZATION_MISSING",

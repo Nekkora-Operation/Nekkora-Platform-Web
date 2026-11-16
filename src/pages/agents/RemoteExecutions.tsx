@@ -76,6 +76,7 @@ export const refusalText = (r: string | null | undefined) => (r ? (REFUSAL[r] ??
 
 /** O que falta para solicitar numa máquina, em palavras. */
 export const MISSING: Record<RemoteMissing, string> = {
+  PACKAGE_NOT_SUPPORTED: 'O pacote desta versão está no formato Studio. A execução remota aceita apenas pacotes Python externos compatíveis.',
   REQUIREMENTS_NOT_DECLARED: 'As dependências desta automação ainda não foram declaradas.',
   REQUIREMENTS_CONFLICT: 'As dependências declaradas estão em conflito com o pacote publicado.',
   AUTHORIZATION_MISSING: 'Falta a autorização de execução desta versão para o Worker desta máquina.',
@@ -92,6 +93,7 @@ const PYTHON_KIND: Record<string, string> = { INSTALLATION: 'instalação', VIRT
 
 /** O motivo de uma recusa do servidor, em palavras (a exigência que faltou no momento do pedido). */
 const REQUEST_REFUSAL: Record<string, string> = {
+  remote_package_not_supported: MISSING.PACKAGE_NOT_SUPPORTED,
   remote_requirements_not_declared: MISSING.REQUIREMENTS_NOT_DECLARED,
   remote_requirements_conflict: MISSING.REQUIREMENTS_CONFLICT,
   remote_authorization_missing: MISSING.AUTHORIZATION_MISSING,
@@ -197,6 +199,7 @@ export function RemoteExecutions({
       return canExecute
         ? `Autorize a execução local desta versão para o Worker ${c.workerName}, em "Autorizações de execução local", nesta página.`
         : 'Peça a autorização a quem pode executar neste workspace.';
+    if (m === 'PACKAGE_NOT_SUPPORTED') return 'Não há ação nesta máquina: esta versão não pode ser executada remotamente.';
     if (m === 'MACHINE_PAUSED') return 'O recebimento é retomado no próprio computador, em "Execução remota".';
     if (m === 'MACHINE_INCOMPATIBLE') return 'É preciso uma versão do Nekkora Agent que execute solicitações da Platform nesse computador.';
     if (m === 'PYTHON_NOT_SELECTED' || m === 'PYTHON_NOT_IN_INVENTORY')

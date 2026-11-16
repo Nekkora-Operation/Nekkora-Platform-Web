@@ -217,6 +217,18 @@ describe('Versão: execução remota (T02)', () => {
     expect(within(s).queryByRole('button', { name: /Solicitar execução/ })).toBeNull();
   });
 
+  it('a API recusa o pacote no formato Studio: a máquina aparece com o motivo, sem ação e sem Solicitar', async () => {
+    packageKind = 'STUDIO_PYTHON';
+    candidates = [candidate({ requestable: false, missing: ['PACKAGE_NOT_SUPPORTED'] })];
+    await open();
+    const s = await waitFor(section);
+    const row = within(s).getAllByRole('row')[1];
+    expect(within(row).getByText(MISSING.PACKAGE_NOT_SUPPORTED)).toBeInTheDocument();
+    expect(within(row).getByText('Não há ação nesta máquina: esta versão não pode ser executada remotamente.')).toBeInTheDocument();
+    expect(within(s).queryByText('Pode solicitar')).toBeNull();
+    expect(within(s).queryByRole('button', { name: /Solicitar execução/ })).toBeNull();
+  });
+
   it('quem não pode resolver vê o que falta, sem a ação; quem não pode executar não vê Solicitar', async () => {
     permissions(['automation.read']);
     candidates = [candidate(), candidate({ agentId: AG2, agentName: 'ESTACAO-02', requestable: false, missing: ['REQUIREMENTS_CONFLICT', 'AUTHORIZATION_EXPIRED'] })];
