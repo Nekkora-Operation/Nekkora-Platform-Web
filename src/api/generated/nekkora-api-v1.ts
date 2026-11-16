@@ -2244,6 +2244,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/remote-executions/{execution}/attempts/{attempt}/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * As linhas da saida do processo de uma tentativa e o fechamento do envio
+         * @description Exige logs.read no ambiente da solicitacao (fora do alcance: 404). Sao as linhas que o processo da automacao escreveu na saida padrao (STDOUT) e na saida de erro (STDERR), e avisos do aplicativo da maquina (EXECUTOR), na ordem em que a maquina as capturou - que nao e uma ordem global entre os dois canais. STDERR e um canal, nao um nivel: level e sempre UNKNOWN nesta versao e nada e classificado pelo texto. Paginacao pela sequencia: after (exclusivo, padrao 0) e limit (1 a 500, padrao 500); nextAfter null = esta pagina chegou ao fim do que ha agora. total: quantas linhas a Platform tem. closure null: a maquina ainda nao fechou o envio (a execucao pode estar em andamento, ou ha linha a caminho, ou ela nao voltou). closure.droppedLines: quantas linhas a maquina descartou por limite (8 KiB por linha - a linha cortada vem com truncated; 50.000 linhas e 20 MiB por tentativa). Linha que falta, cortada ou descartada NAO muda o estado da tentativa. textRemoved true: o texto foi apagado pela retencao; o registro de que a linha existiu fica. So existem linhas de tentativa remota: a saida de uma execucao iniciada no proprio computador nunca chega a Platform.
+         */
+        get: operations["listRemoteAttemptLogs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/remote-executions/{execution}/attempts/{attempt}/results": {
         parameters: {
             query?: never;
@@ -3281,6 +3301,36 @@ export interface components {
             inInventory: boolean;
             /** Format: date-time */
             selectedAt: string;
+        };
+        RemoteAttemptLogs: {
+            /** Format: uuid */
+            attemptId: string;
+            items: {
+                sequence: number;
+                /**
+                 * Format: date-time
+                 * @description Quando a maquina capturou a linha (relogio dela)
+                 */
+                capturedAt: string;
+                /** @enum {string} */
+                channel: "STDOUT" | "STDERR" | "EXECUTOR";
+                /** @enum {string} */
+                level: "UNKNOWN";
+                /** @description A linha passava de 8 KiB e foi cortada pela maquina */
+                truncated: boolean;
+                message: string;
+                /** @description O texto foi apagado pela retencao */
+                textRemoved: boolean;
+            }[];
+            total: number;
+            nextAfter: number | null;
+            closure: {
+                lines: number;
+                /** @description Linhas que a maquina descartou por limite */
+                droppedLines: number;
+                /** Format: date-time */
+                closedAt: string;
+            } | null;
         };
         RemoteAttemptResults: {
             /** Format: uuid */
@@ -8393,6 +8443,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RemoteExecution"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listRemoteAttemptLogs: {
+        parameters: {
+            query?: {
+                after?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                execution: string;
+                /** @description malformado -> 400 */
+                attempt: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Registros da tentativa */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteAttemptLogs"];
                 };
             };
             400: components["responses"]["InvalidRequest"];

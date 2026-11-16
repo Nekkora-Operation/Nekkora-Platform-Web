@@ -25,3 +25,19 @@
   margin: 0;
   padding: 0;
 }
+
+/* T05: registros de uma tentativa remota - texto como texto, com quebra de linha longa e rolagem propria */
+.pw-log {
+  max-height: 28rem;
+  overflow: auto;
+  padding: var(--nk-space-2);
+  border: 1px solid var(--nk-color-border-strong);
+  border-radius: var(--nk-radius-md);
+}
+
+.pw-log-line {
+  margin: 0;
+  font-size: var(--nk-font-size-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
