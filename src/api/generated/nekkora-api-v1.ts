@@ -3404,9 +3404,9 @@ export interface components {
                 workerName: string;
                 state: components["schemas"]["RemoteAttemptState"];
                 /** @enum {string|null} */
-                refusalReason: "BUSY" | "PAUSED" | "PACKAGE_INVALID" | "ENVIRONMENT_GONE" | "ENVIRONMENT_INCOMPATIBLE" | "DEPENDENCIES_MISSING" | "DISK_PRESSURE" | "CLIENT_INCOMPATIBLE" | "SESSION_UNAVAILABLE" | "AUTHORIZATION_MISSING" | "AUTHORIZATION_REVOKED" | "AUTHORIZATION_EXPIRED" | "WORKER_NOT_AUTHORIZED" | "MACHINE_NOT_LINKED" | "MACHINE_NOT_ENABLED" | "MACHINE_INCOMPATIBLE" | null;
+                refusalReason: "BUSY" | "PAUSED" | "PACKAGE_INVALID" | "ENVIRONMENT_GONE" | "ENVIRONMENT_INCOMPATIBLE" | "DEPENDENCIES_MISSING" | "DISK_PRESSURE" | "CLIENT_INCOMPATIBLE" | "SESSION_UNAVAILABLE" | "AUTHORIZATION_MISSING" | "AUTHORIZATION_REVOKED" | "AUTHORIZATION_EXPIRED" | "WORKER_NOT_AUTHORIZED" | "MACHINE_NOT_LINKED" | "MACHINE_NOT_ENABLED" | "MACHINE_INCOMPATIBLE" | "COMMUNICATION_LOST" | null;
                 /**
-                 * @description LOST: o prazo da maquina venceu; nao muda o estado
+                 * @description LOST: o prazo da maquina venceu. Vencido ha mais que a espera configurada (padrao 120 min), a tentativa recebida e encerrada pelo servidor (closureCause COMMUNICATION_LOST)
                  * @enum {string}
                  */
                 communication: "OK" | "LOST" | "NONE";
@@ -3423,6 +3423,19 @@ export interface components {
                 startedAt: string | null;
                 /** Format: date-time */
                 endedAt: string | null;
+                /**
+                 * @description Por que o SERVIDOR encerrou a tentativa (a maquina desvinculou-se, foi revogada, ou deixou de se comunicar alem da espera). Nulo: o desfecho veio da maquina. O servidor so encerra como REFUSED (nunca autorizou o inicio; refusalReason MACHINE_NOT_LINKED ou COMMUNICATION_LOST) ou ENDED_UNKNOWN (autorizada a iniciar ou em execucao): nunca sucesso, falha nem cancelamento.
+                 * @enum {string|null}
+                 */
+                closureCause: "MACHINE_UNLINKED" | "MACHINE_REVOKED" | "COMMUNICATION_LOST" | null;
+                /** @description O que a maquina informou DEPOIS de um encerramento por COMMUNICATION_LOST. Fica ao lado: o estado da tentativa nao muda (uma nova tentativa pode ja ter sido pedida). */
+                lateReport: {
+                    /** @enum {string} */
+                    state: "SUCCEEDED" | "FAILED" | "CANCELLED" | "TIMED_OUT" | "ENDED_UNKNOWN";
+                    exitCode: number | null;
+                    /** Format: date-time */
+                    reportedAt: string;
+                } | null;
             }[];
         };
         /** @enum {string} */
