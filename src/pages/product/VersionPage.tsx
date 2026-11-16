@@ -488,6 +488,7 @@ export function VersionPage() {
           version={{ automationVersionId: data.automationVersionId!, versionNumber: data.versionNumber }}
           canExecute={perms.status === 'ready' && perms.has('automation.execute')}
           canManage={perms.status === 'ready' && perms.has('automation.manage')}
+          canReadLogs={perms.status === 'ready' && perms.has('logs.read')}
         />
       )}
 

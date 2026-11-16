@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "93a83f9f31f17f396f4fc7a4f0022557882ad0c884a6cb736cee5eb458fa33d5",
+  "openapiSha256": "fea546ecc167e0df0df850c27f59b49b8f97628f0023168ba00c570e1cecd775",
   "schemas": {
     "Error": {
       "type": "object",
@@ -44,6 +44,7 @@
             "remote_requirements_conflict",
             "remote_python_not_selected",
             "remote_python_not_in_inventory",
+            "remote_result_unavailable",
             "remote_attempt_not_finished",
             "remote_attempt_already_finished",
             "remote_execution_cancel_requested",
@@ -3031,6 +3032,87 @@
         "selectedAt": {
           "type": "string",
           "format": "date-time"
+        }
+      }
+    },
+    "RemoteAttemptResults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attemptId",
+        "items",
+        "closure"
+      ],
+      "properties": {
+        "attemptId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "number",
+              "fileName",
+              "sizeBytes",
+              "sha256",
+              "receivedAt",
+              "available"
+            ],
+            "properties": {
+              "number": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 50
+              },
+              "fileName": {
+                "type": "string"
+              },
+              "sizeBytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "receivedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "available": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "closure": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "sent",
+            "skippedByLimit",
+            "closedAt"
+          ],
+          "properties": {
+            "sent": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "skippedByLimit": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "closedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
         }
       }
     },
@@ -10833,6 +10915,109 @@
           }
         },
         "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "listRemoteAttemptResults": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/remote-executions/{execution}/attempts/{attempt}/results",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/RemoteAttemptResults"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "downloadRemoteAttemptResult": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/remote-executions/{execution}/attempts/{attempt}/results/{number}/content",
+      "responses": {
+        "200": {
+          "contentType": "application/octet-stream",
+          "schema": {
+            "type": "string",
+            "format": "binary"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/Error"

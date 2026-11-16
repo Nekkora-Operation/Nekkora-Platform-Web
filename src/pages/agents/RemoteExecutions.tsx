@@ -22,6 +22,7 @@ import { StepUpDialog } from '../../components/StepUpDialog';
 import { usePolling } from '../../hooks/usePolling';
 import { accessRefusal, orgStepUp } from '../access/shared';
 import { DateTimeText, RouteLink } from '../product/shared';
+import { RemoteResults } from './RemoteResults';
 import './agents.css';
 
 /**
@@ -120,12 +121,15 @@ export function RemoteExecutions({
   version,
   canExecute,
   canManage,
+  canReadLogs,
 }: {
   workspaceId: string;
   automationId: string;
   version: { automationVersionId: string; versionNumber?: number };
   canExecute: boolean;
   canManage: boolean;
+  /** Pode ver registros e resultados (logs.read): só então a tela oferece os arquivos de resultado. */
+  canReadLogs: boolean;
 }) {
   const { org, expired } = useSession();
   const [absent, setAbsent] = useState(false);
@@ -269,6 +273,7 @@ export function RemoteExecutions({
     },
   ];
 
+  const executionOf = (attemptId: string) => data.executions.find((x) => x.attempts.some((t) => t.attemptId === attemptId))?.remoteExecutionId ?? '';
   const attemptLine = (a: RemoteAttempt) => (
     <li key={a.attemptId}>
       <Text variant="body-sm">
@@ -280,6 +285,10 @@ export function RemoteExecutions({
         <Text variant="body-sm" color="secondary">
           Sem comunicação com a máquina no momento. Isso não encerra a execução: o estado é o último que ela informou.
         </Text>
+      )}
+      {/* resultados: só de tentativa que iniciou e terminou, e só para quem pode ver registros */}
+      {canReadLogs && a.startedAt && finished(a.state) && (
+        <RemoteResults org={org} executionId={executionOf(a.attemptId)} attemptId={a.attemptId} attemptNumber={a.attemptNumber} />
       )}
     </li>
   );
