@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, Badge, Button, Card, Heading, Select, Stack, Table, Text, type TableColumn, type Tone } from 'nekkora-lib';
 import {
   cancelRemoteExecution,
+  checkRemoteMachineDependencies,
   listRemoteExecutionCandidates,
   listRemoteExecutions,
   requestRemoteExecution,
@@ -10,6 +11,7 @@ import {
   type RemoteAttempt,
   type RemoteAttemptState,
   type RemoteCandidate,
+  type RemoteDependencyCheck,
   type RemoteExecution,
   type RemoteMissing,
   type RemotePythonChoice,
@@ -142,6 +144,33 @@ export const MISSING: Record<RemoteMissing, string> = {
   PYTHON_NOT_IN_INVENTORY: 'O Python escolhido para esta automação não está mais entre os que esta máquina informou.',
 };
 
+/**
+ * O que a verificação sob demanda das dependências diz, em palavras. Sem resposta, ou quando a máquina não conseguiu conferir,
+ * a tela diz que NÃO FOI POSSÍVEL VERIFICAR - nunca que o ambiente é incompatível. A verificação é só informação: a máquina
+ * confere de novo antes de iniciar.
+ */
+export const DEPENDENCY_CHECK = {
+  NONE: 'Dependências ainda não verificadas nesta máquina.',
+  PENDING: 'Verificação pedida: aguardando a máquina responder.',
+  UNANSWERED:
+    'Não foi possível verificar: a máquina não respondeu a tempo (ela pode estar sem contato, ou com o aplicativo fechado). Isso não quer dizer que o Python seja incompatível.',
+  SATISFIED: 'As dependências declaradas estão neste Python. A máquina confere de novo antes de iniciar.',
+  MISSING: 'Faltam neste Python:',
+  ENVIRONMENT_GONE: 'A máquina não encontrou mais o Python escolhido. Escolha outro; nenhum é trocado sozinho.',
+  NOT_VERIFIED: 'Não foi possível verificar: a máquina não conseguiu conferir este Python. Isso não quer dizer que ele seja incompatível.',
+  STALE: 'Esta verificação é de antes da última mudança do Python escolhido ou das dependências declaradas: verifique de novo.',
+  NOTHING_INSTALLED: 'A Platform não instala nada: quem cuida do ambiente é quem administra a máquina.',
+  TOO_SOON: 'Não foi possível verificar agora: já houve um pedido para esta máquina há menos de um minuto. Tente de novo em instantes. Nada foi alterado.',
+} as const;
+
+export function dependencyCheckText(check: RemoteDependencyCheck | null): string {
+  if (!check) return DEPENDENCY_CHECK.NONE;
+  if (check.state === 'PENDING') return DEPENDENCY_CHECK.PENDING;
+  if (check.state === 'UNANSWERED' || !check.outcome) return DEPENDENCY_CHECK.UNANSWERED;
+  if (check.outcome === 'MISSING') return `${DEPENDENCY_CHECK.MISSING} ${check.missing.join(', ')}. ${DEPENDENCY_CHECK.NOTHING_INSTALLED}`;
+  return DEPENDENCY_CHECK[check.outcome];
+}
+
 const PYTHON_KIND: Record<string, string> = { INSTALLATION: 'instalação', VIRTUAL_ENVIRONMENT: 'ambiente virtual' };
 
 /** O motivo de uma recusa do servidor, em palavras (a exigência que faltou no momento do pedido). */
@@ -201,6 +230,21 @@ export function RemoteExecutions({
   const [choosing, setChoosing] = useState<RemoteCandidate | null>(null);
   const [environments, setEnvironments] = useState<{ status: 'loading' | 'ready' | 'error'; items: PythonEnvironment[] }>({ status: 'loading', items: [] });
   const [environment, setEnvironment] = useState('');
+  // verificação sob demanda das dependências (plano 5.9): a máquina em que o pedido está sendo enviado agora
+  const [checking, setChecking] = useState('');
+  const checkDependencies = async (c: RemoteCandidate) => {
+    setChecking(c.agentId);
+    try {
+      await checkRemoteMachineDependencies(org, automationId, c.agentId);
+      setNotice({ tone: 'success', text: `Verificação pedida a ${c.agentName}. O resultado aparece na linha dela quando a máquina responder (até 2 minutos).` });
+      poll.refresh();
+    } catch (e) {
+      if (isApiError(e, 'unauthenticated')) expired();
+      else setNotice({ tone: 'warning', text: isApiError(e, 'rate_limited') ? DEPENDENCY_CHECK.TOO_SOON : remoteRefusal(e) });
+    } finally {
+      setChecking('');
+    }
+  };
   useEffect(() => {
     if (!choosing) return;
     let current = true;
@@ -290,6 +334,32 @@ export function RemoteExecutions({
             <span>
               <Button size="sm" variant="ghost" onClick={() => setChoosing(c)} aria-label={`${c.python ? 'Trocar' : 'Escolher'} o Python de ${c.agentName}`}>
                 {c.python ? 'Trocar' : 'Escolher'}
+              </Button>
+            </span>
+          )}
+          {c.python && (
+            <Text variant="body-sm" color="secondary">
+              {dependencyCheckText(c.dependencyCheck)}
+              {c.dependencyCheck?.answeredAt ? (
+                <>
+                  {' '}
+                  Respondido em <DateTimeText iso={c.dependencyCheck.answeredAt} />.
+                </>
+              ) : null}
+              {c.dependencyCheck && c.dependencyCheck.state !== 'PENDING' && !c.dependencyCheck.current ? ` ${DEPENDENCY_CHECK.STALE}` : ''}
+            </Text>
+          )}
+          {canExecute && c.python && c.python.inInventory && c.dependencyCheck?.state !== 'PENDING' && (
+            <span>
+              <Button
+                size="sm"
+                variant="ghost"
+                loading={checking === c.agentId}
+                disabled={checking !== ''}
+                onClick={() => void checkDependencies(c)}
+                aria-label={`Verificar as dependências em ${c.agentName}`}
+              >
+                Verificar dependências
               </Button>
             </span>
           )}
