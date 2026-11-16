@@ -13,8 +13,9 @@ import {
   ENDED_UNKNOWN_TEXT,
   MISSING,
   REQUEST_REFUSAL,
-  RETRY_UNCONFIRMED_LABEL,
-  RETRY_UNCONFIRMED_TEXT,
+  RECONCILE,
+  RECONCILIATION_REASON,
+  RETRY_BLOCKED_TEXT,
   dependencyCheckText,
   endedUnknownText,
   environmentCode,
@@ -106,6 +107,8 @@ const attempt = (over: Row = {}): Row => ({
   endedAt: null,
   closureCause: null,
   lateReport: null,
+  reconciliations: [],
+  machineStillRunningAt: null,
   ...over,
 });
 const execution = (attempts: Row[], over: Row = {}): Row => ({
@@ -469,9 +472,9 @@ describe('Versão: execução remota (T02)', () => {
       candidate({ requestable: false, missing: ['AUTHORIZATION_MISSING'], authorization: null }),
       candidate({ agentId: AG2, agentName: 'ESTACAO-02', workerId: W2, workerName: 'Worker fiscal' }),
     ];
-    executions = [execution([attempt({ state: 'ENDED_UNKNOWN', endedAt: T })])];
+    executions = [execution([attempt({ state: 'ENDED_UNKNOWN', endedAt: T, reconciliations: [{ kind: 'MACHINE', at: T, reason: null, verification: null, byMembershipId: null }] })])];
     api.on('POST', `/api/v1/o/${ORG}/remote-executions/${X1}/attempts`, 'retryRemoteExecution', () => {
-      executions = [execution([attempt({ state: 'ENDED_UNKNOWN', endedAt: T }), attempt({ attemptId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', attemptNumber: 2, agentId: AG2, agentName: 'ESTACAO-02' })])];
+      executions = [execution([attempt({ state: 'ENDED_UNKNOWN', endedAt: T, reconciliations: [{ kind: 'MACHINE', at: T, reason: null, verification: null, byMembershipId: null }] }), attempt({ attemptId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', attemptNumber: 2, agentId: AG2, agentName: 'ESTACAO-02' })])];
       return { status: 201, body: executions[0] };
     });
     await open();
@@ -501,42 +504,97 @@ describe('Versão: execução remota (T02)', () => {
     await waitFor(() => expect(within(section()).getByText(/Tentativa 2 · ESTACAO-02/)).toBeInTheDocument());
   });
 
-  it('decisão de 16/11: depois de um encerramento por falta de comunicação a máquina não é dada por livre e repetir exige reconhecimento', async () => {
+  it('reconciliação: com resultado não confirmado a repetição fica bloqueada; a declaração de quem administra exige motivo, verificação e a afirmação dos efeitos parciais', async () => {
     candidates = [
       candidate({ requestable: false, missing: ['MACHINE_UNCONFIRMED'] }),
       candidate({ agentId: AG2, agentName: 'ESTACAO-02', workerId: W2, workerName: 'Worker fiscal' }),
     ];
-    const lost = attempt({ state: 'ENDED_UNKNOWN', endedAt: T, closureCause: 'COMMUNICATION_LOST' });
+    const lost = attempt({ state: 'ENDED_UNKNOWN', startedAt: T, endedAt: T, closureCause: 'MACHINE_REVOKED' });
     executions = [execution([lost])];
-    api.on('POST', `/api/v1/o/${ORG}/remote-executions/${X1}/attempts`, 'retryRemoteExecution', () => {
-      executions = [execution([lost, attempt({ attemptId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', attemptNumber: 2, agentId: AG2, agentName: 'ESTACAO-02' })])];
+    const VERIFIED = 'Computador desligado pela equipe e mantido fora de operação.';
+    const reconciled = { ...lost, reconciliations: [{ kind: 'MANUAL', at: T, reason: 'MACHINE_OFF_OUT_OF_OPERATION', verification: VERIFIED, byMembershipId: '99999999-9999-4999-8999-999999999999' }] };
+    const RECONCILE_URL = `/api/v1/o/${ORG}/remote-executions/${X1}/attempts/${lost.attemptId as string}/reconciliation`;
+    api.on('POST', RECONCILE_URL, 'reconcileRemoteAttempt', () => {
+      executions = [execution([reconciled])];
       return { status: 201, body: executions[0] };
     });
     await open();
     const s = await waitFor(section);
-    // a máquina que sumiu aparece com o motivo próprio - não "ocupada", não "livre" - e com o que a faz voltar
+    // a máquina com ocupação incerta: o motivo próprio, e o que a faz voltar - que NÃO é só voltar a se comunicar
     expect(within(s).getByText(MISSING.MACHINE_UNCONFIRMED)).toBeInTheDocument();
-    expect(MISSING.MACHINE_UNCONFIRMED).toBe(
-      'A última execução desta máquina foi encerrada por falta de comunicação e ela ainda não voltou a se comunicar: não se sabe se está livre.',
-    );
-    expect(within(s).getByText('Volta a poder receber quando o aplicativo desse computador se comunicar de novo com a Platform.')).toBeInTheDocument();
-    // o texto do desfecho diz que a automação pode ainda estar em andamento e que evidência posterior aparece
-    expect(within(s).getByText(/ela pode ainda estar em andamento naquele computador.*Se a máquina voltar, o que ela informar aparece aqui\./)).toBeInTheDocument();
-    fireEvent.click(within(s).getByRole('button', { name: 'Executar novamente em outra máquina' }));
-    expect(within(dialog()).getByText(RETRY_UNCONFIRMED_TEXT)).toBeInTheDocument();
-    const select = within(dialog()).getByLabelText('Máquina') as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: AG2 } });
-    // com a máquina escolhida, o botão continua desabilitado até a pessoa marcar que sabe
-    expect(within(dialog()).getByRole('button', { name: 'Executar novamente' })).toBeDisabled();
-    fireEvent.click(within(dialog()).getByLabelText(RETRY_UNCONFIRMED_LABEL));
-    await confirmIn('Executar novamente');
-    expect(await screen.findByText(/Nova tentativa registrada/)).toBeInTheDocument();
-    expect(api.sent('POST', `/api/v1/o/${ORG}/remote-executions/${X1}/attempts`)[0].body).toEqual({ agentId: AG2, acknowledgeUnconfirmed: true });
-    // a recusa do servidor, se chegar, é dita em palavras
-    expect(REQUEST_REFUSAL.remote_previous_result_unconfirmed).toContain('é preciso marcar que você sabe disso');
-    expect(REQUEST_REFUSAL.remote_machine_unconfirmed).toContain('não se sabe se está livre');
-    // revogação: a tela não afirma que o processo parou
+    expect(within(s).getByText(/confirmar que o processo parou\. Voltar a se comunicar, sozinho, não basta\./)).toBeInTheDocument();
+    // a repetição está bloqueada, qualquer que tenha sido a causa: não há botão de executar novamente, e a tela diz por quê
+    expect(within(s).getByText(RETRY_BLOCKED_TEXT)).toBeInTheDocument();
+    expect(RETRY_BLOCKED_TEXT).toMatch(/Revogar a máquina ou esperar não libera\./);
+    expect(within(s).queryByRole('button', { name: 'Executar novamente em outra máquina' })).toBeNull();
+    // não existe mais "aceito o risco"
+    expect(within(s).queryByText(/Sei que a execução anterior pode ainda estar em andamento/)).toBeNull();
+    fireEvent.click(within(s).getByRole('button', { name: RECONCILE.BUTTON }));
+    expect(within(dialog()).getByText(RECONCILE.INTRO)).toBeInTheDocument();
+    expect(within(dialog()).getByText(RECONCILE.WARNING)).toBeInTheDocument();
+    expect(RECONCILE.WARNING).toMatch(/pode ter causado efeitos parciais.*Se ninguém conseguiu verificar a máquina, não declare/);
+    const confirm = () => within(dialog()).getByRole('button', { name: RECONCILE.CONFIRM });
+    // sem motivo, sem verificação ou sem a afirmação: não confirma
+    expect(confirm()).toBeDisabled();
+    fireEvent.change(within(dialog()).getByLabelText(RECONCILE.REASON_LABEL), { target: { value: 'MACHINE_OFF_OUT_OF_OPERATION' } });
+    fireEvent.click(within(dialog()).getByLabelText(RECONCILE.ACK));
+    expect(confirm()).toBeDisabled();
+    fireEvent.change(within(dialog()).getByLabelText(new RegExp(`^${RECONCILE.VERIFICATION_LABEL}`)), { target: { value: 'curto' } });
+    expect(confirm()).toBeDisabled();
+    fireEvent.change(within(dialog()).getByLabelText(new RegExp(`^${RECONCILE.VERIFICATION_LABEL}`)), { target: { value: VERIFIED } });
+    fireEvent.click(within(dialog()).getByLabelText(RECONCILE.ACK));
+    expect(confirm()).toBeDisabled();
+    fireEvent.click(within(dialog()).getByLabelText(RECONCILE.ACK));
+    await confirmIn(RECONCILE.CONFIRM);
+    expect(await screen.findByText(RECONCILE.DONE)).toBeInTheDocument();
+    expect(api.sent('POST', RECONCILE_URL)[0].body).toEqual({ reason: 'MACHINE_OFF_OUT_OF_OPERATION', verification: VERIFIED, acknowledgePartialEffects: true });
+    // o resultado continua "não confirmado", agora dito como reconciliado manualmente, com o que foi verificado; e a repetição volta
+    const line = await within(section()).findByText(/Resultado não confirmado — reconciliado manualmente em/);
+    expect(line.textContent).toContain(RECONCILIATION_REASON.MACHINE_OFF_OUT_OF_OPERATION);
+    expect(line.textContent).toContain(VERIFIED);
+    expect(line.textContent).toMatch(/O resultado da tentativa não mudou/);
+    expect(within(section()).queryByText(RETRY_BLOCKED_TEXT)).toBeNull();
+    expect(within(section()).getAllByText('Resultado não confirmado').length).toBeGreaterThan(0);
+    fireEvent.click(within(section()).getByRole('button', { name: 'Executar novamente em outra máquina' }));
+    // depois da reconciliação, repetir mantém o aviso dos efeitos parciais
+    expect(within(dialog()).getByText(/terminou com resultado não confirmado: a automação pode ter feito parte do trabalho, ou todo ele/)).toBeInTheDocument();
+    // recusas ditas em palavras; revogação: a tela não afirma que o processo parou
+    expect(REQUEST_REFUSAL.remote_previous_result_unconfirmed).toContain('executar novamente está bloqueado');
+    expect(RECONCILE.FORBIDDEN).toContain('Só quem administra a organização');
     expect(CLOSURE_TEXT.MACHINE_REVOKED.unknown).toContain('se o computador estava sem contato, a automação pode ter continuado');
+  });
+
+  it('reconciliação pela máquina e evidência tardia: a tela mostra as duas, ao lado, e diz quando a máquina ainda executa', async () => {
+    candidates = [candidate({ requestable: false, missing: ['MACHINE_BUSY'] })];
+    executions = [
+      execution([attempt({ state: 'ENDED_UNKNOWN', startedAt: T, endedAt: T, closureCause: 'COMMUNICATION_LOST', machineStillRunningAt: T })]),
+    ];
+    await open();
+    let s = await waitFor(section);
+    expect(within(s).getByText(/a máquina voltou e informou que ainda executa esta tentativa\. Ela continua ocupada/)).toBeInTheDocument();
+    expect(within(s).getByText(RETRY_BLOCKED_TEXT)).toBeInTheDocument();
+    cleanup();
+    executions = [
+      execution([
+        attempt({
+          state: 'ENDED_UNKNOWN',
+          startedAt: T,
+          endedAt: T,
+          closureCause: 'COMMUNICATION_LOST',
+          lateReport: { state: 'SUCCEEDED', exitCode: 0, reportedAt: T },
+          reconciliations: [
+            { kind: 'MANUAL', at: T, reason: 'PROCESS_ENDED_BY_ADMINISTRATOR', verification: 'Processo encerrado no computador por quem o administra.', byMembershipId: '99999999-9999-4999-8999-999999999999' },
+            { kind: 'MACHINE', at: T, reason: null, verification: null, byMembershipId: null },
+          ],
+        }),
+      ]),
+    ];
+    await open();
+    s = await waitFor(section);
+    expect(within(s).getByText(/reconciliado manualmente em/)).toBeInTheDocument();
+    expect(within(s).getByText(/a própria máquina confirmou que o processo desta tentativa não está mais em execução nela\. O resultado continua não\s+confirmado\./)).toBeInTheDocument();
+    expect(within(s).getByText(/a máquina voltou e informou que/)).toBeInTheDocument();
+    expect(within(s).queryByText(RETRY_BLOCKED_TEXT)).toBeNull();
   });
 
   it('Python da automação por máquina: mostra o escolhido, diz quando falta e só quem gerencia escolhe, do que a máquina informou', async () => {
