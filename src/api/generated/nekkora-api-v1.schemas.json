@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "7e28318422ba38407ee7f6f6e28e768db45d1d399f2dbf1d15224d99172d7d2b",
+  "openapiSha256": "43424f0b693867c1a205ef91bdd905ca87f2f253dd5e0e5358e63ef6e0b47d1e",
   "schemas": {
     "Error": {
       "type": "object",
@@ -41,6 +41,8 @@
             "remote_machine_incompatible",
             "remote_machine_busy",
             "remote_machine_unconfirmed",
+            "remote_machine_finishing",
+            "remote_previous_processes_pending",
             "remote_previous_result_unconfirmed",
             "remote_attempt_not_unconfirmed",
             "remote_attempt_already_reconciled",
@@ -2972,6 +2974,7 @@
                     "MACHINE_INCOMPATIBLE",
                     "MACHINE_BUSY",
                     "MACHINE_UNCONFIRMED",
+                    "MACHINE_FINISHING",
                     "PYTHON_NOT_SELECTED",
                     "PYTHON_NOT_IN_INVENTORY"
                   ]
@@ -3550,7 +3553,9 @@
               "closureCause",
               "lateReport",
               "reconciliations",
-              "machineStillRunningAt"
+              "machineStillRunningAt",
+              "processes",
+              "processesAt"
             ],
             "properties": {
               "attemptId": {
@@ -3751,6 +3756,24 @@
                 }
               },
               "machineStillRunningAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "processes": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "ACTIVE",
+                  "UNCERTAIN",
+                  null
+                ]
+              },
+              "processesAt": {
                 "type": [
                   "string",
                   "null"
