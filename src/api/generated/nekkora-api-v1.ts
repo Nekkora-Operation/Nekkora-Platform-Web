@@ -2180,6 +2180,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/automations/{automation}/remote-machines/{agent}/dependency-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pede a maquina que confira agora as dependencias da automacao no Python escolhido para ela
+         * @description Exige automation.execute no ambiente da automacao. agent: maquina habilitada cujo Worker esta autorizado nesse ambiente (outra: 404). Congela o que sera conferido: o ambiente Python escolhido agora para a automacao nessa maquina e a lista efetiva vigente das dependencias. A maquina confere SO isso, naquele ambiente, e responde uma vez; a resposta aparece em dependencyCheck, na lista de candidates. Sem resposta em 2 minutos, o pedido fica UNANSWERED: nao foi possivel verificar (a maquina pode estar ocupada ou sem contato) - nunca incompativel. Limite: um pedido por minuto por maquina e automacao; o segundo recebe 429 + rate_limited, reason remote_dependency_check_too_soon, e nada e criado. Sem Python escolhido: 409 + remote_python_not_selected; escolhido fora do inventario atual: 409 + remote_python_not_in_inventory; dependencias nao declaradas ou em conflito: 409 + remote_requirements_not_declared / remote_requirements_conflict. Recurso desligado: 409 + remote_execution_unavailable. E informacao: nao instala nada, nao muda a escolha, e a conferencia que vale para executar continua sendo a da maquina, antes de iniciar.
+         */
+        post: operations["checkRemoteMachineDependencies"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/workspaces/{workspace}/remote-executions/candidates": {
         parameters: {
             query?: never;
@@ -2419,7 +2439,7 @@ export interface components {
              * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached, draft_exists, draft_changed, local_run_authorization_exists, organization_name_taken; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
              * @enum {string}
              */
-            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_package_not_supported" | "remote_package_not_registered" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_result_unavailable" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken";
+            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_package_not_supported" | "remote_package_not_registered" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_dependency_check_too_soon" | "remote_dependency_check_closed" | "remote_result_unavailable" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken";
         };
         /**
          * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
@@ -3290,7 +3310,36 @@ export interface components {
                     status: "VALID" | "REVOKED" | "EXPIRED";
                 } | null;
                 python: components["schemas"]["RemotePythonChoice"] | null;
+                dependencyCheck: components["schemas"]["RemoteDependencyCheck"] | null;
             }[];
+        };
+        /** @description A verificacao sob demanda mais recente das dependencias de uma automacao no Python escolhido de uma maquina. E informacao: a conferencia que vale para executar e a da maquina, antes de iniciar. */
+        RemoteDependencyCheck: {
+            /** Format: uuid */
+            checkId: string;
+            /** @description O ambiente Python conferido (identificador opaco) */
+            environmentId: string;
+            requirementsRevision: number;
+            /** Format: date-time */
+            requestedAt: string;
+            /** Format: date-time */
+            answerValidUntil: string;
+            /**
+             * @description UNANSWERED: o prazo venceu sem resposta - nao foi possivel verificar
+             * @enum {string}
+             */
+            state: "PENDING" | "ANSWERED" | "UNANSWERED";
+            /**
+             * @description So em ANSWERED
+             * @enum {string|null}
+             */
+            outcome: "SATISFIED" | "MISSING" | "ENVIRONMENT_GONE" | "NOT_VERIFIED" | null;
+            /** @description So com MISSING: o que falta, do que foi perguntado (nome==versao) */
+            missing: string[];
+            /** Format: date-time */
+            answeredAt: string | null;
+            /** @description O que foi conferido ainda e a escolha do Python e a revisao das dependencias de agora */
+            current: boolean;
         };
         /** @description Ambiente Python escolhido para uma automacao numa maquina. Identificador opaco publicado pela maquina; nunca um caminho. */
         RemotePythonChoice: {
@@ -8331,6 +8380,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RemotePythonChoice"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    checkRemoteMachineDependencies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                automation: string;
+                /** @description malformado -> 400 */
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pedido criado, aguardando a maquina */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteDependencyCheck"];
                 };
             };
             400: components["responses"]["InvalidRequest"];

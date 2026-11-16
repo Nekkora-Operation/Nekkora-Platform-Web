@@ -16,6 +16,7 @@ export type RemoteAttemptState = S['RemoteAttemptState'];
 export type RemoteCandidate = S['RemoteExecutionCandidateList']['items'][number];
 export type RemoteMissing = RemoteCandidate['missing'][number];
 export type RemotePythonChoice = S['RemotePythonChoice'];
+export type RemoteDependencyCheck = S['RemoteDependencyCheck'];
 export type RemoteAttemptResults = S['RemoteAttemptResults'];
 export type RemoteAttemptLogs = S['RemoteAttemptLogs'];
 
@@ -54,6 +55,15 @@ export function selectRemoteMachinePython(org: string, automationId: string, age
     method: 'PUT',
     body: { environmentId },
   });
+}
+
+/**
+ * Pede à máquina que confira, agora, as dependências declaradas da automação no Python escolhido para ela (plano 5.9). O
+ * resultado chega depois, em `dependencyCheck`, na lista de máquinas. É informação: nada é instalado, e a conferência que vale
+ * para executar continua sendo a da máquina, antes de iniciar. No máximo um pedido por minuto por máquina e automação (429).
+ */
+export function checkRemoteMachineDependencies(org: string, automationId: string, agentId: string): Promise<RemoteDependencyCheck> {
+  return send(org, 'checkRemoteMachineDependencies', `/automations/${id(automationId)}/remote-machines/${id(agentId)}/dependency-check`, { method: 'POST' });
 }
 
 /**

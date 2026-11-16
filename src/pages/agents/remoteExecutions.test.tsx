@@ -6,7 +6,7 @@ import { sessionMemory } from '../../app/notices';
 import { fakeLocks } from '../../test/fakeLocks';
 import { renderApp } from '../../test/render';
 import { RouteApi } from '../../test/routeApi';
-import { ATTEMPT_STATE, CLOSURE_TEXT, ENDED_UNKNOWN_TEXT, MISSING, REQUEST_REFUSAL, endedUnknownText, environmentCode } from './RemoteExecutions';
+import { ATTEMPT_STATE, CLOSURE_TEXT, DEPENDENCY_CHECK, ENDED_UNKNOWN_TEXT, MISSING, REQUEST_REFUSAL, dependencyCheckText, endedUnknownText, environmentCode } from './RemoteExecutions';
 import { permissionsAutoRetry } from '../../area/useWorkspacePermissions';
 
 /**
@@ -48,6 +48,20 @@ const candidate = (over: Row = {}): Row => ({
   missing: [],
   authorization: { authorizationId: AUTHZ, validUntil: '2026-12-10T10:00:00Z', status: 'VALID' },
   python: { environmentId: ENV_A, pythonVersion: '3.12.10', inInventory: true, selectedAt: T },
+  dependencyCheck: null,
+  ...over,
+});
+const check = (over: Row = {}): Row => ({
+  checkId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  environmentId: ENV_A,
+  requirementsRevision: 1,
+  requestedAt: T,
+  answerValidUntil: '2026-11-10T10:02:00Z',
+  state: 'ANSWERED',
+  outcome: 'SATISFIED',
+  missing: [],
+  answeredAt: '2026-11-10T10:00:20Z',
+  current: true,
   ...over,
 });
 const attempt = (over: Row = {}): Row => ({
@@ -520,6 +534,70 @@ describe('Versão: execução remota (T02)', () => {
     expect(await screen.findByText('Python 3.12.10 escolhido para esta automação em ESTACAO-01.')).toBeInTheDocument();
     expect(api.sent('PUT', PUT)[0].body).toEqual({ environmentId: ENV_B });
     await waitFor(() => expect(within(section()).getByText('Pode solicitar')).toBeInTheDocument());
+  });
+
+  it('verificação de dependências sob demanda: pede à máquina, mostra o que ela respondeu e nunca diz incompatível sem resposta', async () => {
+    const id = (n: number) => `${String(n).repeat(8)}-${String(n).repeat(4)}-4${String(n).repeat(3)}-8${String(n).repeat(3)}-${String(n).repeat(12)}`;
+    candidates = [
+      candidate(),
+      candidate({ agentId: AG2, agentName: 'ESTACAO-02', workerId: W2, dependencyCheck: check({ outcome: 'MISSING', missing: ['requests==2.32.3', 'idna==3.7'] }) }),
+      candidate({ agentId: id(3), agentName: 'ESTACAO-03', dependencyCheck: check({ state: 'UNANSWERED', outcome: null, answeredAt: null }) }),
+      candidate({ agentId: id(4), agentName: 'ESTACAO-04', dependencyCheck: check({ state: 'PENDING', outcome: null, answeredAt: null }) }),
+      candidate({ agentId: id(5), agentName: 'ESTACAO-05', dependencyCheck: check({ current: false }) }),
+      candidate({ agentId: id(6), agentName: 'ESTACAO-06', requestable: false, missing: ['PYTHON_NOT_SELECTED'], python: null }),
+    ];
+    let status = 201;
+    const POST = `/api/v1/o/${ORG}/automations/${AUT}/remote-machines/${AG1}/dependency-check`;
+    api.on('POST', POST, 'checkRemoteMachineDependencies', () => {
+      if (status !== 201) return { status, body: status === 429 ? { error: 'rate_limited', reason: 'remote_dependency_check_too_soon' } : { error: 'conflict', reason: 'remote_python_not_in_inventory' } };
+      candidates = [candidate({ dependencyCheck: check({ state: 'PENDING', outcome: null, answeredAt: null }) }), ...candidates.slice(1)];
+      return { status: 201, body: check({ state: 'PENDING', outcome: null, answeredAt: null }) };
+    });
+    await open();
+    const s = await waitFor(section);
+    const rows = within(within(s).getByRole('table', { name: /Máquinas habilitadas do workspace/ })).getAllByRole('row');
+    // nunca verificado; faltam (com a lista, e dito que nada é instalado); sem resposta; aguardando; verificação de outra configuração
+    expect(within(rows[1]).getByText(DEPENDENCY_CHECK.NONE)).toBeInTheDocument();
+    expect(within(rows[2]).getByText(/Faltam neste Python: requests==2\.32\.3, idna==3\.7\. A Platform não instala nada/)).toBeInTheDocument();
+    expect(within(rows[3]).getByText(DEPENDENCY_CHECK.UNANSWERED)).toBeInTheDocument();
+    expect(within(rows[4]).getByText(DEPENDENCY_CHECK.PENDING)).toBeInTheDocument();
+    expect(within(rows[5]).getByText(new RegExp(DEPENDENCY_CHECK.STALE.slice(0, 40)))).toBeInTheDocument();
+    // sem resposta e sem conseguir conferir: "não foi possível verificar", nunca "incompatível" como veredito
+    for (const t of [DEPENDENCY_CHECK.UNANSWERED, DEPENDENCY_CHECK.NOT_VERIFIED, DEPENDENCY_CHECK.TOO_SOON]) {
+      expect(t.startsWith('Não foi possível verificar')).toBe(true);
+    }
+    expect(DEPENDENCY_CHECK.UNANSWERED).toMatch(/não quer dizer que o Python seja incompatível/);
+    expect(dependencyCheckText(null)).toBe(DEPENDENCY_CHECK.NONE);
+    expect(dependencyCheckText(check({ outcome: 'ENVIRONMENT_GONE' }) as never)).toBe(DEPENDENCY_CHECK.ENVIRONMENT_GONE);
+    expect(dependencyCheckText(check({ outcome: 'NOT_VERIFIED' }) as never)).toBe(DEPENDENCY_CHECK.NOT_VERIFIED);
+    expect(DEPENDENCY_CHECK.SATISFIED).toMatch(/A máquina confere de novo antes de iniciar/);
+    // o botão: só onde há Python escolhido, e não enquanto um pedido aguarda resposta
+    expect(within(rows[1]).getByRole('button', { name: 'Verificar as dependências em ESTACAO-01' })).toBeInTheDocument();
+    expect(within(rows[4]).queryByRole('button', { name: /Verificar as dependências/ })).toBeNull();
+    expect(within(rows[6]).queryByRole('button', { name: /Verificar as dependências/ })).toBeNull();
+    // o limite de um pedido por minuto: dito como "não foi possível verificar agora", nada muda
+    status = 429;
+    fireEvent.click(within(rows[1]).getByRole('button', { name: 'Verificar as dependências em ESTACAO-01' }));
+    expect(await screen.findByText(DEPENDENCY_CHECK.TOO_SOON)).toBeInTheDocument();
+    // outra recusa do servidor: o motivo dela
+    status = 409;
+    fireEvent.click(within(section()).getByRole('button', { name: 'Verificar as dependências em ESTACAO-01' }));
+    expect(await screen.findByText(/Esse Python não está mais entre os que a máquina informou/)).toBeInTheDocument();
+    // pedido aceito: a tela diz que o resultado vem depois, e a linha passa a aguardar
+    status = 201;
+    fireEvent.click(within(section()).getByRole('button', { name: 'Verificar as dependências em ESTACAO-01' }));
+    expect(await screen.findByText(/Verificação pedida a ESTACAO-01\. O resultado aparece na linha dela quando a máquina responder/)).toBeInTheDocument();
+    expect(api.sent('POST', POST).length).toBe(3);
+    await waitFor(() => expect(within(section()).queryByRole('button', { name: 'Verificar as dependências em ESTACAO-01' })).toBeNull());
+  });
+
+  it('quem não executa a automação vê o resultado da verificação, sem o botão de verificar', async () => {
+    permissions(['automation.read', 'automation.manage']);
+    candidates = [candidate({ dependencyCheck: check() })];
+    await open();
+    const s = await waitFor(section);
+    expect(within(s).getByText(new RegExp(DEPENDENCY_CHECK.SATISFIED.slice(0, 40)))).toBeInTheDocument();
+    expect(within(s).queryByRole('button', { name: /Verificar as dependências/ })).toBeNull();
   });
 
   it('quem não gerencia a automação vê o Python escolhido e o que falta, sem o botão de escolher', async () => {
