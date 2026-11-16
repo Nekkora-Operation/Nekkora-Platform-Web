@@ -6,7 +6,8 @@ import { sessionMemory } from '../../app/notices';
 import { fakeLocks } from '../../test/fakeLocks';
 import { renderApp } from '../../test/render';
 import { RouteApi } from '../../test/routeApi';
-import { MISSING, REQUEST_REFUSAL } from './RemoteExecutions';
+import { ATTEMPT_STATE, ENDED_UNKNOWN_TEXT, MISSING, REQUEST_REFUSAL, environmentCode } from './RemoteExecutions';
+import { permissionsAutoRetry } from '../../area/useWorkspacePermissions';
 
 /**
  * PLATFORM-CLIENT-EXECUCAO-REMOTA-001, T02 — execução remota na página de uma versão publicada: por máquina, o que falta
@@ -326,6 +327,48 @@ describe('Versão: execução remota (T02)', () => {
     expect(within(s).queryByRole('button', { name: 'Pedir cancelamento' })).toBeNull();
   });
 
+  it('T06: permissões com 429 — a tela avisa, não esconde em silêncio, e confere de novo sozinha; as ações voltam sem clique', async () => {
+    const before = permissionsAutoRetry.delaysMs;
+    permissionsAutoRetry.delaysMs = [40, 40];
+    try {
+      candidates = [candidate()];
+      let failures = 1;
+      api.on('GET', new RegExp(`/api/v1/o/${ORG}/me/permissions/workspaces`), 'listMyWorkspacePermissions', () =>
+        failures-- > 0 ? { status: 429, body: { error: 'rate_limited' } } : { status: 200, body: { items: [], nextCursor: null } },
+      );
+      renderApp(`/o/${ORG}/versoes/${VERSION}`);
+      // primeiro a tela diz que não conseguiu conferir, e que isso vale também para a execução remota
+      const alert = await screen.findByText('Não foi possível verificar suas permissões neste workspace agora.');
+      expect(alert.closest('.nk-alert')).toHaveTextContent(/As ações de execução local e de execução remota só aparecem depois dessa verificação/);
+      // depois confere de novo sozinha: o aviso some e Solicitar aparece, sem a pessoa clicar em nada
+      const s = await waitFor(section);
+      expect(await within(s).findByRole('button', { name: /Solicitar execução/ })).toBeInTheDocument();
+      expect(screen.queryByText('Não foi possível verificar suas permissões neste workspace agora.')).toBeNull();
+      expect(api.sent('GET', new RegExp(`/api/v1/o/${ORG}/me/permissions/workspaces`))).toHaveLength(2);
+    } finally {
+      permissionsAutoRetry.delaysMs = before;
+    }
+  });
+
+  it('T06: permissões que continuam falhando — as repetições automáticas têm fim, e o botão Tentar novamente fica', async () => {
+    const before = permissionsAutoRetry.delaysMs;
+    permissionsAutoRetry.delaysMs = [20, 20];
+    try {
+      candidates = [candidate()];
+      api.on('GET', new RegExp(`/api/v1/o/${ORG}/me/permissions/workspaces`), 'listMyWorkspacePermissions', { status: 429, body: { error: 'rate_limited' } });
+      renderApp(`/o/${ORG}/versoes/${VERSION}`);
+      await screen.findByText('Não foi possível verificar suas permissões neste workspace agora.');
+      await waitFor(() => expect(api.sent('GET', new RegExp(`/api/v1/o/${ORG}/me/permissions/workspaces`))).toHaveLength(3));
+      await new Promise((r) => setTimeout(r, 150));
+      // a primeira leitura e duas repetições: não mais que isso
+      expect(api.sent('GET', new RegExp(`/api/v1/o/${ORG}/me/permissions/workspaces`))).toHaveLength(3);
+      expect(await screen.findByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
+      expect(within(section()).queryByRole('button', { name: /Solicitar execução/ })).toBeNull();
+    } finally {
+      permissionsAutoRetry.delaysMs = before;
+    }
+  });
+
   it('executar novamente em outra máquina: só depois do término, e só em máquina sem pendência', async () => {
     candidates = [
       candidate({ requestable: false, missing: ['AUTHORIZATION_MISSING'], authorization: null }),
@@ -338,8 +381,18 @@ describe('Versão: execução remota (T02)', () => {
     });
     await open();
     const s = await waitFor(section);
-    expect(within(s).getAllByText('Encerrada sem prova do resultado').length).toBeGreaterThan(0);
+    // T06: o desfecho incerto é dito com honestidade - nem sucesso pela chegada de arquivos, nem falha pela falta do código de saída
+    expect(within(s).getAllByText('Resultado não confirmado').length).toBeGreaterThan(0);
+    expect(within(s).getByText(ENDED_UNKNOWN_TEXT)).toBeInTheDocument();
+    expect(ENDED_UNKNOWN_TEXT).toBe(
+      'O Agent foi interrompido e não conseguiu confirmar como a automação terminou. Os arquivos recebidos estão disponíveis, mas não comprovam sucesso.',
+    );
+    expect(ATTEMPT_STATE.ENDED_UNKNOWN.tone).toBe('warning');
+    expect(within(s).queryByText('Concluída')).toBeNull();
+    expect(within(s).queryByText('Falhou')).toBeNull();
     fireEvent.click(within(s).getByRole('button', { name: 'Executar novamente em outra máquina' }));
+    // repetir continua sendo decisão de uma pessoa, avisada de que o trabalho pode já ter sido feito
+    expect(within(dialog()).getByText(/terminou com resultado não confirmado: a automação pode ter feito parte do trabalho, ou todo ele/)).toBeInTheDocument();
     expect(within(dialog()).getByText(/a da máquina anterior não é\s+aproveitada/)).toBeInTheDocument();
     const select = within(dialog()).getByLabelText('Máquina') as HTMLSelectElement;
     const options = Array.from(select.options).map((o) => o.textContent);
@@ -385,7 +438,7 @@ describe('Versão: execução remota (T02)', () => {
     const rows = within(within(s).getByRole('table', { name: /Máquinas habilitadas do workspace/ })).getAllByRole('row');
     expect(within(rows[1]).getByText('Não escolhido')).toBeInTheDocument();
     expect(within(rows[1]).getByText(MISSING.PYTHON_NOT_SELECTED)).toBeInTheDocument();
-    expect(within(rows[2]).getByText('Python 3.11.9')).toBeInTheDocument();
+    expect(within(rows[2]).getByText('Python 3.11.9 · código BBBBBB')).toBeInTheDocument();
     expect(within(rows[2]).getByText('A máquina não informa mais este Python.')).toBeInTheDocument();
     expect(within(rows[2]).getByText(MISSING.PYTHON_NOT_IN_INVENTORY)).toBeInTheDocument();
     expect(within(rows[2]).getByRole('button', { name: 'Trocar o Python de ESTACAO-02' })).toBeInTheDocument();
@@ -393,8 +446,13 @@ describe('Versão: execução remota (T02)', () => {
     expect(within(dialog()).getByText(/nunca um caminho\. Nada é\s+instalado/)).toBeInTheDocument();
     const select = (await within(dialog()).findByLabelText('Python da máquina')) as HTMLSelectElement;
     const options = Array.from(select.options).map((o) => o.textContent ?? '');
-    // duas com a mesma versão: o tipo e a ordem distinguem; o identificador opaco não é mostrado
+    // duas com a mesma versão: o tipo e o CÓDIGO distinguem (T06); o identificador opaco inteiro não é mostrado
     expect(options.filter((o) => o.includes('Python 3.12.10'))).toHaveLength(2);
+    expect(options.some((o) => o.includes('Python 3.12.10') && o.includes('código AAAAAA'))).toBe(true);
+    expect(options.some((o) => o.includes('Python 3.12.10') && o.includes('código BBBBBB'))).toBe(true);
+    expect(options.some((o) => /nº \d/.test(o))).toBe(false);
+    expect(within(dialog()).getByText(/O mesmo código aparece no computador/)).toBeInTheDocument();
+    expect(environmentCode(ENV_A)).toBe('AAAAAA');
     expect(options.some((o) => o.includes('instalação'))).toBe(true);
     expect(options.some((o) => o.includes('ambiente virtual'))).toBe(true);
     expect(options.join(' ')).not.toContain(ENV_A);
