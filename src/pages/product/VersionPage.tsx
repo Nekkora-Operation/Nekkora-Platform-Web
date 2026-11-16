@@ -218,7 +218,7 @@ export function VersionPage() {
     <Stack gap={6}>
       <PageHeader title={`${name} — versão ${data.versionNumber ?? ''}`} subtitle="Versão da automação" back={back} onRefresh={version.refresh} refreshing={version.refreshing} />
       {perms.status === 'unknown' && (
-        <PermissionsUnverified actions={draft ? 'Enviar o pacote, Publicar versão e a execução local' : 'As ações de execução local'} onRetry={perms.retry} />
+        <PermissionsUnverified actions={draft ? 'Enviar o pacote, Publicar versão e a execução local' : 'As ações de execução local e de execução remota'} onRetry={perms.retry} />
       )}
 
       <Card variant="surface" padding="lg">

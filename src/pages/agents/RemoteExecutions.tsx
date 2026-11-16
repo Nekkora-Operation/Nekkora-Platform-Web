@@ -52,8 +52,22 @@ export const ATTEMPT_STATE: Record<RemoteAttemptState, { label: string; tone: To
   TIMED_OUT: { label: 'Encerrada por tempo', tone: 'warning' },
   REFUSED: { label: 'Não iniciada', tone: 'warning' },
   EXPIRED: { label: 'Expirada sem a máquina receber', tone: 'neutral' },
-  ENDED_UNKNOWN: { label: 'Encerrada sem prova do resultado', tone: 'warning' },
+  ENDED_UNKNOWN: { label: 'Resultado não confirmado', tone: 'warning' },
 };
+
+/**
+ * T06 — o que "Resultado não confirmado" quer dizer, sempre junto do estado. A tela não marca sucesso porque chegaram
+ * arquivos, nem falha porque faltou o código de saída; e não libera repetição por conta própria.
+ */
+/**
+ * T06 — o código curto de um ambiente Python: os 6 primeiros caracteres do identificador opaco que a máquina publicou. Serve
+ * para a pessoa distinguir dois ambientes da mesma versão e achar o mesmo ambiente no computador, onde o aplicativo mostra o
+ * mesmo código ao lado da pasta. Não revela a pasta.
+ */
+export const environmentCode = (environmentId: string) => environmentId.slice(0, 6);
+
+export const ENDED_UNKNOWN_TEXT =
+  'O Agent foi interrompido e não conseguiu confirmar como a automação terminou. Os arquivos recebidos estão disponíveis, mas não comprovam sucesso.';
 
 const REFUSAL: Record<string, string> = {
   BUSY: 'a máquina já estava executando outra automação',
@@ -229,7 +243,7 @@ export function RemoteExecutions({
       header: 'Python desta automação',
       render: (c) => (
         <Stack gap={1}>
-          <span>{c.python ? `Python ${c.python.pythonVersion}` : 'Não escolhido'}</span>
+          <span>{c.python ? `Python ${c.python.pythonVersion} · código ${environmentCode(c.python.environmentId)}` : 'Não escolhido'}</span>
           {c.python && !c.python.inInventory && (
             <Text variant="body-sm" color="secondary">
               A máquina não informa mais este Python.
@@ -291,6 +305,11 @@ export function RemoteExecutions({
         {a.state === 'REFUSED' && a.refusalReason ? `: ${refusalText(a.refusalReason)}` : ''}
         {a.exitCode != null ? ` · código de saída ${a.exitCode}` : ''}
       </Text>
+      {a.state === 'ENDED_UNKNOWN' && (
+        <Text variant="body-sm" color="secondary">
+          {ENDED_UNKNOWN_TEXT}
+        </Text>
+      )}
       {a.communication === 'LOST' && (
         <Text variant="body-sm" color="secondary">
           Sem comunicação com a máquina no momento. Isso não encerra a execução: o estado é o último que ela informou.
@@ -468,11 +487,17 @@ export function RemoteExecutions({
               value={environment}
               placeholder="Escolha uma versão"
               onChange={(e) => setEnvironment(e.target.value)}
-              options={environments.items.map((e, i) => ({
+              options={environments.items.map((e) => ({
                 value: e.environmentId,
-                label: `Python ${e.pythonVersion} · ${PYTHON_KIND[e.kind] ?? e.kind} · nº ${i + 1}${e.environmentId === choosing?.python?.environmentId ? ' (atual)' : ''}`,
+                label: `Python ${e.pythonVersion} · ${PYTHON_KIND[e.kind] ?? e.kind} · código ${environmentCode(e.environmentId)}${e.environmentId === choosing?.python?.environmentId ? ' (atual)' : ''}`,
               }))}
             />
+          )}
+          {environments.status === 'ready' && environments.items.length > 0 && (
+            <Text variant="body-sm" color="secondary">
+              Ambientes com a mesma versão se distinguem pelo código. O mesmo código aparece no computador, em &quot;Execução remota&quot;, ao lado da pasta de cada
+              ambiente. A pasta não é enviada à Platform.
+            </Text>
           )}
         </Stack>
       </StepUpDialog>
@@ -500,6 +525,12 @@ export function RemoteExecutions({
             É uma nova tentativa da mesma solicitação. A autorização conferida é a desta versão para o Worker da máquina escolhida: a da máquina anterior não é
             aproveitada.
           </Text>
+          {retrying?.state === 'ENDED_UNKNOWN' && (
+            <Alert tone="warning">
+              A tentativa anterior terminou com resultado não confirmado: a automação pode ter feito parte do trabalho, ou todo ele. A Platform não sabe e não
+              decide por você. Confira o que ela fez antes de executar de novo.
+            </Alert>
+          )}
           <Select
             label="Máquina"
             fullWidth
