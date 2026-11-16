@@ -424,6 +424,7 @@ describe('Versão: execução remota (T02)', () => {
     executions = [execution([attempt({ state: 'SUCCEEDED', exitCode: 0, startedAt: T, endedAt: T })])];
     const RES = `/api/v1/o/${ORG}/remote-executions/${X1}/attempts/${ATT}/results`;
     let closure: Row | null = null;
+    let retentionLoss: Row | null = null;
     api.on('GET', RES, 'listRemoteAttemptResults', () => ({
       status: 200,
       body: {
@@ -433,6 +434,7 @@ describe('Versão: execução remota (T02)', () => {
           { number: 2, fileName: 'antigo.txt', sizeBytes: 3, sha256: 'd'.repeat(64), receivedAt: T, available: false },
         ],
         closure,
+        retentionLoss,
       },
     }));
     api.on('GET', `${RES}/1/content`, 'downloadRemoteAttemptResult', { status: 409, body: { error: 'conflict', reason: 'remote_result_unavailable' } });
@@ -457,6 +459,16 @@ describe('Versão: execução remota (T02)', () => {
     expect(await within(s).findByText(/2 arquivos não foram enviados/)).toBeInTheDocument();
     expect(within(s).getByText(/Isso não muda o resultado da execução/)).toBeInTheDocument();
     expect(within(s).queryByText(/ainda não informou que terminou/)).toBeNull();
+    expect(within(s).queryByText(/removeu a pasta de saída/)).toBeNull();
+    // a máquina avisa que removeu, pelo prazo de guarda dela, a pasta de saída sem confirmação: a lacuna aparece, com o que havia lá
+    // e o que a Platform tem - e nada disso vira "entregue"
+    retentionLoss = { localCount: 4, reportedAt: '2026-11-23T15:00:00Z' };
+    fireEvent.click(within(s).getByRole('button', { name: 'Atualizar os resultados da tentativa 1' }));
+    const lost = await within(s).findByText(/removeu a pasta de saída desta execução/);
+    expect(lost.textContent).toMatch(/venceu o prazo de guarda dela sem a Platform ter\s+confirmado o recebimento de tudo/);
+    expect(lost.textContent).toMatch(/Havia 4 arquivos lá; a\s+Platform tem 2\./);
+    expect(lost.textContent).toMatch(/não pode mais ser recuperado pela Platform/);
+    expect(lost.textContent).toMatch(/Isso não muda o\s+resultado da execução/);
     // o estado da execução continua o que a máquina informou
     expect(within(s).getAllByText('Concluída').length).toBeGreaterThan(0);
   });
@@ -490,9 +502,11 @@ describe('Versão: execução remota (T02)', () => {
         total: 6,
         nextAfter: 4,
         closure: null,
+        retentionLoss: null,
       },
-      { attemptId: ATT, items: [line(5, 'EXECUTOR', 'Limite de registros desta execução atingido'), line(6, 'STDOUT', 'fim')], total: 6, nextAfter: null, closure: null },
-      { attemptId: ATT, items: [], total: 6, nextAfter: null, closure: { lines: 6, droppedLines: 73000, closedAt: T } },
+      { attemptId: ATT, items: [line(5, 'EXECUTOR', 'Limite de registros desta execução atingido'), line(6, 'STDOUT', 'fim')], total: 6, nextAfter: null, closure: null, retentionLoss: null },
+      { attemptId: ATT, items: [], total: 6, nextAfter: null, closure: { lines: 6, droppedLines: 73000, closedAt: T }, retentionLoss: null },
+      { attemptId: ATT, items: [], total: 6, nextAfter: null, closure: null, retentionLoss: { localCount: 1500, reportedAt: '2026-11-23T15:00:00Z' } },
     ];
     api.on('GET', LOGS, 'listRemoteAttemptLogs', (_call, n) => ({ status: 200, body: pages[Math.min(n, pages.length - 1)] }));
     await open();
@@ -525,6 +539,14 @@ describe('Versão: execução remota (T02)', () => {
     expect(within(s).queryByText(/ainda não informou que terminou de enviar os registros/)).toBeNull();
     expect(within(list).getAllByRole('listitem')).toHaveLength(6);
     expect(api.sent('GET', LOGS)).toHaveLength(3);
+    expect(within(s).queryByText(/removeu os registros que ainda guardava/)).toBeNull();
+    // a máquina avisa que removeu, pelo prazo de guarda dela, registros sem confirmação: a tela diz quanto ela tinha e quanto a
+    // Platform tem, sem dar o que falta por entregue
+    fireEvent.click(within(s).getByRole('button', { name: 'Atualizar os registros da tentativa 1' }));
+    const lost = await within(s).findByText(/removeu os registros que ainda guardava desta execução/);
+    expect(lost.textContent).toMatch(/Ela tinha capturado 1\.500 linhas; a Platform tem 6\./);
+    expect(lost.textContent).toMatch(/não pode mais ser recuperado pela Platform/);
+    expect(within(list).getAllByRole('listitem')).toHaveLength(6);
   });
 
   it('registros: sem permissão, ou em tentativa que não iniciou, a tela não oferece; sem leitura, diz que não leu', async () => {
