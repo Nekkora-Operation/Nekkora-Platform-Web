@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { csrfStore } from '../../api/csrf';
 import { createOperationRegistry, setOperationRegistryForTest } from '../../api/pendingOps';
@@ -34,6 +34,8 @@ const LIST = `/api/v1/o/${ORG}/workspaces/${WS}/remote-executions`;
 let api: RouteApi;
 type Row = Record<string, unknown>;
 let candidates: Row[];
+/** O tipo do pacote da versão da página; a execução remota só aceita o externo. */
+let packageKind: 'STUDIO_PYTHON' | 'EXTERNAL_PYTHON';
 let executions: Row[];
 
 const candidate = (over: Row = {}): Row => ({
@@ -100,6 +102,7 @@ beforeEach(() => {
   csrfStore.setSession(ORG, 'ses');
   candidates = [];
   executions = [];
+  packageKind = 'EXTERNAL_PYTHON';
   api.on('GET', `/api/v1/o/${ORG}/me`, 'getMe', {
     status: 200,
     body: { accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: ORG, organizationActivationState: 'ATIVADA', stepUpMethod: 'totp' },
@@ -111,7 +114,7 @@ beforeEach(() => {
     status: 200,
     body: { automationId: AUT, workspaceId: WS, name: 'Relatório de pedidos', description: null, status: 'active', latestPublishedVersion: null, createdAt: T, updatedAt: T },
   });
-  api.on('GET', `/api/v1/o/${ORG}/automation-versions/${VERSION}`, 'getAutomationVersion', {
+  api.on('GET', `/api/v1/o/${ORG}/automation-versions/${VERSION}`, 'getAutomationVersion', () => ({
     status: 200,
     body: {
       automationVersionId: VERSION,
@@ -136,14 +139,14 @@ beforeEach(() => {
         declaredGenerator: null,
         provenance: 'DECLARED',
         receivedAt: T,
-        packageKind: 'STUDIO_PYTHON',
+        packageKind,
       },
       agentPackage: { fingerprintRule: 'nekkora-agent/package-fingerprint/1', fingerprint: FP },
       createdAt: T,
       publishedAt: T,
       publishedByMembershipId: VERSION,
     },
-  });
+  }));
   api.on('GET', new RegExp(`/api/v1/o/${ORG}/workspaces/${WS}/local-run-authorizations`), 'listLocalRunAuthorizations', { status: 200, body: { items: [] } });
   api.on('GET', new RegExp(`/api/v1/o/${ORG}/agents`), 'listAgents', { status: 200, body: { items: [], nextCursor: null } });
   api.on('GET', new RegExp(`/api/v1/o/${ORG}/workers`), 'listWorkers', { status: 200, body: { items: [] } });
@@ -194,6 +197,24 @@ describe('Versão: execução remota (T02)', () => {
     expect(within(missing).getByText(/retomado no próprio computador/)).toBeInTheDocument();
     expect(within(rows[2]).queryByRole('button', { name: /Solicitar execução/ })).toBeNull();
     expect(within(s).getByText(/Solicitar não é iniciar/)).toBeInTheDocument();
+  });
+
+  it('a tela diz que só pacote Python externo é aceito; versão no formato Studio não oferece Solicitar', async () => {
+    candidates = [candidate()];
+    await open();
+    let s = await waitFor(section);
+    expect(within(s).getByText(/aceita apenas pacotes Python externos compatíveis\. Pacotes no formato Studio não são executados remotamente/)).toBeInTheDocument();
+    expect(within(s).queryByText('Esta versão não pode ser executada remotamente')).toBeNull();
+    expect(within(s).getByRole('button', { name: 'Solicitar execução em ESTACAO-01' })).toBeInTheDocument();
+    cleanup();
+    packageKind = 'STUDIO_PYTHON';
+    await open();
+    s = await waitFor(section);
+    expect(within(s).getByText('Esta versão não pode ser executada remotamente')).toBeInTheDocument();
+    expect(within(s).getByText(/O pacote desta versão está no formato Studio/)).toBeInTheDocument();
+    // a máquina até poderia receber, mas a tela não oferece o que a máquina recusaria
+    expect(within(s).getByText('Pode solicitar')).toBeInTheDocument();
+    expect(within(s).queryByRole('button', { name: /Solicitar execução/ })).toBeNull();
   });
 
   it('quem não pode resolver vê o que falta, sem a ação; quem não pode executar não vê Solicitar', async () => {
