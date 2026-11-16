@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "c45c0e7094c3038aed27094bdf51d6408d87c46185bd2e2aaed7eb866d7ac55b",
+  "openapiSha256": "acd49fd3aed5136b4f964e3b939437dd3ac3e1d7eebbe4725190e68f64f20a9c",
   "schemas": {
     "Error": {
       "type": "object",
@@ -3034,6 +3034,109 @@
         "selectedAt": {
           "type": "string",
           "format": "date-time"
+        }
+      }
+    },
+    "RemoteAttemptLogs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attemptId",
+        "items",
+        "total",
+        "nextAfter",
+        "closure"
+      ],
+      "properties": {
+        "attemptId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sequence",
+              "capturedAt",
+              "channel",
+              "level",
+              "truncated",
+              "message",
+              "textRemoved"
+            ],
+            "properties": {
+              "sequence": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 50000
+              },
+              "capturedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "STDOUT",
+                  "STDERR",
+                  "EXECUTOR"
+                ]
+              },
+              "level": {
+                "type": "string",
+                "enum": [
+                  "UNKNOWN"
+                ]
+              },
+              "truncated": {
+                "type": "boolean"
+              },
+              "message": {
+                "type": "string"
+              },
+              "textRemoved": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "nextAfter": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "closure": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "lines",
+            "droppedLines",
+            "closedAt"
+          ],
+          "properties": {
+            "lines": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "droppedLines": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "closedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
         }
       }
     },
@@ -10896,6 +10999,54 @@
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/RemoteExecution"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "listRemoteAttemptLogs": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/remote-executions/{execution}/attempts/{attempt}/logs",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/RemoteAttemptLogs"
           }
         },
         "400": {

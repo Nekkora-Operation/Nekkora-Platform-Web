@@ -449,6 +449,99 @@ describe('Versão: execução remota (T02)', () => {
     expect(within(s).getAllByText('Concluída').length).toBeGreaterThan(0);
   });
 
+  it('registros: quem pode ver registros lê a saída do processo em páginas, com canal, linha cortada, texto removido e o que foi descartado', async () => {
+    permissions(['automation.read', 'automation.execute', 'logs.read']);
+    const ATT = '77777777-7777-4777-8777-777777777777';
+    candidates = [candidate()];
+    // execução ainda em andamento: os registros já podem ser lidos; os resultados, não
+    executions = [execution([attempt({ state: 'RUNNING', startedAt: T })])];
+    const LOGS = `/api/v1/o/${ORG}/remote-executions/${X1}/attempts/${ATT}/logs`;
+    const line = (sequence: number, channel: string, message: string, over: Row = {}): Row => ({
+      sequence,
+      capturedAt: T,
+      channel,
+      level: 'UNKNOWN',
+      truncated: false,
+      message,
+      textRemoved: false,
+      ...over,
+    });
+    const pages: Row[] = [
+      {
+        attemptId: ATT,
+        items: [
+          line(1, 'STDOUT', 'iniciando <b>não é HTML</b>'),
+          line(2, 'STDERR', 'Traceback (most recent call last):'),
+          line(3, 'STDOUT', 'x'.repeat(40), { truncated: true }),
+          line(4, 'STDOUT', '', { textRemoved: true }),
+        ],
+        total: 6,
+        nextAfter: 4,
+        closure: null,
+      },
+      { attemptId: ATT, items: [line(5, 'EXECUTOR', 'Limite de registros desta execução atingido'), line(6, 'STDOUT', 'fim')], total: 6, nextAfter: null, closure: null },
+      { attemptId: ATT, items: [], total: 6, nextAfter: null, closure: { lines: 6, droppedLines: 73000, closedAt: T } },
+    ];
+    api.on('GET', LOGS, 'listRemoteAttemptLogs', (_call, n) => ({ status: 200, body: pages[Math.min(n, pages.length - 1)] }));
+    await open();
+    const s = await waitFor(section);
+    // nada é lido antes de a pessoa pedir; em andamento não há resultados a oferecer
+    expect(api.sent('GET', LOGS)).toHaveLength(0);
+    expect(within(s).queryByRole('button', { name: /Ver resultados/ })).toBeNull();
+    fireEvent.click(within(s).getByRole('button', { name: 'Ver registros da tentativa 1' }));
+    const list = await within(s).findByRole('list', { name: 'Registros da tentativa 1' });
+    // o texto é mostrado como texto, nunca interpretado
+    expect(within(list).getByText('iniciando <b>não é HTML</b>')).toBeInTheDocument();
+    expect(list.querySelector('b')).toBeNull();
+    // saída de erro é canal, não nível: a tela diz isso e não conclui falha
+    expect(within(list).getByText(/2 · .* · saída de erro$/)).toBeInTheDocument();
+    expect(within(s).getByText(/sozinho, não indica falha/)).toBeInTheDocument();
+    expect(within(list).getByText(/3 · .* · saída · linha cortada no limite de 8 KiB/)).toBeInTheDocument();
+    expect(within(list).getByText(/O texto desta linha foi removido da Platform/)).toBeInTheDocument();
+    expect(within(s).getByText(/Mostrando 4 de 6 linhas na Platform/)).toBeInTheDocument();
+    expect(within(s).getByText(/ainda não informou que terminou de enviar os registros/)).toBeInTheDocument();
+    // página seguinte, pela sequência
+    fireEvent.click(within(s).getByRole('button', { name: 'Carregar mais registros da tentativa 1' }));
+    expect(await within(list).findByText('fim')).toBeInTheDocument();
+    expect(within(list).getByText(/5 · .* · aplicativo da máquina$/)).toBeInTheDocument();
+    expect(within(s).getByText(/^6 linhas na Platform\./)).toBeInTheDocument();
+    expect(within(list).getAllByRole('listitem')).toHaveLength(6);
+    // a máquina fecha o envio dizendo quantas linhas descartou por limite: a tela diz, e diz que o resultado não mudou
+    fireEvent.click(within(s).getByRole('button', { name: 'Atualizar os registros da tentativa 1' }));
+    expect(await within(s).findByText(/73\.000 linhas não foram guardadas/)).toBeInTheDocument();
+    expect(within(s).getByText(/A execução continuou e o resultado dela não mudou/)).toBeInTheDocument();
+    expect(within(s).queryByText(/ainda não informou que terminou de enviar os registros/)).toBeNull();
+    expect(within(list).getAllByRole('listitem')).toHaveLength(6);
+    expect(api.sent('GET', LOGS)).toHaveLength(3);
+  });
+
+  it('registros: sem permissão, ou em tentativa que não iniciou, a tela não oferece; sem leitura, diz que não leu', async () => {
+    candidates = [candidate()];
+    executions = [execution([attempt({ state: 'FAILED', exitCode: 3, startedAt: T, endedAt: T })])];
+    await open();
+    let s = await waitFor(section);
+    expect(within(s).queryByRole('button', { name: /Ver registros/ })).toBeNull();
+    cleanup();
+    permissions(['automation.read', 'automation.execute', 'logs.read']);
+    executions = [execution([attempt({ state: 'REFUSED', refusalReason: 'SESSION_UNAVAILABLE', endedAt: T })])];
+    await open();
+    s = await waitFor(section);
+    expect(within(s).queryByRole('button', { name: /Ver registros/ })).toBeNull();
+    cleanup();
+    executions = [execution([attempt({ state: 'FAILED', exitCode: 3, startedAt: T, endedAt: T })])];
+    api.on('GET', `/api/v1/o/${ORG}/remote-executions/${X1}/attempts/77777777-7777-4777-8777-777777777777/logs`, 'listRemoteAttemptLogs', {
+      status: 429,
+      body: { error: 'rate_limited' },
+    });
+    await open();
+    s = await waitFor(section);
+    fireEvent.click(within(s).getByRole('button', { name: 'Ver registros da tentativa 1' }));
+    expect(await within(s).findByText('Muitos pedidos seguidos. Aguarde um pouco e tente de novo.')).toBeInTheDocument();
+    // a falha de leitura não muda o que a tela diz da execução
+    expect(within(s).getAllByText(/Falhou/).length).toBeGreaterThan(0);
+    expect(within(s).getByText(/código de saída 3/)).toBeInTheDocument();
+  });
+
   it('resultados: sem permissão de ver registros, ou em tentativa que não executou, a tela não oferece os arquivos', async () => {
     candidates = [candidate()];
     executions = [execution([attempt({ state: 'SUCCEEDED', exitCode: 0, startedAt: T, endedAt: T })])];

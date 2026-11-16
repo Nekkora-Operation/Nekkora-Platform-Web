@@ -22,6 +22,7 @@ import { StepUpDialog } from '../../components/StepUpDialog';
 import { usePolling } from '../../hooks/usePolling';
 import { accessRefusal, orgStepUp } from '../access/shared';
 import { DateTimeText, RouteLink } from '../product/shared';
+import { RemoteLogs } from './RemoteLogs';
 import { RemoteResults } from './RemoteResults';
 import './agents.css';
 
@@ -292,6 +293,8 @@ export function RemoteExecutions({
           Sem comunicação com a máquina no momento. Isso não encerra a execução: o estado é o último que ela informou.
         </Text>
       )}
+      {/* registros: de tentativa que iniciou (em andamento ou terminada), só para quem pode ver registros */}
+      {canReadLogs && a.startedAt && <RemoteLogs org={org} executionId={executionOf(a.attemptId)} attemptId={a.attemptId} attemptNumber={a.attemptNumber} />}
       {/* resultados: só de tentativa que iniciou e terminou, e só para quem pode ver registros */}
       {canReadLogs && a.startedAt && finished(a.state) && (
         <RemoteResults org={org} executionId={executionOf(a.attemptId)} attemptId={a.attemptId} attemptNumber={a.attemptNumber} />

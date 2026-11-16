@@ -17,6 +17,7 @@ export type RemoteCandidate = S['RemoteExecutionCandidateList']['items'][number]
 export type RemoteMissing = RemoteCandidate['missing'][number];
 export type RemotePythonChoice = S['RemotePythonChoice'];
 export type RemoteAttemptResults = S['RemoteAttemptResults'];
+export type RemoteAttemptLogs = S['RemoteAttemptLogs'];
 
 const base = (org: string) => `/api/v1/o/${encodeURIComponent(org)}`;
 const id = (v: string) => encodeURIComponent(v);
@@ -53,6 +54,14 @@ export function selectRemoteMachinePython(org: string, automationId: string, age
     method: 'PUT',
     body: { environmentId },
   });
+}
+
+/**
+ * As linhas da saída do processo de uma tentativa, a partir da sequência `after` (exclusiva), e o fechamento do envio (T05).
+ * Exige logs.read. Só existem linhas de tentativa remota.
+ */
+export function listRemoteAttemptLogs(org: string, remoteExecutionId: string, attemptId: string, after: number, limit = 500): Promise<RemoteAttemptLogs> {
+  return send(org, 'listRemoteAttemptLogs', `/remote-executions/${id(remoteExecutionId)}/attempts/${id(attemptId)}/logs?after=${Math.max(0, Math.trunc(after))}&limit=${limit}`);
 }
 
 /** Os arquivos de resultado de uma tentativa e o fechamento do envio (T03 parte b). Exige logs.read. */
