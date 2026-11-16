@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Badge, Button, Card, Heading, Select, Stack, Table, Text, type TableColumn, type Tone } from 'nekkora-lib';
+import { Alert, Badge, Button, Card, Checkbox, Heading, Select, Stack, Table, Text, type TableColumn, type Tone } from 'nekkora-lib';
 import {
   cancelRemoteExecution,
   checkRemoteMachineDependencies,
@@ -84,15 +84,28 @@ export const CLOSURE_TEXT: Record<string, { unknown: string; notStarted: string 
   },
   MACHINE_REVOKED: {
     unknown:
-      'A máquina foi revogada por quem administra com esta execução em andamento. Não há confirmação de como a automação terminou, nem de que terminou. O que foi recebido até ali está disponível, mas não comprova sucesso.',
+      'A máquina foi revogada por quem administra com esta execução em andamento. Não há confirmação de como a automação terminou, nem de que terminou. A parada do processo é feita pelo aplicativo naquele computador quando ele percebe a revogação: se o computador estava sem contato, a automação pode ter continuado. O que foi recebido até ali está disponível, mas não comprova sucesso.',
     notStarted: 'A máquina foi revogada por quem administra antes de a execução começar.',
   },
   COMMUNICATION_LOST: {
     unknown:
-      'A máquina deixou de se comunicar durante a execução e não voltou dentro do prazo. Não há confirmação de como a automação terminou, nem de que terminou. O que foi recebido até ali está disponível, mas não comprova sucesso.',
+      'A máquina deixou de se comunicar durante a execução e não voltou dentro do prazo. Não há confirmação de como a automação terminou, nem de que terminou: ela pode ainda estar em andamento naquele computador. O que foi recebido até ali está disponível, mas não comprova sucesso. Se a máquina voltar, o que ela informar aparece aqui.',
     notStarted: 'A máquina deixou de se comunicar antes de a execução começar e não voltou dentro do prazo.',
   },
 };
+
+/**
+ * Decisão de 16/11: a espera vencida consolida "Resultado não confirmado", mas não libera a repetição sozinha. Quando a última
+ * tentativa foi encerrada por falta de comunicação e a máquina ainda não relatou o desfecho, executar novamente exige que a
+ * pessoa marque que sabe que a anterior pode estar em andamento.
+ */
+export const RETRY_UNCONFIRMED_TEXT =
+  'A máquina da tentativa anterior deixou de se comunicar e não voltou. A automação pode ainda estar em andamento naquele computador: executar novamente em outra máquina pode fazer o mesmo trabalho duas vezes.';
+export const RETRY_UNCONFIRMED_LABEL = 'Sei que a execução anterior pode ainda estar em andamento e quero executar novamente.';
+export function needsAcknowledgement(x: RemoteExecution | null): boolean {
+  const last = x?.attempts[x.attempts.length - 1];
+  return !!last && last.state === 'ENDED_UNKNOWN' && last.closureCause === 'COMMUNICATION_LOST' && !last.lateReport;
+}
 
 /** O texto do desfecho incerto: o da causa, quando a Platform encerrou; senão, o do aplicativo que voltou sem prova. */
 export const endedUnknownText = (closureCause: string | null | undefined) =>
@@ -137,9 +150,11 @@ export const MISSING: Record<RemoteMissing, string> = {
   AUTHORIZATION_MISSING: 'Falta a autorização de execução desta versão para o Worker desta máquina.',
   AUTHORIZATION_REVOKED: 'A autorização de execução desta versão para o Worker desta máquina foi revogada.',
   AUTHORIZATION_EXPIRED: 'A autorização de execução desta versão para o Worker desta máquina venceu.',
-  MACHINE_PAUSED: 'O recebimento está pausado nesta máquina.',
+  MACHINE_PAUSED: 'Os novos trabalhos estão pausados nesta máquina.',
   MACHINE_INCOMPATIBLE: 'O aplicativo desta máquina não executa solicitações da Platform.',
   MACHINE_BUSY: 'Esta máquina já tem uma execução remota em andamento.',
+  MACHINE_UNCONFIRMED:
+    'A última execução desta máquina foi encerrada por falta de comunicação e ela ainda não voltou a se comunicar: não se sabe se está livre.',
   PYTHON_NOT_SELECTED: 'Ainda não foi escolhido o Python desta automação nesta máquina.',
   PYTHON_NOT_IN_INVENTORY: 'O Python escolhido para esta automação não está mais entre os que esta máquina informou.',
 };
@@ -160,7 +175,7 @@ export const DEPENDENCY_CHECK = {
   NOT_VERIFIED: 'Não foi possível verificar: a máquina não conseguiu conferir este Python. Isso não quer dizer que ele seja incompatível.',
   STALE: 'Esta verificação é de antes da última mudança do Python escolhido ou das dependências declaradas: verifique de novo.',
   NOTHING_INSTALLED: 'A Platform não instala nada: quem cuida do ambiente é quem administra a máquina.',
-  TOO_SOON: 'Não foi possível verificar agora: já houve um pedido para esta máquina há menos de um minuto. Tente de novo em instantes. Nada foi alterado.',
+  TOO_SOON: 'Não foi possível verificar agora: já houve um pedido para esta máquina e esta automação há pouco. Tente de novo em instantes. Nada foi alterado.',
 } as const;
 
 export function dependencyCheckText(check: RemoteDependencyCheck | null): string {
@@ -185,6 +200,9 @@ export const REQUEST_REFUSAL: Record<string, string> = {
   remote_machine_paused: MISSING.MACHINE_PAUSED,
   remote_machine_incompatible: MISSING.MACHINE_INCOMPATIBLE,
   remote_machine_busy: MISSING.MACHINE_BUSY,
+  remote_machine_unconfirmed: MISSING.MACHINE_UNCONFIRMED,
+  remote_previous_result_unconfirmed:
+    'A tentativa anterior foi encerrada por falta de comunicação e pode ainda estar em andamento. Para executar novamente é preciso marcar que você sabe disso.',
   remote_python_not_selected: MISSING.PYTHON_NOT_SELECTED,
   remote_python_not_in_inventory: 'Esse Python não está mais entre os que a máquina informou. Atualize a lista e escolha outro.',
   remote_machine_not_enabled: 'Esta máquina não está habilitada para execução remota.',
@@ -225,6 +243,7 @@ export function RemoteExecutions({
   const [cancelling, setCancelling] = useState<RemoteExecution | null>(null);
   const [retrying, setRetrying] = useState<RemoteExecution | null>(null);
   const [retryAgent, setRetryAgent] = useState('');
+  const [retryAcknowledged, setRetryAcknowledged] = useState(false);
   const [notice, setNotice] = useState<{ tone: 'success' | 'warning'; text: string } | null>(null);
   // escolha do Python (T01c parte 3): a máquina, o que ela informou ter e o ambiente marcado
   const [choosing, setChoosing] = useState<RemoteCandidate | null>(null);
@@ -299,7 +318,8 @@ export function RemoteExecutions({
         : 'Peça a autorização a quem pode executar neste workspace.';
     if (m === 'PACKAGE_NOT_SUPPORTED') return 'Não há ação nesta máquina: esta versão não pode ser executada remotamente.';
     if (m === 'PACKAGE_NOT_REGISTERED') return 'Não há ação nesta máquina: publique uma nova versão da automação com o pacote.';
-    if (m === 'MACHINE_PAUSED') return 'O recebimento é retomado no próprio computador, em "Execução remota".';
+    if (m === 'MACHINE_PAUSED') return 'Os novos trabalhos voltam a ser recebidos no próprio computador, em "Execução remota".';
+    if (m === 'MACHINE_UNCONFIRMED') return 'Volta a poder receber quando o aplicativo desse computador se comunicar de novo com a Platform.';
     if (m === 'MACHINE_INCOMPATIBLE') return 'É preciso uma versão do Nekkora Agent que execute solicitações da Platform nesse computador.';
     if (m === 'PYTHON_NOT_SELECTED' || m === 'PYTHON_NOT_IN_INVENTORY')
       return canManage ? 'Escolha o Python na coluna "Python desta automação".' : 'Peça a quem gerencia esta automação.';
@@ -500,6 +520,7 @@ export function RemoteExecutions({
                       variant="secondary"
                       onClick={() => {
                         setRetryAgent('');
+                        setRetryAcknowledged(false);
                         setRetrying(x);
                       }}
                     >
@@ -624,12 +645,14 @@ export function RemoteExecutions({
 
       <StepUpDialog<RemoteExecution>
         open={!!retrying}
-        ready={!!retryAgent}
+        ready={!!retryAgent && (!needsAcknowledgement(retrying) || retryAcknowledged)}
         title="Executar novamente em outra máquina?"
         guard={{ operation: 'remote-execution.retry', target: retrying ? `${retrying.remoteExecutionId}|${retryAgent}` : undefined }}
         confirmLabel="Executar novamente"
         stepUp={orgStepUp(org)}
-        action={() => (retrying ? retryRemoteExecution(org, retrying.remoteExecutionId, retryAgent) : Promise.reject())}
+        action={() =>
+          retrying ? retryRemoteExecution(org, retrying.remoteExecutionId, retryAgent, needsAcknowledgement(retrying) && retryAcknowledged) : Promise.reject()
+        }
         onDone={() => {
           setRetrying(null);
           setNotice({ tone: 'success', text: 'Nova tentativa registrada, com a mesma versão e as mesmas dependências da solicitação.' });
@@ -650,6 +673,12 @@ export function RemoteExecutions({
               A tentativa anterior terminou com resultado não confirmado: a automação pode ter feito parte do trabalho, ou todo ele. A Platform não sabe e não
               decide por você. Confira o que ela fez antes de executar de novo.
             </Alert>
+          )}
+          {needsAcknowledgement(retrying) && (
+            <>
+              <Alert tone="warning">{RETRY_UNCONFIRMED_TEXT}</Alert>
+              <Checkbox label={RETRY_UNCONFIRMED_LABEL} checked={retryAcknowledged} onChange={(e) => setRetryAcknowledged(e.target.checked)} />
+            </>
           )}
           <Select
             label="Máquina"

@@ -2209,7 +2209,7 @@ export interface paths {
         };
         /**
          * Maquinas habilitadas do ambiente para uma versao, com o que falta em cada uma
-         * @description Exige automation.read no ambiente. automationVersion: uma versao PUBLICADA do ambiente (outra: 404). Para cada maquina habilitada cujo Worker esta autorizado no ambiente: requestable e missing, a lista do que impede solicitar nela agora - PACKAGE_NOT_SUPPORTED (o pacote da versao nao e um pacote Python externo; a execucao remota so aceita esse tipo e o formato Studio fica de fora - vale para todas as maquinas e nao ha acao que resolva), PACKAGE_NOT_REGISTERED (a Platform nao tem o pacote desta versao registrado, entao nao ha o que entregar a maquina - vale para todas as maquinas; resolve-se publicando uma versao com o pacote), REQUIREMENTS_NOT_DECLARED, REQUIREMENTS_CONFLICT (da automacao), AUTHORIZATION_MISSING, AUTHORIZATION_REVOKED, AUTHORIZATION_EXPIRED (a autorizacao de execucao desta versao para o Worker da maquina), MACHINE_PAUSED, MACHINE_INCOMPATIBLE, MACHINE_BUSY, PYTHON_NOT_SELECTED (ninguem escolheu o ambiente Python desta automacao nesta maquina), PYTHON_NOT_IN_INVENTORY (o escolhido nao esta mais no inventario dela). authorization: a autorizacao vigente da versao para o Worker, ou a mais recente que deixou de valer (null = nunca houve). python: o ambiente escolhido para a automacao nesta maquina (null = nenhum). E indicativo: a solicitacao reconfere tudo, de forma atomica.
+         * @description Exige automation.read no ambiente. automationVersion: uma versao PUBLICADA do ambiente (outra: 404). Para cada maquina habilitada cujo Worker esta autorizado no ambiente: requestable e missing, a lista do que impede solicitar nela agora - PACKAGE_NOT_SUPPORTED (o pacote da versao nao e um pacote Python externo; a execucao remota so aceita esse tipo e o formato Studio fica de fora - vale para todas as maquinas e nao ha acao que resolva), PACKAGE_NOT_REGISTERED (a Platform nao tem o pacote desta versao registrado, entao nao ha o que entregar a maquina - vale para todas as maquinas; resolve-se publicando uma versao com o pacote), REQUIREMENTS_NOT_DECLARED, REQUIREMENTS_CONFLICT (da automacao), AUTHORIZATION_MISSING, AUTHORIZATION_REVOKED, AUTHORIZATION_EXPIRED (a autorizacao de execucao desta versao para o Worker da maquina), MACHINE_PAUSED, MACHINE_INCOMPATIBLE, MACHINE_BUSY, MACHINE_UNCONFIRMED (a ultima tentativa desta maquina foi encerrada por falta de comunicacao e ela ainda nao voltou a se comunicar: nao se sabe se esta livre; deixa de valer no primeiro contato dela), PYTHON_NOT_SELECTED (ninguem escolheu o ambiente Python desta automacao nesta maquina), PYTHON_NOT_IN_INVENTORY (o escolhido nao esta mais no inventario dela). authorization: a autorizacao vigente da versao para o Worker, ou a mais recente que deixou de valer (null = nunca houve). python: o ambiente escolhido para a automacao nesta maquina (null = nenhum). E indicativo: a solicitacao reconfere tudo, de forma atomica.
          */
         get: operations["listRemoteExecutionCandidates"];
         put?: never;
@@ -2235,7 +2235,7 @@ export interface paths {
         put?: never;
         /**
          * Solicita a execucao de uma versao publicada numa maquina habilitada (step-up)
-         * @description Exige automation.execute no ambiente e step-up recente. Para ACEITAR, exige ainda: o pacote da versao e um pacote Python externo (o formato Studio nao e executado remotamente: 409 + remote_package_not_supported, conferido antes de todas as outras exigencias e antes de gravar; o mesmo vale ao repetir em outra maquina); o pacote da versao esta registrado na Platform (senao 409 + remote_package_not_registered, tambem antes de gravar e tambem ao repetir: o banco fixa na tentativa o pacote que a maquina podera baixar e nao cria tentativa sem ele); Worker da maquina autorizado no ambiente; maquina habilitada, nao pausada, compativel e livre; autorizacao de execucao VIGENTE desta versao para o Worker da maquina; dependencias da automacao declaradas e sem conflito com o pacote. Cada exigencia que falta responde 409 conflict com o seu reason (remote_authorization_missing, remote_authorization_revoked, remote_authorization_expired, remote_machine_not_enabled, remote_machine_paused, remote_machine_incompatible, remote_machine_busy, remote_requirements_not_declared, remote_requirements_conflict) e nada e gravado. Nenhuma autorizacao e criada por aqui. A solicitacao fixa a versao, a impressao do pacote e a revisao das dependencias. requestKey: UUID gerado pelo navegador; repetir com a mesma chave e o mesmo conteudo devolve 200 com a mesma solicitacao (resposta perdida); com outro conteudo, 409. Recurso desligado: 409 + remote_execution_unavailable. Solicitar nao prova inicio: a maquina puxa, e o servidor revalida as mesmas condicoes antes de entregar e antes de iniciar.
+         * @description Exige automation.execute no ambiente e step-up recente. Para ACEITAR, exige ainda: o pacote da versao e um pacote Python externo (o formato Studio nao e executado remotamente: 409 + remote_package_not_supported, conferido antes de todas as outras exigencias e antes de gravar; o mesmo vale ao repetir em outra maquina); o pacote da versao esta registrado na Platform (senao 409 + remote_package_not_registered, tambem antes de gravar e tambem ao repetir: o banco fixa na tentativa o pacote que a maquina podera baixar e nao cria tentativa sem ele); Worker da maquina autorizado no ambiente; maquina habilitada, nao pausada, compativel e livre; autorizacao de execucao VIGENTE desta versao para o Worker da maquina; dependencias da automacao declaradas e sem conflito com o pacote. Cada exigencia que falta responde 409 conflict com o seu reason (remote_authorization_missing, remote_authorization_revoked, remote_authorization_expired, remote_machine_not_enabled, remote_machine_paused, remote_machine_incompatible, remote_machine_busy, remote_machine_unconfirmed, remote_requirements_not_declared, remote_requirements_conflict) e nada e gravado. Nenhuma autorizacao e criada por aqui. A solicitacao fixa a versao, a impressao do pacote e a revisao das dependencias. requestKey: UUID gerado pelo navegador; repetir com a mesma chave e o mesmo conteudo devolve 200 com a mesma solicitacao (resposta perdida); com outro conteudo, 409. Recurso desligado: 409 + remote_execution_unavailable. Solicitar nao prova inicio: a maquina puxa, e o servidor revalida as mesmas condicoes antes de entregar e antes de iniciar.
          */
         post: operations["requestRemoteExecution"];
         delete?: never;
@@ -2355,7 +2355,7 @@ export interface paths {
         put?: never;
         /**
          * Executa novamente em outra maquina (step-up)
-         * @description Exige automation.execute no ambiente e step-up. Cria uma tentativa nova da MESMA solicitacao (mesma versao, mesmo pacote, mesmo retrato de dependencias) na maquina indicada. So depois que a tentativa anterior TERMINOU: enquanto ela nao terminar, 409 + remote_attempt_not_finished - nao ha troca automatica de maquina nem duas maquinas com a mesma solicitacao. As exigencias sao as da solicitacao, conferidas para a maquina de DESTINO; em especial, a autorizacao vigente da versao tem de ser do Worker de destino: a da maquina anterior NAO e transferida (sem ela, 409 + remote_authorization_missing). Cancelamento ja pedido: 409 + remote_execution_cancel_requested.
+         * @description Exige automation.execute no ambiente e step-up. Cria uma tentativa nova da MESMA solicitacao (mesma versao, mesmo pacote, mesmo retrato de dependencias) na maquina indicada. So depois que a tentativa anterior TERMINOU: enquanto ela nao terminar, 409 + remote_attempt_not_finished - nao ha troca automatica de maquina nem duas maquinas com a mesma solicitacao. As exigencias sao as da solicitacao, conferidas para a maquina de DESTINO; em especial, a autorizacao vigente da versao tem de ser do Worker de destino: a da maquina anterior NAO e transferida (sem ela, 409 + remote_authorization_missing). Cancelamento ja pedido: 409 + remote_execution_cancel_requested. Quando a tentativa anterior foi encerrada por falta de comunicacao (closureCause COMMUNICATION_LOST) e a maquina ainda nao relatou o desfecho, a espera vencida NAO libera a repeticao sozinha: a automacao pode estar em andamento naquele computador. Sem acknowledgeUnconfirmed = true, 409 + remote_previous_result_unconfirmed e nada e gravado. A maquina de destino cuja ocupacao nao esta confirmada responde 409 + remote_machine_unconfirmed.
          */
         post: operations["retryRemoteExecution"];
         delete?: never;
@@ -2439,7 +2439,7 @@ export interface components {
              * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached, draft_exists, draft_changed, local_run_authorization_exists, organization_name_taken; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
              * @enum {string}
              */
-            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_package_not_supported" | "remote_package_not_registered" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_dependency_check_too_soon" | "remote_dependency_check_closed" | "remote_result_unavailable" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken";
+            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_machine_unconfirmed" | "remote_previous_result_unconfirmed" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_package_not_supported" | "remote_package_not_registered" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_dependency_check_too_soon" | "remote_dependency_check_closed" | "remote_result_unavailable" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken";
         };
         /**
          * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
@@ -3300,7 +3300,7 @@ export interface components {
                 workerId: string;
                 workerName: string;
                 requestable: boolean;
-                missing: ("PACKAGE_NOT_SUPPORTED" | "PACKAGE_NOT_REGISTERED" | "REQUIREMENTS_NOT_DECLARED" | "REQUIREMENTS_CONFLICT" | "AUTHORIZATION_MISSING" | "AUTHORIZATION_REVOKED" | "AUTHORIZATION_EXPIRED" | "MACHINE_PAUSED" | "MACHINE_INCOMPATIBLE" | "MACHINE_BUSY" | "PYTHON_NOT_SELECTED" | "PYTHON_NOT_IN_INVENTORY")[];
+                missing: ("PACKAGE_NOT_SUPPORTED" | "PACKAGE_NOT_REGISTERED" | "REQUIREMENTS_NOT_DECLARED" | "REQUIREMENTS_CONFLICT" | "AUTHORIZATION_MISSING" | "AUTHORIZATION_REVOKED" | "AUTHORIZATION_EXPIRED" | "MACHINE_PAUSED" | "MACHINE_INCOMPATIBLE" | "MACHINE_BUSY" | "MACHINE_UNCONFIRMED" | "PYTHON_NOT_SELECTED" | "PYTHON_NOT_IN_INVENTORY")[];
                 authorization: {
                     /** Format: uuid */
                     authorizationId: string;
@@ -3371,11 +3371,17 @@ export interface components {
                 /** @description O texto foi apagado pela retencao */
                 textRemoved: boolean;
             }[];
+            /** @description Linhas que a Platform tem desta tentativa = automationLines + systemLines */
             total: number;
+            /** @description Linhas que o PROCESSO DA AUTOMACAO escreveu (STDOUT e STDERR) e a Platform tem */
+            automationLines: number;
+            /** @description Avisos do proprio aplicativo da maquina (EXECUTOR), por exemplo o aviso de limite atingido. Ocupam lugar no limite de linhas da tentativa, mas nao sao saida da automacao */
+            systemLines: number;
             nextAfter: number | null;
             closure: {
+                /** @description Linhas que a maquina enviou, contando os avisos do proprio aplicativo (systemLines) */
                 lines: number;
-                /** @description Linhas que a maquina descartou por limite */
+                /** @description Linhas DA AUTOMACAO que a maquina descartou por limite. O que a automacao escreveu = automationLines + droppedLines (com o envio fechado e sem perda) */
                 droppedLines: number;
                 /** Format: date-time */
                 closedAt: string;
@@ -3389,6 +3395,27 @@ export interface components {
                  * @description Quando o aviso chegou a Platform
                  */
                 reportedAt: string;
+            } | null;
+            /** @description 057: o conteudo desta tentativa VENCEU pela retencao do servidor (o texto das linhas foi apagado; cada linha continua existindo, com textRemoved = true). null = nao venceu. O prazo conta do fim da entrega (deliveryEndedAt): a maquina fechou o envio (CLOSED), avisou que perdeu o que guardava (LOSS_NOTICE) ou o vinculo sob o qual a tentativa rodou foi encerrado (LINK_ENDED). Entrega aberta nao vence. O historico da tentativa nao e removido. */
+            expiration: {
+                /**
+                 * Format: date-time
+                 * @description Quando o vencimento foi registrado
+                 */
+                expiredAt: string;
+                /**
+                 * Format: date-time
+                 * @description Quando a remocao do conteudo foi confirmada; null = em andamento
+                 */
+                confirmedAt: string | null;
+                /** @description O prazo aplicado, em dias */
+                retentionDays: number;
+                /** Format: date-time */
+                deliveryEndedAt: string;
+                /** @enum {string} */
+                deliveryEnd: "CLOSED" | "LOSS_NOTICE" | "LINK_ENDED";
+                /** @description Linhas que tinham texto quando venceu */
+                items: number;
             } | null;
         };
         RemoteAttemptResults: {
@@ -3421,6 +3448,27 @@ export interface components {
                  * @description Quando o aviso chegou a Platform
                  */
                 reportedAt: string;
+            } | null;
+            /** @description 057: o conteudo desta tentativa VENCEU pela retencao do servidor (os bytes dos arquivos foram removidos; nome, tamanho e SHA-256 continuam, com available = false). null = nao venceu. O prazo conta do fim da entrega (deliveryEndedAt): a maquina fechou o envio (CLOSED), avisou que perdeu o que guardava (LOSS_NOTICE) ou o vinculo sob o qual a tentativa rodou foi encerrado (LINK_ENDED). Entrega aberta nao vence. O historico da tentativa nao e removido. */
+            expiration: {
+                /**
+                 * Format: date-time
+                 * @description Quando o vencimento foi registrado
+                 */
+                expiredAt: string;
+                /**
+                 * Format: date-time
+                 * @description Quando a remocao do conteudo foi confirmada; null = em andamento
+                 */
+                confirmedAt: string | null;
+                /** @description O prazo aplicado, em dias */
+                retentionDays: number;
+                /** Format: date-time */
+                deliveryEndedAt: string;
+                /** @enum {string} */
+                deliveryEnd: "CLOSED" | "LOSS_NOTICE" | "LINK_ENDED";
+                /** @description Arquivos que estavam guardados quando venceu */
+                items: number;
             } | null;
         };
         RemoteExecution: {
@@ -8724,6 +8772,8 @@ export interface operations {
                 "application/json": {
                     /** Format: uuid */
                     agentId: string;
+                    /** @description a pessoa reconhece que a tentativa anterior, encerrada por falta de comunicacao, pode ainda estar em andamento */
+                    acknowledgeUnconfirmed?: boolean;
                 };
             };
         };

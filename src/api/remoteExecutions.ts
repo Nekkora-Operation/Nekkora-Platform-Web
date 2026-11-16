@@ -120,7 +120,14 @@ export function cancelRemoteExecution(org: string, remoteExecutionId: string): P
   return send(org, 'cancelRemoteExecution', `/remote-executions/${id(remoteExecutionId)}/cancel`, { method: 'POST' });
 }
 
-/** Executar novamente em outra máquina (step-up). Só depois que a tentativa anterior terminou. */
-export function retryRemoteExecution(org: string, remoteExecutionId: string, agentId: string): Promise<RemoteExecution> {
-  return send(org, 'retryRemoteExecution', `/remote-executions/${id(remoteExecutionId)}/attempts`, { method: 'POST', body: { agentId } });
+/**
+ * Executar novamente em outra máquina (step-up). Só depois que a tentativa anterior terminou. `acknowledgeUnconfirmed`: a
+ * pessoa reconhece que a tentativa anterior, encerrada por falta de comunicação, pode ainda estar em andamento — sem isso a
+ * Platform recusa (`remote_previous_result_unconfirmed`). Só é enviado quando a pessoa marcou.
+ */
+export function retryRemoteExecution(org: string, remoteExecutionId: string, agentId: string, acknowledgeUnconfirmed = false): Promise<RemoteExecution> {
+  return send(org, 'retryRemoteExecution', `/remote-executions/${id(remoteExecutionId)}/attempts`, {
+    method: 'POST',
+    body: acknowledgeUnconfirmed ? { agentId, acknowledgeUnconfirmed: true } : { agentId },
+  });
 }
