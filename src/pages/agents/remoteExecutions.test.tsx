@@ -126,10 +126,10 @@ const execution = (attempts: Row[], over: Row = {}): Row => ({
   ...over,
 });
 
-function permissions(workspace: string[]) {
+function permissions(workspace: string[], roles: string[] = ['ORG_ADMIN']) {
   api.on('GET', `/api/v1/o/${ORG}/me/permissions`, 'getMyPermissions', {
     status: 200,
-    body: { organizationId: ORG, membershipId: VERSION, organization: { roles: ['ORG_ADMIN'], permissions: [] }, allWorkspaces: { permissions: workspace }, hasWorkspaceAssignments: false },
+    body: { organizationId: ORG, membershipId: VERSION, organization: { roles, permissions: [] }, allWorkspaces: { permissions: workspace }, hasWorkspaceAssignments: false },
   });
 }
 
@@ -562,6 +562,18 @@ describe('Versão: execução remota (T02)', () => {
     expect(REQUEST_REFUSAL.remote_previous_result_unconfirmed).toContain('executar novamente está bloqueado');
     expect(RECONCILE.FORBIDDEN).toContain('Só quem administra a organização');
     expect(CLOSURE_TEXT.MACHINE_REVOKED.unknown).toContain('se o computador estava sem contato, a automação pode ter continuado');
+  });
+
+  it('reconciliação: quem não administra a organização vê o bloqueio e a quem cabe a declaração, mas a tela não oferece declarar', async () => {
+    permissions(['automation.read', 'automation.execute', 'automation.manage', 'logs.read'], []);
+    candidates = [candidate({ requestable: false, missing: ['MACHINE_UNCONFIRMED'] })];
+    executions = [execution([attempt({ state: 'ENDED_UNKNOWN', startedAt: T, endedAt: T, closureCause: 'COMMUNICATION_LOST' })])];
+    await open();
+    const s = await waitFor(section);
+    expect(within(s).getByText(RETRY_BLOCKED_TEXT)).toBeInTheDocument();
+    expect(within(s).getByText(RECONCILE.ADMIN_ONLY)).toBeInTheDocument();
+    expect(within(s).queryByRole('button', { name: RECONCILE.BUTTON })).toBeNull();
+    expect(within(s).queryByRole('button', { name: 'Executar novamente em outra máquina' })).toBeNull();
   });
 
   it('reconciliação pela máquina e evidência tardia: a tela mostra as duas, ao lado, e diz quando a máquina ainda executa', async () => {

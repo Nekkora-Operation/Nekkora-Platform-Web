@@ -13,6 +13,7 @@ import {
   type UploadHandle,
 } from '../../api/lifecycle';
 import { getAutomation } from '../../api/product';
+import { useInternalArea } from '../../area/InternalShell';
 import { useSession } from '../../area/session';
 import { useWorkspacePermissions } from '../../area/useWorkspacePermissions';
 import { PermissionsUnverified } from '../../area/PermissionsUnverified';
@@ -57,6 +58,7 @@ export function VersionPage() {
   const v = version.status === 'ready' ? version.data : undefined;
   const automation = useResource(() => (v ? getAutomation(org, v.automationId!) : new Promise<never>(() => {})), [org, v?.automationId]);
   const perms = useWorkspacePermissions(v?.workspaceId);
+  const area = useInternalArea();
   const can = (p: 'automation.manage' | 'automation.publish') => perms.status === 'ready' && perms.has(p);
 
   const [file, setFile] = useState<File | null>(null);
@@ -489,6 +491,7 @@ export function VersionPage() {
           canExecute={perms.status === 'ready' && perms.has('automation.execute')}
           canManage={perms.status === 'ready' && perms.has('automation.manage')}
           canReadLogs={perms.status === 'ready' && perms.has('logs.read')}
+          canReconcile={area.permissions.status === 'ready' && area.permissions.data.organization.roles.includes('ORG_ADMIN')}
           externalPackage={data.artifact?.packageKind === 'EXTERNAL_PYTHON'}
         />
       )}
