@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "ea2d18abd15d5a7f360d31aec57f9a870e40b089fbb186246162aa29f2d75261",
+  "openapiSha256": "cf42b881141f16275b23a9d34651c3978e7a59eff84fd5362ca3337b9a1aa7d7",
   "schemas": {
     "Error": {
       "type": "object",
@@ -40,6 +40,8 @@
             "remote_machine_paused",
             "remote_machine_incompatible",
             "remote_machine_busy",
+            "remote_machine_unconfirmed",
+            "remote_previous_result_unconfirmed",
             "remote_requirements_not_declared",
             "remote_requirements_conflict",
             "remote_package_not_supported",
@@ -2967,6 +2969,7 @@
                     "MACHINE_PAUSED",
                     "MACHINE_INCOMPATIBLE",
                     "MACHINE_BUSY",
+                    "MACHINE_UNCONFIRMED",
                     "PYTHON_NOT_SELECTED",
                     "PYTHON_NOT_IN_INVENTORY"
                   ]
@@ -3132,9 +3135,12 @@
         "attemptId",
         "items",
         "total",
+        "automationLines",
+        "systemLines",
         "nextAfter",
         "closure",
-        "retentionLoss"
+        "retentionLoss",
+        "expiration"
       ],
       "properties": {
         "attemptId": {
@@ -3195,6 +3201,14 @@
           "type": "integer",
           "minimum": 0
         },
+        "automationLines": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "systemLines": {
+          "type": "integer",
+          "minimum": 0
+        },
         "nextAfter": {
           "type": [
             "integer",
@@ -3247,6 +3261,54 @@
               "format": "date-time"
             }
           }
+        },
+        "expiration": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "expiredAt",
+            "confirmedAt",
+            "retentionDays",
+            "deliveryEndedAt",
+            "deliveryEnd",
+            "items"
+          ],
+          "properties": {
+            "expiredAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "confirmedAt": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            },
+            "retentionDays": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "deliveryEndedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "deliveryEnd": {
+              "type": "string",
+              "enum": [
+                "CLOSED",
+                "LOSS_NOTICE",
+                "LINK_ENDED"
+              ]
+            },
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
         }
       }
     },
@@ -3257,7 +3319,8 @@
         "attemptId",
         "items",
         "closure",
-        "retentionLoss"
+        "retentionLoss",
+        "expiration"
       ],
       "properties": {
         "attemptId": {
@@ -3348,6 +3411,54 @@
             "reportedAt": {
               "type": "string",
               "format": "date-time"
+            }
+          }
+        },
+        "expiration": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "expiredAt",
+            "confirmedAt",
+            "retentionDays",
+            "deliveryEndedAt",
+            "deliveryEnd",
+            "items"
+          ],
+          "properties": {
+            "expiredAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "confirmedAt": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            },
+            "retentionDays": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "deliveryEndedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "deliveryEnd": {
+              "type": "string",
+              "enum": [
+                "CLOSED",
+                "LOSS_NOTICE",
+                "LINK_ENDED"
+              ]
+            },
+            "items": {
+              "type": "integer",
+              "minimum": 0
             }
           }
         }
