@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "a6210f5c3a95b2276552581fe98ded7c5aaf3b1cc1279e25edee5cc66d441624",
+  "openapiSha256": "394de8616ad4d6f5d4dd63c87c0b6905ad2200b25c72d1ec2b220821107d372d",
   "schemas": {
     "Error": {
       "type": "object",
@@ -30,6 +30,7 @@
             "workspace_name_taken",
             "step_up_required",
             "worker_limit_reached",
+            "remote_execution_unavailable",
             "draft_exists",
             "draft_changed",
             "local_run_authorization_exists",
@@ -2894,6 +2895,10 @@
           "minimum": 5,
           "maximum": 60,
           "default": 15
+        },
+        "remoteExecution": {
+          "type": "boolean",
+          "default": false
         }
       }
     },
@@ -2956,6 +2961,84 @@
             "null"
           ],
           "format": "uuid"
+        },
+        "remoteExecution": {
+          "type": "boolean",
+          "enum": [
+            true
+          ]
+        }
+      }
+    },
+    "RemoteMachineList": {
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "workerId",
+              "workerName",
+              "agentId",
+              "agentName",
+              "agentVersion",
+              "state",
+              "receiving",
+              "enabledAt"
+            ],
+            "properties": {
+              "workerId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "workerName": {
+                "type": "string"
+              },
+              "agentId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "agentName": {
+                "type": "string"
+              },
+              "agentVersion": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "OFFLINE",
+                  "INCOMPATIBLE",
+                  "PAUSED",
+                  "NO_DISK_SPACE",
+                  "BUSY",
+                  "AVAILABLE"
+                ]
+              },
+              "receiving": {
+                "type": "string",
+                "enum": [
+                  "ENABLED",
+                  "PAUSED"
+                ]
+              },
+              "lastHeartbeatAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "enabledAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
         }
       }
     },
@@ -8763,6 +8846,54 @@
           }
         },
         "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "listRemoteMachines": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/workspaces/{workspace}/remote-machines",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/RemoteMachineList"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/Error"

@@ -25,6 +25,9 @@ services:
       NEKKORA_MAIL_TRANSPORTE: homologacao
       NEKKORA_MAIL_CAIXA: /caixa
       NEKKORA_ARTEFATOS_DIR: /var/lib/nekkora/artefatos
+      # PLATFORM-CLIENT-EXECUCAO-REMOTA-001: desligada por padrão; no laboratório, liga com LAB_EXECUCAO_REMOTA=true em
+      # segredos.env (o mesmo valor vai para a Platform e para o gateway)
+      NEKKORA_EXECUCAO_REMOTA: ${LAB_EXECUCAO_REMOTA:-false}
     volumes:
       - artefatos:/var/lib/nekkora/artefatos
       - caixa:/caixa
@@ -32,6 +35,8 @@ services:
     mem_limit: 512m
   agent-gateway:
     mem_limit: 640m
+    environment:
+      NEKKORA_EXECUCAO_REMOTA: ${LAB_EXECUCAO_REMOTA:-false}
   postgres:
     mem_limit: 768m
     volumes:

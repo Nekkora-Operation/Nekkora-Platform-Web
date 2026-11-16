@@ -17,6 +17,7 @@ type S = components['schemas'];
 export type Agent = S['AgentList']['items'][number];
 export type Worker = S['WorkerList']['items'][number];
 export type AgentCode = S['AgentCode'];
+export type RemoteMachine = S['RemoteMachineList']['items'][number];
 export type LocalRunAuthorization = S['LocalRunAuthorization'];
 export type AgentRun = S['AgentRun'];
 export type AgentRunEvent = S['AgentRunEventPage']['items'][number];
@@ -43,12 +44,23 @@ export function listAgents(org: string): Promise<S['AgentList']> {
 /**
  * Código de pareamento (step-up). `workerId` (Worker existente) OU `workerName` (cria o Worker; exige worker.manage e
  * capacidade da organização ativada). O código aparece SÓ nesta resposta; a listagem nunca o devolve.
+ *
+ * `remoteExecution: true` (PLATFORM-CLIENT-EXECUCAO-REMOTA-001, T01a): o código nasce marcado para habilitar a máquina a
+ * receber execuções solicitadas pela Platform. Só é enviado quando a pessoa marca a opção; sem ela, o pedido é o de sempre.
  */
 export function createPairingCode(
   org: string,
-  body: { agentName: string; workerId?: string; workerName?: string; expiresInMinutes?: number },
+  body: { agentName: string; workerId?: string; workerName?: string; expiresInMinutes?: number; remoteExecution?: true },
 ): Promise<AgentCode> {
   return send(org, 'createAgentPairingCode', '/agent-enrollments', { method: 'POST', body });
+}
+
+/**
+ * Máquinas habilitadas para execução remota de um workspace, com o estado INDICATIVO (não reserva a máquina). Exige
+ * automation.execute no workspace; sem ela, 404 como as demais leituras do workspace.
+ */
+export function listRemoteMachines(org: string, workspaceId: string): Promise<S['RemoteMachineList']> {
+  return send(org, 'listRemoteMachines', `/workspaces/${id(workspaceId)}/remote-machines`);
 }
 
 /** Cancela um código ainda não usado (consumido ou já cancelado: 409). */
