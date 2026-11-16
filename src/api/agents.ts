@@ -18,6 +18,7 @@ export type Agent = S['AgentList']['items'][number];
 export type Worker = S['WorkerList']['items'][number];
 export type AgentCode = S['AgentCode'];
 export type RemoteMachine = S['RemoteMachineList']['items'][number];
+export type PythonEnvironment = S['PythonEnvironmentList']['items'][number];
 export type LocalRunAuthorization = S['LocalRunAuthorization'];
 export type AgentRun = S['AgentRun'];
 export type AgentRunEvent = S['AgentRunEventPage']['items'][number];
@@ -61,6 +62,14 @@ export function createPairingCode(
  */
 export function listRemoteMachines(org: string, workspaceId: string): Promise<S['RemoteMachineList']> {
   return send(org, 'listRemoteMachines', `/workspaces/${id(workspaceId)}/remote-machines`);
+}
+
+/**
+ * O que uma máquina habilitada disse ter de Python (T01c): versão, tipo e um identificador opaco — nunca um caminho. Exige
+ * automation.execute no workspace; máquina fora do alcance: 404.
+ */
+export function listRemoteMachinePythonEnvironments(org: string, workspaceId: string, agentId: string): Promise<S['PythonEnvironmentList']> {
+  return send(org, 'listRemoteMachinePythonEnvironments', `/workspaces/${id(workspaceId)}/remote-machines/${id(agentId)}/python-environments`);
 }
 
 /** Cancela um código ainda não usado (consumido ou já cancelado: 409). */

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Badge, Button, Heading, Stack, Table, Text, type TableColumn } from 'nekkora-lib';
-import { listRemoteMachines, type RemoteMachine } from '../../api/agents';
+import { listRemoteMachinePythonEnvironments, listRemoteMachines, type PythonEnvironment, type RemoteMachine } from '../../api/agents';
 import { isApiError } from '../../api/http';
 import { useSession } from '../../area/session';
 import { DateTimeText, LoadErrorState } from '../product/shared';
+import './agents.css';
 
 /**
  * PLATFORM-CLIENT-EXECUCAO-REMOTA-001, T01a — as máquinas HABILITADAS para execução remota deste workspace, com o estado
@@ -22,6 +23,58 @@ export const REMOTE_STATE: Record<RemoteMachine['state'], { label: string; tone:
 };
 
 type State = { status: 'loading' } | { status: 'ready'; items: RemoteMachine[] } | { status: 'absent' } | { status: 'error'; error: unknown };
+
+const KIND: Record<PythonEnvironment['kind'], string> = { INSTALLATION: 'instalação', VIRTUAL_ENVIRONMENT: 'ambiente virtual' };
+
+/**
+ * T01c — as versões de Python que a máquina informou, pedidas só quando a pessoa clica. É o que a máquina disse: não
+ * escolhe ambiente nem prova que uma automação roda nele. A Platform não recebe caminhos, e a tela não tem o que mostrar
+ * além da versão e do tipo.
+ */
+function MachinePython({ workspaceId, machine }: { workspaceId: string; machine: RemoteMachine }) {
+  const { org, expired } = useSession();
+  const [state, setState] = useState<{ status: 'idle' | 'loading' | 'error' } | { status: 'ready'; items: PythonEnvironment[] }>({ status: 'idle' });
+  const load = async () => {
+    setState({ status: 'loading' });
+    try {
+      const data = await listRemoteMachinePythonEnvironments(org, workspaceId, machine.agentId);
+      setState({ status: 'ready', items: data.items });
+    } catch (e) {
+      if (isApiError(e, 'unauthenticated')) return expired();
+      setState({ status: 'error' });
+    }
+  };
+  if (state.status === 'ready')
+    return state.items.length === 0 ? (
+      <Text variant="body-sm" color="secondary">
+        Esta máquina ainda não informou versões de Python, ou não encontrou nenhuma.
+      </Text>
+    ) : (
+      <ul className="pw-plain-list" aria-label={`Versões de Python de ${machine.agentName}`}>
+        {state.items.map((e) => (
+          <li key={e.environmentId}>
+            <Text variant="body-sm">
+              Python {e.pythonVersion} ({KIND[e.kind]})
+            </Text>
+          </li>
+        ))}
+      </ul>
+    );
+  return (
+    <Stack gap={1}>
+      <span>
+        <Button size="sm" variant="ghost" loading={state.status === 'loading'} onClick={() => void load()} aria-label={`Ver versões de Python de ${machine.agentName}`}>
+          Ver versões
+        </Button>
+      </span>
+      {state.status === 'error' && (
+        <Text variant="body-sm" color="secondary">
+          Não foi possível consultar. Tente de novo.
+        </Text>
+      )}
+    </Stack>
+  );
+}
 
 export function RemoteMachines({ workspaceId }: { workspaceId: string }) {
   const { org, expired } = useSession();
@@ -79,6 +132,7 @@ export function RemoteMachines({ workspaceId }: { workspaceId: string }) {
         </Stack>
       ),
     },
+    { key: 'python', header: 'Python informado', render: (m) => <MachinePython workspaceId={workspaceId} machine={m} /> },
     { key: 'contato', header: 'Último contato', render: (m) => <DateTimeText iso={m.lastHeartbeatAt ?? null} empty="nenhum" /> },
     { key: 'habilitada', header: 'Habilitada em', render: (m) => <DateTimeText iso={m.enabledAt} /> },
   ];

@@ -18,3 +18,10 @@
   gap: var(--nk-space-2);
   align-content: start;
 }
+
+/* T01c: lista simples de versoes de Python de uma maquina (sem marcadores) */
+.pw-plain-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
