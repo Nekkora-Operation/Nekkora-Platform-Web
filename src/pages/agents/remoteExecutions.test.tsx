@@ -13,8 +13,10 @@ import {
   ENDED_UNKNOWN_TEXT,
   MISSING,
   REQUEST_REFUSAL,
+  PROCESSES_TEXT,
   RECONCILE,
   RECONCILIATION_REASON,
+  RETRY_BLOCKED_PROCESSES_TEXT,
   RETRY_BLOCKED_TEXT,
   dependencyCheckText,
   endedUnknownText,
@@ -109,6 +111,8 @@ const attempt = (over: Row = {}): Row => ({
   lateReport: null,
   reconciliations: [],
   machineStillRunningAt: null,
+  processes: null,
+  processesAt: null,
   ...over,
 });
 const execution = (attempts: Row[], over: Row = {}): Row => ({
@@ -604,9 +608,66 @@ describe('Versão: execução remota (T02)', () => {
     await open();
     s = await waitFor(section);
     expect(within(s).getByText(/reconciliado manualmente em/)).toBeInTheDocument();
-    expect(within(s).getByText(/a própria máquina confirmou que o processo desta tentativa não está mais em execução nela\. O resultado continua não\s+confirmado\./)).toBeInTheDocument();
+    expect(within(s).getByText(/a própria máquina confirmou que nenhum processo desta tentativa continua em execução nela\. O resultado continua não confirmado\./)).toBeInTheDocument();
     expect(within(s).getByText(/a máquina voltou e informou que/)).toBeInTheDocument();
     expect(within(s).queryByText(RETRY_BLOCKED_TEXT)).toBeNull();
+  });
+
+  it('finalizando: o processo principal terminou e há processos da automação ativos — o desfecho fica dito, a máquina continua ocupada e a repetição bloqueada', async () => {
+    candidates = [
+      candidate({ requestable: false, missing: ['MACHINE_FINISHING'] }),
+      candidate({ agentId: AG2, agentName: 'ESTACAO-02', workerId: W2, workerName: 'Worker fiscal' }),
+    ];
+    executions = [execution([attempt({ state: 'SUCCEEDED', exitCode: 0, startedAt: T, endedAt: T, processes: 'ACTIVE', processesAt: T })])];
+    await open();
+    let s = await waitFor(section);
+    // o desfecho e o código de saída do processo principal continuam na tela
+    expect(within(s).getAllByText('Concluída').length).toBeGreaterThan(0);
+    expect(within(s).getByText(/código de saída 0/)).toBeInTheDocument();
+    expect(within(s).getByText('Finalizando')).toBeInTheDocument();
+    expect(within(s).getByText(new RegExp('^' + PROCESSES_TEXT.ACTIVE.slice(0, 60)))).toBeInTheDocument();
+    expect(PROCESSES_TEXT.ACTIVE).toMatch(/^Finalizando — processos da automação ainda ativos/);
+    // a máquina: ocupada, com o que a faz voltar; sem solicitar
+    expect(within(s).getByText(MISSING.MACHINE_FINISHING)).toBeInTheDocument();
+    expect(within(s).getByText('Volta a poder receber quando esses processos terminarem nesse computador.')).toBeInTheDocument();
+    // repetir está bloqueado, com o motivo próprio; quem administra pode declarar
+    expect(within(s).getByText(RETRY_BLOCKED_PROCESSES_TEXT)).toBeInTheDocument();
+    expect(within(s).queryByText(RETRY_BLOCKED_TEXT)).toBeNull();
+    expect(within(s).queryByRole('button', { name: 'Executar novamente em outra máquina' })).toBeNull();
+    expect(within(s).getByRole('button', { name: RECONCILE.BUTTON })).toBeInTheDocument();
+    expect(REQUEST_REFUSAL.remote_machine_finishing).toBe(MISSING.MACHINE_FINISHING);
+    expect(REQUEST_REFUSAL.remote_previous_processes_pending).toContain('executar novamente está bloqueado');
+    cleanup();
+    // a própria máquina confirmou que acabaram: nada de finalizando, e a repetição volta
+    candidates = [candidate()];
+    executions = [
+      execution([
+        attempt({ state: 'SUCCEEDED', exitCode: 0, startedAt: T, endedAt: T, reconciliations: [{ kind: 'MACHINE', at: T, reason: null, verification: null, byMembershipId: null }] }),
+      ]),
+    ];
+    await open();
+    s = await waitFor(section);
+    expect(within(s).queryByText('Finalizando')).toBeNull();
+    expect(within(s).getByText(/a própria máquina confirmou que nenhum processo desta tentativa continua em execução nela\.$/)).toBeInTheDocument();
+    expect(within(s).queryByText(RETRY_BLOCKED_PROCESSES_TEXT)).toBeNull();
+    expect(within(s).getByRole('button', { name: 'Executar novamente em outra máquina' })).toBeInTheDocument();
+  });
+
+  it('ocupação incerta: a máquina que dizia "ainda executa" e depois informou o fim sem confirmar os processos não aparece como em andamento', async () => {
+    candidates = [candidate({ requestable: false, missing: ['MACHINE_UNCONFIRMED'] })];
+    executions = [
+      execution([attempt({ state: 'ENDED_UNKNOWN', startedAt: T, endedAt: T, closureCause: 'COMMUNICATION_LOST', machineStillRunningAt: null, processes: 'UNCERTAIN', processesAt: T })]),
+    ];
+    await open();
+    const s = await waitFor(section);
+    expect(within(s).getByText(MISSING.MACHINE_UNCONFIRMED)).toBeInTheDocument();
+    expect(MISSING.MACHINE_UNCONFIRMED).toMatch(/^Ocupação incerta/);
+    expect(within(s).queryByText(MISSING.MACHINE_BUSY)).toBeNull();
+    expect(within(s).getByText('Ocupação incerta')).toBeInTheDocument();
+    expect(within(s).getByText(new RegExp('^' + PROCESSES_TEXT.UNCERTAIN.slice(0, 60)))).toBeInTheDocument();
+    expect(PROCESSES_TEXT.UNCERTAIN).toMatch(/o tempo, um novo contato e a declaração de reconciliação não a liberam/);
+    expect(within(s).queryByText(/ainda executa esta tentativa/)).toBeNull();
+    expect(within(s).getByText(RETRY_BLOCKED_TEXT)).toBeInTheDocument();
   });
 
   it('Python da automação por máquina: mostra o escolhido, diz quando falta e só quem gerencia escolhe, do que a máquina informou', async () => {
