@@ -79,7 +79,7 @@ export function RemoteLogs({ org, executionId, attemptId, attemptNumber }: { org
       ) : (
         <>
           <Text variant="body-sm" color="secondary">
-            {lines.length === total ? `${count(total)} na Platform.` : `Mostrando ${lines.length} de ${count(total)} na Platform.`} A ordem é a da captura pela máquina.
+            {lines.length === total ? `${count(total)} na Platform.` : `Mostrando ${lines.length.toLocaleString('pt-BR')} de ${count(total)} na Platform.`} A ordem é a da captura pela máquina.
             &quot;Saída de erro&quot; é o canal em que o processo escreveu; sozinho, não indica falha.
           </Text>
           <ol className="pw-plain-list pw-log" aria-label={`Registros da tentativa ${attemptNumber}`}>
