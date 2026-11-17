@@ -183,6 +183,8 @@ describe('Workers: vincular e gerenciar o Agent (T07)', () => {
     expect(name.value).toBe('Worker financeiro');
     fireEvent.change(name, { target: { value: 'ESTACAO-01' } });
     expect(within(dialog()).getByLabelText(/^Validade do código/)).toHaveValue(15);
+    // este teste é do pareamento do Agent anterior (sem execução remota): escolhe-o no diálogo
+    fireEvent.click(within(dialog()).getByRole('radio', { name: /^Nekkora Agent anterior/ }));
     await confirmIn('Gerar código');
     expect(await screen.findByLabelText('Código de uso único')).toHaveTextContent(CODE);
     expect(screen.getAllByLabelText('Código de uso único')).toHaveLength(1);
@@ -211,6 +213,8 @@ describe('Workers: vincular e gerenciar o Agent (T07)', () => {
     await openPage();
     fireEvent.click(within(await waitFor(() => rowOf('Worker financeiro'))).getByRole('button', { name: 'Vincular Agent a Worker financeiro' }));
     fireEvent.change(within(dialog()).getByLabelText(/^Nome da máquina/), { target: { value: 'ESTACAO-01' } });
+    // este teste é do pareamento do Agent anterior (sem execução remota): escolhe-o no diálogo
+    fireEvent.click(within(dialog()).getByRole('radio', { name: /^Nekkora Agent anterior/ }));
     await confirmIn('Gerar código');
     await screen.findByLabelText('Código de uso único');
     // o Agent resgatou o código na máquina: a lista passa a trazer o vínculo
