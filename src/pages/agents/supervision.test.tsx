@@ -158,14 +158,16 @@ describe('supervisão (fixtures de contrato)', () => {
   it('lista vazia continua sendo consultada: a execução iniciada depois no Agent aparece sem "Atualizar"', async () => {
     let items: unknown[] = [];
     api.on('GET', `/api/v1/o/${ORG}/agent-runs`, 'listAgentRuns', () => ({ status: 200, body: { items, nextCursor: null } }));
+    // a outra fonte da tela (tentativas de execução remota) também terminou sem itens: só então a tela afirma o vazio
+    api.on('GET', `/api/v1/o/${ORG}/remote-executions`, 'listVisibleRemoteExecutions', { status: 200, body: { items: [] } });
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'], shouldAdvanceTime: true });
     try {
       renderApp(`/o/${ORG}/supervisao`);
-      expect(await screen.findByText('Nenhuma execução local registrada.')).toBeInTheDocument();
+      expect(await screen.findByText('Nenhuma execução encontrada.')).toBeInTheDocument();
       expect(screen.getByText(/Atualiza a cada 30 s\./)).toBeInTheDocument();
       items = [run({ supervisor: { ...run().supervisor, state: 'RUNNING', code: null }, process: 'RUNNING', outcome: 'PENDING' })];
       await vi.advanceTimersByTimeAsync(31_000);
-      await waitFor(() => expect(screen.queryByText('Nenhuma execução local registrada.')).toBeNull());
+      await waitFor(() => expect(screen.queryByText('Nenhuma execução encontrada.')).toBeNull());
       expect(screen.getByRole('region', { name: 'Execuções locais' })).toHaveTextContent('Em execução');
     } finally {
       vi.useRealTimers();
@@ -176,7 +178,7 @@ describe('supervisão (fixtures de contrato)', () => {
     api.on('GET', `/api/v1/o/${ORG}/agent-runs`, 'listAgentRuns', { status: 503, body: { error: 'service_unavailable' } });
     const view = renderApp(`/o/${ORG}/supervisao`);
     expect(await screen.findByText('Serviço temporariamente indisponível.')).toBeInTheDocument();
-    expect(screen.queryByText('Nenhuma execução local registrada.')).toBeNull();
+    expect(screen.queryByText('Nenhuma execução encontrada.')).toBeNull();
     view.unmount();
     api.on('GET', `/api/v1/o/${ORG}/agent-runs`, 'listAgentRuns', { status: 403, body: { error: 'forbidden' } });
     renderApp(`/o/${ORG}/supervisao`);
