@@ -8,6 +8,7 @@ import { useSession } from '../../area/session';
 import { orgPath } from '../../auth/organization';
 import { usePolling, type Polling } from '../../hooks/usePolling';
 import { DateTimeText, errorText, NotFoundState, PageHeader, RouteLink } from '../product/shared';
+import { RemoteAttemptsSection } from './remoteOverview';
 import './agents.css';
 
 /** Frequências registradas (moderadas; uma requisição por vez; pausa com a aba oculta). */
@@ -208,6 +209,8 @@ export function AgentRunsPage() {
           <Table columns={columns} data={poll.data.items} rowKey="runId" size="sm" caption="Execuções locais em ordem de registro, da mais antiga para a mais recente (as 25 primeiras)." />
         </div>
       )}
+      {/* a execução remota (solicitada pela Platform a uma máquina habilitada) tem registro próprio: as tentativas aparecem aqui */}
+      <RemoteAttemptsSection workspaceId={workspaceId || undefined} />
     </Stack>
   );
 }

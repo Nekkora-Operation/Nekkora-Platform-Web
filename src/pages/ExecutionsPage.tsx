@@ -11,6 +11,7 @@ import { useSession } from '../area/session';
 import { useCursorList } from '../hooks/useCursorList';
 import { useResource } from '../hooks/useResource';
 import { orgPath } from '../auth/organization';
+import { RemoteRequestsSection } from './agents/remoteOverview';
 import { DateTimeText, errorOf, RouteLink, useExpiresOn } from './product/shared';
 import {
   customRangeError,
@@ -443,6 +444,14 @@ export function ExecutionsPage() {
           />
         </>
       )}
+
+      {/* a execução remota tem registro próprio (solicitação e tentativas): aparece aqui pelo MESMO registro, sem cópia */}
+      <RemoteRequestsSection
+        filter={{ workspaceId: query.workspaceId, automationId: query.automationId, from: range.from, to: range.to }}
+        refreshKey={filters.refresh}
+        enabled={!range.error}
+        back={backState.back}
+      />
     </Stack>
   );
 }
