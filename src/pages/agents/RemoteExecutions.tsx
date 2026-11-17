@@ -196,6 +196,8 @@ export const MISSING: Record<RemoteMissing, string> = {
   MACHINE_UNCONFIRMED:
     'Ocupação incerta: há uma execução desta máquina cujos processos ela ainda não confirmou que terminaram.',
   MACHINE_FINISHING: 'Finalizando — processos da automação ainda ativos nesta máquina.',
+  MACHINE_OCCUPIED: 'Esta máquina informou que está ocupada. A Platform não recebe detalhes do que ela está fazendo.',
+  MACHINE_DISK_PRESSURE: 'Esta máquina informou pouco espaço livre em disco: ela não aceita trabalho novo até haver espaço.',
   PYTHON_NOT_SELECTED: 'Ainda não foi escolhido o Python desta automação nesta máquina.',
   PYTHON_NOT_IN_INVENTORY: 'O Python escolhido para esta automação não está mais entre os que esta máquina informou.',
 };
@@ -377,6 +379,8 @@ export function RemoteExecutions({
     if (m === 'MACHINE_UNCONFIRMED')
       return 'Volta a poder receber quando o aplicativo desse computador confirmar que o processo parou. Voltar a se comunicar, sozinho, não basta.';
     if (m === 'MACHINE_FINISHING') return 'Volta a poder receber quando esses processos terminarem nesse computador.';
+    if (m === 'MACHINE_OCCUPIED') return 'Volta a poder receber quando o aplicativo desse computador informar que está livre.';
+    if (m === 'MACHINE_DISK_PRESSURE') return 'Libere espaço no disco desse computador; nada do que está guardado nele é apagado automaticamente.';
     if (m === 'MACHINE_INCOMPATIBLE') return 'É preciso uma versão do Nekkora Agent que execute solicitações da Platform nesse computador.';
     if (m === 'PYTHON_NOT_SELECTED' || m === 'PYTHON_NOT_IN_INVENTORY')
       return canManage ? 'Escolha o Python na coluna "Python desta automação".' : 'Peça a quem gerencia esta automação.';

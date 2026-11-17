@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "43424f0b693867c1a205ef91bdd905ca87f2f253dd5e0e5358e63ef6e0b47d1e",
+  "openapiSha256": "bb1e48af7d0841f4b51ce2540e7f294512cacacad3857bc69d4ea86b2b29f8d2",
   "schemas": {
     "Error": {
       "type": "object",
@@ -2975,6 +2975,8 @@
                     "MACHINE_BUSY",
                     "MACHINE_UNCONFIRMED",
                     "MACHINE_FINISHING",
+                    "MACHINE_OCCUPIED",
+                    "MACHINE_DISK_PRESSURE",
                     "PYTHON_NOT_SELECTED",
                     "PYTHON_NOT_IN_INVENTORY"
                   ]
