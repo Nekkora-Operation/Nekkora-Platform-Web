@@ -670,6 +670,17 @@ describe('Versão: execução remota (T02)', () => {
     expect(within(s).getByText(RETRY_BLOCKED_TEXT)).toBeInTheDocument();
   });
 
+  it('disponibilidade: a máquina que informou estar ocupada, ou com pouco espaço, aparece assim - sem detalhe do que ela faz - e sem solicitar', async () => {
+    candidates = [candidate({ requestable: false, missing: ['MACHINE_OCCUPIED', 'MACHINE_DISK_PRESSURE'] })];
+    await open();
+    const s = await waitFor(section);
+    expect(within(s).getByText(MISSING.MACHINE_OCCUPIED)).toBeInTheDocument();
+    expect(MISSING.MACHINE_OCCUPIED).toBe('Esta máquina informou que está ocupada. A Platform não recebe detalhes do que ela está fazendo.');
+    expect(within(s).getByText('Volta a poder receber quando o aplicativo desse computador informar que está livre.')).toBeInTheDocument();
+    expect(within(s).getByText(MISSING.MACHINE_DISK_PRESSURE)).toBeInTheDocument();
+    expect(within(s).queryByRole('button', { name: /^Solicitar execução/ })).toBeNull();
+  });
+
   it('Python da automação por máquina: mostra o escolhido, diz quando falta e só quem gerencia escolhe, do que a máquina informou', async () => {
     candidates = [
       candidate({ requestable: false, missing: ['PYTHON_NOT_SELECTED'], python: null }),
