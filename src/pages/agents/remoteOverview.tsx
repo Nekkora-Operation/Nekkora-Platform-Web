@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useParams } from 'react-router';
 import { Badge, Button, Card, DescriptionList, Heading, Stack, StateView, Table, Text, type TableColumn } from 'nekkora-lib';
 import { isApiError } from '../../api/http';
@@ -31,6 +32,13 @@ const TERMINAL = ['SUCCEEDED', 'FAILED', 'CANCELLED', 'TIMED_OUT', 'REFUSED', 'E
 const finished = (state: string) => TERMINAL.includes(state);
 const last = (x: RemoteExecution): RemoteAttempt | undefined => x.attempts[x.attempts.length - 1];
 
+/**
+ * O que a consulta das execuções remotas tem a dizer para a tela que a hospeda: ainda carregando, falhou, não está disponível
+ * (Platform sem o recurso ou pessoa sem acesso: a fonte não conta), terminou sem itens ou terminou com itens. A tela só afirma
+ * "nenhuma execução" quando TODAS as fontes terminaram sem itens; erro de consulta é erro, não ausência.
+ */
+export type RemoteSource = 'loading' | 'error' | 'unavailable' | 'empty' | 'items';
+
 export interface RemoteFilter {
   workspaceId?: string;
   automationId?: string;
@@ -41,7 +49,7 @@ export interface RemoteFilter {
 function StateBadge({ state, exitCode }: { state: RemoteAttempt['state']; exitCode?: number | null }) {
   const s = ATTEMPT_STATE[state];
   return (
-    <span className="pw-form__row">
+    <span className="pw-remote__state">
       <Badge tone={s.tone} size="sm">
         {s.label}
       </Badge>
@@ -66,19 +74,39 @@ function ListFrame({
   note,
   poll,
   empty,
+  hostEmpty,
+  onSource,
   children,
 }: {
   title: string;
   note: string;
   poll: ReturnType<typeof useRemoteList>;
   empty: string;
+  /** A lista da tela que hospeda a seção não tem linhas a mostrar: o vazio (ou o carregando) geral é dela, não desta seção. */
+  hostEmpty: boolean;
+  onSource?: (source: RemoteSource) => void;
   children: (items: RemoteExecution[]) => React.ReactNode;
 }) {
   const items = poll.data?.items;
+  const source: RemoteSource =
+    items !== undefined
+      ? items.length > 0
+        ? 'items'
+        : 'empty'
+      : poll.error
+        ? isApiError(poll.error, 'forbidden') || isApiError(poll.error, 'not_found')
+          ? 'unavailable'
+          : 'error'
+        : 'loading';
+  useEffect(() => {
+    onSource?.(source);
+  }, [onSource, source]);
+  // fonte que não conta não ocupa a tela; sem linhas na lista da tela, o carregando e o vazio são os GERAIS (um só, da tela)
+  if (source === 'unavailable' || (hostEmpty && (source === 'loading' || source === 'empty'))) return null;
   return (
     <Card variant="outlined" padding="md" aria-label={title}>
       <Stack gap={3}>
-        <div className="pw-form__row">
+        <div className="pw-remote__head">
           <Heading level={2}>
             {title}
           </Heading>
@@ -91,11 +119,12 @@ function ListFrame({
         </Text>
         {items === undefined ? (
           poll.error ? (
-            isApiError(poll.error, 'forbidden') || isApiError(poll.error, 'not_found') ? (
-              <Text color="secondary">Execuções remotas não estão disponíveis para você aqui.</Text>
-            ) : (
-              <StateView status="error" title={errorText(poll.error).title} actions={<Button onClick={poll.refresh}>Tentar novamente</Button>} />
-            )
+            <StateView
+              status="error"
+              title="Não foi possível consultar as execuções remotas."
+              description={`${errorText(poll.error).title} Isto é uma falha de consulta, não a ausência de execuções.`}
+              actions={<Button onClick={poll.refresh}>Tentar novamente</Button>}
+            />
           ) : (
             <Text color="secondary">Carregando execuções remotas…</Text>
           )
@@ -116,7 +145,21 @@ function ListFrame({
 }
 
 /** Execuções: uma linha por SOLICITAÇÃO de execução remota dos workspaces visíveis, com os filtros de workspace, automação e período da tela. */
-export function RemoteRequestsSection({ filter, refreshKey, enabled = true, back }: { filter: RemoteFilter; refreshKey?: unknown; enabled?: boolean; back?: string }) {
+export function RemoteRequestsSection({
+  filter,
+  refreshKey,
+  enabled = true,
+  back,
+  hostEmpty = false,
+  onSource,
+}: {
+  filter: RemoteFilter;
+  refreshKey?: unknown;
+  enabled?: boolean;
+  back?: string;
+  hostEmpty?: boolean;
+  onSource?: (source: RemoteSource) => void;
+}) {
   const { org } = useSession();
   const poll = useRemoteList(filter, refreshKey, enabled);
   const state = back ? { back } : undefined;
@@ -148,6 +191,8 @@ export function RemoteRequestsSection({ filter, refreshKey, enabled = true, back
       note="Solicitadas pela Platform a uma máquina habilitada. Uma linha por solicitação; o estado, a máquina e os horários são os da tentativa mais recente. Valem os filtros de workspace, automação e período (pela data da solicitação); o filtro de estado acima é só das execuções da lista de cima."
       poll={poll}
       empty="Nenhuma execução remota com esses filtros."
+      hostEmpty={hostEmpty}
+      onSource={onSource}
     >
       {(items) => (
         <div className="pw-exec__scroll" role="region" aria-label="Lista de execuções remotas" tabIndex={0}>
@@ -161,7 +206,7 @@ export function RemoteRequestsSection({ filter, refreshKey, enabled = true, back
 type AttemptRow = RemoteAttempt & { execution: RemoteExecution };
 
 /** Supervisão: uma linha por TENTATIVA de execução remota (o que cada máquina informou), dos workspaces visíveis. */
-export function RemoteAttemptsSection({ workspaceId }: { workspaceId?: string }) {
+export function RemoteAttemptsSection({ workspaceId, hostEmpty = false, onSource }: { workspaceId?: string; hostEmpty?: boolean; onSource?: (source: RemoteSource) => void }) {
   const { org } = useSession();
   const poll = useRemoteList({ workspaceId }, 0, true);
   const columns: TableColumn<AttemptRow>[] = [
@@ -182,6 +227,8 @@ export function RemoteAttemptsSection({ workspaceId }: { workspaceId?: string })
       note="O que cada máquina informou das execuções solicitadas pela Platform. Uma linha por tentativa: uma solicitação pode ter mais de uma (executar novamente em outra máquina). Vale o filtro de workspace; o de supervisor é só das execuções locais."
       poll={poll}
       empty="Nenhuma tentativa de execução remota."
+      hostEmpty={hostEmpty}
+      onSource={onSource}
     >
       {(items) => {
         const rows: AttemptRow[] = items.flatMap((x) => [...x.attempts].reverse().map((a) => ({ ...a, execution: x })));
@@ -229,11 +276,11 @@ export function RemoteExecutionPage() {
       />
       <Card variant="outlined" padding="md" aria-label="Solicitação">
         <Stack gap={3}>
-          <div className="pw-form__row">
-            <Heading level={2}>
-              Solicitação
-            </Heading>
-            <Badge tone={current.tone}>{current.label}</Badge>
+          <div className="pw-remote__head">
+            <span className="pw-remote__state">
+              <Heading level={2}>Solicitação</Heading>
+              <Badge tone={current.tone}>{current.label}</Badge>
+            </span>
             <Button size="sm" variant="secondary" leftIcon="refresh" loading={poll.loading} onClick={poll.refresh}>
               Atualizar
             </Button>
@@ -254,7 +301,7 @@ export function RemoteExecutionPage() {
       {[...x.attempts].reverse().map((a) => (
         <Card key={a.attemptId} variant="outlined" padding="md" aria-label={`Tentativa ${a.attemptNumber}`}>
           <Stack gap={3}>
-            <div className="pw-form__row">
+            <div className="pw-remote__head">
               <Heading level={2}>{`Tentativa ${a.attemptNumber} de ${x.attempts.length}`}</Heading>
               <StateBadge state={a.state} exitCode={a.exitCode} />
             </div>
