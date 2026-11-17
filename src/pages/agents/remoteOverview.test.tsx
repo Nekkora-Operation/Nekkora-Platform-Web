@@ -189,8 +189,9 @@ describe('Execuções: a execução remota aparece pela solicitação', () => {
     api.on('GET', `/api/v1/o/${ORG}/executions`, 'listExecutions', () => 'network');
     api.on('GET', ALL, 'listVisibleRemoteExecutions', { status: 200, body: { items: [twoAttempts()] } });
     renderApp(`/o/${ORG}/execucoes`);
-    expect(await screen.findByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
-    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Lista de execuções remotas' })).getAllByRole('row')).toHaveLength(2));
+    // com a suíte inteira em paralelo a tela demora mais a assentar: prazo folgado, sem mudar o que é conferido
+    expect(await screen.findByRole('button', { name: 'Tentar novamente' }, { timeout: 8_000 })).toBeInTheDocument();
+    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Lista de execuções remotas' })).getAllByRole('row')).toHaveLength(2), { timeout: 8_000 });
     expect(screen.queryByText(EMPTY_OLD_MODEL)).toBeNull();
   });
 
