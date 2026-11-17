@@ -160,6 +160,15 @@ export function RunRequestPanel({ runRequestId, onChanged }: { runRequestId: str
   );
 }
 
+/** Capacidade do contrato Platform-Agent que o PEDIDO DE EXECUÇÃO exige da máquina (o Nekkora Agent Client não a declara). */
+export const RUN_REQUEST_CAPABILITY = 'RUN_REQUEST_1_0';
+
+/**
+ * A máquina atende o pedido de execução? Quem já se apresentou sem a capacidade (o Nekkora Agent Client, que atende a
+ * EXECUÇÃO REMOTA) nunca lê este pedido. Quem ainda não se apresentou (lista vazia) segue a regra de sempre.
+ */
+export const servesRunRequest = (a: Agent) => !a.capabilities?.length || a.capabilities.includes(RUN_REQUEST_CAPABILITY);
+
 /**
  * "Executar": pede que a versão da autorização rode no Agent escolhido. A chave do pedido é gerada quando o diálogo abre:
  * repetir depois de uma resposta perdida devolve o MESMO pedido.
@@ -175,12 +184,16 @@ export function RunRequestDialog({
   open: boolean;
   workspaceId: string;
   authorization: LocalRunAuthorization | null;
-  agents: Agent[];
+  /** null = a lista de máquinas não pôde ser lida (não é o mesmo que "nenhuma máquina"). */
+  agents: Agent[] | null;
   onCreated: (q: RunRequest) => void;
   onClose: () => void;
 }) {
   const { org, expired } = useSession();
-  const eligible = agents.filter((a) => a.status === 'ACTIVE' && a.workerId === authorization?.workerId);
+  const onWorker = (agents ?? []).filter((a) => a.status === 'ACTIVE' && a.workerId === authorization?.workerId);
+  const eligible = onWorker.filter(servesRunRequest);
+  // a máquina existe e está ativa, mas é de outro fluxo: dizer isso, em vez de "nenhum Agent"
+  const otherFlow = eligible.length === 0 && onWorker.length > 0;
   const [agentId, setAgentId] = useState('');
   const [minutes, setMinutes] = useState('15');
   const chosen = agentId || (eligible.length === 1 ? eligible[0].agentId! : '');
@@ -209,11 +222,19 @@ export function RunRequestDialog({
           A máquina recebe o pedido na próxima consulta, confere o pacote aprovado nela e decide. Pedir não é iniciar: o início e o desfecho aparecem quando o
           supervisor da máquina os informar.
         </Text>
+        {agents === null && <Alert tone="warning">Não foi possível ler as máquinas da organização agora. Feche e abra de novo para tentar outra vez.</Alert>}
+        {otherFlow && (
+          <Alert tone="warning">
+            A máquina vinculada a este Worker ({onWorker[0].name ?? 'sem nome'}) está ativa, mas usa o Nekkora Agent Client, que não recebe este tipo de pedido.
+            Nada foi pedido e nada precisa ser refeito: o vínculo e as autorizações continuam valendo. Para executar nela, use a seção “Execução remota”{' '}
+            {authorization?.automationVersionId ? <RouteLink to={orgPath.version(org, authorization.automationVersionId)}>na página da versão</RouteLink> : 'na página da versão'}.
+          </Alert>
+        )}
         <Select
           label="Máquina"
           fullWidth
           value={chosen}
-          placeholder={eligible.length ? 'Escolha a máquina' : 'Nenhum Agent ativo neste Worker'}
+          placeholder={eligible.length ? 'Escolha a máquina' : agents === null ? 'Máquinas não lidas' : otherFlow ? 'A máquina deste Worker não recebe este pedido' : 'Nenhum Agent ativo neste Worker'}
           onChange={(e) => setAgentId(e.target.value)}
           options={eligible.map((a) => ({ value: a.agentId!, label: `${a.name ?? a.agentId}${a.connectivity === 'CONNECTED' ? ' (conectado)' : ' (sem sinal recente)'}` }))}
         />

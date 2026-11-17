@@ -1967,7 +1967,7 @@ export interface paths {
         put?: never;
         /**
          * Pede que uma versao autorizada rode num Agent (step-up) - 030
-         * @description Exige automation.execute no workspace e step-up. A autorizacao precisa estar ATIVA e ser de pacote (monitoramento: 409); o Agent, ativo e associado ao Worker da autorizacao (409). Validade de 60 s a 24 h (400). A mesma requestKey devolve o mesmo pedido (200); com outro conteudo, 409. A requisicao nao transporta comando, caminho nem segredo. Auditoria (agent_admin_events 12).
+         * @description Exige automation.execute no workspace e step-up. A autorizacao precisa estar ATIVA e ser de pacote (monitoramento: 409); o Agent, ativo e associado ao Worker da autorizacao (409). Maquina que ja se apresentou SEM declarar RUN_REQUEST_1_0 (o Nekkora Agent Client, que atende a execucao remota e nao este pedido): 409, nenhum pedido e criado. Validade de 60 s a 24 h (400). A mesma requestKey devolve o mesmo pedido (200); com outro conteudo, 409. A requisicao nao transporta comando, caminho nem segredo. Auditoria (agent_admin_events 12).
          */
         post: operations["createRunRequest"];
         delete?: never;
@@ -3749,7 +3749,8 @@ export interface components {
                 /** @enum {string} */
                 connectivity?: "CONNECTED" | "DISCONNECTED";
                 contractVersion?: string | null;
-                capabilities?: ("RUN_LOCAL" | "OBS_1_0" | "SUPERVISOR_REPORT_1_0" | "EXTERNAL_PYTHON_1_0" | "RUN_REQUEST_1_0")[];
+                /** @description As capacidades que a maquina declarou no ultimo contato (as mesmas do contrato Platform-Agent). RUN_REQUEST_1_0 = atende o pedido de execucao (createRunRequest); REMOTE_RUN_1_0 = atende a execucao remota (Nekkora Agent Client). Uma maquina pode declarar so um dos dois. */
+                capabilities?: ("RUN_LOCAL" | "OBS_1_0" | "SUPERVISOR_REPORT_1_0" | "EXTERNAL_PYTHON_1_0" | "RUN_REQUEST_1_0" | "REMOTE_RUN_1_0" | "REMOTE_LOGS_1_0" | "REMOTE_RESULTS_1_0" | "PY_INVENTORY_1_0")[];
                 /** Format: date-time */
                 credentialExpiresAt?: string | null;
                 /**
