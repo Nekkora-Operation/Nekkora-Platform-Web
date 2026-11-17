@@ -71,7 +71,7 @@ export function LocalRunAuthorizations({
   const [until, setUntil] = useState(dayFromNow(30));
   const [creating, setCreating] = useState(false);
   const [revoking, setRevoking] = useState<LocalRunAuthorization | null>(null);
-  const [agents, setAgents] = useState<Agent[]>([]);
+  const [agents, setAgents] = useState<Agent[] | null>([]);
   const [executing, setExecuting] = useState<LocalRunAuthorization | null>(null);
   const [requests, setRequests] = useState<string[]>([]);
   const [notice, setNotice] = useState<{ tone: 'success' | 'warning'; text: string } | null>(null);
@@ -100,7 +100,8 @@ export function LocalRunAuthorizations({
     // máquinas para o "Executar" (agent.read); sem a permissão, o botão fica sem opção de máquina
     listAgents(org).then(
       (a) => setAgents(a.items),
-      () => setAgents([]),
+      // sem a permissão não há máquinas a oferecer; qualquer outra falha é "não foi possível ler", não "nenhuma máquina"
+      (e) => setAgents(isApiError(e, 'forbidden') ? [] : null),
     );
     return () => {
       generation.current++;

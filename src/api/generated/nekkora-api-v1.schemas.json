@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "bb1e48af7d0841f4b51ce2540e7f294512cacacad3857bc69d4ea86b2b29f8d2",
+  "openapiSha256": "fd7ad8f16278fcbb5ba5fc9386c7ad99381a07536e2d6a2aeb92fe7838044738",
   "schemas": {
     "Error": {
       "type": "object",
@@ -4313,7 +4313,11 @@
                     "OBS_1_0",
                     "SUPERVISOR_REPORT_1_0",
                     "EXTERNAL_PYTHON_1_0",
-                    "RUN_REQUEST_1_0"
+                    "RUN_REQUEST_1_0",
+                    "REMOTE_RUN_1_0",
+                    "REMOTE_LOGS_1_0",
+                    "REMOTE_RESULTS_1_0",
+                    "PY_INVENTORY_1_0"
                   ]
                 }
               },
