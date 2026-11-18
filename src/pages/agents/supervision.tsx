@@ -8,6 +8,7 @@ import { useSession } from '../../area/session';
 import { orgPath } from '../../auth/organization';
 import { usePolling, type Polling } from '../../hooks/usePolling';
 import { DateTimeText, errorText, NotFoundState, PageHeader, RouteLink } from '../product/shared';
+import { RemoteAttemptsSection, type RemoteSource } from './remoteOverview';
 import './agents.css';
 
 /** Frequências registradas (moderadas; uma requisição por vez; pausa com a aba oculta). */
@@ -143,6 +144,8 @@ export function AgentRunsPage() {
   const { workspaces } = useInternalArea();
   const [workspaceId, setWorkspaceId] = useState('');
   const [state, setState] = useState<AgentSupervisorState | ''>('');
+  /** O que a outra fonte da tela (tentativas de execução remota) já sabe: o vazio geral só vale com as DUAS sem itens. */
+  const [remote, setRemote] = useState<RemoteSource>('loading');
   const poll = usePolling(() => listAgentRuns(org, { limit: 25, ...(workspaceId ? { workspaceId } : {}), ...(state ? { state: [state] } : {}) }), {
     intervalMs: LIST_INTERVAL_MS,
     // a lista continua mesmo vazia ou com tudo encerrado: a execução que a pessoa iniciar no Agent precisa aparecer
@@ -202,12 +205,22 @@ export function AgentRunsPage() {
           <StateView status="loading" title="Carregando execuções…" />
         )
       ) : poll.data.items.length === 0 ? (
-        <StateView status="neutral" title="Nenhuma execução local registrada." description="Elas aparecem quando um Agent inicia uma automação autorizada e registra a execução." />
+        remote === 'items' || remote === 'error' ? null : remote === 'loading' ? (
+          <StateView status="loading" title="Carregando execuções…" />
+        ) : (
+          <StateView
+            status="neutral"
+            title="Nenhuma execução encontrada."
+            description="As execuções locais aparecem quando um Agent inicia uma automação autorizada e registra a execução; as remotas, quando alguém solicita uma execução a uma máquina habilitada."
+          />
+        )
       ) : (
         <div className="pw-prod__scroll" role="region" aria-label="Execuções locais" tabIndex={0}>
           <Table columns={columns} data={poll.data.items} rowKey="runId" size="sm" caption="Execuções locais em ordem de registro, da mais antiga para a mais recente (as 25 primeiras)." />
         </div>
       )}
+      {/* a execução remota (solicitada pela Platform a uma máquina habilitada) tem registro próprio: as tentativas aparecem aqui */}
+      <RemoteAttemptsSection workspaceId={workspaceId || undefined} hostEmpty={poll.data !== undefined && poll.data.items.length === 0} onSource={setRemote} />
     </Stack>
   );
 }

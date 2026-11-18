@@ -2244,6 +2244,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/remote-executions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Solicitacoes de execucao remota dos ambientes visiveis (telas Execucoes e Supervisao)
+         * @description As solicitacoes mais recentes dos ambientes em que a pessoa tem automation.read, da mais recente para a mais antiga. E a mesma solicitacao das outras leituras (nada e copiado para alimentar a lista): cada item traz as suas tentativas, com maquina, Worker, horarios, estado e codigo de saida. Registros e arquivos continuam nas rotas da tentativa (logs.read). Filtros opcionais: workspaceId (sem acesso a ele: lista vazia), automationId e o periodo da SOLICITACAO (from inclusivo, to exclusivo, com fuso; invertido: 400). Sem cursor: limit de 1 a 100 (padrao 25).
+         */
+        get: operations["listVisibleRemoteExecutions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/remote-executions/{execution}": {
         parameters: {
             query?: never;
@@ -3515,6 +3535,10 @@ export interface components {
             requestedAt: string;
             /** Format: date-time */
             cancelRequestedAt: string | null;
+            /** @description Nome do ambiente da solicitacao (para as listas por organizacao) */
+            workspaceName?: string;
+            /** @description Nome da automacao da solicitacao */
+            automationName?: string;
             attempts: {
                 /** Format: uuid */
                 attemptId: string;
@@ -8633,6 +8657,43 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listVisibleRemoteExecutions: {
+        parameters: {
+            query?: {
+                workspaceId?: string;
+                automationId?: string;
+                from?: string;
+                to?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Solicitacoes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["RemoteExecution"][];
+                    };
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };

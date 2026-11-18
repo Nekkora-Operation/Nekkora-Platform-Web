@@ -44,7 +44,7 @@ const MAIN_ID = 'conteudo';
 function sectionOf(pathname: string, org: string): 'inicio' | 'conta' | 'execucoes' | 'workspaces' | 'membros' | 'clientes' | 'concessoes' | 'convites' | 'auditoria' | 'workers' | 'supervisao' | null {
   if (pathname === orgPath.home(org)) return 'inicio';
   const rest = pathname.slice(orgPath.home(org).length);
-  if (rest === '/execucoes' || rest.startsWith('/execucoes/')) return 'execucoes';
+  if (rest === '/execucoes' || rest.startsWith('/execucoes/') || rest.startsWith('/execucoes-remotas/')) return 'execucoes';
   if (rest === '/workspaces' || rest.startsWith('/workspaces/') || rest.startsWith('/automacoes/') || rest.startsWith('/versoes/')) return 'workspaces';
   if (rest === '/administracao/membros' || rest.startsWith('/administracao/membros/')) return 'membros';
   if (rest === '/administracao/convites') return 'convites';
@@ -60,6 +60,7 @@ function sectionOf(pathname: string, org: string): 'inicio' | 'conta' | 'execuco
 /** Título da página atual, para o topo do shell. */
 function titleFor(pathname: string, org: string): string {
   const rest = pathname.slice(orgPath.home(org).length);
+  if (rest.startsWith('/execucoes-remotas/')) return 'Execução remota';
   if (rest.startsWith('/execucoes/')) return 'Execução';
   if (rest === '/execucoes') return 'Execuções';
   if (rest.startsWith('/workspaces/')) return 'Workspace';

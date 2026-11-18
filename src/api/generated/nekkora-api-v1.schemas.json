@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "fd7ad8f16278fcbb5ba5fc9386c7ad99381a07536e2d6a2aeb92fe7838044738",
+  "openapiSha256": "5d1286bd0d625e1bd90289ec0bc3eeb2369bf91aefbd759e8c6781bb1080d167",
   "schemas": {
     "Error": {
       "type": "object",
@@ -3530,6 +3530,12 @@
             "null"
           ],
           "format": "date-time"
+        },
+        "workspaceName": {
+          "type": "string"
+        },
+        "automationName": {
+          "type": "string"
         },
         "attempts": {
           "type": "array",
@@ -11411,6 +11417,65 @@
           }
         },
         "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "listVisibleRemoteExecutions": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/remote-executions",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "items"
+            ],
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/RemoteExecution"
+                }
+              }
+            }
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/Error"

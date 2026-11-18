@@ -121,8 +121,9 @@ describe('FRONT-V1-001 — acessibilidade (axe) das telas novas', () => {
     expect(await violations()).toEqual([]);
     v.unmount();
     api.on('GET', `/api/v1/o/${ORG}/agent-runs`, 'listAgentRuns', { status: 200, body: { items: [], nextCursor: null } });
+    api.on('GET', `/api/v1/o/${ORG}/remote-executions`, 'listVisibleRemoteExecutions', { status: 200, body: { items: [] } });
     renderApp(`/o/${ORG}/supervisao`);
-    await screen.findByText('Nenhuma execução local registrada.');
+    await screen.findByText('Nenhuma execução encontrada.');
     expect(await violations()).toEqual([]);
   });
 });

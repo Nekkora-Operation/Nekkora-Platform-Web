@@ -28,6 +28,7 @@ import { VersionPage } from '../pages/product/VersionPage';
 import { NewAutomationPage } from '../pages/product/NewAutomationPage';
 import { WorkersPage } from '../pages/agents/WorkersPage';
 import { AgentRunPage, AgentRunsPage } from '../pages/agents/supervision';
+import { RemoteExecutionPage } from '../pages/agents/remoteOverview';
 import { InternalHome, OrgAccountPage } from '../pages/HomePage';
 import { DesktopAuthorizePage } from '../pages/DesktopAuthorizePage';
 import { LoginPage } from '../pages/LoginPage';
@@ -91,6 +92,7 @@ export function AppRoutes() {
           <Route path="conta" element={<OrgAccountPage />} />
           <Route path="execucoes" element={<ExecutionsPage />} />
           <Route path="execucoes/:executionId" element={<ExecutionDetailPage />} />
+          <Route path="execucoes-remotas/:remoteExecutionId" element={<RemoteExecutionPage />} />
           <Route path="workspaces" element={<WorkspacesPage />} />
           <Route path="workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
           <Route path="workspaces/:workspaceId/nova-automacao" element={<NewAutomationPage />} />

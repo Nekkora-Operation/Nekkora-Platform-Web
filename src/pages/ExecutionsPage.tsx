@@ -11,6 +11,7 @@ import { useSession } from '../area/session';
 import { useCursorList } from '../hooks/useCursorList';
 import { useResource } from '../hooks/useResource';
 import { orgPath } from '../auth/organization';
+import { RemoteRequestsSection, type RemoteSource } from './agents/remoteOverview';
 import { DateTimeText, errorOf, RouteLink, useExpiresOn } from './product/shared';
 import {
   customRangeError,
@@ -149,6 +150,8 @@ export function ExecutionsPage() {
   );
   const tzOffset = offsetLabel(new Date());
   const tzName = timeZoneName();
+  /** O que a outra fonte da tela (execuções remotas) já sabe: o vazio geral só vale quando as DUAS terminaram sem itens. */
+  const [remote, setRemote] = useState<RemoteSource>('loading');
 
   const query = useMemo(
     () => ({
@@ -410,7 +413,9 @@ export function ExecutionsPage() {
           }
         />
       ) : list.items.length === 0 ? (
-        range.error ? null : noWorkspaces ? (
+        range.error ? null : remote === 'items' || remote === 'error' ? null : remote === 'loading' ? ( // há remotas (ou a consulta delas falhou): sem vazio geral
+          <StateView status="loading" title="Carregando execuções…" />
+        ) : noWorkspaces ? (
           <StateView status="neutral" title="Você ainda não tem acesso a nenhum workspace." description="Quando um administrador der acesso, as execuções aparecem aqui." />
         ) : (
           <StateView
@@ -443,6 +448,16 @@ export function ExecutionsPage() {
           />
         </>
       )}
+
+      {/* a execução remota tem registro próprio (solicitação e tentativas): aparece aqui pelo MESMO registro, sem cópia */}
+      <RemoteRequestsSection
+        filter={{ workspaceId: query.workspaceId, automationId: query.automationId, from: range.from, to: range.to }}
+        refreshKey={filters.refresh}
+        enabled={!range.error}
+        back={backState.back}
+        hostEmpty={list.status !== 'loading' && list.status !== 'error' && list.items.length === 0}
+        onSource={setRemote}
+      />
     </Stack>
   );
 }

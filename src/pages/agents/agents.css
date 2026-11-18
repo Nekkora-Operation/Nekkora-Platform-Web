@@ -41,3 +41,9 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* execução remota nas telas Execuções e Supervisão: título à esquerda, ação à direita, sempre com respiro entre os dois */
+.pw-remote__head { display: flex; align-items: center; justify-content: space-between; gap: var(--nk-space-3) var(--nk-space-4); flex-wrap: wrap; }
+.pw-remote__head > :first-child { margin: 0; min-width: 0; }
+.pw-remote__state { display: inline-flex; align-items: center; gap: var(--nk-space-2); flex-wrap: wrap; }
+.pw-remote__state > * { margin: 0; }

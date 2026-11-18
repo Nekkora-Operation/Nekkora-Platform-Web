@@ -48,6 +48,7 @@ export const orgPath = {
   /** Endereço antigo (compatibilidade, T07): leva a Workers, a entrada única. */
   agents: (org: string) => `/o/${org}/agents`,
   workers: (org: string) => `/o/${org}/workers`,
+  remoteExecution: (org: string, id: string) => `/o/${org}/execucoes-remotas/${encodeURIComponent(id)}`,
   agentRuns: (org: string) => `/o/${org}/supervisao`,
   agentRun: (org: string, id: string) => `/o/${org}/supervisao/${encodeURIComponent(id)}`,
   /** F6a-1: administração (só leitura). */

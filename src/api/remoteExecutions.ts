@@ -47,6 +47,28 @@ export function listRemoteExecutions(org: string, workspaceId: string, limit = 2
 }
 
 /**
+ * As solicitações mais recentes dos workspaces VISÍVEIS para a pessoa (telas Execuções e Supervisão). É a mesma solicitação
+ * das outras leituras, com as suas tentativas. Filtros opcionais: workspace, automação e período da solicitação.
+ */
+export function listVisibleRemoteExecutions(
+  org: string,
+  q: { workspaceId?: string; automationId?: string; from?: string; to?: string; limit?: number } = {},
+): Promise<{ items: RemoteExecution[] }> {
+  const sp = new URLSearchParams();
+  if (q.workspaceId) sp.set('workspaceId', q.workspaceId);
+  if (q.automationId) sp.set('automationId', q.automationId);
+  if (q.from) sp.set('from', q.from);
+  if (q.to) sp.set('to', q.to);
+  sp.set('limit', String(q.limit ?? 25));
+  return send(org, 'listVisibleRemoteExecutions', `/remote-executions?${sp.toString()}`);
+}
+
+/** Uma solicitação, com as suas tentativas. */
+export function getRemoteExecution(org: string, remoteExecutionId: string): Promise<RemoteExecution> {
+  return send(org, 'getRemoteExecution', `/remote-executions/${id(remoteExecutionId)}`);
+}
+
+/**
  * Escolhe o ambiente Python de uma automação NUMA máquina habilitada (T01c parte 3). Só um ambiente do inventário atual da
  * máquina; vai o identificador opaco que ela publicou, nunca um caminho. A escolha de uma máquina não vale para outra.
  */
