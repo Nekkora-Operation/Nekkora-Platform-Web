@@ -10,6 +10,17 @@ export function VersionFooter({ info = buildInfo() }: { info?: BuildInfo }) {
   );
 }
 
+/** Rodapé curto do trilho recolhido do menu (AppShell layout="header"): só o commit do Web; o completo aparece ao expandir. */
+export function VersionCompact({ info = buildInfo() }: { info?: BuildInfo }) {
+  return (
+    <span className="pw-shell__rail-version" aria-label={`Versão em execução: ${versionLine(info)}`}>
+      Web
+      <br />
+      {info.webCommit ?? '—'}
+    </span>
+  );
+}
+
 /** "Sobre esta versão" (Minha conta): detalhes completos, para informar num relato de problema. */
 export function VersionDetails({ info = buildInfo() }: { info?: BuildInfo }) {
   const channel = channelOf(info);

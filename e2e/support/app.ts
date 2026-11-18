@@ -54,12 +54,32 @@ export async function enrollMfa(page: Page, account: Account, onStep?: (step: 'c
   return { auth, codes };
 }
 
+/**
+ * Tira o mouse de cima do menu lateral. Com o AppShell layout="header" da lib, o menu fica recolhido num trilho e expande
+ * POR CIMA do conteúdo enquanto o mouse está sobre ele: depois de clicar num item, o mouse continua ali e o menu aberto
+ * cobre a faixa esquerda da página até o mouse sair.
+ */
+export async function leaveMenu(page: Page) {
+  const v = page.viewportSize();
+  await page.mouse.move(v ? v.width - 40 : 600, v ? Math.round(v.height / 2) : 300);
+}
+
+/**
+ * Sair. Na área da organização o "Sair" fica no menu da conta (o círculo com as iniciais, UserMenu da lib): abre o menu
+ * antes. Onde não há menu da conta (área da identidade, início da conta externa), o botão está direto na tela.
+ */
+export async function signOut(page: Page) {
+  const menu = page.getByRole('button', { name: /^Menu da conta: / });
+  if (await menu.count()) await menu.click();
+  await page.getByRole('button', { name: 'Sair' }).click();
+}
+
 /** Conta nova já com MFA configurado e sem sessão (saiu ao final). */
 export async function enrolledAccount(page: Page) {
   const account = await createAccount();
   await signIn(page, account);
   const mfa = await enrollMfa(page, account);
-  await page.getByRole('button', { name: 'Sair' }).click();
+  await signOut(page);
   await expect(page.getByText('Você saiu da sua conta.')).toBeVisible();
   return { account, ...mfa };
 }

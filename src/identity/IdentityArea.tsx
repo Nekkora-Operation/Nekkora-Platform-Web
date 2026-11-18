@@ -7,7 +7,7 @@ import { identityLogout, identitySession } from '../api/identity';
 import { sessionMemory, type NavState } from '../app/notices';
 import { identityPath } from '../auth/flow';
 import { commonMessage, UNAVAILABLE, type UserMessage } from '../auth/messages';
-import { VersionFooter } from '../components/VersionInfo';
+import { VersionCompact, VersionFooter } from '../components/VersionInfo';
 import '../area/InternalShell.css';
 import '../pages/HomePage.css';
 
@@ -174,6 +174,7 @@ export function IdentityArea() {
   return (
     <Ctx.Provider value={context}>
       <AppShell
+        layout="header"
         className="pw-shell"
         brand={<Logo variant="full" size={24} />}
         brandHref={state.restricted ? identityPath.replaceFactor : identityPath.organizations}
@@ -192,6 +193,7 @@ export function IdentityArea() {
             </Button>
           </div>
         }
+        sidebarFooterCompact={<VersionCompact />}
         sidebarFooter={
           <div className="pw-shell__footer">
             <span className="pw-shell__footer-name">Identidade Nekkora</span>

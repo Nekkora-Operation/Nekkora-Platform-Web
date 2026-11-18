@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink, Outlet, useLocation } from 'react-router';
-import { Alert, AppShell, Button, Link, Logo, Text, type AppNavGroup } from 'nekkora-lib';
+import { Alert, AppShell, Button, Link, Logo, Text, UserMenu, type AppNavGroup } from 'nekkora-lib';
 import { isApiError } from '../api/http';
 import { getMyPermissions } from '../api/permissions';
 import { myOrganizations } from '../api/identity';
@@ -9,7 +9,7 @@ import { identityPath } from '../auth/flow';
 import { OperationScopeProvider, type OperationScopeValue } from '../components/operationScope';
 import { setPersistentScope } from '../admin/writeStore';
 import { orgPath, shortOrganizationId } from '../auth/organization';
-import { VersionFooter } from '../components/VersionInfo';
+import { VersionCompact, VersionFooter } from '../components/VersionInfo';
 import { useSession } from './session';
 import { useVisibleWorkspaces, type VisibleWorkspaces } from './useVisibleWorkspaces';
 import './InternalShell.css';
@@ -223,6 +223,7 @@ export function InternalShell() {
     <InternalContext.Provider value={{ organizationName: orgName, permissions, workspaces, reloadWorkspaces, loadMoreWorkspaces, restartWorkspaces, reloadPermissions: loadPermissions }}>
       <OperationScopeProvider value={operationScope}>
       <AppShell
+        layout="header"
         className="pw-shell"
         brand={<Logo variant="full" size={24} />}
         brandHref={orgPath.home(org)}
@@ -240,17 +241,25 @@ export function InternalShell() {
               {orgLabel}
               {orgHandle && <span className="pw-shell__org-handle"> · {orgHandle}</span>}
             </span>
-            <Link as={RouterLink} to={identityPath.organizations} size="sm" variant="subtle">
-              Trocar organização
-            </Link>
-            <Link as={RouterLink} to={orgPath.account(org)} size="sm" variant="subtle" className="pw-shell__name" aria-label={`Minha conta (${me.displayName})`}>
-              {me.displayName}
-            </Link>
-            <Button variant="ghost" size="sm" leftIcon="arrow-right" loading={signingOut} onClick={() => void signOut()}>
-              Sair
-            </Button>
+            {/* conta de quem está logado: nome, acesso (só informa; quem decide é a API), atalhos e sair */}
+            <UserMenu
+              name={me.displayName}
+              accountLevel={access ?? undefined}
+              accountLevelLabel="Acesso nesta organização"
+              onSignOut={signingOut ? undefined : () => void signOut()}
+            >
+              <div className="pw-shell__menu-links">
+                <Link as={RouterLink} to={orgPath.account(org)} size="sm">
+                  Minha conta
+                </Link>
+                <Link as={RouterLink} to={identityPath.organizations} size="sm">
+                  Trocar organização
+                </Link>
+              </div>
+            </UserMenu>
           </div>
         }
+        sidebarFooterCompact={<VersionCompact />}
         sidebarFooter={
           <div className="pw-shell__footer">
             <span className="pw-shell__footer-name">{me.displayName}</span>

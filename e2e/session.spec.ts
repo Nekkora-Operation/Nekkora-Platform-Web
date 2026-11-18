@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { revokeSessions } from './support/mock';
-import { enrolledAccount, path, SESSION_EXPIRED, signIn } from './support/app';
+import { enrolledAccount, path, SESSION_EXPIRED, signIn, signOut } from './support/app';
 
 test('sessão encerrada pela API (inatividade): o aviso aparece e o login da organização volta', async ({ page }) => {
   await page.clock.install();
@@ -21,7 +21,7 @@ test('sair: a sessão termina na API — voltar no histórico não reabre a áre
   await page.getByLabel(/Código de autenticação/).fill(await auth.next());
   await expect(page.getByRole('heading', { name: 'Olá, Pessoa E2E' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Sair' }).click();
+  await signOut(page);
   await expect(page.getByText('Você saiu da sua conta.')).toBeVisible();
   expect((await context.cookies()).filter((c) => c.name === '__Host-nekkora_session')).toEqual([]);
 

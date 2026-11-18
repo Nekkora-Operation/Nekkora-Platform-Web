@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { devices, expect, test, type Page } from '@playwright/test';
 import { DEV_ORG, OTHER_ORG } from '../mock/contract';
 import { Authenticator } from '../mock/totp';
-import { path, signIn, SESSION_EXPIRED } from './support/app';
+import { path, signIn, SESSION_EXPIRED, signOut } from './support/app';
 
 /**
  * F4 no navegador, contra a API SIMULADA (mock/): área interna, navegação e lista de execuções. Cada teste cria a
@@ -95,7 +95,7 @@ test('acesso limitado (VIEWER em Atendimento) e conta sem workspaces', async ({ 
   await openExecutions(page);
   await expect(page.getByLabel('Workspace').locator('option')).toHaveText(['Todos os workspaces visíveis', 'Atendimento']);
   for (const text of await rows(page).allInnerTexts()) expect(text).toContain('Atendimento');
-  await page.getByRole('button', { name: 'Sair' }).first().click();
+  await signOut(page);
 
   const none = await account({ displayName: 'Sem Acesso E2E' });
   await enter(page, none, 'Sem Acesso E2E');

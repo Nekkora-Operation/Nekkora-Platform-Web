@@ -4,7 +4,7 @@ import { devices, expect, test, type Page } from '@playwright/test';
 import { DEV_ORG, OTHER_ORG } from '../mock/contract';
 import { stableUuid } from '../mock/product';
 import { Authenticator } from '../mock/totp';
-import { path, signIn, SESSION_EXPIRED } from './support/app';
+import { leaveMenu, path, signIn, SESSION_EXPIRED } from './support/app';
 
 /**
  * F5 no navegador, contra a API SIMULADA (mock/): detalhe e eventos da execução, workspaces, automações e versões. Cada
@@ -130,6 +130,7 @@ test('workspace → automações → automação → versões → execuções da
   const acc = await account({ orgRoles: ['ORG_ADMIN'] });
   await enter(page, acc);
   await nav(page).getByRole('link', { name: 'Workspaces' }).click();
+  await leaveMenu(page);
   await expect(page.getByRole('heading', { level: 1, name: 'Workspaces' })).toBeVisible();
   await expect(regionRows(page, 'Lista de workspaces')).toHaveCount(9);
   await expect(page.getByRole('main')).toBeFocused();

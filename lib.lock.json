@@ -1,8 +1,8 @@
 {
   "repository": "https://github.com/Nekkora-Operation/Nekkora-lib.git",
-  "commit": "0a29d95fbadb19da74cfa90a55542fb14885458d",
+  "commit": "67e188419b128036e26070bd19b3d2de2f771c7e",
   "version": "0.2.0",
-  "tarballSha256": "1a2e614576f7c33ec98bbaf1dfe9f0eb6098637ca1075113c666aea6662526a6",
-  "integrity": "sha512-LE1ZO5MkrPi38W5oKykk5/bT322ewlpcWgrZJ/MPHOmOtARreSQ4J0GNMst4T6rgdiTnikZOZTFVeoingIcT4A==",
-  "evidence": "docs/release/evidencias/pacote-resultado.json no commit fixado (LIB-RELEASE-001, PR #6 mesclado)"
+  "tarballSha256": "f270357cefebd5fe31a874d7f08366c6e1df4dd725efe0b099c9371fefe0eb15",
+  "integrity": "sha512-z0yFDxGL5rQD5QsdX9/O3kFhhpviLs7Z0M4CF54vy+dfPaxohDWmKFd/E/AEn5bHLoGmhLKL8Er9sHU93s+fRw==",
+  "evidence": "main da Nekkora-lib depois dos PRs #7 e #8 (AppShell layout=\"header\", Avatar, UserMenu); a versao segue 0.2.0, sem nova release: sha256 calculado localmente por scripts/lib.mjs prepare neste commit"
 }
