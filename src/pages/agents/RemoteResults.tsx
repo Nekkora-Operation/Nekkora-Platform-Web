@@ -69,7 +69,7 @@ export function RemoteResults({ org, executionId, attemptId, attemptNumber }: { 
       </Stack>
     );
   }
-  const { items, closure } = state.data;
+  const { items, closure, retentionLoss } = state.data;
   return (
     <Stack gap={2}>
       {items.length === 0 ? (
@@ -105,6 +105,14 @@ export function RemoteResults({ org, executionId, attemptId, attemptNumber }: { 
           resultados (50 arquivos, 20 MiB cada, 50 MiB no total). Isso não muda o resultado da execução; os arquivos continuam no computador que executou.
         </Alert>
       )}
+      {retentionLoss && (
+        <Alert tone="warning">
+          A máquina avisou, em {day(retentionLoss.reportedAt)}, que removeu a pasta de saída desta execução: venceu o prazo de guarda dela sem a Platform ter
+          confirmado o recebimento de tudo. Havia {retentionLoss.localCount === 1 ? '1 arquivo' : `${retentionLoss.localCount.toLocaleString('pt-BR')} arquivos`} lá; a
+          Platform tem {items.length === 1 ? '1' : items.length.toLocaleString('pt-BR')}. O que não chegou não pode mais ser recuperado pela Platform. Isso não muda o
+          resultado da execução.
+        </Alert>
+      )}
       {problem && <Alert tone="danger">{problem}</Alert>}
       <div>
         <Button size="sm" variant="ghost" onClick={() => void load()} aria-label={`Atualizar os resultados da tentativa ${attemptNumber}`}>
@@ -113,6 +121,12 @@ export function RemoteResults({ org, executionId, attemptId, attemptNumber }: { 
       </div>
     </Stack>
   );
+}
+
+/** O dia em que o aviso da máquina chegou à Platform, no calendário de quem lê. */
+function day(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? 'data não informada' : d.toLocaleDateString('pt-BR');
 }
 
 function size(bytes: number): string {

@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "48fec66b49171bb402e73238205ea305bd91e2833c43044066cc5651a8602e61",
+  "openapiSha256": "a6926de5aa277a5e6f5273a5ffdc358dc2cb8f983936fa74f0257181802f45d0",
   "schemas": {
     "Error": {
       "type": "object",
@@ -3047,7 +3047,8 @@
         "items",
         "total",
         "nextAfter",
-        "closure"
+        "closure",
+        "retentionLoss"
       ],
       "properties": {
         "attemptId": {
@@ -3139,6 +3140,27 @@
               "format": "date-time"
             }
           }
+        },
+        "retentionLoss": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "localCount",
+            "reportedAt"
+          ],
+          "properties": {
+            "localCount": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "reportedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
         }
       }
     },
@@ -3148,7 +3170,8 @@
       "required": [
         "attemptId",
         "items",
-        "closure"
+        "closure",
+        "retentionLoss"
       ],
       "properties": {
         "attemptId": {
@@ -3216,6 +3239,27 @@
               "minimum": 0
             },
             "closedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        "retentionLoss": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "localCount",
+            "reportedAt"
+          ],
+          "properties": {
+            "localCount": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "reportedAt": {
               "type": "string",
               "format": "date-time"
             }

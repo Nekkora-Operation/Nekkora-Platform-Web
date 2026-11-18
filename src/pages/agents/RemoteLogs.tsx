@@ -17,7 +17,7 @@ const CHANNEL: Record<Line['channel'], string> = { STDOUT: 'saída', STDERR: 'sa
  */
 export function RemoteLogs({ org, executionId, attemptId, attemptNumber }: { org: string; executionId: string; attemptId: string; attemptNumber: number }) {
   const [state, setState] = useState<
-    { status: 'closed' } | { status: 'loading' } | { status: 'error'; text: string } | { status: 'ready'; lines: Line[]; total: number; nextAfter: number | null; closure: RemoteAttemptLogs['closure'] }
+    { status: 'closed' } | { status: 'loading' } | { status: 'error'; text: string } | { status: 'ready'; lines: Line[]; total: number; nextAfter: number | null; closure: RemoteAttemptLogs['closure']; retentionLoss: RemoteAttemptLogs['retentionLoss'] }
   >({ status: 'closed' });
   const [more, setMore] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -27,7 +27,7 @@ export function RemoteLogs({ org, executionId, attemptId, attemptNumber }: { org
     setProblem(null);
     try {
       const page = await listRemoteAttemptLogs(org, executionId, attemptId, 0);
-      setState({ status: 'ready', lines: page.items, total: page.total, nextAfter: page.nextAfter, closure: page.closure });
+      setState({ status: 'ready', lines: page.items, total: page.total, nextAfter: page.nextAfter, closure: page.closure, retentionLoss: page.retentionLoss });
     } catch (e) {
       setState({ status: 'error', text: problemText(e) });
     }
@@ -41,7 +41,7 @@ export function RemoteLogs({ org, executionId, attemptId, attemptNumber }: { org
     try {
       const last = state.lines.length ? state.lines[state.lines.length - 1].sequence : 0;
       const page = await listRemoteAttemptLogs(org, executionId, attemptId, last);
-      setState({ status: 'ready', lines: [...state.lines, ...page.items.filter((l) => l.sequence > last)], total: page.total, nextAfter: page.nextAfter, closure: page.closure });
+      setState({ status: 'ready', lines: [...state.lines, ...page.items.filter((l) => l.sequence > last)], total: page.total, nextAfter: page.nextAfter, closure: page.closure, retentionLoss: page.retentionLoss });
     } catch (e) {
       setProblem(problemText(e));
     } finally {
@@ -70,7 +70,7 @@ export function RemoteLogs({ org, executionId, attemptId, attemptNumber }: { org
       </Stack>
     );
   }
-  const { lines, total, nextAfter, closure } = state;
+  const { lines, total, nextAfter, closure, retentionLoss } = state;
   const pending = total - lines.length;
   return (
     <Stack gap={2}>
@@ -113,6 +113,13 @@ export function RemoteLogs({ org, executionId, attemptId, attemptNumber }: { org
           execução passou do limite de registros (50.000 linhas ou 20 MiB por execução). A execução continuou e o resultado dela não mudou.
         </Alert>
       )}
+      {retentionLoss && (
+        <Alert tone="warning">
+          A máquina avisou, em {day(retentionLoss.reportedAt)}, que removeu os registros que ainda guardava desta execução: venceu o prazo de guarda dela sem a
+          Platform ter confirmado o recebimento de tudo. Ela tinha capturado {count(retentionLoss.localCount)}; a Platform tem {total.toLocaleString('pt-BR')}. O que
+          não chegou não pode mais ser recuperado pela Platform. Isso não muda o resultado da execução.
+        </Alert>
+      )}
       {problem && <Alert tone="danger">{problem}</Alert>}
       <div>
         {nextAfter != null || pending > 0 ? (
@@ -127,6 +134,12 @@ export function RemoteLogs({ org, executionId, attemptId, attemptNumber }: { org
       </div>
     </Stack>
   );
+}
+
+/** O dia em que o aviso da máquina chegou à Platform, no calendário de quem lê. */
+function day(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? 'data não informada' : d.toLocaleDateString('pt-BR');
 }
 
 function count(n: number): string {
