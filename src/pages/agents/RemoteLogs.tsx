@@ -15,9 +15,60 @@ const CHANNEL: Record<Line['channel'], string> = { STDOUT: 'saída', STDERR: 'sa
  * foram descartadas por limite e se o texto foi removido pela retenção. Nada disso muda o resultado da execução. O texto é
  * mostrado como texto, nunca interpretado.
  */
+function counts(page: RemoteAttemptLogs) {
+  return {
+    total: page.total,
+    automationLines: page.automationLines,
+    systemLines: page.systemLines,
+    nextAfter: page.nextAfter,
+    closure: page.closure,
+    retentionLoss: page.retentionLoss,
+    expiration: page.expiration,
+  };
+}
+
+const n = (v: number) => v.toLocaleString('pt-BR');
+
+/**
+ * O que a Platform guarda, separado: o que o processo da automação escreveu e os avisos do próprio aplicativo da máquina (por
+ * exemplo, o aviso de limite atingido). Os avisos ocupam lugar no limite de linhas, mas não são saída da automação.
+ */
+export function storedText(automationLines: number, systemLines: number): string {
+  const automation = automationLines === 1 ? '1 linha é da automação' : `${n(automationLines)} linhas são da automação`;
+  if (systemLines === 0) return `${automation}.`;
+  return `${automation} e ${systemLines === 1 ? '1 é aviso' : `${n(systemLines)} são avisos`} do aplicativo da máquina.`;
+}
+
+/** A conta que fecha: escritas pela automação = guardadas + descartadas. Só é dita com o envio fechado e sem aviso de perda. */
+export function writtenText(automationLines: number, droppedLines: number, lost: boolean): string {
+  if (lost) return '';
+  return `A automação escreveu ${n(automationLines + droppedLines)} linhas: ${n(automationLines)} guardadas e ${n(droppedLines)} descartadas.`;
+}
+
+const DELIVERY_END: Record<string, string> = {
+  CLOSED: 'a máquina concluiu o envio',
+  LOSS_NOTICE: 'a máquina avisou que não tinha mais o que enviar',
+  LINK_ENDED: 'o vínculo da máquina foi encerrado',
+};
+
+type Expiration = NonNullable<RemoteAttemptLogs['expiration']>;
+const expirationDay = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+
+/** O prazo, de onde ele contou e o que ficou. Usado pelos registros e pelos resultados. */
+export function expiredPeriodText(x: Expiration): string {
+  const days = x.retentionDays === 1 ? '1 dia' : `${n(x.retentionDays)} dias`;
+  return `A Platform guarda esse conteúdo por ${days} depois do fim da entrega (${DELIVERY_END[x.deliveryEnd] ?? x.deliveryEnd} em ${expirationDay(x.deliveryEndedAt)}).`;
+}
+
+export function logsExpiredText(x: Expiration): string {
+  const what = x.items === 1 ? 'O texto de 1 linha' : `O texto de ${n(x.items)} linhas`;
+  const done = x.confirmedAt ? `${what} expirou em ${expirationDay(x.expiredAt)} e foi removido da Platform.` : `${what} expirou em ${expirationDay(x.expiredAt)}; a remoção está em andamento.`;
+  return `${done} ${expiredPeriodText(x)} Fica o registro de que cada linha existiu, com o instante e o canal. O histórico e o resultado da execução não mudam.`;
+}
+
 export function RemoteLogs({ org, executionId, attemptId, attemptNumber }: { org: string; executionId: string; attemptId: string; attemptNumber: number }) {
   const [state, setState] = useState<
-    { status: 'closed' } | { status: 'loading' } | { status: 'error'; text: string } | { status: 'ready'; lines: Line[]; total: number; nextAfter: number | null; closure: RemoteAttemptLogs['closure']; retentionLoss: RemoteAttemptLogs['retentionLoss'] }
+    { status: 'closed' } | { status: 'loading' } | { status: 'error'; text: string } | { status: 'ready'; lines: Line[]; total: number; automationLines: number; systemLines: number; nextAfter: number | null; closure: RemoteAttemptLogs['closure']; retentionLoss: RemoteAttemptLogs['retentionLoss']; expiration: RemoteAttemptLogs['expiration'] }
   >({ status: 'closed' });
   const [more, setMore] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -27,7 +78,7 @@ export function RemoteLogs({ org, executionId, attemptId, attemptNumber }: { org
     setProblem(null);
     try {
       const page = await listRemoteAttemptLogs(org, executionId, attemptId, 0);
-      setState({ status: 'ready', lines: page.items, total: page.total, nextAfter: page.nextAfter, closure: page.closure, retentionLoss: page.retentionLoss });
+      setState({ status: 'ready', lines: page.items, ...counts(page) });
     } catch (e) {
       setState({ status: 'error', text: problemText(e) });
     }
@@ -41,7 +92,7 @@ export function RemoteLogs({ org, executionId, attemptId, attemptNumber }: { org
     try {
       const last = state.lines.length ? state.lines[state.lines.length - 1].sequence : 0;
       const page = await listRemoteAttemptLogs(org, executionId, attemptId, last);
-      setState({ status: 'ready', lines: [...state.lines, ...page.items.filter((l) => l.sequence > last)], total: page.total, nextAfter: page.nextAfter, closure: page.closure, retentionLoss: page.retentionLoss });
+      setState({ status: 'ready', lines: [...state.lines, ...page.items.filter((l) => l.sequence > last)], ...counts(page) });
     } catch (e) {
       setProblem(problemText(e));
     } finally {
@@ -70,7 +121,7 @@ export function RemoteLogs({ org, executionId, attemptId, attemptNumber }: { org
       </Stack>
     );
   }
-  const { lines, total, nextAfter, closure, retentionLoss } = state;
+  const { lines, total, automationLines, systemLines, nextAfter, closure, retentionLoss, expiration } = state;
   const pending = total - lines.length;
   return (
     <Stack gap={2}>
@@ -79,7 +130,8 @@ export function RemoteLogs({ org, executionId, attemptId, attemptNumber }: { org
       ) : (
         <>
           <Text variant="body-sm" color="secondary">
-            {lines.length === total ? `${count(total)} na Platform.` : `Mostrando ${lines.length.toLocaleString('pt-BR')} de ${count(total)} na Platform.`} A ordem é a da captura pela máquina.
+            {lines.length === total ? `${count(total)} na Platform.` : `Mostrando ${lines.length.toLocaleString('pt-BR')} de ${count(total)} na Platform.`}{' '}
+            {storedText(automationLines, systemLines)} A ordem é a da captura pela máquina.
             &quot;Saída de erro&quot; é o canal em que o processo escreveu; sozinho, não indica falha.
           </Text>
           <ol className="pw-plain-list pw-log" aria-label={`Registros da tentativa ${attemptNumber}`}>
@@ -91,7 +143,7 @@ export function RemoteLogs({ org, executionId, attemptId, attemptNumber }: { org
                 </Text>
                 {l.textRemoved ? (
                   <Text variant="body-sm" color="secondary">
-                    O texto desta linha foi removido da Platform; ficou só o registro de que ela existiu.
+                    O texto desta linha expirou e foi removido da Platform; ficou só o registro de que ela existiu.
                   </Text>
                 ) : (
                   <pre className="pw-log-line">{l.message}</pre>
@@ -109,10 +161,12 @@ export function RemoteLogs({ org, executionId, attemptId, attemptNumber }: { org
       )}
       {closure && closure.droppedLines > 0 && (
         <Alert tone="warning">
-          {closure.droppedLines === 1 ? '1 linha não foi guardada' : `${closure.droppedLines.toLocaleString('pt-BR')} linhas não foram guardadas`}: a saída desta
-          execução passou do limite de registros (50.000 linhas ou 20 MiB por execução). A execução continuou e o resultado dela não mudou.
+          {closure.droppedLines === 1 ? '1 linha da automação não foi guardada' : `${closure.droppedLines.toLocaleString('pt-BR')} linhas da automação não foram guardadas`}: a
+          saída desta execução passou do limite de registros (50.000 linhas ou 20 MiB por execução). {writtenText(automationLines, closure.droppedLines, !!retentionLoss)} A
+          execução continuou e o resultado dela não mudou.
         </Alert>
       )}
+      {expiration && <Alert tone="info">{logsExpiredText(expiration)}</Alert>}
       {retentionLoss && (
         <Alert tone="warning">
           A máquina avisou, em {day(retentionLoss.reportedAt)}, que removeu os registros que ainda guardava desta execução: venceu o prazo de guarda dela sem a
