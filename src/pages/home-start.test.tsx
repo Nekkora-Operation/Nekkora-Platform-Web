@@ -1,8 +1,11 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { StrictMode } from 'react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, useNavigate, type NavigateFunction } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { csrfStore } from '../api/csrf';
 import { sessionMemory } from '../app/notices';
 import { channelOf, versionLine } from '../app/version';
+import { AppRoutes } from '../app/AppRoutes';
 import { location, user } from '../test/helpers';
 import { renderApp } from '../test/render';
 import { RouteApi } from '../test/routeApi';
@@ -367,6 +370,121 @@ describe('Início da organização como painel (PLATFORM-INICIO-001)', () => {
     expect(await screen.findByText('Você ainda não tem acesso a nenhum workspace')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 3, name: 'Total de execuções' })).toBeNull();
     expect(screen.queryByRole('region', { name: 'Automações' })).toBeNull();
+  });
+});
+
+describe('Início: troca de organização (PLATFORM-INICIO-001)', () => {
+  const BETA = '1b7f2a0d-4c3e-4d6f-9a82-3b0c4d5e6f70';
+  type Held = { status: number; body: unknown };
+  const metric = (label: string) => screen.getByRole('heading', { level: 3, name: label }).parentElement!.querySelector('.pw-dash__metric-value')!.textContent;
+
+  /** As leituras da área de UMA organização; o resumo e as automações são respondidos pelo teste (podem ficar pendentes). */
+  function organization(org: string, name: string, summaryReply: () => Held | { hold: Promise<Held> }, automationsReply: () => Held | { hold: Promise<Held> }) {
+    api.on('GET', `/api/v1/o/${org}/me`, 'getMe', {
+      status: 200,
+      body: { accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: org, organizationActivationState: 'ATIVADA', stepUpMethod: 'totp' },
+    });
+    api.on('GET', `/api/v1/o/${org}/me/permissions`, 'getMyPermissions', {
+      status: 200,
+      body: { organizationId: org, membershipId: org, organization: { roles: ['ORG_ADMIN'], permissions: ['automation.read'] }, allWorkspaces: { permissions: ['automation.read'] }, hasWorkspaceAssignments: false },
+    });
+    api.on('GET', `/api/v1/o/${org}/me/permissions/workspaces`, 'listMyWorkspacePermissions', { status: 200, body: { items: [], nextCursor: null } });
+    api.on('GET', `/api/v1/o/${org}/workspaces`, 'listWorkspaces', { status: 200, body: { items: [{ ...workspace(), name: `Workspace ${name}` }], nextCursor: null } });
+    api.on('GET', `/api/v1/o/${org}/workspaces/${WS}/automations`, 'listAutomations', { status: 200, body: { items: [automation], nextCursor: null } });
+    api.on('GET', `/api/v1/o/${org}/execution-summary`, 'getExecutionSummary', summaryReply);
+    api.on('GET', `/api/v1/o/${org}/automations`, 'listOrganizationAutomations', automationsReply);
+  }
+  const both = () =>
+    api.on('GET', '/api/v1/me/organizations', 'identityOrganizations', {
+      status: 200,
+      body: {
+        organizations: [
+          { organizationId: ORG, name: 'Acme', roles: ['ORG_ADMIN'], activationState: 'ATIVADA', handle: 'acme' },
+          { organizationId: BETA, name: 'Beta', roles: ['ORG_ADMIN'], activationState: 'ATIVADA', handle: 'beta' },
+        ],
+        canCreateOrganization: true,
+      },
+    });
+  const acmeSummary = { status: 200, body: summary({ succeeded: 71, failed: 6 }) };
+  const acmeCards = { status: 200, body: { items: [card({ name: 'Fechamento da Acme', workspaceName: 'Workspace Acme' })], nextCursor: null } };
+  const betaSummary = { status: 200, body: summary({ succeeded: 3, failed: 1 }) };
+  const betaCards = { status: 200, body: { items: [card({ name: 'Cobrança da Beta', workspaceName: 'Workspace Beta' })], nextCursor: null } };
+
+  /** A aplicação como em `renderApp`, com acesso à navegação: a troca acontece na MESMA árvore (o caso mais exigente). */
+  function renderWithNavigation(path: string) {
+    let go: NavigateFunction = () => undefined;
+    function Probe() {
+      go = useNavigate();
+      return null;
+    }
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={[path]}>
+          <AppRoutes />
+          <Probe />
+        </MemoryRouter>
+      </StrictMode>,
+    );
+    return (to: string) => act(() => void go(to));
+  }
+  /** Nada da Acme na tela: nem o nome, nem o card, nem o workspace, nem os números (77 no total, 71 sucessos). */
+  const nothingFromAcme = () => {
+    expect(screen.queryByText('Fechamento da Acme')).toBeNull();
+    expect(screen.queryByText(/Workspace Acme/)).toBeNull();
+    expect(screen.queryByText('Acme', { selector: '.pw-dash__org' })).toBeNull();
+    for (const value of document.querySelectorAll('.pw-dash__metric-value')) expect(['77', '71', '6']).not.toContain(value.textContent);
+  };
+
+  it('os dados da organização anterior saem na hora, antes de qualquer resposta da nova', async () => {
+    both();
+    organization(ORG, 'Acme', () => acmeSummary, () => acmeCards);
+    // a organização nova ainda não respondeu nada do painel: o que sair da tela sai pela troca, não pela resposta
+    const never = new Promise<Held>(() => undefined);
+    organization(BETA, 'Beta', () => ({ hold: never }), () => ({ hold: never }));
+    const go = renderWithNavigation(`/o/${ORG}`);
+    await waitFor(() => expect(metric('Total de execuções')).toBe('77'));
+    expect(await screen.findByRole('heading', { level: 3, name: 'Fechamento da Acme' })).toBeInTheDocument();
+    expect(await screen.findByText('Acme', { selector: '.pw-dash__org' })).toBeInTheDocument();
+
+    await go(`/o/${BETA}`);
+    nothingFromAcme(); // conferido logo depois da navegação, sem esperar nada
+    expect(screen.queryByRole('heading', { level: 3, name: 'Total de execuções' })).toBeNull();
+    // e continua assim enquanto a nova organização carrega
+    await screen.findByText('Carregando as execuções do período…');
+    nothingFromAcme();
+    expect(api.sent('GET', `/api/v1/o/${BETA}/execution-summary`).length).toBeGreaterThan(0);
+  });
+
+  it('resposta atrasada da organização anterior não preenche o painel da atual', async () => {
+    both();
+    let releaseSummary: (v: Held) => void = () => undefined;
+    let releaseCards: (v: Held) => void = () => undefined;
+    const lateSummary = new Promise<Held>((r) => (releaseSummary = r));
+    const lateCards = new Promise<Held>((r) => (releaseCards = r));
+    organization(ORG, 'Acme', () => ({ hold: lateSummary }), () => ({ hold: lateCards }));
+    organization(BETA, 'Beta', () => betaSummary, () => betaCards);
+    const go = renderWithNavigation(`/o/${ORG}`);
+    // a Acme pediu o resumo e as automações, e as respostas ainda não chegaram
+    await waitFor(() => expect(api.sent('GET', `/api/v1/o/${ORG}/execution-summary`).length).toBeGreaterThan(0));
+    await waitFor(() => expect(api.sent('GET', `/api/v1/o/${ORG}/automations`).length).toBeGreaterThan(0));
+
+    await go(`/o/${BETA}`);
+    await waitFor(() => expect(metric('Total de execuções')).toBe('4'));
+    expect(await screen.findByRole('heading', { level: 3, name: 'Cobrança da Beta' })).toBeInTheDocument();
+    expect(await screen.findByText('Beta', { selector: '.pw-dash__org' })).toBeInTheDocument();
+
+    // só agora as respostas da Acme chegam
+    await act(async () => {
+      releaseSummary(acmeSummary);
+      releaseCards(acmeCards);
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(metric('Total de execuções')).toBe('4');
+    expect(metric('Sucessos')).toBe('3');
+    expect(metric('Erros')).toBe('1');
+    expect(screen.getByRole('heading', { level: 3, name: 'Cobrança da Beta' })).toBeInTheDocument();
+    expect(within(screen.getByRole('list', { name: 'Automações' })).getAllByRole('listitem')).toHaveLength(1);
+    nothingFromAcme();
   });
 });
 
