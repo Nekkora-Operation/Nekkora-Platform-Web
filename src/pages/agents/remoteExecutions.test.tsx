@@ -371,6 +371,70 @@ describe('Versão: execução remota (T02)', () => {
     expect(within(s).queryByRole('button', { name: /o Python de/ })).toBeNull();
   });
 
+  it('resultados: quem pode ver registros lista os arquivos da tentativa que executou, com o que ficou de fora e o que foi removido', async () => {
+    permissions(['automation.read', 'automation.execute', 'logs.read']);
+    const ATT = '77777777-7777-4777-8777-777777777777';
+    const SHA_A = 'c'.repeat(64);
+    candidates = [candidate()];
+    executions = [execution([attempt({ state: 'SUCCEEDED', exitCode: 0, startedAt: T, endedAt: T })])];
+    const RES = `/api/v1/o/${ORG}/remote-executions/${X1}/attempts/${ATT}/results`;
+    let closure: Row | null = null;
+    api.on('GET', RES, 'listRemoteAttemptResults', () => ({
+      status: 200,
+      body: {
+        attemptId: ATT,
+        items: [
+          { number: 1, fileName: 'dados/relatório final.csv', sizeBytes: 2048, sha256: SHA_A, receivedAt: T, available: true },
+          { number: 2, fileName: 'antigo.txt', sizeBytes: 3, sha256: 'd'.repeat(64), receivedAt: T, available: false },
+        ],
+        closure,
+      },
+    }));
+    api.on('GET', `${RES}/1/content`, 'downloadRemoteAttemptResult', { status: 409, body: { error: 'conflict', reason: 'remote_result_unavailable' } });
+    await open();
+    const s = await waitFor(section);
+    // nada é lido antes de a pessoa pedir
+    expect(api.sent('GET', RES)).toHaveLength(0);
+    fireEvent.click(within(s).getByRole('button', { name: 'Ver resultados da tentativa 1' }));
+    const list = await within(s).findByRole('list', { name: 'Resultados da tentativa 1' });
+    expect(within(list).getByText('dados/relatório final.csv · 2,0 KiB')).toBeInTheDocument();
+    expect(within(list).getByText('antigo.txt · 3 B')).toBeInTheDocument();
+    expect(within(list).getByText(/foi removido da Platform; ficou só o registro/)).toBeInTheDocument();
+    expect(within(list).queryByRole('button', { name: 'Baixar antigo.txt' })).toBeNull();
+    // envio ainda não fechado: a tela não afirma que a lista está completa
+    expect(within(s).getByText(/ainda não informou que terminou de enviar os resultados/)).toBeInTheDocument();
+    // o arquivo não está mais guardado: nada é baixado, e a tela diz
+    fireEvent.click(within(list).getByRole('button', { name: 'Baixar dados/relatório final.csv' }));
+    expect(await within(s).findByText('O arquivo não está mais guardado na Platform. Nada foi baixado.')).toBeInTheDocument();
+    // a máquina fechou o envio dizendo que 2 arquivos ficaram de fora por limite
+    closure = { sent: 2, skippedByLimit: 2, closedAt: T };
+    fireEvent.click(within(s).getByRole('button', { name: 'Atualizar os resultados da tentativa 1' }));
+    expect(await within(s).findByText(/2 arquivos não foram enviados/)).toBeInTheDocument();
+    expect(within(s).getByText(/Isso não muda o resultado da execução/)).toBeInTheDocument();
+    expect(within(s).queryByText(/ainda não informou que terminou/)).toBeNull();
+    // o estado da execução continua o que a máquina informou
+    expect(within(s).getAllByText('Concluída').length).toBeGreaterThan(0);
+  });
+
+  it('resultados: sem permissão de ver registros, ou em tentativa que não executou, a tela não oferece os arquivos', async () => {
+    candidates = [candidate()];
+    executions = [execution([attempt({ state: 'SUCCEEDED', exitCode: 0, startedAt: T, endedAt: T })])];
+    await open();
+    const s = await waitFor(section);
+    expect(within(s).getAllByText('Concluída').length).toBeGreaterThan(0);
+    expect(within(s).queryByRole('button', { name: /Ver resultados/ })).toBeNull();
+  });
+
+  it('resultados: tentativa recusada antes de iniciar não tem o que mostrar', async () => {
+    permissions(['automation.read', 'automation.execute', 'logs.read']);
+    candidates = [candidate()];
+    executions = [execution([attempt({ state: 'REFUSED', refusalReason: 'SESSION_UNAVAILABLE', endedAt: T })])];
+    await open();
+    const s = await waitFor(section);
+    expect(within(s).getByText(/a tela do Windows estava bloqueada/)).toBeInTheDocument();
+    expect(within(s).queryByRole('button', { name: /Ver resultados/ })).toBeNull();
+  });
+
   it('sem máquina habilitada e sem solicitação, ou numa Platform sem o recurso: a seção não aparece', async () => {
     await open();
     await waitFor(() => expect(api.sent('GET', new RegExp(`^${CANDIDATES}`)).length).toBeGreaterThan(0));
