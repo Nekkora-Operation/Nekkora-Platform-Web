@@ -6,7 +6,19 @@ import { sessionMemory } from '../../app/notices';
 import { fakeLocks } from '../../test/fakeLocks';
 import { renderApp } from '../../test/render';
 import { RouteApi } from '../../test/routeApi';
-import { ATTEMPT_STATE, CLOSURE_TEXT, DEPENDENCY_CHECK, ENDED_UNKNOWN_TEXT, MISSING, REQUEST_REFUSAL, dependencyCheckText, endedUnknownText, environmentCode } from './RemoteExecutions';
+import {
+  ATTEMPT_STATE,
+  CLOSURE_TEXT,
+  DEPENDENCY_CHECK,
+  ENDED_UNKNOWN_TEXT,
+  MISSING,
+  REQUEST_REFUSAL,
+  RETRY_UNCONFIRMED_LABEL,
+  RETRY_UNCONFIRMED_TEXT,
+  dependencyCheckText,
+  endedUnknownText,
+  environmentCode,
+} from './RemoteExecutions';
 import { permissionsAutoRetry } from '../../area/useWorkspacePermissions';
 
 /**
@@ -211,7 +223,7 @@ describe('Versão: execução remota (T02)', () => {
     // a ação correspondente, para quem tem a permissão dela
     expect(within(missing).getByRole('link', { name: 'Declarar as dependências na automação' })).toHaveAttribute('href', `/o/${ORG}/automacoes/${AUT}`);
     expect(within(missing).getByText(/Autorize a execução local desta versão para o Worker Worker fiscal/)).toBeInTheDocument();
-    expect(within(missing).getByText(/retomado no próprio computador/)).toBeInTheDocument();
+    expect(within(missing).getByText(/voltam a ser recebidos no próprio computador/)).toBeInTheDocument();
     expect(within(rows[2]).queryByRole('button', { name: /Solicitar execução/ })).toBeNull();
     expect(within(s).getByText(/Solicitar não é iniciar/)).toBeInTheDocument();
   });
@@ -478,6 +490,44 @@ describe('Versão: execução remota (T02)', () => {
     await waitFor(() => expect(within(section()).getByText(/Tentativa 2 · ESTACAO-02/)).toBeInTheDocument());
   });
 
+  it('decisão de 16/11: depois de um encerramento por falta de comunicação a máquina não é dada por livre e repetir exige reconhecimento', async () => {
+    candidates = [
+      candidate({ requestable: false, missing: ['MACHINE_UNCONFIRMED'] }),
+      candidate({ agentId: AG2, agentName: 'ESTACAO-02', workerId: W2, workerName: 'Worker fiscal' }),
+    ];
+    const lost = attempt({ state: 'ENDED_UNKNOWN', endedAt: T, closureCause: 'COMMUNICATION_LOST' });
+    executions = [execution([lost])];
+    api.on('POST', `/api/v1/o/${ORG}/remote-executions/${X1}/attempts`, 'retryRemoteExecution', () => {
+      executions = [execution([lost, attempt({ attemptId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', attemptNumber: 2, agentId: AG2, agentName: 'ESTACAO-02' })])];
+      return { status: 201, body: executions[0] };
+    });
+    await open();
+    const s = await waitFor(section);
+    // a máquina que sumiu aparece com o motivo próprio - não "ocupada", não "livre" - e com o que a faz voltar
+    expect(within(s).getByText(MISSING.MACHINE_UNCONFIRMED)).toBeInTheDocument();
+    expect(MISSING.MACHINE_UNCONFIRMED).toBe(
+      'A última execução desta máquina foi encerrada por falta de comunicação e ela ainda não voltou a se comunicar: não se sabe se está livre.',
+    );
+    expect(within(s).getByText('Volta a poder receber quando o aplicativo desse computador se comunicar de novo com a Platform.')).toBeInTheDocument();
+    // o texto do desfecho diz que a automação pode ainda estar em andamento e que evidência posterior aparece
+    expect(within(s).getByText(/ela pode ainda estar em andamento naquele computador.*Se a máquina voltar, o que ela informar aparece aqui\./)).toBeInTheDocument();
+    fireEvent.click(within(s).getByRole('button', { name: 'Executar novamente em outra máquina' }));
+    expect(within(dialog()).getByText(RETRY_UNCONFIRMED_TEXT)).toBeInTheDocument();
+    const select = within(dialog()).getByLabelText('Máquina') as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: AG2 } });
+    // com a máquina escolhida, o botão continua desabilitado até a pessoa marcar que sabe
+    expect(within(dialog()).getByRole('button', { name: 'Executar novamente' })).toBeDisabled();
+    fireEvent.click(within(dialog()).getByLabelText(RETRY_UNCONFIRMED_LABEL));
+    await confirmIn('Executar novamente');
+    expect(await screen.findByText(/Nova tentativa registrada/)).toBeInTheDocument();
+    expect(api.sent('POST', `/api/v1/o/${ORG}/remote-executions/${X1}/attempts`)[0].body).toEqual({ agentId: AG2, acknowledgeUnconfirmed: true });
+    // a recusa do servidor, se chegar, é dita em palavras
+    expect(REQUEST_REFUSAL.remote_previous_result_unconfirmed).toContain('é preciso marcar que você sabe disso');
+    expect(REQUEST_REFUSAL.remote_machine_unconfirmed).toContain('não se sabe se está livre');
+    // revogação: a tela não afirma que o processo parou
+    expect(CLOSURE_TEXT.MACHINE_REVOKED.unknown).toContain('se o computador estava sem contato, a automação pode ter continuado');
+  });
+
   it('Python da automação por máquina: mostra o escolhido, diz quando falta e só quem gerencia escolhe, do que a máquina informou', async () => {
     candidates = [
       candidate({ requestable: false, missing: ['PYTHON_NOT_SELECTED'], python: null }),
@@ -629,6 +679,7 @@ describe('Versão: execução remota (T02)', () => {
         ],
         closure,
         retentionLoss,
+        expiration: null,
       },
     }));
     api.on('GET', `${RES}/1/content`, 'downloadRemoteAttemptResult', { status: 409, body: { error: 'conflict', reason: 'remote_result_unavailable' } });
@@ -693,14 +744,14 @@ describe('Versão: execução remota (T02)', () => {
           line(3, 'STDOUT', 'x'.repeat(40), { truncated: true }),
           line(4, 'STDOUT', '', { textRemoved: true }),
         ],
-        total: 6,
+        total: 6, automationLines: 5, systemLines: 1,
         nextAfter: 4,
         closure: null,
-        retentionLoss: null,
+        retentionLoss: null, expiration: null,
       },
-      { attemptId: ATT, items: [line(5, 'EXECUTOR', 'Limite de registros desta execução atingido'), line(6, 'STDOUT', 'fim')], total: 6, nextAfter: null, closure: null, retentionLoss: null },
-      { attemptId: ATT, items: [], total: 6, nextAfter: null, closure: { lines: 6, droppedLines: 73000, closedAt: T }, retentionLoss: null },
-      { attemptId: ATT, items: [], total: 6, nextAfter: null, closure: null, retentionLoss: { localCount: 1500, reportedAt: '2026-11-23T15:00:00Z' } },
+      { attemptId: ATT, items: [line(5, 'EXECUTOR', 'Limite de registros desta execução atingido'), line(6, 'STDOUT', 'fim')], total: 6, automationLines: 5, systemLines: 1, nextAfter: null, closure: null, retentionLoss: null, expiration: null },
+      { attemptId: ATT, items: [], total: 6, automationLines: 5, systemLines: 1, nextAfter: null, closure: { lines: 6, droppedLines: 73000, closedAt: T }, retentionLoss: null, expiration: null },
+      { attemptId: ATT, items: [], total: 6, automationLines: 5, systemLines: 1, nextAfter: null, closure: null, retentionLoss: { localCount: 1500, reportedAt: '2026-11-23T15:00:00Z' }, expiration: null },
     ];
     api.on('GET', LOGS, 'listRemoteAttemptLogs', (_call, n) => ({ status: 200, body: pages[Math.min(n, pages.length - 1)] }));
     await open();
