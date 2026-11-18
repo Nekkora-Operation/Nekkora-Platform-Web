@@ -228,6 +228,31 @@ describe('Início da organização como painel (PLATFORM-INICIO-001)', () => {
     expect(1203 + 6 + 2 + 4 + 8 + 1).toBe(1224);
   });
 
+  it('ícones das métricas planos (traço, fundo suave) e "Ver execuções"/"Ver workspaces" como links com aparência de botão secundário', async () => {
+    ready();
+    withAutomations();
+    api.on('GET', `/api/v1/o/${ORG}/execution-summary`, 'getExecutionSummary', { status: 200, body: summary({ succeeded: 2, failed: 1 }) });
+    renderApp(`/o/${ORG}`);
+    await waitFor(() => expect(metric('Total de execuções')).toBe('3'));
+    const icons = [...document.querySelectorAll('.pw-dash__metric .nk-iconbox')];
+    expect(icons).toHaveLength(3);
+    for (const icon of icons) {
+      expect(icon.classList.contains('nk-iconbox--soft'), 'fundo plano e suave, sem gradiente nem sombra').toBe(true);
+      expect(icon.classList.contains('nk-iconbox--solid')).toBe(false);
+      expect(icon.querySelector('.nk-icon--outline'), 'ícone só de traço').not.toBeNull();
+    }
+    expect(icons.map((i) => [...i.classList].find((c) => /--(accent|success|danger)$/.test(c)))).toEqual(['nk-iconbox--accent', 'nk-iconbox--success', 'nk-iconbox--danger']);
+    for (const [name, path] of [['Ver execuções', `/o/${ORG}/execucoes`], ['Ver workspaces', `/o/${ORG}/workspaces`]] as const) {
+      const link = screen.getByRole('link', { name });
+      expect(link).toHaveAttribute('href', path);
+      expect(link.classList.contains('nk-button--secondary')).toBe(true);
+      expect(link.classList.contains('nk-button--lg'), 'texto de 16 px e 48 px de altura').toBe(true);
+    }
+    // continua navegando como link, sem recarregar a página
+    await user().click(screen.getByRole('link', { name: 'Ver workspaces' }));
+    await waitFor(() => expect(location()).toBe(`/o/${ORG}/workspaces`));
+  });
+
   it('período sem execuções: zero é zero (com a frase), sem linha de outras situações', async () => {
     ready();
     withAutomations();

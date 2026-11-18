@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
-import { Alert, Badge, Button, Card, Grid, IconBox, LoadMore, Select, Stack, StateView, Text, type IconName, type Tone } from 'nekkora-lib';
+import { Alert, Badge, Button, Card, Grid, Icon, IconBox, LoadMore, Select, Stack, StateView, Text, type IconName, type Tone } from 'nekkora-lib';
 import { isApiError } from '../../api/http';
 import { getExecutionSummary, listOrganizationAutomations } from '../../api/product';
 import type { ExecutionOutcome, ExecutionSummary, OrganizationAutomation } from '../../api/v1';
@@ -8,7 +8,7 @@ import { useInternalArea } from '../../area/InternalShell';
 import { useSession } from '../../area/session';
 import { orgPath } from '../../auth/organization';
 import { formatDateTime, offsetLabel } from '../executions/format';
-import { DateTimeText, ResourceStatusBadge, RouteLink } from '../product/shared';
+import { DateTimeText, ResourceStatusBadge, RouteButton, RouteLink } from '../product/shared';
 import './Dashboard.css';
 
 /**
@@ -64,7 +64,8 @@ function Metric({ icon, tone, label, value, caption }: { icon: IconName; tone: T
   return (
     <Card variant="surface" padding="lg" className="pw-dash__metric">
       <Stack direction="row" gap={4} align="flex-start">
-        <IconBox icon={icon} tone={tone} size="lg" />
+        {/* ícone de traço em fundo plano e suave: o destaque do card é o número */}
+        <IconBox icon={<Icon name={icon} variant="outline" size={24} />} tone={tone} variant="soft" size="lg" className="pw-dash__metric-icon" />
         <Stack gap={1}>
           <Text as="h3" variant="body" color="secondary" className="pw-dash__metric-label">
             {label}
@@ -385,7 +386,9 @@ export function Dashboard({ header }: { header: (period: ReactNode) => ReactNode
           >
             <Metrics summary={summary} onRetry={() => setAppliedAt(Date.now())} />
             <div>
-              <RouteLink to={orgPath.executions(org)}>Ver execuções</RouteLink>
+              <RouteButton to={orgPath.executions(org)} variant="secondary" size="lg" rightIcon="arrow-right">
+                Ver execuções
+              </RouteButton>
             </div>
           </Section>
           <Section title="Próximas execuções" description="Execuções previstas por agendamento. Não dependem do período escolhido acima.">
@@ -394,7 +397,9 @@ export function Dashboard({ header }: { header: (period: ReactNode) => ReactNode
           <Section title="Automações" description="As automações dos seus workspaces, com a última execução de cada uma.">
             <Automations />
             <div>
-              <RouteLink to={orgPath.workspaces(org)}>Ver workspaces</RouteLink>
+              <RouteButton to={orgPath.workspaces(org)} variant="secondary" size="lg" rightIcon="arrow-right">
+                Ver workspaces
+              </RouteButton>
             </div>
           </Section>
         </>
