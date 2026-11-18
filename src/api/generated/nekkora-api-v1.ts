@@ -2209,7 +2209,7 @@ export interface paths {
         };
         /**
          * Maquinas habilitadas do ambiente para uma versao, com o que falta em cada uma
-         * @description Exige automation.read no ambiente. automationVersion: uma versao PUBLICADA do ambiente (outra: 404). Para cada maquina habilitada cujo Worker esta autorizado no ambiente: requestable e missing, a lista do que impede solicitar nela agora - PACKAGE_NOT_SUPPORTED (o pacote da versao nao e um pacote Python externo; a execucao remota so aceita esse tipo e o formato Studio fica de fora - vale para todas as maquinas e nao ha acao que resolva), PACKAGE_NOT_REGISTERED (a Platform nao tem o pacote desta versao registrado, entao nao ha o que entregar a maquina - vale para todas as maquinas; resolve-se publicando uma versao com o pacote), REQUIREMENTS_NOT_DECLARED, REQUIREMENTS_CONFLICT (da automacao), AUTHORIZATION_MISSING, AUTHORIZATION_REVOKED, AUTHORIZATION_EXPIRED (a autorizacao de execucao desta versao para o Worker da maquina), MACHINE_PAUSED, MACHINE_INCOMPATIBLE, MACHINE_BUSY, MACHINE_UNCONFIRMED (a ultima tentativa desta maquina foi encerrada por falta de comunicacao e ela ainda nao voltou a se comunicar: nao se sabe se esta livre; deixa de valer no primeiro contato dela), PYTHON_NOT_SELECTED (ninguem escolheu o ambiente Python desta automacao nesta maquina), PYTHON_NOT_IN_INVENTORY (o escolhido nao esta mais no inventario dela). authorization: a autorizacao vigente da versao para o Worker, ou a mais recente que deixou de valer (null = nunca houve). python: o ambiente escolhido para a automacao nesta maquina (null = nenhum). E indicativo: a solicitacao reconfere tudo, de forma atomica.
+         * @description Exige automation.read no ambiente. automationVersion: uma versao PUBLICADA do ambiente (outra: 404). Para cada maquina habilitada cujo Worker esta autorizado no ambiente: requestable e missing, a lista do que impede solicitar nela agora - PACKAGE_NOT_SUPPORTED (o pacote da versao nao e um pacote Python externo; a execucao remota so aceita esse tipo e o formato Studio fica de fora - vale para todas as maquinas e nao ha acao que resolva), PACKAGE_NOT_REGISTERED (a Platform nao tem o pacote desta versao registrado, entao nao ha o que entregar a maquina - vale para todas as maquinas; resolve-se publicando uma versao com o pacote), REQUIREMENTS_NOT_DECLARED, REQUIREMENTS_CONFLICT (da automacao), AUTHORIZATION_MISSING, AUTHORIZATION_REVOKED, AUTHORIZATION_EXPIRED (a autorizacao de execucao desta versao para o Worker da maquina), MACHINE_PAUSED, MACHINE_INCOMPATIBLE, MACHINE_BUSY, MACHINE_UNCONFIRMED (ha tentativa desta maquina com resultado nao confirmado cujo processo ELA ainda nao confirmou ausente: a ocupacao e incerta. Um novo contato, o fim do vinculo ou a declaracao manual NAO mudam isso; so a confirmacao da propria maquina. Se ela disse que ainda executa, o motivo e MACHINE_BUSY), PYTHON_NOT_SELECTED (ninguem escolheu o ambiente Python desta automacao nesta maquina), PYTHON_NOT_IN_INVENTORY (o escolhido nao esta mais no inventario dela). authorization: a autorizacao vigente da versao para o Worker, ou a mais recente que deixou de valer (null = nunca houve). python: o ambiente escolhido para a automacao nesta maquina (null = nenhum). E indicativo: a solicitacao reconfere tudo, de forma atomica.
          */
         get: operations["listRemoteExecutionCandidates"];
         put?: never;
@@ -2344,6 +2344,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/remote-executions/{execution}/attempts/{attempt}/reconciliation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reconciliacao declarada por um ORG_ADMIN (step-up)
+         * @description Para quando NAO e possivel obter a confirmacao da maquina. Exige o papel ORG_ADMIN na propria organizacao (conferido no servidor e no banco; outro papel: 403) e step-up. So para tentativa em ENDED_UNKNOWN ainda sem declaracao manual (outra: 409 + remote_attempt_not_unconfirmed ou remote_attempt_already_reconciled). reason: de uma lista fechada. verification: o que a pessoa verificou, de 20 a 2000 caracteres. acknowledgePartialEffects tem de ser true: a pessoa afirma saber que a execucao anterior pode ter causado efeitos parciais (sem isso, 400). Fica registrado quem, quando, o motivo, a verificacao, a tentativa e a maquina. NAO executa nada e NAO muda o resultado da tentativa, que continua ENDED_UNKNOWN: libera uma nova tentativa da solicitacao, sujeita as mesmas autorizacoes. NAO libera a maquina antiga, que continua indisponivel ate ELA confirmar; o que ela informar depois fica ao lado, sem alterar esta declaracao.
+         */
+        post: operations["reconcileRemoteAttempt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/remote-executions/{execution}/attempts": {
         parameters: {
             query?: never;
@@ -2355,7 +2375,7 @@ export interface paths {
         put?: never;
         /**
          * Executa novamente em outra maquina (step-up)
-         * @description Exige automation.execute no ambiente e step-up. Cria uma tentativa nova da MESMA solicitacao (mesma versao, mesmo pacote, mesmo retrato de dependencias) na maquina indicada. So depois que a tentativa anterior TERMINOU: enquanto ela nao terminar, 409 + remote_attempt_not_finished - nao ha troca automatica de maquina nem duas maquinas com a mesma solicitacao. As exigencias sao as da solicitacao, conferidas para a maquina de DESTINO; em especial, a autorizacao vigente da versao tem de ser do Worker de destino: a da maquina anterior NAO e transferida (sem ela, 409 + remote_authorization_missing). Cancelamento ja pedido: 409 + remote_execution_cancel_requested. Quando a tentativa anterior foi encerrada por falta de comunicacao (closureCause COMMUNICATION_LOST) e a maquina ainda nao relatou o desfecho, a espera vencida NAO libera a repeticao sozinha: a automacao pode estar em andamento naquele computador. Sem acknowledgeUnconfirmed = true, 409 + remote_previous_result_unconfirmed e nada e gravado. A maquina de destino cuja ocupacao nao esta confirmada responde 409 + remote_machine_unconfirmed.
+         * @description Exige automation.execute no ambiente e step-up. Cria uma tentativa nova da MESMA solicitacao (mesma versao, mesmo pacote, mesmo retrato de dependencias) na maquina indicada. So depois que a tentativa anterior TERMINOU: enquanto ela nao terminar, 409 + remote_attempt_not_finished - nao ha troca automatica de maquina nem duas maquinas com a mesma solicitacao. As exigencias sao as da solicitacao, conferidas para a maquina de DESTINO; em especial, a autorizacao vigente da versao tem de ser do Worker de destino: a da maquina anterior NAO e transferida (sem ela, 409 + remote_authorization_missing). Cancelamento ja pedido: 409 + remote_execution_cancel_requested. Quando a tentativa anterior terminou como ENDED_UNKNOWN (qualquer que seja a causa: comunicacao perdida, revogacao, reinicio do aplicativo), a repeticao fica BLOQUEADA ate a tentativa ser reconciliada - pela maquina, ou por declaracao de um ORG_ADMIN (ver .../reconciliation): 409 + remote_previous_result_unconfirmed e nada e gravado. Reconhecer o risco, revogar a maquina ou esperar nao liberam. A maquina de destino com ocupacao incerta responde 409 + remote_machine_unconfirmed; a que ainda executa, remote_machine_busy.
          */
         post: operations["retryRemoteExecution"];
         delete?: never;
@@ -2439,7 +2459,7 @@ export interface components {
              * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached, draft_exists, draft_changed, local_run_authorization_exists, organization_name_taken; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
              * @enum {string}
              */
-            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_machine_unconfirmed" | "remote_previous_result_unconfirmed" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_package_not_supported" | "remote_package_not_registered" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_dependency_check_too_soon" | "remote_dependency_check_closed" | "remote_result_unavailable" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken";
+            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_machine_unconfirmed" | "remote_previous_result_unconfirmed" | "remote_attempt_not_unconfirmed" | "remote_attempt_already_reconciled" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_package_not_supported" | "remote_package_not_registered" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_dependency_check_too_soon" | "remote_dependency_check_closed" | "remote_result_unavailable" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken";
         };
         /**
          * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
@@ -3396,7 +3416,7 @@ export interface components {
                  */
                 reportedAt: string;
             } | null;
-            /** @description 057: o conteudo desta tentativa VENCEU pela retencao do servidor (o texto das linhas foi apagado; cada linha continua existindo, com textRemoved = true). null = nao venceu. O prazo conta do fim da entrega (deliveryEndedAt): a maquina fechou o envio (CLOSED), avisou que perdeu o que guardava (LOSS_NOTICE) ou o vinculo sob o qual a tentativa rodou foi encerrado (LINK_ENDED). Entrega aberta nao vence. O historico da tentativa nao e removido. */
+            /** @description 057: o conteudo desta tentativa VENCEU pela retencao do servidor (o texto das linhas foi apagado; cada linha continua existindo, com textRemoved = true). null = nao venceu. O prazo conta do fim da entrega (deliveryEndedAt): a maquina fechou o envio (CLOSED), avisou que perdeu o que guardava (LOSS_NOTICE) ou o vinculo sob o qual a tentativa rodou foi encerrado (LINK_ENDED); ou, na entrega que nao se concluiu, o ultimo progresso dela (NO_PROGRESS, 059). Tentativa em andamento ou com resultado nao confirmado sem reconciliacao nao vence. O historico da tentativa nao e removido. */
             expiration: {
                 /**
                  * Format: date-time
@@ -3412,8 +3432,11 @@ export interface components {
                 retentionDays: number;
                 /** Format: date-time */
                 deliveryEndedAt: string;
-                /** @enum {string} */
-                deliveryEnd: "CLOSED" | "LOSS_NOTICE" | "LINK_ENDED";
+                /**
+                 * @description NO_PROGRESS (059): entrega INCOMPLETA - venceu o teto sem progresso de entrega; a maquina nao fechou o envio e nenhum recebimento e indicado
+                 * @enum {string}
+                 */
+                deliveryEnd: "CLOSED" | "LOSS_NOTICE" | "LINK_ENDED" | "NO_PROGRESS";
                 /** @description Linhas que tinham texto quando venceu */
                 items: number;
             } | null;
@@ -3449,7 +3472,7 @@ export interface components {
                  */
                 reportedAt: string;
             } | null;
-            /** @description 057: o conteudo desta tentativa VENCEU pela retencao do servidor (os bytes dos arquivos foram removidos; nome, tamanho e SHA-256 continuam, com available = false). null = nao venceu. O prazo conta do fim da entrega (deliveryEndedAt): a maquina fechou o envio (CLOSED), avisou que perdeu o que guardava (LOSS_NOTICE) ou o vinculo sob o qual a tentativa rodou foi encerrado (LINK_ENDED). Entrega aberta nao vence. O historico da tentativa nao e removido. */
+            /** @description 057: o conteudo desta tentativa VENCEU pela retencao do servidor (os bytes dos arquivos foram removidos; nome, tamanho e SHA-256 continuam, com available = false). null = nao venceu. O prazo conta do fim da entrega (deliveryEndedAt): a maquina fechou o envio (CLOSED), avisou que perdeu o que guardava (LOSS_NOTICE) ou o vinculo sob o qual a tentativa rodou foi encerrado (LINK_ENDED); ou, na entrega que nao se concluiu, o ultimo progresso dela (NO_PROGRESS, 059). Tentativa em andamento ou com resultado nao confirmado sem reconciliacao nao vence. O historico da tentativa nao e removido. */
             expiration: {
                 /**
                  * Format: date-time
@@ -3465,8 +3488,11 @@ export interface components {
                 retentionDays: number;
                 /** Format: date-time */
                 deliveryEndedAt: string;
-                /** @enum {string} */
-                deliveryEnd: "CLOSED" | "LOSS_NOTICE" | "LINK_ENDED";
+                /**
+                 * @description NO_PROGRESS (059): entrega INCOMPLETA - venceu o teto sem progresso de entrega; a maquina nao fechou o envio e nenhum recebimento e indicado
+                 * @enum {string}
+                 */
+                deliveryEnd: "CLOSED" | "LOSS_NOTICE" | "LINK_ENDED" | "NO_PROGRESS";
                 /** @description Arquivos que estavam guardados quando venceu */
                 items: number;
             } | null;
@@ -3533,6 +3559,23 @@ export interface components {
                     /** Format: date-time */
                     reportedAt: string;
                 } | null;
+                /** @description 058: como uma tentativa em ENDED_UNKNOWN foi reconciliada. Vazio: NAO reconciliada - a repeticao da solicitacao esta bloqueada. MACHINE: a maquina confirmou que nao ha processo desta tentativa em execucao nela. MANUAL: declaracao de um ORG_ADMIN (so ai ha reason, verification e byMembershipId). As duas podem existir: uma nao altera a outra. O estado da tentativa continua ENDED_UNKNOWN. */
+                reconciliations: {
+                    /** @enum {string} */
+                    kind: "MACHINE" | "MANUAL";
+                    /** Format: date-time */
+                    at: string;
+                    /** @enum {string|null} */
+                    reason: "MACHINE_OFF_OUT_OF_OPERATION" | "PROCESS_ENDED_BY_ADMINISTRATOR" | "OTHER_VERIFIED" | null;
+                    verification: string | null;
+                    /** Format: uuid */
+                    byMembershipId: string | null;
+                }[];
+                /**
+                 * Format: date-time
+                 * @description A maquina voltou e disse que AINDA executa esta tentativa (a primeira vez em que disse). Nulo depois que ela confirma o fim
+                 */
+                machineStillRunningAt: string | null;
             }[];
         };
         /** @enum {string} */
@@ -8755,6 +8798,49 @@ export interface operations {
             503: components["responses"]["ServiceUnavailable"];
         };
     };
+    reconcileRemoteAttempt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                execution: string;
+                /** @description malformado -> 400 */
+                attempt: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    reason: "MACHINE_OFF_OUT_OF_OPERATION" | "PROCESS_ENDED_BY_ADMINISTRATOR" | "OTHER_VERIFIED";
+                    verification: string;
+                    acknowledgePartialEffects: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Solicitacao, com a reconciliacao na tentativa */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteExecution"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
     retryRemoteExecution: {
         parameters: {
             query?: never;
@@ -8772,8 +8858,6 @@ export interface operations {
                 "application/json": {
                     /** Format: uuid */
                     agentId: string;
-                    /** @description a pessoa reconhece que a tentativa anterior, encerrada por falta de comunicacao, pode ainda estar em andamento */
-                    acknowledgeUnconfirmed?: boolean;
                 };
             };
         };

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Badge, Button, Card, Checkbox, Heading, Select, Stack, Table, Text, type TableColumn, type Tone } from 'nekkora-lib';
+import { Alert, Badge, Button, Card, Checkbox, Heading, Select, Stack, Table, Text, Textarea, type TableColumn, type Tone } from 'nekkora-lib';
 import {
   cancelRemoteExecution,
   checkRemoteMachineDependencies,
@@ -7,6 +7,8 @@ import {
   listRemoteExecutions,
   requestRemoteExecution,
   retryRemoteExecution,
+  reconcileRemoteAttempt,
+  type ReconciliationReason,
   selectRemoteMachinePython,
   type RemoteAttempt,
   type RemoteAttemptState,
@@ -95,17 +97,36 @@ export const CLOSURE_TEXT: Record<string, { unknown: string; notStarted: string 
 };
 
 /**
- * Decisão de 16/11: a espera vencida consolida "Resultado não confirmado", mas não libera a repetição sozinha. Quando a última
- * tentativa foi encerrada por falta de comunicação e a máquina ainda não relatou o desfecho, executar novamente exige que a
- * pessoa marque que sabe que a anterior pode estar em andamento.
+ * Decisões de 16/11 — reconciliação. Uma tentativa com resultado não confirmado BLOQUEIA a repetição da solicitação até ser
+ * reconciliada: pela máquina (ela confirma que o processo não está mais em execução) ou por DECLARAÇÃO de quem administra a
+ * organização. "Aceitar o risco", revogar a máquina ou esperar não liberam nada.
  */
-export const RETRY_UNCONFIRMED_TEXT =
-  'A máquina da tentativa anterior deixou de se comunicar e não voltou. A automação pode ainda estar em andamento naquele computador: executar novamente em outra máquina pode fazer o mesmo trabalho duas vezes.';
-export const RETRY_UNCONFIRMED_LABEL = 'Sei que a execução anterior pode ainda estar em andamento e quero executar novamente.';
-export function needsAcknowledgement(x: RemoteExecution | null): boolean {
+export function unreconciled(x: RemoteExecution | null): boolean {
   const last = x?.attempts[x.attempts.length - 1];
-  return !!last && last.state === 'ENDED_UNKNOWN' && last.closureCause === 'COMMUNICATION_LOST' && !last.lateReport;
+  return !!last && last.state === 'ENDED_UNKNOWN' && last.reconciliations.length === 0;
 }
+export const RETRY_BLOCKED_TEXT =
+  'Executar novamente está bloqueado: a última tentativa terminou com resultado não confirmado, e ainda não há confirmação de que a automação parou naquele computador. A liberação vem quando a própria máquina confirmar, ou por declaração de quem administra a organização depois de verificar a máquina. Revogar a máquina ou esperar não libera.';
+export const RECONCILE = {
+  BUTTON: 'Declarar reconciliação',
+  TITLE: 'Declarar que a execução anterior não está mais em andamento?',
+  INTRO:
+    'Use só quando não for possível obter a confirmação da própria máquina e você tiver verificado a situação dela. Só quem administra a organização pode declarar. A declaração não executa nada e não muda o resultado da tentativa, que continua "Resultado não confirmado": ela libera uma nova tentativa, sujeita às mesmas autorizações. A máquina antiga continua indisponível até ela mesma confirmar.',
+  WARNING:
+    'A execução anterior pode ter causado efeitos parciais: parte do trabalho pode ter sido feita, ou todo ele. A Platform não sabe. Se ninguém conseguiu verificar a máquina, não declare: o bloqueio deve continuar.',
+  ACK: 'Verifiquei a máquina e sei que a execução anterior pode ter causado efeitos parciais.',
+  REASON_LABEL: 'O que foi verificado',
+  VERIFICATION_LABEL: 'Descrição da verificação realizada',
+  VERIFICATION_HINT: 'Diga o que você verificou, quando e como (de 20 a 2000 caracteres). Fica registrado com o seu nome.',
+  CONFIRM: 'Declarar reconciliação',
+  DONE: 'Reconciliação declarada e registrada. A tentativa continua com resultado não confirmado; uma nova tentativa já pode ser solicitada.',
+  FORBIDDEN: 'Só quem administra a organização pode declarar a reconciliação. Nada foi alterado.',
+} as const;
+export const RECONCILIATION_REASON: Record<string, string> = {
+  MACHINE_OFF_OUT_OF_OPERATION: 'Computador desligado e mantido fora de operação',
+  PROCESS_ENDED_BY_ADMINISTRATOR: 'Processo encerrado por quem administra a máquina',
+  OTHER_VERIFIED: 'Outra verificação (descreva)',
+};
 
 /** O texto do desfecho incerto: o da causa, quando a Platform encerrou; senão, o do aplicativo que voltou sem prova. */
 export const endedUnknownText = (closureCause: string | null | undefined) =>
@@ -154,7 +175,7 @@ export const MISSING: Record<RemoteMissing, string> = {
   MACHINE_INCOMPATIBLE: 'O aplicativo desta máquina não executa solicitações da Platform.',
   MACHINE_BUSY: 'Esta máquina já tem uma execução remota em andamento.',
   MACHINE_UNCONFIRMED:
-    'A última execução desta máquina foi encerrada por falta de comunicação e ela ainda não voltou a se comunicar: não se sabe se está livre.',
+    'Há uma execução desta máquina com resultado não confirmado, e ela ainda não confirmou que o processo parou: a ocupação é incerta.',
   PYTHON_NOT_SELECTED: 'Ainda não foi escolhido o Python desta automação nesta máquina.',
   PYTHON_NOT_IN_INVENTORY: 'O Python escolhido para esta automação não está mais entre os que esta máquina informou.',
 };
@@ -202,7 +223,9 @@ export const REQUEST_REFUSAL: Record<string, string> = {
   remote_machine_busy: MISSING.MACHINE_BUSY,
   remote_machine_unconfirmed: MISSING.MACHINE_UNCONFIRMED,
   remote_previous_result_unconfirmed:
-    'A tentativa anterior foi encerrada por falta de comunicação e pode ainda estar em andamento. Para executar novamente é preciso marcar que você sabe disso.',
+    'A tentativa anterior terminou com resultado não confirmado e ainda não foi reconciliada: executar novamente está bloqueado.',
+  remote_attempt_not_unconfirmed: 'Só uma tentativa com resultado não confirmado pode ser reconciliada.',
+  remote_attempt_already_reconciled: 'Esta tentativa já tem uma declaração de reconciliação.',
   remote_python_not_selected: MISSING.PYTHON_NOT_SELECTED,
   remote_python_not_in_inventory: 'Esse Python não está mais entre os que a máquina informou. Atualize a lista e escolha outro.',
   remote_machine_not_enabled: 'Esta máquina não está habilitada para execução remota.',
@@ -243,7 +266,10 @@ export function RemoteExecutions({
   const [cancelling, setCancelling] = useState<RemoteExecution | null>(null);
   const [retrying, setRetrying] = useState<RemoteExecution | null>(null);
   const [retryAgent, setRetryAgent] = useState('');
-  const [retryAcknowledged, setRetryAcknowledged] = useState(false);
+  const [reconciling, setReconciling] = useState<{ execution: RemoteExecution; attemptId: string; attemptNumber: number } | null>(null);
+  const [reconcileReason, setReconcileReason] = useState<ReconciliationReason | ''>('');
+  const [reconcileText, setReconcileText] = useState('');
+  const [reconcileAck, setReconcileAck] = useState(false);
   const [notice, setNotice] = useState<{ tone: 'success' | 'warning'; text: string } | null>(null);
   // escolha do Python (T01c parte 3): a máquina, o que ela informou ter e o ambiente marcado
   const [choosing, setChoosing] = useState<RemoteCandidate | null>(null);
@@ -319,7 +345,8 @@ export function RemoteExecutions({
     if (m === 'PACKAGE_NOT_SUPPORTED') return 'Não há ação nesta máquina: esta versão não pode ser executada remotamente.';
     if (m === 'PACKAGE_NOT_REGISTERED') return 'Não há ação nesta máquina: publique uma nova versão da automação com o pacote.';
     if (m === 'MACHINE_PAUSED') return 'Os novos trabalhos voltam a ser recebidos no próprio computador, em "Execução remota".';
-    if (m === 'MACHINE_UNCONFIRMED') return 'Volta a poder receber quando o aplicativo desse computador se comunicar de novo com a Platform.';
+    if (m === 'MACHINE_UNCONFIRMED')
+      return 'Volta a poder receber quando o aplicativo desse computador confirmar que o processo parou. Voltar a se comunicar, sozinho, não basta.';
     if (m === 'MACHINE_INCOMPATIBLE') return 'É preciso uma versão do Nekkora Agent que execute solicitações da Platform nesse computador.';
     if (m === 'PYTHON_NOT_SELECTED' || m === 'PYTHON_NOT_IN_INVENTORY')
       return canManage ? 'Escolha o Python na coluna "Python desta automação".' : 'Peça a quem gerencia esta automação.';
@@ -442,6 +469,25 @@ export function RemoteExecutions({
           {CLOSURE_TEXT[a.closureCause].notStarted}
         </Text>
       )}
+      {a.state === 'ENDED_UNKNOWN' && a.machineStillRunningAt && (
+        <Text variant="body-sm" color="secondary">
+          Em <DateTimeText iso={a.machineStillRunningAt} />, a máquina voltou e informou que ainda executa esta tentativa. Ela continua ocupada até
+          informar que terminou.
+        </Text>
+      )}
+      {a.reconciliations.map((r) =>
+        r.kind === 'MANUAL' ? (
+          <Text key={r.kind} variant="body-sm" color="secondary">
+            Resultado não confirmado — reconciliado manualmente em <DateTimeText iso={r.at} /> por quem administra a organização. Verificado:{' '}
+            {RECONCILIATION_REASON[r.reason ?? ''] ?? r.reason}. {r.verification} O resultado da tentativa não mudou; a declaração liberou uma nova tentativa.
+          </Text>
+        ) : (
+          <Text key={r.kind} variant="body-sm" color="secondary">
+            Em <DateTimeText iso={r.at} />, a própria máquina confirmou que o processo desta tentativa não está mais em execução nela. O resultado continua não
+            confirmado.
+          </Text>
+        ),
+      )}
       {a.lateReport && (
         <Text variant="body-sm" color="secondary">
           Depois disso, em <DateTimeText iso={a.lateReport.reportedAt} />, a máquina voltou e informou que {LATE_REPORT_STATE[a.lateReport.state] ?? a.lateReport.state}
@@ -507,6 +553,7 @@ export function RemoteExecutions({
               <ul className="pw-plain-list" aria-label="Tentativas">
                 {x.attempts.map(attemptLine)}
               </ul>
+              {done && unreconciled(x) && <Alert tone="warning">{RETRY_BLOCKED_TEXT}</Alert>}
               {canExecute && (
                 <div className="pw-form__row">
                   {!done && !x.cancelRequestedAt && (
@@ -514,17 +561,30 @@ export function RemoteExecutions({
                       Pedir cancelamento
                     </Button>
                   )}
-                  {done && !x.cancelRequestedAt && last && (
+                  {done && !x.cancelRequestedAt && last && !unreconciled(x) && (
                     <Button
                       size="sm"
                       variant="secondary"
                       onClick={() => {
                         setRetryAgent('');
-                        setRetryAcknowledged(false);
                         setRetrying(x);
                       }}
                     >
                       Executar novamente em outra máquina
+                    </Button>
+                  )}
+                  {done && !x.cancelRequestedAt && last && unreconciled(x) && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setReconcileReason('');
+                        setReconcileText('');
+                        setReconcileAck(false);
+                        setReconciling({ execution: x, attemptId: last.attemptId, attemptNumber: last.attemptNumber });
+                      }}
+                    >
+                      {RECONCILE.BUTTON}
                     </Button>
                   )}
                 </div>
@@ -645,14 +705,12 @@ export function RemoteExecutions({
 
       <StepUpDialog<RemoteExecution>
         open={!!retrying}
-        ready={!!retryAgent && (!needsAcknowledgement(retrying) || retryAcknowledged)}
+        ready={!!retryAgent}
         title="Executar novamente em outra máquina?"
         guard={{ operation: 'remote-execution.retry', target: retrying ? `${retrying.remoteExecutionId}|${retryAgent}` : undefined }}
         confirmLabel="Executar novamente"
         stepUp={orgStepUp(org)}
-        action={() =>
-          retrying ? retryRemoteExecution(org, retrying.remoteExecutionId, retryAgent, needsAcknowledgement(retrying) && retryAcknowledged) : Promise.reject()
-        }
+        action={() => (retrying ? retryRemoteExecution(org, retrying.remoteExecutionId, retryAgent) : Promise.reject())}
         onDone={() => {
           setRetrying(null);
           setNotice({ tone: 'success', text: 'Nova tentativa registrada, com a mesma versão e as mesmas dependências da solicitação.' });
@@ -674,12 +732,6 @@ export function RemoteExecutions({
               decide por você. Confira o que ela fez antes de executar de novo.
             </Alert>
           )}
-          {needsAcknowledgement(retrying) && (
-            <>
-              <Alert tone="warning">{RETRY_UNCONFIRMED_TEXT}</Alert>
-              <Checkbox label={RETRY_UNCONFIRMED_LABEL} checked={retryAcknowledged} onChange={(e) => setRetryAcknowledged(e.target.checked)} />
-            </>
-          )}
           <Select
             label="Máquina"
             fullWidth
@@ -689,6 +741,54 @@ export function RemoteExecutions({
             options={requestable.map((c) => ({ value: c.agentId, label: `${c.agentName} (Worker ${c.workerName})` }))}
           />
           {requestable.length === 0 && <Text variant="body-sm">Veja, na lista de máquinas, o que falta em cada uma.</Text>}
+        </Stack>
+      </StepUpDialog>
+
+      <StepUpDialog<RemoteExecution>
+        open={!!reconciling}
+        ready={!!reconcileReason && reconcileText.trim().length >= 20 && reconcileText.trim().length <= 2000 && reconcileAck}
+        title={RECONCILE.TITLE}
+        guard={{ operation: 'remote-execution.reconcile', target: reconciling ? reconciling.attemptId : undefined }}
+        confirmLabel={RECONCILE.CONFIRM}
+        stepUp={orgStepUp(org)}
+        action={() =>
+          reconciling && reconcileReason
+            ? reconcileRemoteAttempt(org, reconciling.execution.remoteExecutionId, reconciling.attemptId, reconcileReason, reconcileText.trim())
+            : Promise.reject()
+        }
+        onDone={() => {
+          setReconciling(null);
+          setNotice({ tone: 'success', text: RECONCILE.DONE });
+          poll.refresh();
+        }}
+        onClose={() => setReconciling(null)}
+        refusalText={(e) => (isApiError(e, 'forbidden') ? RECONCILE.FORBIDDEN : remoteRefusal(e))}
+        uncertainText="Não foi possível confirmar a declaração. Atualize a lista e confira antes de repetir."
+        onUnauthenticated={expired}
+      >
+        <Stack gap={3}>
+          <Text>{RECONCILE.INTRO}</Text>
+          <Alert tone="warning">{RECONCILE.WARNING}</Alert>
+          <Select
+            label={RECONCILE.REASON_LABEL}
+            fullWidth
+            value={reconcileReason}
+            placeholder="Escolha o que foi verificado"
+            onChange={(e) => setReconcileReason(e.target.value as ReconciliationReason)}
+            options={Object.entries(RECONCILIATION_REASON).map(([value, label]) => ({ value, label }))}
+          />
+          <Textarea
+            label={RECONCILE.VERIFICATION_LABEL}
+            required
+            fullWidth
+            maxLength={2000}
+            value={reconcileText}
+            onChange={(e) => setReconcileText(e.target.value)}
+          />
+          <Text variant="body-sm" color="secondary">
+            {RECONCILE.VERIFICATION_HINT}
+          </Text>
+          <Checkbox label={RECONCILE.ACK} checked={reconcileAck} onChange={(e) => setReconcileAck(e.target.checked)} />
         </Stack>
       </StepUpDialog>
     </section>
