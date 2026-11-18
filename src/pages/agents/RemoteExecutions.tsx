@@ -121,6 +121,7 @@ export const RECONCILE = {
   CONFIRM: 'Declarar reconciliação',
   DONE: 'Reconciliação declarada e registrada. A tentativa continua com resultado não confirmado; uma nova tentativa já pode ser solicitada.',
   FORBIDDEN: 'Só quem administra a organização pode declarar a reconciliação. Nada foi alterado.',
+  ADMIN_ONLY: 'A declaração de reconciliação cabe a quem administra a organização.',
 } as const;
 export const RECONCILIATION_REASON: Record<string, string> = {
   MACHINE_OFF_OUT_OF_OPERATION: 'Computador desligado e mantido fora de operação',
@@ -248,6 +249,7 @@ export function RemoteExecutions({
   canExecute,
   canManage,
   canReadLogs,
+  canReconcile,
   externalPackage,
 }: {
   workspaceId: string;
@@ -257,6 +259,11 @@ export function RemoteExecutions({
   canManage: boolean;
   /** Pode ver registros e resultados (logs.read): só então a tela oferece os arquivos de resultado. */
   canReadLogs: boolean;
+  /**
+   * Administra a organização (ORG_ADMIN, pela leitura de permissões): só então a tela OFERECE declarar a reconciliação. É só
+   * apresentação: quem autoriza é o servidor, que recusa a chamada de quem não administra.
+   */
+  canReconcile: boolean;
   /** O pacote desta versão é um pacote Python externo: o único tipo que a execução remota aceita nesta versão do produto. */
   externalPackage: boolean;
 }) {
@@ -554,14 +561,15 @@ export function RemoteExecutions({
                 {x.attempts.map(attemptLine)}
               </ul>
               {done && unreconciled(x) && <Alert tone="warning">{RETRY_BLOCKED_TEXT}</Alert>}
-              {canExecute && (
+              {done && unreconciled(x) && !canReconcile && <Text variant="body-sm" color="secondary">{RECONCILE.ADMIN_ONLY}</Text>}
+              {(canExecute || canReconcile) && (
                 <div className="pw-form__row">
-                  {!done && !x.cancelRequestedAt && (
+                  {canExecute && !done && !x.cancelRequestedAt && (
                     <Button size="sm" variant="ghost" onClick={() => setCancelling(x)}>
                       Pedir cancelamento
                     </Button>
                   )}
-                  {done && !x.cancelRequestedAt && last && !unreconciled(x) && (
+                  {canExecute && done && !x.cancelRequestedAt && last && !unreconciled(x) && (
                     <Button
                       size="sm"
                       variant="secondary"
@@ -573,7 +581,7 @@ export function RemoteExecutions({
                       Executar novamente em outra máquina
                     </Button>
                   )}
-                  {done && !x.cancelRequestedAt && last && unreconciled(x) && (
+                  {canReconcile && done && !x.cancelRequestedAt && last && unreconciled(x) && (
                     <Button
                       size="sm"
                       variant="ghost"
