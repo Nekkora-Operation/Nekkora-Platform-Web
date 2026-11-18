@@ -1820,6 +1820,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/workspaces/{workspace}/remote-machines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista as maquinas habilitadas para execucao remota de um ambiente (PLATFORM-CLIENT-EXECUCAO-REMOTA-001, T01a)
+         * @description Exige automation.execute no ambiente (sem ela, ou ambiente de outro escopo: 404, como as demais leituras do ambiente). Entram as maquinas HABILITADAS (codigo marcado resgatado com a confirmacao na maquina) cujo Agent esta ativo e associado a um Worker autorizado NESTE ambiente. Maquina pareada por codigo comum nao entra; Agent revogado ou desvinculado deixa de aparecer. state, o primeiro que valer: OFFLINE (sem contato autenticado nos ultimos 180 s), INCOMPATIBLE (o aplicativo nao declara REMOTE_RUN_1_0), PAUSED (a maquina pausou o recebimento), NO_DISK_SPACE e BUSY (o que a maquina informou no ultimo batimento), AVAILABLE. O estado e INDICATIVO: nao reserva a maquina. Nao traz credencial, instalacao nem dado da maquina alem do nome logico e da versao do aplicativo. Esta lista nao autoriza versao alguma: as autorizacoes vigentes de automacao e monitoramento continuam valendo como antes.
+         */
+        get: operations["listRemoteMachines"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/workers": {
         parameters: {
             query?: never;
@@ -2151,7 +2171,7 @@ export interface components {
              * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached, draft_exists, draft_changed, local_run_authorization_exists, organization_name_taken; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
              * @enum {string}
              */
-            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken";
+            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "remote_execution_unavailable" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken";
         };
         /**
          * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
@@ -3003,6 +3023,11 @@ export interface components {
             agentName: string;
             /** @default 15 */
             expiresInMinutes: number;
+            /**
+             * @description T01a da execucao remota: true = codigo marcado para habilitar a maquina (ver x-execucao-remota)
+             * @default false
+             */
+            remoteExecution: boolean;
         };
         AgentRotationRequest: {
             /** @default 15 */
@@ -3026,6 +3051,38 @@ export interface components {
              * @description So na rotacao
              */
             agentId?: string | null;
+            /**
+             * @description Presente (true) so no codigo de pareamento marcado para execucao remota; ausente nos demais
+             * @enum {boolean}
+             */
+            remoteExecution?: true;
+        };
+        RemoteMachineList: {
+            items: {
+                /** Format: uuid */
+                workerId: string;
+                workerName: string;
+                /** Format: uuid */
+                agentId: string;
+                /** @description Nome logico da maquina, informado pela pessoa no pareamento */
+                agentName: string;
+                /** @description Versao do aplicativo informada no ultimo contato */
+                agentVersion: string;
+                /**
+                 * @description Indicativo; nao reserva a maquina
+                 * @enum {string}
+                 */
+                state: "OFFLINE" | "INCOMPATIBLE" | "PAUSED" | "NO_DISK_SPACE" | "BUSY" | "AVAILABLE";
+                /**
+                 * @description Recebimento de novos trabalhos, decidido na maquina
+                 * @enum {string}
+                 */
+                receiving: "ENABLED" | "PAUSED";
+                /** Format: date-time */
+                lastHeartbeatAt?: string | null;
+                /** Format: date-time */
+                enabledAt: string;
+            }[];
         };
         AgentList: {
             items: {
@@ -3325,7 +3382,7 @@ export interface components {
             executionMode?: "single" | "list" | "tabular" | null;
             /** @enum {string} */
             packageKind?: "STUDIO_PYTHON" | "EXTERNAL_PYTHON";
-            /** @description So EXTERNAL_PYTHON (ex.: >=3.10,<3.14) */
+            /** @description So EXTERNAL_PYTHON (ex.: >=3.10,<3.14; ==3.12.0 no descritor 1.1). null num EXTERNAL_PYTHON de descritor 1.1: o autor nao declarou restricao de Python (nao e promessa de compatibilidade) */
             pythonRequirement?: string | null;
             /** @description So EXTERNAL_PYTHON: nome==versao exata */
             dependencies?: string[] | null;
@@ -6995,6 +7052,37 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listRemoteMachines: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                workspace: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Maquinas habilitadas do ambiente */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteMachineList"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { useWorkspacePermissions } from '../../area/useWorkspacePermissions';
 import { PermissionsUnverified } from '../../area/PermissionsUnverified';
 import { LocalRunAuthorizations } from '../agents/LocalRunAuthorizations';
+import { RemoteMachines } from '../agents/RemoteMachines';
 import { Link as RouterLink, useParams } from 'react-router';
 import { Button, Card, DescriptionList, Heading, Link, LoadMore, Stack, StateView, Table, type TableColumn } from 'nekkora-lib';
 import { isApiError } from '../../api/http';
@@ -127,6 +128,8 @@ function WorkspaceDetail({ workspaceId }: { workspaceId: string }) {
       </Card>
 
       <LocalRunAuthorizations workspaceId={w.workspaceId} canExecute={perms.status === 'ready' && perms.has('automation.execute')} />
+
+      {perms.status === 'ready' && perms.has('automation.execute') && <RemoteMachines workspaceId={w.workspaceId} />}
 
       <section className="pw-prod__section" aria-labelledby="automacoes-titulo">
         <Heading level={2} id="automacoes-titulo" className="pw-prod__section-title">
