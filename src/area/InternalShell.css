@@ -6,13 +6,11 @@
 .pw-shell__menu-links { display: flex; flex-direction: column; gap: var(--nk-space-2); }
 /* rodapé curto do trilho recolhido: cabe na largura do trilho */
 .pw-shell__rail-version { display: block; overflow: hidden; font-size: 11px; line-height: 1.3; }
-.pw-shell__footer { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.pw-shell__footer-name { color: var(--nk-color-text); font-weight: var(--nk-font-weight-semibold); }
-.pw-shell__footer-org { overflow-wrap: anywhere; font-size: var(--nk-font-size-xs); }
-.pw-shell__footer-org { font-family: var(--nk-font-mono); }
-.pw-shell__footer-access { margin-top: var(--nk-space-1); font-size: var(--nk-font-size-xs); color: var(--nk-color-text); }
-/* versão em execução (PLATFORM-LOCAL-002): discreta, no fim do menu */
-.pw-shell__footer-version { margin-top: var(--nk-space-2); font-size: var(--nk-font-size-xs); color: var(--nk-color-text-secondary); overflow-wrap: anywhere; }
+/* rodapé do menu (PLATFORM-INICIO-001): versão oficial do produto e direitos; quebra dentro da largura do menu */
+.pw-shell__product { display: flex; flex-direction: column; gap: var(--nk-space-1); min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+.pw-shell__product-label { font-size: var(--nk-font-size-xs); font-weight: var(--nk-font-weight-semibold); letter-spacing: 0.08em; text-transform: uppercase; color: var(--nk-color-text-secondary); }
+.pw-shell__product-name { font-size: var(--nk-font-size-sm); font-weight: var(--nk-font-weight-semibold); color: var(--nk-color-text); }
+.pw-shell__product-rights { margin-top: var(--nk-space-2); font-size: var(--nk-font-size-xs); line-height: 1.5; color: var(--nk-color-text-secondary); }
 .pw-shell__alert { margin-bottom: var(--nk-space-5); }
 
 @media (max-width: 640px) {

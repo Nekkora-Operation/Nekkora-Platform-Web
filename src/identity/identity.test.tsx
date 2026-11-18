@@ -1,3 +1,4 @@
+import { copyrightLine, productLine } from '../app/product';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { csrfStore } from '../api/csrf';
@@ -221,6 +222,31 @@ describe('organizações', () => {
   });
 });
 
+describe('rodapé do menu e "Vincular conta antiga" (PLATFORM-INICIO-001)', () => {
+  it('a tela de organizações não oferece vincular conta antiga, nem no menu nem na lista vazia; o rodapé traz só a versão do produto', async () => {
+    session();
+    api.on('GET', '/api/v1/me/organizations', 'identityOrganizations', { status: 200, body: { organizations: [], canCreateOrganization: true } });
+    renderApp('/organizacoes');
+    expect(await screen.findByRole('button', { name: 'Criar minha primeira organização' })).toBeInTheDocument();
+    const nav = screen.getByRole('navigation', { name: 'Navegação principal' });
+    expect(within(nav).getAllByRole('link').map((l) => l.textContent)).toEqual(['Organizações', 'Segurança da conta']);
+    expect(screen.queryByText(/conta antiga/i)).toBeNull();
+    expect(document.querySelector('a[href="/vincular-conta"]')).toBeNull();
+    const footer = screen.getByRole('complementary', { name: 'Menu' }).querySelector('.nk-shell__sidebar-footer')!;
+    expect(footer.textContent).toBe(`Versão${productLine()}${copyrightLine()}`);
+    expect(footer.textContent).not.toMatch(/Identidade Nekkora|Sessão de identidade|Web |API |branch|alterações locais/);
+  });
+
+  it('o diagnóstico técnico continua disponível em Segurança da conta ("Sobre esta versão")', async () => {
+    session();
+    renderApp('/conta');
+    expect(await screen.findByRole('heading', { name: 'Sobre esta versão' })).toBeInTheDocument();
+    expect(screen.getByText('Platform Web')).toBeInTheDocument();
+    expect(screen.getByText('Platform API')).toBeInTheDocument();
+    expect(screen.getByText('Nekkora-lib')).toBeInTheDocument();
+  });
+});
+
 describe('vinculação de conta antiga', () => {
   it('resultado desconhecido da vinculação: aviso fica na tela depois de fechar e "Vincular" não volta a ser oferecido', async () => {
     session();
@@ -311,7 +337,8 @@ describe('sessão de organização nascida da identidade', () => {
     });
     renderApp(`/o/${ORG_A}`);
     expect(await screen.findByLabelText('Organização aberta: Acme (acme)')).toHaveTextContent('Acme');
-    expect(screen.getByText('Organização Acme')).toBeInTheDocument();
+    // o rodapé do menu não repete a organização (PLATFORM-INICIO-001): ela fica no topo
+    expect(screen.queryByText('Organização Acme')).not.toBeInTheDocument();
     expect(screen.queryByText('Outra')).not.toBeInTheDocument();
   });
 
