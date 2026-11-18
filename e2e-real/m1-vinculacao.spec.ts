@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { expect, test } from '@playwright/test';
 import { Authenticator } from '../mock/totp';
-import { confirmStepUp, LAB, signUpAndEnroll, syntheticEmail } from './support/lab';
+import { confirmStepUp, LAB, signOut, signUpAndEnroll, syntheticEmail } from './support/lab';
 
 /**
  * Vinculação de conta antiga contra a API REAL (FRONT-V1-002).
@@ -36,7 +36,7 @@ test('vinculação: prova da conta antiga + prova da identidade; depois a entrad
   await old.getByRole('button', { name: 'Continuar' }).click();
   await old.getByRole('button', { name: /^Continuar para o Platform/ }).click();
   await expect(old).toHaveURL(new RegExp(`/o/${org}$`));
-  await old.getByRole('button', { name: 'Sair' }).click();
+  await signOut(old);
   await oldCtx.close();
 
   // identidade com o MESMO e-mail (cadastro real); a organização antiga ainda não aparece
