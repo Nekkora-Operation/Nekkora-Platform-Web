@@ -109,24 +109,46 @@ export type FreeWorker = { workerId: string; name: string };
 /** Máquina (Agent) vinculada a um Worker. */
 export type LinkedAgent = { agentId: string; name: string; workerName: string };
 
+/** Qual aplicativo vai usar o código: o Nekkora Agent Client (vínculo de execução remota) ou o Agent anterior (pareamento de sempre). */
+export type PairingApp = 'client' | 'agent';
+export const PAIRING_APP: Record<PairingApp, { label: string; description: string }> = {
+  client: {
+    label: 'Nekkora Agent Client',
+    description: 'O aplicativo atual. O vínculo dele é o de execução remota: o código só é gerado com a confirmação abaixo marcada.',
+  },
+  agent: {
+    label: 'Nekkora Agent anterior',
+    description: 'O código de pareamento de sempre, sem execução remota. O fluxo dele não muda.',
+  },
+};
+export const CLIENT_CONFIRMATION_REQUIRED = 'Marque a confirmação para gerar o código deste vínculo. Sem ela, nenhum código é gerado.';
+
 /**
  * Vincular Agent: código de pareamento para ESTE Worker (`workerId`), sem cadastrar outro. Nenhuma máquina é registrada
  * até o Agent usar o código; cancelar ou deixar vencer não cria nada.
+ *
+ * O vínculo do Nekkora Agent Client é o de execução remota e exige a confirmação existente ("Habilitar esta máquina para
+ * execução remota"): sem marcá-la, o botão não gera o código. O Agent anterior continua com o pedido de sempre, sem a opção.
  */
 export function PairAgentDialog({ worker, onDone, onClose }: { worker: FreeWorker | null; onDone: (code: AgentCode) => void; onClose: () => void }) {
   const { org, expired } = useSession();
   const [agentName, setAgentName] = useState('');
   const [minutes, setMinutes] = useState('15');
+  const [app, setApp] = useState<PairingApp>('client');
   const [remote, setRemote] = useState(false);
   const workerId = worker?.workerId;
   useEffect(() => {
     if (!worker) return;
     setAgentName(worker.name);
     setMinutes('15');
+    setApp('client');
     setRemote(false);
     // só ao abrir para um Worker (o nome digitado não é sobrescrito enquanto o diálogo está aberto)
   }, [workerId]);
-  const ready = agentName.trim().length > 0 && agentName.trim().length <= 80 && Number(minutes) >= 5 && Number(minutes) <= 60;
+  const fieldsOk = agentName.trim().length > 0 && agentName.trim().length <= 80 && Number(minutes) >= 5 && Number(minutes) <= 60;
+  // vínculo do Client: a confirmação de execução remota é obrigatória (o Agent anterior não tem essa opção)
+  const forClient = app === 'client';
+  const ready = fieldsOk && (!forClient || remote);
 
   return (
     <StepUpDialog<AgentCode>
@@ -142,8 +164,8 @@ export function PairAgentDialog({ worker, onDone, onClose }: { worker: FreeWorke
               workerId: worker.workerId,
               agentName: agentName.trim(),
               expiresInMinutes: Number(minutes),
-              // só quando marcado: sem a opção, o pedido é o de sempre, campo por campo
-              ...(remote ? { remoteExecution: true as const } : {}),
+              // só no vínculo do Client, com a confirmação marcada; no Agent anterior o pedido é o de sempre, campo por campo
+              ...(forClient && remote ? { remoteExecution: true as const } : {}),
             })
           : Promise.reject()
       }
@@ -174,12 +196,30 @@ export function PairAgentDialog({ worker, onDone, onClose }: { worker: FreeWorke
         hint="Nome lógico informado por você; nada é coletado da máquina."
       />
       <Input label="Validade do código (minutos)" type="number" min={5} max={60} value={minutes} onChange={(e) => setMinutes(e.target.value)} hint="De 5 a 60." />
-      <Checkbox
-        label="Habilitar esta máquina para execução remota"
-        checked={remote}
-        onChange={(e) => setRemote(e.target.checked)}
-        hint="O código passa a servir para habilitar o computador a receber execuções solicitadas pela Platform. A habilitação só vale depois de confirmada no próprio computador, e você fica registrado como quem habilitou. Não autoriza nenhuma automação: as autorizações de workspace e de versão continuam valendo como hoje."
+      <RadioGroup
+        legend="Aplicativo desta máquina"
+        value={app}
+        onChange={(v) => {
+          setApp(v as PairingApp);
+          setRemote(false);
+        }}
+        options={(Object.keys(PAIRING_APP) as PairingApp[]).map((k) => ({ value: k, label: PAIRING_APP[k].label, description: PAIRING_APP[k].description }))}
       />
+      {forClient && (
+        <>
+          <Checkbox
+            label="Habilitar esta máquina para execução remota"
+            checked={remote}
+            onChange={(e) => setRemote(e.target.checked)}
+            hint="O código passa a servir para habilitar o computador a receber execuções solicitadas pela Platform. A habilitação só vale depois de confirmada no próprio computador, e você fica registrado como quem habilitou. Não autoriza nenhuma automação: as autorizações de workspace e de versão continuam valendo como hoje."
+          />
+          {!remote && (
+            <Text variant="body-sm" color="secondary" role="note">
+              {CLIENT_CONFIRMATION_REQUIRED}
+            </Text>
+          )}
+        </>
+      )}
     </StepUpDialog>
   );
 }

@@ -6,7 +6,7 @@ import { sessionMemory } from '../../app/notices';
 import { fakeLocks } from '../../test/fakeLocks';
 import { renderApp } from '../../test/render';
 import { RouteApi } from '../../test/routeApi';
-import { REMOTE_UNAVAILABLE_TEXT } from './agentDialogs';
+import { CLIENT_CONFIRMATION_REQUIRED, REMOTE_UNAVAILABLE_TEXT } from './agentDialogs';
 
 /**
  * PLATFORM-CLIENT-EXECUCAO-REMOTA-001, T01a — habilitar uma máquina para execução remota a partir da tela de Workers (o
@@ -117,11 +117,40 @@ async function confirm() {
 }
 
 describe('Workers: código para habilitar execução remota (T01a)', () => {
-  it('sem marcar a opção, o pedido e o aviso são os de sempre', async () => {
-    api.on('POST', PAIRING, 'createAgentPairingCode', issued());
+  it('vínculo do Client: sem marcar a confirmação, o código não é gerado; marcando, é', async () => {
+    api.on('POST', PAIRING, 'createAgentPairingCode', issued({ remoteExecution: true }));
     await openPairing();
+    // o diálogo abre no aplicativo atual (Client), com a confirmação desmarcada e o botão desabilitado
+    expect((within(dialog()).getByRole('radio', { name: /^Nekkora Agent Client/ }) as HTMLInputElement).checked).toBe(true);
     const option = within(dialog()).getByLabelText('Habilitar esta máquina para execução remota') as HTMLInputElement;
     expect(option.checked).toBe(false);
+    const button = within(dialog()).getByRole('button', { name: 'Gerar código' });
+    expect(button).toBeDisabled();
+    expect(within(dialog()).getByText(CLIENT_CONFIRMATION_REQUIRED)).toBeInTheDocument();
+    fireEvent.click(button);
+    expect(pairingPosts()).toEqual([]);
+    // marcar habilita o botão; desmarcar o desabilita de novo
+    fireEvent.click(option);
+    await waitFor(() => expect(button).toBeEnabled());
+    expect(within(dialog()).queryByText(CLIENT_CONFIRMATION_REQUIRED)).toBeNull();
+    fireEvent.click(option);
+    await waitFor(() => expect(button).toBeDisabled());
+    expect(pairingPosts()).toEqual([]);
+    fireEvent.click(option);
+    await confirm();
+    expect(await screen.findByLabelText('Código de uso único')).toHaveTextContent(CODE);
+    expect(pairingPosts()).toHaveLength(1);
+    expect(pairingPosts()[0].body).toEqual({ workerId: W1, agentName: 'Worker financeiro', expiresInMinutes: 15, remoteExecution: true });
+  });
+
+  it('Agent anterior: o fluxo de sempre, sem a opção de execução remota e sem a marca no pedido', async () => {
+    api.on('POST', PAIRING, 'createAgentPairingCode', issued());
+    await openPairing();
+    // mesmo com a confirmação marcada antes, trocar para o Agent anterior a descarta
+    fireEvent.click(within(dialog()).getByLabelText('Habilitar esta máquina para execução remota'));
+    fireEvent.click(within(dialog()).getByRole('radio', { name: /^Nekkora Agent anterior/ }));
+    expect(within(dialog()).queryByLabelText('Habilitar esta máquina para execução remota')).toBeNull();
+    expect(within(dialog()).queryByText(CLIENT_CONFIRMATION_REQUIRED)).toBeNull();
     await confirm();
     expect(await screen.findByLabelText('Código de uso único')).toHaveTextContent(CODE);
     expect(pairingPosts()).toHaveLength(1);
@@ -154,6 +183,7 @@ describe('Workers: código para habilitar execução remota (T01a)', () => {
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
     fireEvent.click(screen.getByRole('button', { name: 'Vincular Agent a Worker financeiro' }));
     expect((within(dialog()).getByLabelText('Habilitar esta máquina para execução remota') as HTMLInputElement).checked).toBe(false);
+    expect(within(dialog()).getByRole('button', { name: 'Gerar código' })).toBeDisabled();
     expect(pairingPosts()).toEqual([]);
   });
 
