@@ -21,6 +21,7 @@ import { StepUpDialog } from '../../components/StepUpDialog';
 import { useResource } from '../../hooks/useResource';
 import { orgStepUp } from '../access/shared';
 import { LocalRunAuthorizations } from '../agents/LocalRunAuthorizations';
+import { RemoteExecutions } from '../agents/RemoteExecutions';
 import { DateTimeText, LoadErrorState, NotFoundState, PageHeader, isMissing } from './shared';
 import { compareTechnical, PublishSummary, type Reviewed } from './PublishSummary';
 import { DownloadPackage } from './DownloadPackage';
@@ -476,6 +477,17 @@ export function VersionPage() {
           workspaceId={data.workspaceId!}
           version={{ automationVersionId: data.automationVersionId!, versionNumber: data.versionNumber, fingerprint: data.agentPackage?.fingerprint ?? art?.fingerprint }}
           canExecute={perms.status === 'ready' && perms.has('automation.execute')}
+        />
+      )}
+
+      {/* EXECUCAO-REMOTA-001 (T02): solicitar a execução desta versão numa máquina habilitada */}
+      {!draft && data.automationId && (
+        <RemoteExecutions
+          workspaceId={data.workspaceId!}
+          automationId={data.automationId}
+          version={{ automationVersionId: data.automationVersionId!, versionNumber: data.versionNumber }}
+          canExecute={perms.status === 'ready' && perms.has('automation.execute')}
+          canManage={perms.status === 'ready' && perms.has('automation.manage')}
         />
       )}
 

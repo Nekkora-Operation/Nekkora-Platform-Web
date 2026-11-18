@@ -2160,6 +2160,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/workspaces/{workspace}/remote-executions/candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Maquinas habilitadas do ambiente para uma versao, com o que falta em cada uma
+         * @description Exige automation.read no ambiente. automationVersion: uma versao PUBLICADA do ambiente (outra: 404). Para cada maquina habilitada cujo Worker esta autorizado no ambiente: requestable e missing, a lista do que impede solicitar nela agora - REQUIREMENTS_NOT_DECLARED, REQUIREMENTS_CONFLICT (da automacao), AUTHORIZATION_MISSING, AUTHORIZATION_REVOKED, AUTHORIZATION_EXPIRED (a autorizacao de execucao desta versao para o Worker da maquina), MACHINE_PAUSED, MACHINE_INCOMPATIBLE, MACHINE_BUSY. authorization: a autorizacao vigente da versao para o Worker, ou a mais recente que deixou de valer (null = nunca houve). E indicativo: a solicitacao reconfere tudo, de forma atomica.
+         */
+        get: operations["listRemoteExecutionCandidates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/workspaces/{workspace}/remote-executions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Solicitacoes mais recentes do ambiente
+         * @description Exige automation.read no ambiente. limit de 1 a 100 (padrao 25). Cada item traz as tentativas, com o estado, o motivo de uma recusa e a comunicacao (OK, LOST ou NONE). LOST nao muda o estado nem encerra a tentativa.
+         */
+        get: operations["listRemoteExecutions"];
+        put?: never;
+        /**
+         * Solicita a execucao de uma versao publicada numa maquina habilitada (step-up)
+         * @description Exige automation.execute no ambiente e step-up recente. Para ACEITAR, exige ainda: Worker da maquina autorizado no ambiente; maquina habilitada, nao pausada, compativel e livre; autorizacao de execucao VIGENTE desta versao para o Worker da maquina; dependencias da automacao declaradas e sem conflito com o pacote. Cada exigencia que falta responde 409 conflict com o seu reason (remote_authorization_missing, remote_authorization_revoked, remote_authorization_expired, remote_machine_not_enabled, remote_machine_paused, remote_machine_incompatible, remote_machine_busy, remote_requirements_not_declared, remote_requirements_conflict) e nada e gravado. Nenhuma autorizacao e criada por aqui. A solicitacao fixa a versao, a impressao do pacote e a revisao das dependencias. requestKey: UUID gerado pelo navegador; repetir com a mesma chave e o mesmo conteudo devolve 200 com a mesma solicitacao (resposta perdida); com outro conteudo, 409. Recurso desligado: 409 + remote_execution_unavailable. Solicitar nao prova inicio: a maquina puxa, e o servidor revalida as mesmas condicoes antes de entregar e antes de iniciar.
+         */
+        post: operations["requestRemoteExecution"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/remote-executions/{execution}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Uma solicitacao e as tentativas dela
+         * @description Exige automation.read no ambiente da solicitacao (fora do alcance: 404).
+         */
+        get: operations["getRemoteExecution"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/remote-executions/{execution}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pede o cancelamento da tentativa atual (step-up)
+         * @description Exige automation.execute no ambiente e step-up. A tentativa que a maquina ainda NAO recebeu (QUEUED, OFFERED) e cancelada na hora. A que ja foi recebida so para quando a maquina obedecer e informar: o pedido fica gravado (cancelRequestedAt) e o estado so muda com a palavra da maquina. Tentativa ja terminada: 409 + remote_attempt_already_finished. Repetir o pedido e idempotente.
+         */
+        post: operations["cancelRemoteExecution"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/remote-executions/{execution}/attempts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Executa novamente em outra maquina (step-up)
+         * @description Exige automation.execute no ambiente e step-up. Cria uma tentativa nova da MESMA solicitacao (mesma versao, mesmo pacote, mesmo retrato de dependencias) na maquina indicada. So depois que a tentativa anterior TERMINOU: enquanto ela nao terminar, 409 + remote_attempt_not_finished - nao ha troca automatica de maquina nem duas maquinas com a mesma solicitacao. As exigencias sao as da solicitacao, conferidas para a maquina de DESTINO; em especial, a autorizacao vigente da versao tem de ser do Worker de destino: a da maquina anterior NAO e transferida (sem ela, 409 + remote_authorization_missing). Cancelamento ja pedido: 409 + remote_execution_cancel_requested.
+         */
+        post: operations["retryRemoteExecution"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/automations/{automation}/runtime-requirements": {
         parameters: {
             query?: never;
@@ -2235,7 +2339,7 @@ export interface components {
              * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached, draft_exists, draft_changed, local_run_authorization_exists, organization_name_taken; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
              * @enum {string}
              */
-            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken";
+            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken";
         };
         /**
          * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
@@ -3076,6 +3180,90 @@ export interface components {
                 receivedAt: string;
             }[];
         };
+        RemoteExecutionRequest: {
+            /** Format: uuid */
+            automationVersionId: string;
+            /** Format: uuid */
+            agentId: string;
+            /**
+             * Format: uuid
+             * @description Gerado pelo navegador; repeticao idempotente
+             */
+            requestKey: string;
+        };
+        RemoteExecutionCandidateList: {
+            items: {
+                /** Format: uuid */
+                agentId: string;
+                agentName: string;
+                /** Format: uuid */
+                workerId: string;
+                workerName: string;
+                requestable: boolean;
+                missing: ("REQUIREMENTS_NOT_DECLARED" | "REQUIREMENTS_CONFLICT" | "AUTHORIZATION_MISSING" | "AUTHORIZATION_REVOKED" | "AUTHORIZATION_EXPIRED" | "MACHINE_PAUSED" | "MACHINE_INCOMPATIBLE" | "MACHINE_BUSY")[];
+                authorization: {
+                    /** Format: uuid */
+                    authorizationId: string;
+                    /** Format: date-time */
+                    validUntil: string;
+                    /** @enum {string} */
+                    status: "VALID" | "REVOKED" | "EXPIRED";
+                } | null;
+            }[];
+        };
+        RemoteExecution: {
+            /** Format: uuid */
+            remoteExecutionId: string;
+            /** Format: uuid */
+            workspaceId: string;
+            /** Format: uuid */
+            automationId: string;
+            /** Format: uuid */
+            automationVersionId: string;
+            versionNumber: number;
+            state: components["schemas"]["RemoteAttemptState"];
+            requirementsRevision: number;
+            /** @description O efetivo congelado na solicitacao */
+            dependencies: string[];
+            /** Format: date-time */
+            requestedAt: string;
+            /** Format: date-time */
+            cancelRequestedAt: string | null;
+            attempts: {
+                /** Format: uuid */
+                attemptId: string;
+                attemptNumber: number;
+                /** Format: uuid */
+                agentId: string;
+                agentName: string;
+                /** Format: uuid */
+                workerId: string;
+                workerName: string;
+                state: components["schemas"]["RemoteAttemptState"];
+                /** @enum {string|null} */
+                refusalReason: "BUSY" | "PAUSED" | "PACKAGE_INVALID" | "ENVIRONMENT_GONE" | "ENVIRONMENT_INCOMPATIBLE" | "DEPENDENCIES_MISSING" | "DISK_PRESSURE" | "CLIENT_INCOMPATIBLE" | "AUTHORIZATION_MISSING" | "AUTHORIZATION_REVOKED" | "AUTHORIZATION_EXPIRED" | "WORKER_NOT_AUTHORIZED" | "MACHINE_NOT_LINKED" | "MACHINE_NOT_ENABLED" | "MACHINE_INCOMPATIBLE" | null;
+                /**
+                 * @description LOST: o prazo da maquina venceu; nao muda o estado
+                 * @enum {string}
+                 */
+                communication: "OK" | "LOST" | "NONE";
+                exitCode: number | null;
+                /** Format: date-time */
+                createdAt: string;
+                /** Format: date-time */
+                offerValidUntil: string;
+                /** Format: date-time */
+                offeredAt: string | null;
+                /** Format: date-time */
+                receivedAt: string | null;
+                /** Format: date-time */
+                startedAt: string | null;
+                /** Format: date-time */
+                endedAt: string | null;
+            }[];
+        };
+        /** @enum {string} */
+        RemoteAttemptState: "QUEUED" | "OFFERED" | "RECEIVED" | "PREPARING" | "STARTING" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELLED" | "TIMED_OUT" | "REFUSED" | "EXPIRED" | "ENDED_UNKNOWN";
         RuntimeRequirementsDeclaration: {
             /** @enum {string} */
             source: "PACKAGE" | "FILE" | "TEXT" | "NONE_CONFIRMED";
@@ -7927,6 +8115,221 @@ export interface operations {
                 };
                 content: {
                     "application/zip": string;
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listRemoteExecutionCandidates: {
+        parameters: {
+            query: {
+                automationVersion: string;
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                workspace: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Maquinas e o que falta */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteExecutionCandidateList"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listRemoteExecutions: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                workspace: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Solicitacoes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["RemoteExecution"][];
+                    };
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    requestRemoteExecution: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                workspace: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemoteExecutionRequest"];
+            };
+        };
+        responses: {
+            /** @description A mesma solicitacao (repeticao com a mesma chave) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteExecution"];
+                };
+            };
+            /** @description Solicitacao criada, com a primeira tentativa na fila */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteExecution"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getRemoteExecution: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                execution: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Solicitacao */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteExecution"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    cancelRemoteExecution: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                execution: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Solicitacao com o pedido de cancelamento */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteExecution"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    retryRemoteExecution: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                execution: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    agentId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Solicitacao com a tentativa nova */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteExecution"];
                 };
             };
             400: components["responses"]["InvalidRequest"];

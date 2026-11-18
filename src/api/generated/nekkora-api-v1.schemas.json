@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "541af1e519e0d0229715e0e07d6b6ae8dcfb60487dcd6e14012f99ca421bf92f",
+  "openapiSha256": "b291e3478c3823e7552685a9e002b65e16d08663844ab4c9832a50cbbeda9f96",
   "schemas": {
     "Error": {
       "type": "object",
@@ -33,6 +33,18 @@
             "remote_execution_unavailable",
             "runtime_requirements_unresolved",
             "runtime_requirements_changed",
+            "remote_authorization_missing",
+            "remote_authorization_revoked",
+            "remote_authorization_expired",
+            "remote_machine_not_enabled",
+            "remote_machine_paused",
+            "remote_machine_incompatible",
+            "remote_machine_busy",
+            "remote_requirements_not_declared",
+            "remote_requirements_conflict",
+            "remote_attempt_not_finished",
+            "remote_attempt_already_finished",
+            "remote_execution_cancel_requested",
             "draft_exists",
             "draft_changed",
             "local_run_authorization_exists",
@@ -2870,6 +2882,318 @@
           }
         }
       }
+    },
+    "RemoteExecutionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "automationVersionId",
+        "agentId",
+        "requestKey"
+      ],
+      "properties": {
+        "automationVersionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "agentId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "RemoteExecutionCandidateList": {
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "agentId",
+              "agentName",
+              "workerId",
+              "workerName",
+              "requestable",
+              "missing",
+              "authorization"
+            ],
+            "properties": {
+              "agentId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "agentName": {
+                "type": "string"
+              },
+              "workerId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "workerName": {
+                "type": "string"
+              },
+              "requestable": {
+                "type": "boolean"
+              },
+              "missing": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "REQUIREMENTS_NOT_DECLARED",
+                    "REQUIREMENTS_CONFLICT",
+                    "AUTHORIZATION_MISSING",
+                    "AUTHORIZATION_REVOKED",
+                    "AUTHORIZATION_EXPIRED",
+                    "MACHINE_PAUSED",
+                    "MACHINE_INCOMPATIBLE",
+                    "MACHINE_BUSY"
+                  ]
+                }
+              },
+              "authorization": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "required": [
+                  "authorizationId",
+                  "validUntil",
+                  "status"
+                ],
+                "properties": {
+                  "authorizationId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "validUntil": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "VALID",
+                      "REVOKED",
+                      "EXPIRED"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "RemoteExecution": {
+      "type": "object",
+      "required": [
+        "remoteExecutionId",
+        "workspaceId",
+        "automationId",
+        "automationVersionId",
+        "versionNumber",
+        "state",
+        "requirementsRevision",
+        "dependencies",
+        "requestedAt",
+        "cancelRequestedAt",
+        "attempts"
+      ],
+      "properties": {
+        "remoteExecutionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "automationVersionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "versionNumber": {
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/components/schemas/RemoteAttemptState"
+        },
+        "requirementsRevision": {
+          "type": "integer"
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requestedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "cancelRequestedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "attempts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "attemptId",
+              "attemptNumber",
+              "agentId",
+              "agentName",
+              "workerId",
+              "workerName",
+              "state",
+              "refusalReason",
+              "communication",
+              "exitCode",
+              "createdAt",
+              "offerValidUntil",
+              "offeredAt",
+              "receivedAt",
+              "startedAt",
+              "endedAt"
+            ],
+            "properties": {
+              "attemptId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "attemptNumber": {
+                "type": "integer"
+              },
+              "agentId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "agentName": {
+                "type": "string"
+              },
+              "workerId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "workerName": {
+                "type": "string"
+              },
+              "state": {
+                "$ref": "#/components/schemas/RemoteAttemptState"
+              },
+              "refusalReason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "BUSY",
+                  "PAUSED",
+                  "PACKAGE_INVALID",
+                  "ENVIRONMENT_GONE",
+                  "ENVIRONMENT_INCOMPATIBLE",
+                  "DEPENDENCIES_MISSING",
+                  "DISK_PRESSURE",
+                  "CLIENT_INCOMPATIBLE",
+                  "AUTHORIZATION_MISSING",
+                  "AUTHORIZATION_REVOKED",
+                  "AUTHORIZATION_EXPIRED",
+                  "WORKER_NOT_AUTHORIZED",
+                  "MACHINE_NOT_LINKED",
+                  "MACHINE_NOT_ENABLED",
+                  "MACHINE_INCOMPATIBLE",
+                  null
+                ]
+              },
+              "communication": {
+                "type": "string",
+                "enum": [
+                  "OK",
+                  "LOST",
+                  "NONE"
+                ]
+              },
+              "exitCode": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "offerValidUntil": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "offeredAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "receivedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "startedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "endedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            }
+          }
+        }
+      }
+    },
+    "RemoteAttemptState": {
+      "type": "string",
+      "enum": [
+        "QUEUED",
+        "OFFERED",
+        "RECEIVED",
+        "PREPARING",
+        "STARTING",
+        "RUNNING",
+        "SUCCEEDED",
+        "FAILED",
+        "CANCELLED",
+        "TIMED_OUT",
+        "REFUSED",
+        "EXPIRED",
+        "ENDED_UNKNOWN"
+      ]
     },
     "RuntimeRequirementsDeclaration": {
       "type": "object",
@@ -10171,6 +10495,329 @@
           "schema": {
             "type": "string",
             "format": "binary"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "listRemoteExecutionCandidates": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/workspaces/{workspace}/remote-executions/candidates",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/RemoteExecutionCandidateList"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "listRemoteExecutions": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/workspaces/{workspace}/remote-executions",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "items"
+            ],
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/RemoteExecution"
+                }
+              }
+            }
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "requestRemoteExecution": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/workspaces/{workspace}/remote-executions",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/RemoteExecution"
+          }
+        },
+        "201": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/RemoteExecution"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "getRemoteExecution": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/remote-executions/{execution}",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/RemoteExecution"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "cancelRemoteExecution": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/remote-executions/{execution}/cancel",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/RemoteExecution"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "retryRemoteExecution": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/remote-executions/{execution}/attempts",
+      "responses": {
+        "201": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/RemoteExecution"
           }
         },
         "400": {
