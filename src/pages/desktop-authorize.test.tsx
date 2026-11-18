@@ -255,9 +255,18 @@ describe('decisão da pessoa', () => {
 
   it('usar outra conta: sai desta conta e volta ao login, com a entrada do aplicativo ainda em andamento', async () => {
     await pronta();
-    api.on('POST', '/api/v1/auth/logout', 'identityLogout', { status: 204 });
+    // como na API: depois de sair não há mais sessão. Com a sessão simulada ainda "ativa", o login devolvia a pessoa à
+    // confirmação do aplicativo em ~10 ms e o teste só passava quando flagrava essa janela (falha intermitente no CI)
+    api.on('POST', '/api/v1/auth/logout', 'identityLogout', () => {
+      api.on('GET', '/api/v1/me/session', 'identitySessionState', { status: 401, body: { error: 'unauthenticated' } });
+      return { status: 204 };
+    });
     await user().click(screen.getByRole('button', { name: 'Usar outra conta' }));
     await waitFor(() => expect(location()).toBe('/entrar'));
+    // e fica no login (não volta sozinha para a confirmação)
+    expect(await screen.findByRole('heading', { name: 'Entrar na Nekkora' })).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 100));
+    expect(location()).toBe('/entrar');
     expect(api.sent('POST', '/api/v1/auth/logout')).toHaveLength(1);
     expect(api.sent('POST', '/api/v1/desktop/authorization/approve')).toEqual([]);
     expect(desktopPending()).toBe(true);
