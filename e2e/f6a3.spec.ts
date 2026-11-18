@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { expect, test, type Page } from '@playwright/test';
 import { Authenticator } from '../mock/totp';
-import { signIn } from './support/app';
+import { leaveMenu, signIn } from './support/app';
 
 /**
  * F6a-3 no navegador, contra a API SIMULADA: revogar concessões. Cada teste usa uma organização NOVA criada pelo
@@ -52,6 +52,7 @@ async function setup(page: Page) {
   });
   await login(page, org, admin, 'Admin F6a3');
   await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Concessões' }).click();
+  await leaveMenu(page);
   await expect(page.getByRole('button', { name: `Revogar a concessão de ${A}` })).toBeVisible();
   return { org, admin, grants };
 }

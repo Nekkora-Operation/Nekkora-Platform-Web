@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { createAccount, createOrganization, PASSWORD } from './support/mock';
-import { enrolledAccount, enrollMfa, INVALID_CREDENTIALS, leakGuard, path, signIn } from './support/app';
+import { enrolledAccount, enrollMfa, INVALID_CREDENTIALS, leakGuard, path, signIn, signOut } from './support/app';
 
 test('DoD 1 — primeiro acesso: login → MFA obrigatório → códigos → área autenticada; depois login com TOTP', async ({ page }) => {
   const guard = leakGuard(page);
@@ -17,7 +17,7 @@ test('DoD 1 — primeiro acesso: login → MFA obrigatório → códigos → ár
   await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Início' }).click();
 
   await test.step('sair e entrar de novo: senha → código do autenticador', async () => {
-    await page.getByRole('button', { name: 'Sair' }).click();
+    await signOut(page);
     await expect(page.getByText('Você saiu da sua conta.')).toBeVisible();
     await expect(page).toHaveURL(path.login(account.org));
 
@@ -47,7 +47,7 @@ test('login com código de recuperação: aceito uma vez, com aviso; o mesmo có
   await expect(page.getByRole('heading', { name: 'Olá, Pessoa E2E' })).toBeVisible();
   await expect(page.getByText('Você entrou com um código de recuperação')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Sair' }).click();
+  await signOut(page);
   await signIn(page, account);
   await page.getByRole('button', { name: 'Usar código de recuperação' }).click();
   await page.getByLabel(/Código de recuperação/).fill(codes[0]);

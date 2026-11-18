@@ -137,7 +137,16 @@ describe('área interna', () => {
     // PLATFORM-LOCAL-002: o e-mail saiu do menu e da página inicial; fica em Minha conta
     expect(screen.queryByText('ana@nekkora.dev')).toBeNull();
     expect(within(nav).getByRole('link', { name: 'Minha conta' })).toHaveAttribute('href', '/o/' + DEV_ORG + '/conta');
-    expect(screen.getAllByRole('button', { name: 'Sair' }).length).toBeGreaterThan(0);
+    // conta no topo: o círculo (UserMenu da lib) abre o painel com o nome, o acesso, os atalhos e o sair
+    expect(screen.queryByRole('button', { name: 'Sair' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Menu da conta: Ana Souza' }));
+    const conta = screen.getByRole('dialog', { name: 'Menu da conta' });
+    expect(within(conta).getByText('Ana Souza')).toBeInTheDocument();
+    expect(within(conta).getByRole('link', { name: 'Minha conta' })).toHaveAttribute('href', '/o/' + DEV_ORG + '/conta');
+    expect(within(conta).getByRole('link', { name: 'Trocar organização' })).toBeInTheDocument();
+    expect(within(conta).getByRole('button', { name: 'Sair' })).toBeInTheDocument();
+    // layout com topo de largura total (AppShell layout="header" da lib)
+    expect(document.querySelector('.nk-shell--header')).not.toBeNull();
     expect(screen.queryByRole('button', { name: /executar|cancelar|reagendar/i })).toBeNull();
   });
 

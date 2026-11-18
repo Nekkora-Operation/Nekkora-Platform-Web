@@ -374,6 +374,7 @@ describe('Sessão', () => {
     await fillLogin('ana@empresa.com', 'senha-muito-segura');
     await user().type(await screen.findByLabelText(lbl('Código de autenticação')), TOTP_OK);
     await screen.findByRole('heading', { name: 'Olá, Ana Souza' });
+    await user().click(screen.getByRole('button', { name: /^Menu da conta: / })); // o sair fica no menu da conta
     await user().click(screen.getByRole('button', { name: 'Sair' }));
     expect(await screen.findByText('Você saiu da sua conta.')).toBeInTheDocument();
     expect(fake.api().hasSession()).toBe(false);

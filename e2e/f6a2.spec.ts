@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { expect, test, type Page } from '@playwright/test';
 import { Authenticator } from '../mock/totp';
-import { signIn } from './support/app';
+import { signIn, signOut } from './support/app';
 
 /**
  * F6a-2 no navegador, contra a API SIMULADA: suspender e reativar membros. Cada teste usa uma organização NOVA criada
@@ -175,7 +175,7 @@ test('R1: logout e outra conta da mesma organização na mesma aba: a incerteza 
   await dialog.getByRole('button', { name: 'Cancelar' }).click();
   await expect(panel(page)).toContainText('Suspensão de Alvo F6a2: resultado não confirmado.');
 
-  await page.getByRole('button', { name: 'Sair' }).click();
+  await signOut(page);
   await expect(page.getByText('Você saiu da sua conta.')).toBeVisible();
   await signIn(page, { org, userId: outra.userId, email: outra.email });
   await expect(page).toHaveURL(`/o/${org}/mfa`);

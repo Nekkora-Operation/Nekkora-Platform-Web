@@ -118,6 +118,7 @@ describe('isolamento por sessão', () => {
     sessionFor('ana@nekkora.dev');
     const view = await openMembers();
     await uncertainSuspend();
+    fireEvent.click(screen.getByRole('button', { name: /^Menu da conta: / })); // o sair fica no menu da conta
     fireEvent.click(screen.getByRole('button', { name: 'Sair' }));
     await screen.findByText('Você saiu da sua conta.');
     view.unmount();
@@ -135,6 +136,7 @@ describe('isolamento por sessão', () => {
     const view = await openMembers();
     await uncertainSuspend();
     const sent = requests.filter((r) => isSuspend(r.method, r.path)).length;
+    fireEvent.click(screen.getByRole('button', { name: /^Menu da conta: / })); // o sair fica no menu da conta
     fireEvent.click(screen.getByRole('button', { name: 'Sair' }));
     await screen.findByText('Você saiu da sua conta.');
     view.unmount();
