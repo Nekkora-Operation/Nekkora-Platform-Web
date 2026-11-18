@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "23e3e52db798e592e5fa557d93553f4944ecea2f875dd5ba433687d2b6798d20",
+  "openapiSha256": "ea2d18abd15d5a7f360d31aec57f9a870e40b089fbb186246162aa29f2d75261",
   "schemas": {
     "Error": {
       "type": "object",
@@ -46,6 +46,8 @@
             "remote_package_not_registered",
             "remote_python_not_selected",
             "remote_python_not_in_inventory",
+            "remote_dependency_check_too_soon",
+            "remote_dependency_check_closed",
             "remote_result_unavailable",
             "remote_attempt_not_finished",
             "remote_attempt_already_finished",
@@ -2929,7 +2931,8 @@
               "requestable",
               "missing",
               "authorization",
-              "python"
+              "python",
+              "dependencyCheck"
             ],
             "properties": {
               "agentId": {
@@ -3007,9 +3010,92 @@
                     "type": "null"
                   }
                 ]
+              },
+              "dependencyCheck": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/RemoteDependencyCheck"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             }
           }
+        }
+      }
+    },
+    "RemoteDependencyCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "checkId",
+        "environmentId",
+        "requirementsRevision",
+        "requestedAt",
+        "answerValidUntil",
+        "state",
+        "outcome",
+        "missing",
+        "answeredAt",
+        "current"
+      ],
+      "properties": {
+        "checkId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "environmentId": {
+          "type": "string"
+        },
+        "requirementsRevision": {
+          "type": "integer"
+        },
+        "requestedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "answerValidUntil": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "PENDING",
+            "ANSWERED",
+            "UNANSWERED"
+          ]
+        },
+        "outcome": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "SATISFIED",
+            "MISSING",
+            "ENVIRONMENT_GONE",
+            "NOT_VERIFIED",
+            null
+          ]
+        },
+        "missing": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "answeredAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "current": {
+          "type": "boolean"
         }
       }
     },
@@ -10872,6 +10958,60 @@
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/RemotePythonChoice"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "checkRemoteMachineDependencies": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/automations/{automation}/remote-machines/{agent}/dependency-check",
+      "responses": {
+        "201": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/RemoteDependencyCheck"
           }
         },
         "400": {
