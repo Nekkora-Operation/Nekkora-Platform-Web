@@ -31,9 +31,17 @@ services:
       # segredos.env (o mesmo valor vai para a Platform e para o gateway)
       NEKKORA_EXECUCAO_REMOTA: ${LAB_EXECUCAO_REMOTA:-false}
       NEKKORA_RESULTADOS_DIR: /var/lib/nekkora/resultados
+      # fechamento da missão: os prazos abaixo têm os padrões do produto; o laboratório pode encurtá-los em segredos.env para
+      # ensaiar sem esperar (espera da comunicação perdida, ciclo da reconciliação, retenção no servidor)
+      NEKKORA_EXECUCAO_REMOTA_SEM_COMUNICACAO_MINUTOS: ${LAB_SEM_COMUNICACAO_MINUTOS:-120}
+      NEKKORA_EXECUCAO_REMOTA_RECONCILIACAO_SEGUNDOS: ${LAB_RECONCILIACAO_SEGUNDOS:-60}
+      NEKKORA_EXECUCAO_REMOTA_RETENCAO: ${LAB_RETENCAO:-false}
+      NEKKORA_EXECUCAO_REMOTA_RETENCAO_DIAS: ${LAB_RETENCAO_DIAS:-30}
+      NEKKORA_EXECUCAO_REMOTA_RETENCAO_CICLO_MINUTOS: ${LAB_RETENCAO_CICLO_MINUTOS:-60}
     volumes:
       - artefatos:/var/lib/nekkora/artefatos
-      - resultados:/var/lib/nekkora/resultados:ro
+      # a Platform só LÊ os resultados; com a retenção ligada no laboratório (LAB_RESULTADOS_NA_PLATFORM=rw) ela também os remove
+      - resultados:/var/lib/nekkora/resultados:${LAB_RESULTADOS_NA_PLATFORM:-ro}
       - caixa:/caixa
   portal:
     mem_limit: 512m
@@ -41,6 +49,8 @@ services:
     mem_limit: 640m
     environment:
       NEKKORA_EXECUCAO_REMOTA: ${LAB_EXECUCAO_REMOTA:-false}
+      # a mesma espera da Platform (tem de ter o mesmo valor nos dois)
+      NEKKORA_EXECUCAO_REMOTA_SEM_COMUNICACAO_MINUTOS: ${LAB_SEM_COMUNICACAO_MINUTOS:-120}
       # PLATFORM-CLIENT-EXECUCAO-REMOTA-001 (T03): o gateway LÊ os pacotes publicados para entregá-los à máquina da tentativa
       NEKKORA_ARTEFATOS_DIR: /var/lib/nekkora/artefatos
       NEKKORA_RESULTADOS_DIR: /var/lib/nekkora/resultados
