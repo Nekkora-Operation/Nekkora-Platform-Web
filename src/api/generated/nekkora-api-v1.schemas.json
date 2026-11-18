@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "b291e3478c3823e7552685a9e002b65e16d08663844ab4c9832a50cbbeda9f96",
+  "openapiSha256": "575bd18c040f99574ff3ea6d0bf1b3d1c8d6360dcfe236b3b839d0cbe568d218",
   "schemas": {
     "Error": {
       "type": "object",
@@ -42,6 +42,8 @@
             "remote_machine_busy",
             "remote_requirements_not_declared",
             "remote_requirements_conflict",
+            "remote_python_not_selected",
+            "remote_python_not_in_inventory",
             "remote_attempt_not_finished",
             "remote_attempt_already_finished",
             "remote_execution_cancel_requested",
@@ -2923,7 +2925,8 @@
               "workerName",
               "requestable",
               "missing",
-              "authorization"
+              "authorization",
+              "python"
             ],
             "properties": {
               "agentId": {
@@ -2955,7 +2958,9 @@
                     "AUTHORIZATION_EXPIRED",
                     "MACHINE_PAUSED",
                     "MACHINE_INCOMPATIBLE",
-                    "MACHINE_BUSY"
+                    "MACHINE_BUSY",
+                    "PYTHON_NOT_SELECTED",
+                    "PYTHON_NOT_IN_INVENTORY"
                   ]
                 }
               },
@@ -2987,9 +2992,45 @@
                     ]
                   }
                 }
+              },
+              "python": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/RemotePythonChoice"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             }
           }
+        }
+      }
+    },
+    "RemotePythonChoice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "environmentId",
+        "pythonVersion",
+        "inInventory",
+        "selectedAt"
+      ],
+      "properties": {
+        "environmentId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "pythonVersion": {
+          "type": "string"
+        },
+        "inInventory": {
+          "type": "boolean"
+        },
+        "selectedAt": {
+          "type": "string",
+          "format": "date-time"
         }
       }
     },
@@ -10495,6 +10536,60 @@
           "schema": {
             "type": "string",
             "format": "binary"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "selectRemoteMachinePython": {
+      "method": "PUT",
+      "path": "/api/v1/o/{org}/automations/{automation}/remote-machines/{agent}/python-selection",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/RemotePythonChoice"
           }
         },
         "400": {

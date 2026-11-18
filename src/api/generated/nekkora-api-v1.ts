@@ -2160,6 +2160,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/automations/{automation}/remote-machines/{agent}/python-selection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Escolhe o ambiente Python de uma automacao numa maquina habilitada
+         * @description Exige automation.manage no ambiente da automacao. agent: maquina habilitada cujo Worker esta autorizado nesse ambiente (outra: 404). environmentId: um ambiente do inventario ATUAL da maquina (fora dele: 409 conflict, reason remote_python_not_in_inventory). Trocar substitui a escolha; a de uma maquina nao vale para outra. A Platform guarda so o identificador opaco: nunca um caminho. Nao verifica dependencias nem instala nada - a maquina confere o ambiente antes de iniciar. Sem a escolha, a solicitacao de execucao remota nessa maquina e recusada (reason remote_python_not_selected). Recurso desligado: 409 conflict, reason remote_execution_unavailable.
+         */
+        put: operations["selectRemoteMachinePython"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/workspaces/{workspace}/remote-executions/candidates": {
         parameters: {
             query?: never;
@@ -2169,7 +2189,7 @@ export interface paths {
         };
         /**
          * Maquinas habilitadas do ambiente para uma versao, com o que falta em cada uma
-         * @description Exige automation.read no ambiente. automationVersion: uma versao PUBLICADA do ambiente (outra: 404). Para cada maquina habilitada cujo Worker esta autorizado no ambiente: requestable e missing, a lista do que impede solicitar nela agora - REQUIREMENTS_NOT_DECLARED, REQUIREMENTS_CONFLICT (da automacao), AUTHORIZATION_MISSING, AUTHORIZATION_REVOKED, AUTHORIZATION_EXPIRED (a autorizacao de execucao desta versao para o Worker da maquina), MACHINE_PAUSED, MACHINE_INCOMPATIBLE, MACHINE_BUSY. authorization: a autorizacao vigente da versao para o Worker, ou a mais recente que deixou de valer (null = nunca houve). E indicativo: a solicitacao reconfere tudo, de forma atomica.
+         * @description Exige automation.read no ambiente. automationVersion: uma versao PUBLICADA do ambiente (outra: 404). Para cada maquina habilitada cujo Worker esta autorizado no ambiente: requestable e missing, a lista do que impede solicitar nela agora - REQUIREMENTS_NOT_DECLARED, REQUIREMENTS_CONFLICT (da automacao), AUTHORIZATION_MISSING, AUTHORIZATION_REVOKED, AUTHORIZATION_EXPIRED (a autorizacao de execucao desta versao para o Worker da maquina), MACHINE_PAUSED, MACHINE_INCOMPATIBLE, MACHINE_BUSY, PYTHON_NOT_SELECTED (ninguem escolheu o ambiente Python desta automacao nesta maquina), PYTHON_NOT_IN_INVENTORY (o escolhido nao esta mais no inventario dela). authorization: a autorizacao vigente da versao para o Worker, ou a mais recente que deixou de valer (null = nunca houve). python: o ambiente escolhido para a automacao nesta maquina (null = nenhum). E indicativo: a solicitacao reconfere tudo, de forma atomica.
          */
         get: operations["listRemoteExecutionCandidates"];
         put?: never;
@@ -2339,7 +2359,7 @@ export interface components {
              * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached, draft_exists, draft_changed, local_run_authorization_exists, organization_name_taken; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
              * @enum {string}
              */
-            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken";
+            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken";
         };
         /**
          * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
@@ -3200,7 +3220,7 @@ export interface components {
                 workerId: string;
                 workerName: string;
                 requestable: boolean;
-                missing: ("REQUIREMENTS_NOT_DECLARED" | "REQUIREMENTS_CONFLICT" | "AUTHORIZATION_MISSING" | "AUTHORIZATION_REVOKED" | "AUTHORIZATION_EXPIRED" | "MACHINE_PAUSED" | "MACHINE_INCOMPATIBLE" | "MACHINE_BUSY")[];
+                missing: ("REQUIREMENTS_NOT_DECLARED" | "REQUIREMENTS_CONFLICT" | "AUTHORIZATION_MISSING" | "AUTHORIZATION_REVOKED" | "AUTHORIZATION_EXPIRED" | "MACHINE_PAUSED" | "MACHINE_INCOMPATIBLE" | "MACHINE_BUSY" | "PYTHON_NOT_SELECTED" | "PYTHON_NOT_IN_INVENTORY")[];
                 authorization: {
                     /** Format: uuid */
                     authorizationId: string;
@@ -3209,7 +3229,18 @@ export interface components {
                     /** @enum {string} */
                     status: "VALID" | "REVOKED" | "EXPIRED";
                 } | null;
+                python: components["schemas"]["RemotePythonChoice"] | null;
             }[];
+        };
+        /** @description Ambiente Python escolhido para uma automacao numa maquina. Identificador opaco publicado pela maquina; nunca um caminho. */
+        RemotePythonChoice: {
+            environmentId: string;
+            /** @description A versao que o inventario da maquina dizia quando a escolha foi feita */
+            pythonVersion: string;
+            /** @description O ambiente ainda esta no inventario atual da maquina */
+            inInventory: boolean;
+            /** Format: date-time */
+            selectedAt: string;
         };
         RemoteExecution: {
             /** Format: uuid */
@@ -8115,6 +8146,46 @@ export interface operations {
                 };
                 content: {
                     "application/zip": string;
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    selectRemoteMachinePython: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                automation: string;
+                /** @description malformado -> 400 */
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    environmentId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Escolha gravada */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemotePythonChoice"];
                 };
             };
             400: components["responses"]["InvalidRequest"];

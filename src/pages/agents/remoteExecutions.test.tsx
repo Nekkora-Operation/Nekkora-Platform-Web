@@ -24,6 +24,8 @@ const W2 = '22222222-2222-4222-8222-222222222222';
 const X1 = '55555555-5555-4555-8555-555555555555';
 const AUTHZ = '66666666-6666-4666-8666-666666666666';
 const T = '2026-11-10T10:00:00Z';
+const ENV_A = 'A'.repeat(43);
+const ENV_B = 'B'.repeat(43);
 const SHA = 'a'.repeat(64);
 const FP = 'b'.repeat(64);
 const CANDIDATES = `/api/v1/o/${ORG}/workspaces/${WS}/remote-executions/candidates`;
@@ -42,6 +44,7 @@ const candidate = (over: Row = {}): Row => ({
   requestable: true,
   missing: [],
   authorization: { authorizationId: AUTHZ, validUntil: '2026-12-10T10:00:00Z', status: 'VALID' },
+  python: { environmentId: ENV_A, pythonVersion: '3.12.10', inInventory: true, selectedAt: T },
   ...over,
 });
 const attempt = (over: Row = {}): Row => ({
@@ -303,6 +306,69 @@ describe('Versão: execução remota (T02)', () => {
     expect(await screen.findByText(/Nova tentativa registrada/)).toBeInTheDocument();
     expect(api.sent('POST', `/api/v1/o/${ORG}/remote-executions/${X1}/attempts`)[0].body).toEqual({ agentId: AG2 });
     await waitFor(() => expect(within(section()).getByText(/Tentativa 2 · ESTACAO-02/)).toBeInTheDocument());
+  });
+
+  it('Python da automação por máquina: mostra o escolhido, diz quando falta e só quem gerencia escolhe, do que a máquina informou', async () => {
+    candidates = [
+      candidate({ requestable: false, missing: ['PYTHON_NOT_SELECTED'], python: null }),
+      candidate({
+        agentId: AG2,
+        agentName: 'ESTACAO-02',
+        workerId: W2,
+        requestable: false,
+        missing: ['PYTHON_NOT_IN_INVENTORY'],
+        python: { environmentId: ENV_B, pythonVersion: '3.11.9', inInventory: false, selectedAt: T },
+      }),
+    ];
+    const PY = `/api/v1/o/${ORG}/workspaces/${WS}/remote-machines/${AG1}/python-environments`;
+    api.on('GET', PY, 'listRemoteMachinePythonEnvironments', {
+      status: 200,
+      body: {
+        items: [
+          { environmentId: ENV_A, pythonVersion: '3.12.10', kind: 'INSTALLATION', observedAt: T, reportedAt: T },
+          { environmentId: ENV_B, pythonVersion: '3.12.10', kind: 'VIRTUAL_ENVIRONMENT', observedAt: T, reportedAt: T },
+        ],
+      },
+    });
+    const PUT = `/api/v1/o/${ORG}/automations/${AUT}/remote-machines/${AG1}/python-selection`;
+    api.on('PUT', PUT, 'selectRemoteMachinePython', () => {
+      candidates = [candidate()];
+      return { status: 200, body: { environmentId: ENV_B, pythonVersion: '3.12.10', inInventory: true, selectedAt: T } };
+    });
+    await open();
+    const s = await waitFor(section);
+    const rows = within(within(s).getByRole('table', { name: /Máquinas habilitadas do workspace/ })).getAllByRole('row');
+    expect(within(rows[1]).getByText('Não escolhido')).toBeInTheDocument();
+    expect(within(rows[1]).getByText(MISSING.PYTHON_NOT_SELECTED)).toBeInTheDocument();
+    expect(within(rows[2]).getByText('Python 3.11.9')).toBeInTheDocument();
+    expect(within(rows[2]).getByText('A máquina não informa mais este Python.')).toBeInTheDocument();
+    expect(within(rows[2]).getByText(MISSING.PYTHON_NOT_IN_INVENTORY)).toBeInTheDocument();
+    expect(within(rows[2]).getByRole('button', { name: 'Trocar o Python de ESTACAO-02' })).toBeInTheDocument();
+    fireEvent.click(within(rows[1]).getByRole('button', { name: 'Escolher o Python de ESTACAO-01' }));
+    expect(within(dialog()).getByText(/nunca um caminho\. Nada é\s+instalado/)).toBeInTheDocument();
+    const select = (await within(dialog()).findByLabelText('Python da máquina')) as HTMLSelectElement;
+    const options = Array.from(select.options).map((o) => o.textContent ?? '');
+    // duas com a mesma versão: o tipo e a ordem distinguem; o identificador opaco não é mostrado
+    expect(options.filter((o) => o.includes('Python 3.12.10'))).toHaveLength(2);
+    expect(options.some((o) => o.includes('instalação'))).toBe(true);
+    expect(options.some((o) => o.includes('ambiente virtual'))).toBe(true);
+    expect(options.join(' ')).not.toContain(ENV_A);
+    expect(within(dialog()).getByRole('button', { name: 'Escolher este Python' })).toBeDisabled();
+    fireEvent.change(select, { target: { value: ENV_B } });
+    await confirmIn('Escolher este Python');
+    expect(await screen.findByText('Python 3.12.10 escolhido para esta automação em ESTACAO-01.')).toBeInTheDocument();
+    expect(api.sent('PUT', PUT)[0].body).toEqual({ environmentId: ENV_B });
+    await waitFor(() => expect(within(section()).getByText('Pode solicitar')).toBeInTheDocument());
+  });
+
+  it('quem não gerencia a automação vê o Python escolhido e o que falta, sem o botão de escolher', async () => {
+    permissions(['automation.read', 'automation.execute']);
+    candidates = [candidate({ requestable: false, missing: ['PYTHON_NOT_SELECTED'], python: null })];
+    await open();
+    const s = await waitFor(section);
+    expect(within(s).getByText('Não escolhido')).toBeInTheDocument();
+    expect(within(s).getByText('Peça a quem gerencia esta automação.')).toBeInTheDocument();
+    expect(within(s).queryByRole('button', { name: /o Python de/ })).toBeNull();
   });
 
   it('sem máquina habilitada e sem solicitação, ou numa Platform sem o recurso: a seção não aparece', async () => {
