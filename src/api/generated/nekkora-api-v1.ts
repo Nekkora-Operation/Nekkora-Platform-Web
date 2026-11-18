@@ -1548,6 +1548,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/execution-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Contagem das execucoes pedidas no periodo, nos ambientes visiveis (automation.read)
+         * @description Agregacao feita no banco sobre TODAS as execucoes do periodo [from, to) - nunca a soma de uma pagina de lista. Uma execucao e um pedido, nunca uma tentativa. Quatro origens, sem sobreposicao: execucoes da Platform (manuais ou agendadas; a repeticao e outro pedido e conta de novo); execucoes relatadas pelo Agent; pedidos ao Agent anterior que nao viraram execucao (o que virou e contado pela execucao); e solicitacoes de execucao remota do Agent Client, pelo estado da ULTIMA tentativa (repetir em outra maquina nao aumenta o total). A data e o instante em que a Platform registrou o pedido. Cada execucao cai em exatamente uma situacao e a soma das seis e o total: succeeded; failed (o processo da automacao falhou ou estourou o tempo); inProgress; cancelled; notStarted (recusada, expirada, bloqueada ou que falhou antes de o processo existir - nao e erro da automacao); unconfirmed (terminou sem resultado confirmado - nunca sucesso nem erro). Execucoes locais privadas do Agent Client nao chegam a Platform e nao entram. Quem nao le nenhum ambiente recebe zeros. from e to sao obrigatorios, com fuso; to depois de from; periodo de ate 366 dias.
+         */
+        get: operations["getExecutionSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/automations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Automacoes dos ambientes visiveis da organizacao, com o ambiente e a ultima execucao
+         * @description As automacoes de todos os ambientes em que a pessoa tem automation.read (sem ambiente visivel: lista vazia). Cada item traz o nome do ambiente e a execucao mais recente da automacao entre as quatro origens do resumo, com a mesma classificacao - ou nulo, se nunca houve. A ultima execucao nao depende de periodo. O identificador vem nulo quando a mais recente e um pedido ao Agent anterior que nao virou execucao (nao ha detalhe para abrir).
+         */
+        get: operations["listOrganizationAutomations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/automations/{automationId}": {
         parameters: {
             query?: never;
@@ -2649,6 +2689,83 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+        };
+        /** @description total = soma das seis situacoes */
+        ExecutionCounts: {
+            /** Format: int64 */
+            total: number;
+            /** Format: int64 */
+            succeeded: number;
+            /** Format: int64 */
+            failed: number;
+            /** Format: int64 */
+            inProgress: number;
+            /** Format: int64 */
+            cancelled: number;
+            /** Format: int64 */
+            notStarted: number;
+            /** Format: int64 */
+            unconfirmed: number;
+        };
+        ExecutionSummary: {
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+            /** Format: int64 */
+            total: number;
+            /** Format: int64 */
+            succeeded: number;
+            /** Format: int64 */
+            failed: number;
+            /** Format: int64 */
+            inProgress: number;
+            /** Format: int64 */
+            cancelled: number;
+            /** Format: int64 */
+            notStarted: number;
+            /** Format: int64 */
+            unconfirmed: number;
+            /** @description A mesma conta, por origem: Platform, Agent (execucoes relatadas e pedidos que nao viraram execucao) e execucao remota do Agent Client */
+            sources: {
+                platform: components["schemas"]["ExecutionCounts"];
+                localAgent: components["schemas"]["ExecutionCounts"];
+                remote: components["schemas"]["ExecutionCounts"];
+            };
+        };
+        OrganizationAutomation: {
+            /** Format: uuid */
+            automationId: string;
+            /** Format: uuid */
+            workspaceId: string;
+            workspaceName: string;
+            name: string;
+            description: string | null;
+            status: components["schemas"]["ResourceStatus"];
+            latestPublishedVersion: {
+                /** Format: uuid */
+                automationVersionId: string;
+                versionNumber: number;
+                /** Format: date-time */
+                publishedAt: string;
+            } | null;
+            lastExecution: {
+                /** @enum {string} */
+                source: "platform" | "localAgent" | "remote";
+                /**
+                 * Format: uuid
+                 * @description execucao (platform), execucao do Agent (localAgent) ou solicitacao remota (remote); nulo: pedido ao Agent anterior que nao virou execucao
+                 */
+                id: string | null;
+                /** @enum {string} */
+                outcome: "succeeded" | "failed" | "inProgress" | "cancelled" | "notStarted" | "unconfirmed";
+                /** Format: date-time */
+                requestedAt: string;
+            } | null;
+        };
+        OrganizationAutomationPage: {
+            items: components["schemas"]["OrganizationAutomation"][];
+            nextCursor: string | null;
         };
         AutomationPage: {
             items: components["schemas"]["Automation"][];
@@ -7227,6 +7344,73 @@ export interface operations {
             409: components["responses"]["Conflict"];
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getExecutionSummary: {
+        parameters: {
+            query: {
+                /** @description inclusivo, com fuso */
+                from: string;
+                /** @description exclusivo, com fuso */
+                to: string;
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resumo do periodo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecutionSummary"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["CatalogInconsistent"];
+        };
+    };
+    listOrganizationAutomations: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["ResourceStatus"][];
+                /** @description Opaco e assinado: base64url(payload) "." base64url(HMAC-SHA256). Vinculado a rota, organizacao, vinculo da sessao, recurso pai, filtros (impressao canonica; limit fora) e ordenacao. Posicao = chave de ordenacao de tamanho limitado (prefixo de 48 pontos de codigo + id, ou campos de tamanho fixo); id da chave como impressao de 11 caracteres. O servidor nunca emite cursor maior que 872 caracteres (pior caso calculado, documento secao 1.5.1); aceita ate 1024. Nao e autoridade: autorizacao reaplicada a cada pagina. Malformado, adulterado, de outra rota/organizacao/vinculo/pai, com filtros ou ordenacao diferentes, ou de chave desconhecida (inclusive apos rotacao da chave) -> 400. Sem expiracao por tempo. Chave: decisao DC-15 (subchave derivada; a rotacao invalida os cursores). */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description fora de 1-100 ou nao inteiro -> 400; pode mudar entre paginas */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pagina de automacoes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationAutomationPage"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["CatalogInconsistent"];
         };
     };
     getAutomation: {
