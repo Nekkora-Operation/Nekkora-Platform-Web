@@ -156,6 +156,39 @@ describe('Execuções: a execução remota aparece pela solicitação', () => {
     expect(sent[sent.length - 1]).toMatch(/from=\d{4}-/);
   });
 
+  it('abrir a tela não reabre os filtros sozinha: o início do período é um só e o aviso de erro não é removido e recriado', async () => {
+    // relógio que avança a cada leitura: qualquer recálculo do período relativo depois da montagem muda o início consultado
+    let clock = Date.parse('2026-11-18T12:00:00Z');
+    vi.spyOn(Date, 'now').mockImplementation(() => (clock += 7));
+    api.on('GET', ALL, 'listVisibleRemoteExecutions', { status: 503, body: { error: 'service_unavailable' } });
+    const inner = globalThis.fetch;
+    const starts = new Set<string | null>();
+    vi.stubGlobal('fetch', (url: RequestInfo | URL, init?: RequestInit) => {
+      const [path, query] = String(url).split('?');
+      if (path === ALL || path === `/api/v1/o/${ORG}/executions`) starts.add(new URLSearchParams(query).get('from'));
+      return inner(url, init);
+    });
+    let removed = 0;
+    const found = new Set<Element>();
+    const observer = new MutationObserver(() => {
+      const el = screen.queryByText('Não foi possível consultar as execuções remotas.');
+      if (el) found.add(el);
+      for (const el of found) if (!el.isConnected) removed++, found.delete(el);
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    try {
+      renderApp(`/o/${ORG}/execucoes`);
+      const alert = await screen.findByText('Não foi possível consultar as execuções remotas.');
+      await new Promise((r) => setTimeout(r, 150)); // tempo de sobra para a reabertura indevida acontecer
+      expect([...starts], 'um único início de período nas consultas das duas listas').toHaveLength(1);
+      expect(removed, 'o aviso de erro não saiu da tela').toBe(0);
+      expect(alert).toBeInTheDocument();
+    } finally {
+      observer.disconnect();
+      vi.restoreAllMocks();
+    }
+  });
+
   it('as duas fontes terminaram sem itens: um único vazio geral, sem a seção de execuções remotas', async () => {
     api.on('GET', ALL, 'listVisibleRemoteExecutions', { status: 200, body: { items: [] } });
     renderApp(`/o/${ORG}/execucoes`);

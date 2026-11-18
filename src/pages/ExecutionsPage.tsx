@@ -122,6 +122,8 @@ export function ExecutionsPage() {
   const [filters, setFilters] = useState<Filters>(() => filtersFromUrl(searchParams));
   /** Último endereço escrito por esta tela: mudança externa da URL (ex.: menu) reabre os filtros a partir dela. */
   const written = useRef<string | null>(null);
+  /** Último endereço já avaliado pela detecção de mudança externa (ver o efeito abaixo). */
+  const seen = useRef(searchParams.toString());
   const range = queryRange(filters);
   /** Estado de volta dos links: o endereço com os filtros EM VIGOR (não o da barra, que é gravado logo depois). */
   const backState = { back: `${orgPath.executions(org)}?${filtersToUrl(filters).toString()}` };
@@ -132,8 +134,16 @@ export function ExecutionsPage() {
   // chegasse entre a renderização e o efeito (ex.: clique logo depois de abrir) fazia o efeito pendente rodar com a URL
   // ANTIGA e o `replace` da escrita apagava a navegação nova (filtro voltava ao anterior). Visto como falha intermitente
   // de f5.test.tsx ("troca do filtro de automação com respostas fora de ordem") com a suíte inteira em paralelo.
+  // Só um endereço que MUDOU é candidato a mudança externa. No modo estrito do React (desenvolvimento e testes) os
+  // efeitos rodam duas vezes na montagem: a segunda passada encontrava o endereço inicial, ainda sem os filtros, já com a
+  // escrita da primeira registrada, tomava isso por mudança externa e reabria os filtros com um novo "agora". O início do
+  // período relativo mudava alguns milissegundos e as duas listas eram zeradas e consultadas de novo, apagando por um
+  // instante o que já estivesse na tela. Visto como falha intermitente de remoteOverview.test.tsx (o aviso de erro
+  // encontrado era removido e recriado em seguida).
   useLayoutEffect(() => {
     const current = searchParams.toString();
+    if (current === seen.current) return;
+    seen.current = current;
     if (written.current !== null && current !== written.current) setFilters(filtersFromUrl(searchParams));
   }, [searchParams]);
 

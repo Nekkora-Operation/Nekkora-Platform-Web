@@ -50,6 +50,22 @@ export async function readRecoveryCodes(page: Page): Promise<string[]> {
   return codes;
 }
 
+/**
+ * Sair pelo caminho atual da interface. Na área da organização o "Sair" fica dentro do menu da conta (o círculo com as
+ * iniciais, no topo): o menu é aberto antes. Na área da identidade (organizações, segurança da conta) o botão está direto
+ * no topo. Espera um dos dois aparecer antes de decidir, porque a tela pode ainda estar carregando.
+ */
+export async function signOut(page: Page) {
+  const menu = page.getByRole('button', { name: /^Menu da conta: / });
+  const direct = page.getByRole('button', { name: 'Sair', exact: true });
+  await expect(menu.or(direct).first()).toBeVisible();
+  if (await menu.isVisible()) {
+    await menu.click();
+    await expect(menu).toHaveAttribute('aria-expanded', 'true');
+  }
+  await direct.click();
+}
+
 export async function identitySignIn(page: Page, email: string, password = PASSWORD) {
   await expect(page.getByRole('heading', { name: 'Entrar na Nekkora' })).toBeVisible();
   await page.getByRole('textbox', { name: /E-mail/ }).fill(email);
@@ -79,8 +95,9 @@ export async function signUpAndEnroll(page: Page, journey: string, email = synth
   await identitySignIn(page, email);
   // API ate a 028: o primeiro login exige o cadastro do autenticador. API 029+ (segundo fator opcional): o login ja entra
   // e o autenticador e ATIVADO pela pessoa em Seguranca da conta, com a senha reconfirmada
-  await page.waitForURL(/\/(entrar\/configurar-autenticador|organizacoes)$/);
-  if (/\/organizacoes$/.test(page.url())) {
+  // Web atual: a primeira entrada depois do cadastro para na oferta "Proteja sua conta" (/conta/proteger)
+  await page.waitForURL(/\/(entrar\/configurar-autenticador|organizacoes|conta\/proteger)$/);
+  if (/\/(organizacoes|conta\/proteger)$/.test(page.url())) {
     const { auth, recoveryCodes } = await activateMfa(page, PASSWORD);
     return { email, password: PASSWORD, name, auth, recoveryCodes };
   }
@@ -122,6 +139,9 @@ export async function signUpWithoutMfa(page: Page, journey: string, email = synt
   await expect(page.getByRole('heading', { name: 'Cadastro concluído' })).toBeVisible();
   await page.getByRole('button', { name: 'Entrar' }).click();
   await identitySignIn(page, email);
+  // Web atual: a primeira entrada para na oferta "Proteja sua conta"; esta pessoa segue sem ativar
+  await page.waitForURL(/\/(organizacoes|conta\/proteger)$/);
+  if (/\/conta\/proteger$/.test(page.url())) await page.getByRole('button', { name: 'Seguir sem a verificação em duas etapas' }).click();
   await expect(page).toHaveURL(/\/organizacoes$/);
   return { email, password: PASSWORD, name };
 }

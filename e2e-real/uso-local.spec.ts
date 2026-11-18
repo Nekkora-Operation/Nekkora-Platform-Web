@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { Authenticator } from '../mock/totp';
-import { activateMfa, LAB, readAuthenticator, readRecoveryCodes } from './support/lab';
+import { activateMfa, LAB, readAuthenticator, readRecoveryCodes, signOut } from './support/lab';
 
 /**
  * PLATFORM-LOCAL-001 — o percurso do guia docs/USO-LOCAL.md, pela interface, com a API real e a caixa local.
@@ -53,7 +53,7 @@ async function entrarNaOrganizacaoESair(page: Page, conta: Conta) {
   await expect(page).toHaveURL(/\/o\/[0-9a-f-]{36}$/);
   await expect(page.getByText(conta.organizacao).first()).toBeVisible();
   await cookiesDaSessao(page);
-  await page.getByRole('button', { name: 'Sair' }).click();
+  await signOut(page);
   await expect(page).toHaveURL(/\/entrar$/);
   await expect(page.getByText('Você saiu da sua conta.')).toBeVisible();
 }
@@ -94,9 +94,10 @@ test('passos 1 a 4: cadastro, confirmação pela caixa local, MFA, organização
   await page.getByLabel(/^Senha/).press('Enter');
   // API ate a 028: o primeiro login exige o autenticador. API 029+: entra so com a senha e o autenticador e ATIVADO pela
   // pessoa em Seguranca da conta (este passo ativa, para o passo 5 conferir a entrada com MFA depois de reiniciar)
-  await page.waitForURL(/\/(entrar\/configurar-autenticador|organizacoes)$/);
+  // Web atual: a primeira entrada depois do cadastro para na oferta "Proteja sua conta" (/conta/proteger)
+  await page.waitForURL(/\/(entrar\/configurar-autenticador|organizacoes|conta\/proteger)$/);
   let auth: Authenticator;
-  if (/\/organizacoes$/.test(page.url())) {
+  if (/\/(organizacoes|conta\/proteger)$/.test(page.url())) {
     ({ auth } = await activateMfa(page, senha));
   } else {
     await page.getByRole('button', { name: 'Configurar autenticador' }).click();

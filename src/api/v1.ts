@@ -35,6 +35,13 @@ export type ExecutionDetail = S['ExecutionDetail'];
 export type ExecutionEvent = S['ExecutionEvent'];
 export type ExecutionStatus = S['ExecutionStatus'];
 
+// Início da organização (PLATFORM-INICIO-001)
+export type ExecutionSummary = S['ExecutionSummary'];
+export type ExecutionCounts = S['ExecutionCounts'];
+export type OrganizationAutomation = S['OrganizationAutomation'];
+/** Situação de uma execução na contagem do Início (uma por execução; a soma das seis é o total). */
+export type ExecutionOutcome = NonNullable<OrganizationAutomation['lastExecution']>['outcome'];
+
 // portal externo (013)
 export type PortalWorkspace = S['PortalWorkspaceList']['items'][number];
 export type PortalExecution = S['PortalExecution'];
