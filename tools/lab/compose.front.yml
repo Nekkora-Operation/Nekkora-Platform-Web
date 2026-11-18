@@ -37,6 +37,10 @@ services:
     mem_limit: 640m
     environment:
       NEKKORA_EXECUCAO_REMOTA: ${LAB_EXECUCAO_REMOTA:-false}
+      # PLATFORM-CLIENT-EXECUCAO-REMOTA-001 (T03): o gateway LÊ os pacotes publicados para entregá-los à máquina da tentativa
+      NEKKORA_ARTEFATOS_DIR: /var/lib/nekkora/artefatos
+    volumes:
+      - artefatos:/var/lib/nekkora/artefatos:ro
   postgres:
     mem_limit: 768m
     volumes:
