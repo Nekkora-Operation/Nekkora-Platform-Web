@@ -103,8 +103,26 @@ export const CLOSURE_TEXT: Record<string, { unknown: string; notStarted: string 
  */
 export function unreconciled(x: RemoteExecution | null): boolean {
   const last = x?.attempts[x.attempts.length - 1];
-  return !!last && last.state === 'ENDED_UNKNOWN' && last.reconciliations.length === 0;
+  return !!last && (last.state === 'ENDED_UNKNOWN' || last.processes != null) && last.reconciliations.length === 0;
 }
+/** A última tentativa terminou com um desfecho, mas os processos dela ainda não foram confirmados ausentes pela máquina. */
+export function processesPending(x: RemoteExecution | null): boolean {
+  const last = x?.attempts[x.attempts.length - 1];
+  return !!last && last.state !== 'ENDED_UNKNOWN' && last.processes != null;
+}
+/**
+ * Decisões de 16/11 — processos da tentativa. Terminar o processo principal não libera a máquina enquanto houver processo da
+ * automação ativo: o desfecho e o código de saída ficam registrados, e a ocupação, a repetição e a limpeza esperam.
+ */
+export const FINISHING_LABEL = 'Finalizando — processos da automação ainda ativos';
+export const PROCESSES_TEXT = {
+  ACTIVE:
+    'Finalizando — processos da automação ainda ativos: o processo principal desta tentativa terminou, mas a máquina informou que ainda há processos da automação em execução nela. Ela continua ocupada até eles terminarem.',
+  UNCERTAIN:
+    'Ocupação incerta: a máquina informou que não consegue confirmar se restou algum processo desta tentativa em execução nela. Ela continua indisponível até confirmar; o tempo, um novo contato e a declaração de reconciliação não a liberam.',
+} as const;
+export const RETRY_BLOCKED_PROCESSES_TEXT =
+  'Executar novamente está bloqueado: o processo principal da última tentativa terminou, mas ainda não há confirmação de que os demais processos da automação terminaram naquele computador. A liberação vem quando a própria máquina confirmar, ou por declaração de quem administra a organização depois de verificar a máquina. Esperar não libera.';
 export const RETRY_BLOCKED_TEXT =
   'Executar novamente está bloqueado: a última tentativa terminou com resultado não confirmado, e ainda não há confirmação de que a automação parou naquele computador. A liberação vem quando a própria máquina confirmar, ou por declaração de quem administra a organização depois de verificar a máquina. Revogar a máquina ou esperar não libera.';
 export const RECONCILE = {
@@ -176,7 +194,8 @@ export const MISSING: Record<RemoteMissing, string> = {
   MACHINE_INCOMPATIBLE: 'O aplicativo desta máquina não executa solicitações da Platform.',
   MACHINE_BUSY: 'Esta máquina já tem uma execução remota em andamento.',
   MACHINE_UNCONFIRMED:
-    'Há uma execução desta máquina com resultado não confirmado, e ela ainda não confirmou que o processo parou: a ocupação é incerta.',
+    'Ocupação incerta: há uma execução desta máquina cujos processos ela ainda não confirmou que terminaram.',
+  MACHINE_FINISHING: 'Finalizando — processos da automação ainda ativos nesta máquina.',
   PYTHON_NOT_SELECTED: 'Ainda não foi escolhido o Python desta automação nesta máquina.',
   PYTHON_NOT_IN_INVENTORY: 'O Python escolhido para esta automação não está mais entre os que esta máquina informou.',
 };
@@ -223,9 +242,12 @@ export const REQUEST_REFUSAL: Record<string, string> = {
   remote_machine_incompatible: MISSING.MACHINE_INCOMPATIBLE,
   remote_machine_busy: MISSING.MACHINE_BUSY,
   remote_machine_unconfirmed: MISSING.MACHINE_UNCONFIRMED,
+  remote_machine_finishing: MISSING.MACHINE_FINISHING,
+  remote_previous_processes_pending:
+    'O processo principal da tentativa anterior terminou, mas os processos da automação ainda não foram confirmados como encerrados: executar novamente está bloqueado.',
   remote_previous_result_unconfirmed:
     'A tentativa anterior terminou com resultado não confirmado e ainda não foi reconciliada: executar novamente está bloqueado.',
-  remote_attempt_not_unconfirmed: 'Só uma tentativa com resultado não confirmado pode ser reconciliada.',
+  remote_attempt_not_unconfirmed: 'Só uma tentativa com resultado não confirmado, ou com processos ainda não confirmados como encerrados, pode ser reconciliada.',
   remote_attempt_already_reconciled: 'Esta tentativa já tem uma declaração de reconciliação.',
   remote_python_not_selected: MISSING.PYTHON_NOT_SELECTED,
   remote_python_not_in_inventory: 'Esse Python não está mais entre os que a máquina informou. Atualize a lista e escolha outro.',
@@ -354,6 +376,7 @@ export function RemoteExecutions({
     if (m === 'MACHINE_PAUSED') return 'Os novos trabalhos voltam a ser recebidos no próprio computador, em "Execução remota".';
     if (m === 'MACHINE_UNCONFIRMED')
       return 'Volta a poder receber quando o aplicativo desse computador confirmar que o processo parou. Voltar a se comunicar, sozinho, não basta.';
+    if (m === 'MACHINE_FINISHING') return 'Volta a poder receber quando esses processos terminarem nesse computador.';
     if (m === 'MACHINE_INCOMPATIBLE') return 'É preciso uma versão do Nekkora Agent que execute solicitações da Platform nesse computador.';
     if (m === 'PYTHON_NOT_SELECTED' || m === 'PYTHON_NOT_IN_INVENTORY')
       return canManage ? 'Escolha o Python na coluna "Python desta automação".' : 'Peça a quem gerencia esta automação.';
@@ -476,6 +499,14 @@ export function RemoteExecutions({
           {CLOSURE_TEXT[a.closureCause].notStarted}
         </Text>
       )}
+      {a.processes && (
+        <Text variant="body-sm" color="secondary">
+          {PROCESSES_TEXT[a.processes]}
+          {a.processesAt ? ' Informado em ' : ''}
+          {a.processesAt && <DateTimeText iso={a.processesAt} />}
+          {a.processesAt ? '.' : ''}
+        </Text>
+      )}
       {a.state === 'ENDED_UNKNOWN' && a.machineStillRunningAt && (
         <Text variant="body-sm" color="secondary">
           Em <DateTimeText iso={a.machineStillRunningAt} />, a máquina voltou e informou que ainda executa esta tentativa. Ela continua ocupada até
@@ -485,13 +516,14 @@ export function RemoteExecutions({
       {a.reconciliations.map((r) =>
         r.kind === 'MANUAL' ? (
           <Text key={r.kind} variant="body-sm" color="secondary">
-            Resultado não confirmado — reconciliado manualmente em <DateTimeText iso={r.at} /> por quem administra a organização. Verificado:{' '}
-            {RECONCILIATION_REASON[r.reason ?? ''] ?? r.reason}. {r.verification} O resultado da tentativa não mudou; a declaração liberou uma nova tentativa.
+            {a.state === 'ENDED_UNKNOWN' ? 'Resultado não confirmado — reconciliado manualmente' : 'Processos da tentativa — reconciliado manualmente'} em{' '}
+            <DateTimeText iso={r.at} /> por quem administra a organização. Verificado: {RECONCILIATION_REASON[r.reason ?? ''] ?? r.reason}. {r.verification} O
+            resultado da tentativa não mudou; a declaração liberou uma nova tentativa e não liberou a máquina.
           </Text>
         ) : (
           <Text key={r.kind} variant="body-sm" color="secondary">
-            Em <DateTimeText iso={r.at} />, a própria máquina confirmou que o processo desta tentativa não está mais em execução nela. O resultado continua não
-            confirmado.
+            Em <DateTimeText iso={r.at} />, a própria máquina confirmou que nenhum processo desta tentativa continua em execução nela.
+            {a.state === 'ENDED_UNKNOWN' ? ' O resultado continua não confirmado.' : ''}
           </Text>
         ),
       )}
@@ -550,6 +582,8 @@ export function RemoteExecutions({
             <Stack gap={2}>
               <div className="pw-form__row">
                 <Badge tone={ATTEMPT_STATE[x.state].tone}>{ATTEMPT_STATE[x.state].label}</Badge>
+                {last?.processes === 'ACTIVE' && <Badge tone="warning">Finalizando</Badge>}
+                {last?.processes === 'UNCERTAIN' && <Badge tone="warning">Ocupação incerta</Badge>}
                 <Text variant="body-sm" color="secondary">
                   Solicitada em <DateTimeText iso={x.requestedAt} />
                 </Text>
@@ -560,7 +594,7 @@ export function RemoteExecutions({
               <ul className="pw-plain-list" aria-label="Tentativas">
                 {x.attempts.map(attemptLine)}
               </ul>
-              {done && unreconciled(x) && <Alert tone="warning">{RETRY_BLOCKED_TEXT}</Alert>}
+              {done && unreconciled(x) && <Alert tone="warning">{processesPending(x) ? RETRY_BLOCKED_PROCESSES_TEXT : RETRY_BLOCKED_TEXT}</Alert>}
               {done && unreconciled(x) && !canReconcile && <Text variant="body-sm" color="secondary">{RECONCILE.ADMIN_ONLY}</Text>}
               {(canExecute || canReconcile) && (
                 <div className="pw-form__row">
