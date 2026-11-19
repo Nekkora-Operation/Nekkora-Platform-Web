@@ -168,6 +168,13 @@ describe('desativar e reativar', () => {
     await user().click(confirm);
     expect(await screen.findByText(/Organização "Ativa" desativada\./)).toBeInTheDocument();
     expect(api.sent('POST', '/api/v1/organization-deactivations')[0]).toMatchObject({ body: { organizationId: ORG_A } });
+    // a lista de organizações é relida depois do ato e a confirmação continua na tela. ATENÇÃO: este teste NÃO reproduz o
+    // defeito visto no laboratório (a releitura trocava a página por "Carregando" e a mensagem sumia) - ele passa com e sem a
+    // correção. A prova da correção é o roteiro real (e2e-real/licenciamento-001.spec.ts, etapa A7)
+    await waitFor(() => expect(api.sent('GET', '/api/v1/me/organizations').length).toBeGreaterThanOrEqual(2));
+    await waitFor(() => expect(api.sent('GET', '/api/v1/me/organization-creation').length).toBeGreaterThanOrEqual(2));
+    expect(screen.getByText(/Organização "Ativa" desativada\./)).toBeInTheDocument();
+    expect(screen.queryByText('Carregando organizações…')).toBeNull();
   });
 
   it('reativar com o limite de vazias cheio: a recusa explica e nada muda', async () => {

@@ -1,0 +1,7 @@
+# PLATFORM-LICENCIAMENTO-001 — complemento do laboratório DESCARTÁVEL: a organização interna de onde os operadores de
+# licença agem. Vazia por padrão (as rotas do operador respondem 404). No laboratório, o roteiro integrado grava
+# LAB_LICENCAS_ORGANIZACAO_OPERADORA em segredos.env e recria a Platform com este arquivo. Só vale para ensaio-*.
+services:
+  platform:
+    environment:
+      NEKKORA_LICENCAS_ORGANIZACAO_OPERADORA: ${LAB_LICENCAS_ORGANIZACAO_OPERADORA:-}

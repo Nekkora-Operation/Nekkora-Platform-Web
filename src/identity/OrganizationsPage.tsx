@@ -40,7 +40,9 @@ export function OrganizationsPage() {
 
   const load = useCallback(async () => {
     const gen = ++generation.current;
-    setState({ kind: 'loading' });
+    // recarga com a lista já na tela (depois de desativar ou reativar): a lista fica onde está até a nova chegar, para a
+    // confirmação do ato não sumir junto com a página
+    setState((s) => (s.kind === 'ready' ? s : { kind: 'loading' }));
     try {
       const data = await myOrganizations();
       if (gen === generation.current) setState({ kind: 'ready', data });
