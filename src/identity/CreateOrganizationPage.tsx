@@ -35,8 +35,8 @@ function refusalText(e: unknown): string {
   if (isApiError(e, 'invalid_request')) return 'O nome não foi aceito. Confira os campos. Nada foi criado.';
   if (e instanceof ApiError && e.status === 404) return 'A criação de organizações não está disponível no momento. Nada foi criado.';
   if (isApiError(e, 'service_unavailable')) return 'Serviço temporariamente indisponível. Nada foi criado; tente de novo em instantes.';
-  // 403 é recusa genérica do contrato: teto de organizações, identidade inelegível ou confirmação vencida
-  return 'A criação não foi permitida. Você pode ter atingido o limite de organizações criadas ou a confirmação pode ter vencido. Nada foi criado.';
+  // 403 é recusa genérica do contrato: identidade inelegível ou confirmação vencida
+  return 'A criação não foi permitida. A confirmação pode ter vencido, ou a situação da sua conta mudou. Nada foi criado.';
 }
 
 /**

@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "95084c8c11ebfe498b7a74cb1ca34878e30545ee60faffda64cd5ff097db62f0",
+  "openapiSha256": "24ca08bc06390efae224dc348bcc632e6964bf2905675331a76d93b75d3e65ad",
   "schemas": {
     "Error": {
       "type": "object",
@@ -86,7 +86,6 @@
             "organization_creation_client_profile",
             "organization_creation_requires_request",
             "empty_organization_limit_reached",
-            "organization_limit_reached",
             "organization_request_not_available",
             "organization_request_not_pending",
             "organization_request_own",
@@ -2679,7 +2678,6 @@
         "canCreate",
         "cannotCreateReason",
         "canRequest",
-        "organizationsCreated",
         "emptyOrganizations",
         "pendingRequests",
         "responsibleFor"
@@ -2705,9 +2703,6 @@
         },
         "canRequest": {
           "type": "boolean"
-        },
-        "organizationsCreated": {
-          "$ref": "#/components/schemas/UsedOfLimit"
         },
         "emptyOrganizations": {
           "type": "object",

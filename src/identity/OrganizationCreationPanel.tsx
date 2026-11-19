@@ -34,10 +34,6 @@ export const CANNOT_CREATE: Record<string, { title: string; body: string }> = {
     title: 'Você atingiu o limite de organizações vazias.',
     body: 'Cada pessoa pode ser responsável por até três organizações ativas sem nenhuma automação. Crie uma automação em uma delas ou desative uma organização vazia para criar outra.',
   },
-  organization_limit_reached: {
-    title: 'Você atingiu o número máximo de organizações criadas.',
-    body: 'Não é possível criar outra organização com esta conta.',
-  },
 };
 
 export const DEACTIVATE_TEXT = {

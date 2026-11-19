@@ -72,7 +72,6 @@ const REFUSAL: Record<string, string> = {
   organization_name_taken: 'A pessoa indicada já tem uma organização com esse nome.',
   empty_organization_limit_reached:
     'A pessoa indicada já está no limite de organizações vazias. Ela pode usar ou desativar uma delas; ou a Nekkora ultrapassa o limite por exceção, marcando a opção e justificando.',
-  organization_limit_reached: 'A pessoa indicada atingiu o número máximo de organizações criadas. Esse teto não é ultrapassado por aqui.',
   license_preview_changed: 'O conjunto de automações mudou desde a prévia. A prévia foi refeita: confira de novo antes de ligar.',
   license_model_unchanged: 'A organização já está nesse modelo.',
   license_not_assigned: 'A licença não está vinculada a nenhuma automação.',

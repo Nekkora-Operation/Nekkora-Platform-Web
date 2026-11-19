@@ -6,7 +6,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { Authenticator } from '../mock/totp';
 // @ts-expect-error módulo .mjs da ferramenta do laboratório (sem tipos)
 import { compose } from '../tools/lab/lab.mjs';
-import { confirmStepUp, LAB, newVersionWithPackage, signInWithTotp, type Person } from './support/lab';
+import { confirmStepUp, LAB, newVersionWithPackage, signInWithTotp, signUpAndEnroll, type Person } from './support/lab';
 
 /**
  * PLATFORM-LICENCIAMENTO-001 — ROTEIRO DO AGENT ANTERIOR, numa CÓPIA ISOLADA do pacote gerado da branch da missão, com pasta
@@ -14,7 +14,10 @@ import { confirmStepUp, LAB, newVersionWithPackage, signInWithTotp, type Person 
  * pessoal: as contas são as duas pessoas sintéticas do roteiro da máquina.
  *
  * O que é exercitado: a RECUSA VISÍVEL do registro por licença (na execução, na janela principal e em "Envios parados"), a
- * PRESERVAÇÃO dos dados depois de fechar e reabrir o aplicativo, e o botão "Tentar registrar de novo" — sem duplicar registros.
+ * PRESERVAÇÃO dos dados depois de fechar e reabrir o aplicativo, e a diferença entre três casos:
+ *   - entrega tardia de execução que JÁ ESTAVA AUTORIZADA (começou com a licença vigente, sem conexão): registrada, base 2;
+ *   - execução que começou SEM licença: recusada, e continua recusada depois de a licença ser renovada (sem retroatividade);
+ *   - execução NOVA depois da renovação: registrada, base 1.
  *
  * COMO O APLICATIVO É CONDUZIDO: a cópia abre a JANELA REAL; um condutor, dentro do mesmo processo, aciona os botões reais
  * (doClick) e os mesmos métodos que a janela chama, e lê os textos da tela. Nenhuma tecla global, nenhum Robot, nenhuma
@@ -34,6 +37,7 @@ const PYTHON = resolve(process.cwd(), '../../client-preparacao-002/lab/projeto-r
 const RAPIDO = resolve(process.cwd(), '../exe/robo-licenca-rapido.zip');
 const EVID = resolve(`tools/lab/saidas/${LAB}/evidencias-licenciamento-001-agent-anterior`);
 const PESSOAS = join(homedir(), '.nekkora', 'front-lab', LAB, 'pessoas-roteiro-maquina.json');
+const SEG = join(homedir(), '.nekkora', 'front-lab', LAB, 'segredos.env');
 const TAG = Date.now().toString(36);
 const WORKER = 'Worker da oficina';
 const MAQUINA = 'PC sintetico da oficina';
@@ -123,6 +127,20 @@ async function enter(page: Page, name: string): Promise<string> {
   await settle(page);
   return /\/o\/([0-9a-f-]{36})/.exec(page.url())![1];
 }
+async function createOrganization(page: Page, person: Person, name: string) {
+  await go(page, '/organizacoes/nova');
+  await page.getByLabel(/^Nome da organização/).fill(name);
+  await page.getByRole('button', { name: 'Continuar' }).click();
+  await confirmStepUp(page, person, 'Criar organização');
+  await settle(page);
+  await expect(page).toHaveURL(/\/organizacoes$/);
+  await expect(page.getByRole('button', { name: `Entrar em ${name}` })).toBeVisible();
+}
+async function waitPlatform(page: Page) {
+  await expect
+    .poll(async () => (await page.request.get('/api/v1/csrf').catch(() => null))?.status() ?? 0, { timeout: 180_000, intervals: [2_000] })
+    .toBe(200);
+}
 async function openTarget(page: Page, orgN: string, target: string) {
   await go(page, `/o/${orgN}/operador-de-licencas`);
   await page.getByLabel('Identificador da organização').fill(target);
@@ -136,7 +154,6 @@ test.use({ actionTimeout: 20_000, navigationTimeout: 45_000 });
 test('PLATFORM-LICENCIAMENTO-001 com o Agent anterior em cópia isolada: recusa visível, dados preservados e tentar registrar de novo', async ({ browser }) => {
   test.setTimeout(2_400_000);
   expect(DIR.replace(/\\/g, '/'), 'só a cópia isolada desta missão').toMatch(/licenciamento-001\/exe-agent\/copia$/);
-  expect(existsSync(PESSOAS), 'rode antes o roteiro da máquina: ele cadastra as pessoas sintéticas deste laboratório').toBe(true);
   rmSync(EVID, { recursive: true, force: true });
   // pasta de dados e saída da CÓPIA isolada: a configuração (endereço do laboratório) fica; o resto começa vazio
   const config = readFileSync(resolve(DIR, 'dados/config/agent-config.json'), 'utf8');
@@ -149,13 +166,37 @@ test('PLATFORM-LICENCIAMENTO-001 com o Agent anterior em cópia isolada: recusa 
   log('pacote_do_agent', readFileSync(resolve(DIR, 'app/VERSOES.txt'), 'utf8').split('\n').slice(0, 3).join(' | '));
   log('isolamento', { pasta_de_dados: 'exe-agent/copia/dados (propria desta copia)', bandeja: 'desligada', agent_instalado: 'nao usado', perfil_pessoal: 'nao usado' });
 
-  const g = JSON.parse(readFileSync(PESSOAS, 'utf8')) as { nara: Record<string, string>; ana: Record<string, string>; orgN: string };
-  const reviver = (x: Record<string, string>): Person => ({ email: x.email, password: x.password, name: x.name, auth: new Authenticator(x.secret), recoveryCodes: [] });
-  const nara = reviver(g.nara);
-  const ana = reviver(g.ana);
-  const orgN = g.orgN;
   const anaPage = await (await browser.newContext()).newPage();
   const naraPage = await (await browser.newContext()).newPage();
+  const reviver = (x: Record<string, string>): Person => ({ email: x.email, password: x.password, name: x.name, auth: new Authenticator(x.secret), recoveryCodes: [] });
+  const guardar = (x: Person) => ({ email: x.email, password: x.password, name: x.name, secret: (x.auth as unknown as { secret: string }).secret });
+  let nara: Person;
+  let ana: Person;
+  let orgN: string;
+  // laboratório novo (sem o roteiro da máquina): as duas pessoas sintéticas se cadastram aqui, pelo mesmo caminho daquele roteiro,
+  // e ficam guardadas no mesmo arquivo. A operadora cria a organização interna; a cliente cria a dela (não é uma conta Cliente)
+  const novas = !existsSync(PESSOAS);
+  if (novas) {
+    nara = await signUpAndEnroll(naraPage, 'licm-op');
+    const operatorOrgName = `Nekkora Suporte ${TAG}`;
+    await createOrganization(naraPage, nara, operatorOrgName);
+    orgN = await enter(naraPage, operatorOrgName);
+    const naraUser = sql(`SELECT user_id FROM users WHERE organization_id = '${orgN}' AND email = '${nara.email}'`);
+    sql(`INSERT INTO license_operators (operator_user_id, organization_id, registered_by) VALUES ('${naraUser}', '${orgN}', 'roteiro do Agent anterior PLATFORM-LICENCIAMENTO-001')`);
+    const env = readFileSync(SEG, 'utf8');
+    writeFileSync(SEG, `${env.replace(/^LAB_LICENCAS_ORGANIZACAO_OPERADORA=.*\n/m, '')}LAB_LICENCAS_ORGANIZACAO_OPERADORA=${orgN}\n`);
+    compose(LAB, ['up', '-d', '--no-deps', '--wait', 'platform'], { stdio: ['ignore', 'ignore', 'inherit'] }, ['compose.licencas.yml']);
+    await waitPlatform(naraPage);
+    ana = await signUpAndEnroll(anaPage, 'licm-a');
+    await createOrganization(anaPage, ana, `Base ${TAG}`);
+    writeFileSync(PESSOAS, JSON.stringify({ nara: guardar(nara), ana: guardar(ana), orgN }));
+    log('pessoas', 'cadastradas nesta passada (laboratorio novo)');
+  } else {
+    const g = JSON.parse(readFileSync(PESSOAS, 'utf8')) as { nara: Record<string, string>; ana: Record<string, string>; orgN: string };
+    nara = reviver(g.nara);
+    ana = reviver(g.ana);
+    orgN = g.orgN;
+  }
 
   try {
     // ================================================================ 0. a cópia isolada abre, sem vínculo
@@ -164,7 +205,7 @@ test('PLATFORM-LICENCIAMENTO-001 com o Agent anterior em cópia isolada: recusa 
     log('0_aplicativo', { vinculo: l.vinculo, janela: 'real, conduzida por dentro do processo' });
 
     // ================================================================ 1. organização nova no modelo por licença (pela tela do operador)
-    await signInWithTotp(naraPage, nara);
+    if (!novas) await signInWithTotp(naraPage, nara);
     await go(naraPage, '/organizacoes');
     await naraPage.getByRole('button', { name: /^Entrar em Nekkora Suporte/ }).first().click();
     await expect(naraPage).toHaveURL(new RegExp(`/o/${orgN}$`));
@@ -179,7 +220,7 @@ test('PLATFORM-LICENCIAMENTO-001 com o Agent anterior em cópia isolada: recusa 
     await confirmStepUp(naraPage, nara, 'Criar a organização');
     await settle(naraPage);
     await expect(naraPage.getByText(/Organização criada\./)).toBeVisible();
-    await signInWithTotp(anaPage, ana);
+    if (!novas) await signInWithTotp(anaPage, ana);
     const oficina = await enter(anaPage, oficinaName);
     await openTarget(naraPage, orgN, oficina);
     await naraPage.getByRole('button', { name: 'Conceder licenças' }).click();
@@ -263,14 +304,37 @@ test('PLATFORM-LICENCIAMENTO-001 com o Agent anterior em cópia isolada: recusa 
     await comando('autorizacoes');
     log('2_preparo', { organizacao: 'modelo por licenca, criada por excecao para a cliente', automacao: AUTOMACAO, licenca: 'nº 1 vinculada', maquina: 'pareada pelo dialogo real do aplicativo', autorizacao: 'da versao para o Worker, vigente' });
 
-    // ================================================================ 3. a licença VENCE (passagem do tempo); a execução acontece DEPOIS
-    sql(`SET session_replication_role = replica; UPDATE organization_license_periods SET ends_at = clock_timestamp() WHERE license_id = '${license}'`);
     const runs = () => sql(`SELECT count(*) FROM agent_runs WHERE organization_id = '${oficina}'`);
+    const basis = (e: string) => sql(`SELECT coalesce(license_basis::text, '-') FROM agent_runs WHERE organization_id = '${oficina}' AND agent_execution_id = '${e}'`);
     expect(runs()).toBe('0');
     writeFileSync(resolve(DIR, 'saida/executar.txt'), [RAPIDO, PYTHON, resolve(DIR, 'saida/resultado')].join('\n'));
+
+    // ================================================================ 2b. ENTREGA TARDIA de execução que JÁ ESTAVA AUTORIZADA
+    // A execução começa COM a licença vigente, mas o canal das máquinas está fora do ar: nada chega à Platform. A licença vence.
+    // O canal volta: o Agent entrega sozinho, e a Platform registra — a execução estava coberta quando começou (base 2).
+    compose(LAB, ['stop', 'agent-gateway'], { stdio: ['ignore', 'ignore', 'inherit'] }, ['compose.licencas.yml']);
+    l = await comando('executar');
+    const autorizada = String(l.ultimaExecucao);
+    expect(l.estadoLocal, 'executou neste computador, sem conexão com a Platform').toBe('SUCCEEDED');
+    expect(String(l.enviosParados), 'sem conexão não é recusa: o envio fica pendente, não parado').not.toContain(autorizada);
+    expect(runs()).toBe('0');
+    const semConexao = { envio: l.envioNaTela, estado_do_envio: l.envioEstado };
+    // ---- a licença VENCE (passagem do tempo) com a execução ainda não entregue
+    sql(`SET session_replication_role = replica; UPDATE organization_license_periods SET ends_at = clock_timestamp() WHERE license_id = '${license}'`);
+    compose(LAB, ['up', '-d', '--no-deps', '--wait', 'agent-gateway'], { stdio: ['ignore', 'ignore', 'inherit'] }, ['compose.licencas.yml']);
+    await expect
+      .poll(async () => { await comando('estado'); return runs(); }, { timeout: 300_000, intervals: [10_000] })
+      .toBe('1');
+    expect(basis(autorizada), 'coberta no início, entregue depois do vencimento').toBe('2');
+    l = await comando('estado');
+    expect(String(l.enviosParados)).not.toContain(autorizada);
+    log('2b_entrega_tardia_de_execucao_autorizada', { execucao: autorizada, sem_conexao: semConexao, depois_do_vencimento: 'registrada pela Platform sem ação da pessoa', base_da_licenca: basis(autorizada) });
+
+    // ================================================================ 3. com a licença VENCIDA, outra execução acontece: recusa visível
     l = await comando('executar');
     guardarJanelas('A3');
     const execucao = String(l.ultimaExecucao);
+    expect(execucao).not.toBe(autorizada);
     expect(l.estadoLocal, 'a automação EXECUTOU neste computador').toBe('SUCCEEDED');
     expect(l.codigoDeSaida).toBe(0);
     // RECUSA VISÍVEL: na execução, com o motivo; não como "envio parado" genérico, e sem descartar nada
@@ -280,7 +344,8 @@ test('PLATFORM-LICENCIAMENTO-001 com o Agent anterior em cópia isolada: recusa 
     expect(String(l.janelaPrincipal)).toContain('Execução não registrada na Platform');
     expect(String(l.telaDaExecucao)).toContain('Executou neste computador · não registrada na Platform');
     expect(l.arquivoDeEntregaNoDisco).toBe(true);
-    expect(runs(), 'a Platform não registrou').toBe('0');
+    expect(runs(), 'a Platform não registrou esta').toBe('1');
+    expect(basis(execucao)).toBe('');
     log('3_recusa_visivel', {
       simulado: l.simulado,
       registro_escolhido_no_campo_real: l.registroEscolhido,
@@ -288,7 +353,7 @@ test('PLATFORM-LICENCIAMENTO-001 com o Agent anterior em cópia isolada: recusa 
       na_tela_da_execucao: l.envioNaTela,
       codigo: String(l.enviosParados).split('=')[1],
       janela_principal: String(l.janelaPrincipal).match(/Execução não registrada na Platform[^|]*\|[^|]*/)?.[0] ?? '',
-      na_platform: 'nenhuma sessao registrada',
+      na_platform: 'esta execucao nao foi registrada',
     });
 
     // "Envios parados": as duas coisas ditas em linhas separadas, o aviso de que nada foi apagado e o botão
@@ -309,7 +374,7 @@ test('PLATFORM-LICENCIAMENTO-001 com o Agent anterior em cópia isolada: recusa 
     if (process.env.ACEITE_PARAR_NA_RECUSA === '1') {
       await fechar();
       writeFileSync(resolve(process.cwd(), '../aceite/estado-do-aceite.txt'), [`organizacao=${oficinaName}`, `id_da_organizacao=${oficina}`, `automacao=${AUTOMACAO}`, `execucao=${execucao}`, 'licenca=nº 1 (vencida por passagem do tempo no laboratorio)', ''].join(String.fromCharCode(10)));
-      log('aceite_manual', 'copia fechada no estado de recusa; a licenca continua vencida; nada foi registrado na Platform');
+      log('aceite_manual', 'copia fechada no estado de recusa; a licenca continua vencida; a execucao recusada nao foi registrada na Platform');
       return;
     }
 
@@ -329,10 +394,13 @@ test('PLATFORM-LICENCIAMENTO-001 com o Agent anterior em cópia isolada: recusa 
     expect(l.botaoTentarDeNovo).toBe(true);
     l = await comando('tentar');
     expect(String(l.enviosParados), 'sem cobertura, o envio para de novo').toMatch(new RegExp(`${execucao}=AGT-PLT-03[567]`));
-    expect(runs()).toBe('0');
-    log('5_tentar_de_novo_ainda_sem_licenca', { envio: l.envioNaTela, na_platform: 'nenhuma sessao registrada' });
+    expect(runs()).toBe('1');
+    expect(basis(execucao)).toBe('');
+    log('5_tentar_de_novo_ainda_sem_licenca', { envio: l.envioNaTela, na_platform: 'a execucao recusada continua sem registro' });
 
-    // ================================================================ 6. a operadora RENOVA (o período continua do fim do anterior: cobre o início da execução)
+    // ================================================================ 6. a operadora RENOVA HOJE. O período novo continua do fim do anterior:
+    // pelas DATAS não há intervalo, e o instante em que a execução recusada começou fica dentro dele. Mesmo assim a renovação
+    // foi concedida DEPOIS daquele início: não autoriza retroativamente o que rodou sem licença
     await openTarget(naraPage, orgN, oficina);
     await naraPage.getByRole('button', { name: 'Renovar a licença nº 1' }).click();
     const renew = naraPage.getByRole('alertdialog');
@@ -341,26 +409,37 @@ test('PLATFORM-LICENCIAMENTO-001 com o Agent anterior em cópia isolada: recusa 
     await confirmStepUp(naraPage, nara, 'Renovar');
     await settle(naraPage);
     await expect(naraPage.getByText('Licença renovada. O vínculo com a automação não muda.')).toBeVisible();
+    const periodos = sql(`SELECT string_agg('periodo ' || period_number || ': de ' || to_char(starts_at, 'HH24:MI:SS') || ' ate ' || to_char(ends_at, 'DD/MM HH24:MI:SS') || ', concedido as ' || to_char(created_at, 'HH24:MI:SS'), ' ; ' ORDER BY period_number) FROM organization_license_periods WHERE license_id = '${license}'`);
+    expect(sql(`SELECT count(*) FROM organization_license_periods a JOIN organization_license_periods b ON b.license_id = a.license_id AND b.period_number = 2 WHERE a.license_id = '${license}' AND a.period_number = 1 AND b.starts_at = a.ends_at`), 'renovação contígua: sem intervalo nas datas').toBe('1');
 
-    // ================================================================ 7. TENTAR DE NOVO: registrada UMA vez, e os eventos seguem
+    // ================================================================ 7. TENTAR DE NOVO depois da renovação: continua recusada, nada registrado
     l = await comando('envios');
-    l = await comando('tentar');
-    expect(String(l.enviosParados), 'o envio deixou de estar parado').toBe('');
-    expect(['PENDING', 'DELIVERED']).toContain(l.envioEstado);
-    await expect.poll(() => runs(), { timeout: 60_000 }).toBe('1');
-    // o botão de envios parados some; mais consultas não criam outro registro
-    const depois = await comando('envios');
-    expect(depois.botaoEnviosParados, 'não há mais envio parado: o botão de tentar não existe mais').toBe(false);
-    await comando('estado');
-    await new Promise((r) => setTimeout(r, 8_000));
-    l = await comando('estado');
+    expect(String(l.dialogo)).toContain('renovar a licença depois vale para as próximas execuções, não para esta');
     guardarJanelas('A7');
-    expect(runs(), 'uma sessão, sem duplicar').toBe('1');
-    const registrada = sql(`SELECT 'execucao=' || agent_execution_id || ' estado=' || supervisor_state || ' base_da_licenca=' || coalesce(license_basis::text, '-') || ' eventos=' || events_stored FROM agent_runs WHERE organization_id = '${oficina}'`);
-    expect(registrada).toContain(execucao);
+    l = await comando('tentar');
+    expect(String(l.enviosParados), 'renovar hoje não autoriza o que começou sem licença').toMatch(new RegExp(`${execucao}=AGT-PLT-03[567]`));
+    expect(runs()).toBe('1');
+    expect(basis(execucao), 'a execução recusada continua sem registro').toBe('');
+    expect(l.arquivoDeEntregaNoDisco, 'e continua guardada neste computador').toBe(true);
+    await comando('fechar');
+    log('7_tentar_de_novo_depois_da_renovacao', { periodos, envio: l.envioNaTela, envios_parados: l.enviosParados, na_platform: 'a execucao que comecou sem licenca continua sem registro' });
+
+    // ================================================================ 8. trabalho NOVO depois da renovação: registrado, com a licença vigente (base 1)
+    l = await comando('executar');
+    const nova = String(l.ultimaExecucao);
+    expect(l.estadoLocal).toBe('SUCCEEDED');
+    await expect
+      .poll(async () => { await comando('estado'); return runs(); }, { timeout: 120_000, intervals: [5_000] })
+      .toBe('2');
+    expect(basis(nova)).toBe('1');
+    l = await comando('estado');
+    guardarJanelas('A8');
+    expect(String(l.enviosParados), 'a nova não fica parada').not.toContain(nova);
+    expect(String(l.enviosParados), 'a recusada continua parada, à vista').toContain(execucao);
+    const registradas = sql(`SELECT string_agg('execucao=' || agent_execution_id || ' base_da_licenca=' || coalesce(license_basis::text, '-') || ' eventos=' || events_stored, ' ; ' ORDER BY created_at) FROM agent_runs WHERE organization_id = '${oficina}'`);
     await go(anaPage, `/o/${oficina}/execucoes`);
-    await shot(anaPage, 'A7-execucoes-na-platform');
-    log('7_tentar_de_novo_depois_da_renovacao', { envio: l.envioNaTela, estado_do_envio: l.envioEstado, eventos_confirmados: l.eventosConfirmados, na_platform: registrada, sessoes: runs() });
+    await shot(anaPage, 'A8-execucoes-na-platform');
+    log('8_execucao_nova_depois_da_renovacao', { execucao: nova, base_da_licenca: basis(nova), na_platform: registradas, sessoes: runs() });
 
     await fechar();
     log('limites_de_frequencia', `nenhum limite de frequencia foi zerado. "Tentar novamente" (da Web) usado ${retried} vez(es)`);

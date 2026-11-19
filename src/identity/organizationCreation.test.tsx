@@ -28,7 +28,6 @@ const creation = (over: Record<string, unknown> = {}) => ({
   canCreate: true,
   cannotCreateReason: null,
   canRequest: false,
-  organizationsCreated: { used: 1, limit: 10 },
   emptyOrganizations: { used: 0, limit: 3, organizationIds: [] },
   pendingRequests: { used: 0, limit: 3 },
   responsibleFor: [],
