@@ -304,6 +304,15 @@ test('PLATFORM-LICENCIAMENTO-001 com o Agent anterior em cópia isolada: recusa 
     await comando('fechar');
     log('3_envios_parados', { dialogo: dialogo.slice(0, 700) });
 
+    // PREPARO DO ACEITE MANUAL (ACEITE_PARAR_NA_RECUSA=1): para aqui, com a cópia fechada no estado de recusa e a licença vencida,
+    // para a pessoa abrir o aplicativo, ver a recusa, renovar a licença pela Web e clicar ela mesma em "Tentar registrar de novo"
+    if (process.env.ACEITE_PARAR_NA_RECUSA === '1') {
+      await fechar();
+      writeFileSync(resolve(process.cwd(), '../aceite/estado-do-aceite.txt'), [`organizacao=${oficinaName}`, `id_da_organizacao=${oficina}`, `automacao=${AUTOMACAO}`, `execucao=${execucao}`, 'licenca=nº 1 (vencida por passagem do tempo no laboratorio)', ''].join(String.fromCharCode(10)));
+      log('aceite_manual', 'copia fechada no estado de recusa; a licenca continua vencida; nada foi registrado na Platform');
+      return;
+    }
+
     // ================================================================ 4. FECHAR e REABRIR: os dados continuam lá
     await fechar();
     l = await aberto();
