@@ -454,7 +454,7 @@ export function LicenseOperatorPage() {
       >
         <Stack gap={3}>
           <Text>A renovação acrescenta um período de validade. A licença continua vinculada à mesma automação.</Text>
-          <Input label="Início do novo período" type="date" fullWidth value={v('startsAt')} onChange={set('startsAt')} hint="Opcional. Em branco, continua do fim do período atual (ou começa agora, se já venceu)." />
+          <Input label="Início do novo período" type="date" fullWidth value={v('startsAt')} onChange={set('startsAt')} hint="Opcional. Em branco, o novo período começa no fim do último, sem intervalo." />
           <Input label="Fim do novo período" type="date" fullWidth value={v('endsAt')} onChange={set('endsAt')} />
           {justificationField}
         </Stack>

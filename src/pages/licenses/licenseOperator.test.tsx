@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { csrfStore } from '../../api/csrf';
+import { forgetLicenseOperatorForTest } from '../../api/licenseOperations';
 import { createOperationRegistry, setOperationRegistryForTest } from '../../api/pendingOps';
 import { sessionMemory } from '../../app/notices';
 import { activationLabel, LICENSED_MODEL_TEXT } from '../../identity/labels';
@@ -76,6 +77,7 @@ beforeEach(() => {
   sessionMemory.reset();
   vi.unstubAllGlobals();
   localStorage.clear();
+  forgetLicenseOperatorForTest();
   const locks = fakeLocks();
   setOperationRegistryForTest(createOperationRegistry({ storage: () => localStorage, locks: () => locks, now: () => Date.now() }));
   api = new RouteApi().install();

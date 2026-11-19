@@ -369,7 +369,8 @@ export function RemoteExecutions({
       current = false;
     };
   }, [choosing, org, workspaceId]);
-  const requestKey = useMemo(() => (requesting ? crypto.randomUUID() : ''), [requesting]);
+  // uma chave por diálogo aberto (solicitar, ou autorizar e solicitar): repetir pelo mesmo diálogo devolve a mesma solicitação
+  const requestKey = useMemo(() => (requesting || accepting ? crypto.randomUUID() : ''), [requesting, accepting]);
 
   const poll = usePolling<Data>(
     async () => {
@@ -421,6 +422,9 @@ export function RemoteExecutions({
     if (m === 'MACHINE_INCOMPATIBLE') return 'É preciso uma versão do Nekkora Agent que execute solicitações da Platform nesse computador.';
     if (m === 'PYTHON_NOT_SELECTED' || m === 'PYTHON_NOT_IN_INVENTORY')
       return canManage ? 'Escolha o Python na coluna "Python desta automação".' : 'Peça a quem gerencia esta automação.';
+    // licença não é pendência da máquina: quem resolve é a administração da organização (vínculo) ou o suporte (renovação)
+    if (m === 'LICENSE_REQUIRED') return 'Não há ação nesta máquina: quem administra a organização vincula uma licença a esta automação.';
+    if (m === 'LICENSE_EXPIRED') return 'Não há ação nesta máquina: a renovação da licença é feita pelo suporte da Nekkora.';
     return 'Aguarde a execução em andamento nessa máquina terminar.';
   };
 

@@ -25,14 +25,26 @@ async function send<T>(org: string, operationId: OperationId, path: string, opti
   return validated<T>(operationId, data, status);
 }
 
-/** A sessão é de um operador de licenças? Qualquer recusa (404 fora da organização interna, 403 sem cadastro) = não. */
+const knownOperator = new Set<string>();
+
+/**
+ * A sessão é de um operador de licenças? Qualquer recusa (404 fora da organização interna, 403 sem cadastro) = não. Só o
+ * "sim" é lembrado, em memória, enquanto a página está aberta. Não decide acesso: a API confere cada ato.
+ */
 export async function isLicenseOperator(org: string): Promise<boolean> {
+  if (knownOperator.has(org)) return true;
   try {
     const r = await send<{ operator: boolean }>(org, 'getLicenseOperatorStatus', '');
+    if (r.operator === true) knownOperator.add(org);
     return r.operator === true;
   } catch {
     return false;
   }
+}
+
+/** Só para os testes: esquece o que foi lembrado. */
+export function forgetLicenseOperatorForTest() {
+  knownOperator.clear();
 }
 
 export function getOperatorOrganization(org: string, target: string): Promise<OperatorOrganization> {

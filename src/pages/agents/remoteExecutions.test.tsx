@@ -344,10 +344,22 @@ describe('Versão: execução remota (T02)', () => {
     await waitFor(() => expect(confirm).toBeEnabled());
     fireEvent.click(confirm);
     expect(await screen.findByText(/Versão autorizada para este Worker e solicitação registrada/)).toBeInTheDocument();
-    const body = api.sent('POST', LIST)[0].body as { authorizeVersion: boolean; authorizationValidUntil: string; agentId: string };
+    const body = api.sent('POST', LIST)[0].body as { authorizeVersion: boolean; authorizationValidUntil: string; agentId: string; requestKey: string };
+    // defeito visto no laboratório: a chave ia vazia neste diálogo e a API recusava o pedido (400)
+    expect(body.requestKey).toMatch(/^[0-9a-f-]{36}$/);
     expect(body.authorizeVersion).toBe(true);
     expect(body.agentId).toBe(AG1);
     expect(body.authorizationValidUntil.slice(0, 10)).toBe(new Date(`${until}T23:59:59`).toISOString().slice(0, 10));
+  });
+
+  it('licença vencida ou ausente: a linha da máquina diz que não é pendência dela, sem mandar "aguardar a execução"', async () => {
+    candidates = [candidate({ requestable: false, missing: ['LICENSE_EXPIRED'] })];
+    await open();
+    const s = await waitFor(section);
+    expect(await within(s).findByText(MISSING.LICENSE_EXPIRED)).toBeInTheDocument();
+    expect(within(s).getByText('Não há ação nesta máquina: a renovação da licença é feita pelo suporte da Nekkora.')).toBeInTheDocument();
+    expect(within(s).queryByText(/Aguarde a execução em andamento/)).toBeNull();
+    expect(within(s).queryByRole('button', { name: /Solicitar execução|Autorizar esta versão/ })).toBeNull();
   });
 
   it('S2: com outra pendência além da autorização, o atalho não é oferecido', async () => {
