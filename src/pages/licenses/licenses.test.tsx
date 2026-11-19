@@ -58,7 +58,7 @@ const summary = (over: Record<string, unknown> = {}) => ({
 const capacity = (over: Record<string, unknown> = {}) => ({
   model: 'licensed',
   workers: { used: 3, limit: 50 },
-  concurrentExecutions: { used: 5, limit: 5, breakdown: { remote: 3, unconfirmed: 1, platform: 0, previousAgent: 1 } },
+  concurrentExecutions: { used: 5, limit: 5, active: 3, reservedUncertain: 2, breakdown: { remote: 2, unconfirmed: 1, platform: 0, previousAgent: 1, previousAgentUnconfirmed: 1 } },
   pendingExecutions: { used: 2, limit: 50 },
   asOf: T,
   ...over,
@@ -131,7 +131,10 @@ describe('Licenças e capacidade', () => {
     const usage = within(cap).getByRole('group', { name: 'Capacidade técnica' });
     expect(usage.textContent).toMatch(/Workers cadastrados3 de 50/);
     expect(usage.textContent).toMatch(/Execuções simultâneas5 de 5/);
-    expect(usage.textContent).toMatch(/3 pelo Agent Client · 1 pelo Agent anterior · 1 com término não confirmado pela máquina/);
+    // execuções ATIVAS e RESERVAS por situação incerta aparecem separadas
+    expect(usage.textContent).toMatch(/Em execução: 3 \(2 pelo Agent Client · 1 pelo Agent anterior\)/);
+    expect(usage.textContent).toMatch(/Reservadas por situação incerta: 2 \(1 com término não confirmado pela máquina \(Agent Client\) · 1 com resultado desconhecido \(Agent anterior\)\)/);
+    expect(within(cap).getByText(CAPACITY_TEXT.previousAgentUnconfirmed)).toBeInTheDocument();
     expect(within(cap).getByText(CAPACITY_TEXT.concurrentFull)).toBeInTheDocument();
     expect(usage.textContent).toMatch(/Execuções pendentes \(na fila\)2 de 50/);
     expect(within(licenses).queryByText(/Workers cadastrados/)).toBeNull();
@@ -146,7 +149,7 @@ describe('Licenças e capacidade', () => {
       body: capacity({
         model: 'legacy',
         workers: { used: 1, limit: null },
-        concurrentExecutions: { used: 0, limit: null, breakdown: { remote: 0, unconfirmed: 0, platform: 0, previousAgent: 0 } },
+        concurrentExecutions: { used: 0, limit: null, active: 0, reservedUncertain: 0, breakdown: { remote: 0, unconfirmed: 0, platform: 0, previousAgent: 0, previousAgentUnconfirmed: 0 } },
         pendingExecutions: { used: 0, limit: null },
       }),
     });

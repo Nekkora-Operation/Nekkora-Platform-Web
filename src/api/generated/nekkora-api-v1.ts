@@ -1737,7 +1737,7 @@ export interface paths {
         };
         /**
          * Capacidade tecnica da organizacao, separada das licencas (org.manage)
-         * @description Workers cadastrados, vagas de execucao ocupadas e execucoes pendentes, cada uma com o limite TECNICO. Os limites sao iguais para todas as organizacoes do modelo por licenca (iniciais: 50 Workers, 5 simultaneas, 50 pendentes), configuraveis por procedimento administrativo; nao sao contratados e nao tem relacao com a quantidade de licencas. A VAGA de execucao e uma so para a organizacao e e reservada quando o trabalho e autorizado a iniciar: na entrega da tentativa remota a maquina, na entrega do pedido ao Agent anterior e na reserva da execucao da Platform. Sem vaga, o trabalho NAO e recusado: continua pendente ate haver vaga ou vencer o proprio prazo. concurrentExecutions.breakdown diz de que a ocupacao e feita (a soma e used): remote (tentativa remota entregue ate em execucao), unconfirmed (tentativa remota com ocupacao incerta: terminou sem confirmacao ou com processo possivelmente vivo, ate a maquina confirmar ou um administrador declarar a reconciliacao), platform (execucao da Platform) e previousAgent (pedido entregue ou aceito e sessao em andamento do Agent anterior). A sessao que o Agent anterior inicia na propria maquina nao pode ser segurada: ocupa vaga ao ser registrada, e used pode passar de limit. pendingExecutions: na fila, ainda nao entregues, no prazo; fila cheia responde 409 capacity_pending_limit_reached a solicitacao nova. O cadastro de Worker no limite responde 409 worker_limit_reached. Nenhum limite daqui consome nem libera licenca. Na organizacao do modelo anterior, limit vem nulo: a capacidade dela continua sendo a da ativacao.
+         * @description Workers cadastrados, vagas de execucao ocupadas e execucoes pendentes, cada uma com o limite TECNICO. Os limites sao iguais para todas as organizacoes do modelo por licenca (iniciais: 50 Workers, 5 simultaneas, 50 pendentes), configuraveis por procedimento administrativo; nao sao contratados e nao tem relacao com a quantidade de licencas. A VAGA de execucao e uma so para a organizacao e e reservada quando o trabalho e autorizado a iniciar: na entrega da tentativa remota a maquina, na entrega do pedido ao Agent anterior e na reserva da execucao da Platform. Sem vaga, o trabalho NAO e recusado: continua pendente ate haver vaga ou vencer o proprio prazo. concurrentExecutions.breakdown diz de que a ocupacao e feita (a soma e used): remote (tentativa remota entregue ate em execucao), unconfirmed (tentativa remota com ocupacao incerta: terminou sem confirmacao ou com processo possivelmente vivo, ate a maquina confirmar ou um administrador declarar a reconciliacao), platform (execucao da Platform) e previousAgent (pedido entregue ou aceito e sessao em andamento do Agent anterior) e previousAgentUnconfirmed (068: sessao do Agent anterior em RESULTADO DESCONHECIDO, que nao comprova que a execucao deixou de ocupar a maquina; reserva uma vaga ate a reconciliacao pelo suporte). active soma as execucoes ativas (remote, platform, previousAgent); reservedUncertain, as reservas por situacao incerta (unconfirmed, previousAgentUnconfirmed). A sessao que o Agent anterior inicia na propria maquina nao pode ser segurada: ocupa vaga ao ser registrada, e used pode passar de limit. pendingExecutions: na fila, ainda nao entregues, no prazo; fila cheia responde 409 capacity_pending_limit_reached a solicitacao nova. O cadastro de Worker no limite responde 409 worker_limit_reached. Nenhum limite daqui consome nem libera licenca. Na organizacao do modelo anterior, limit vem nulo: a capacidade dela continua sendo a da ativacao.
          */
         get: operations["getOrganizationCapacity"];
         put?: never;
@@ -1839,7 +1839,7 @@ export interface paths {
         put?: never;
         /**
          * Criacao excepcional de organizacao, com a pessoa responsavel indicada pelo operador
-         * @description O operador indica EXPLICITAMENTE a pessoa responsavel pelo e-mail verificado dela (responsibleEmail). Ela recebe a administracao da nova organizacao e passa a ser a responsavel (limite de vazias, desativar e reativar). O operador NAO recebe conta, papel nem acesso. Responsavel, operador, organizacao do operador e justificativa ficam gravados. A excecao dispensa o perfil (um membro pode ser indicado) e os limites de criacao e de vazias; a organizacao criada conta nos limites do responsavel dali em diante. Recusas 409: organization_responsible_not_found (nao ha identidade ativa com esse e-mail verificado), organization_responsible_is_client (so tem conta do tipo Cliente), organization_name_taken. Exige confirmacao reforcada.
+         * @description O operador indica EXPLICITAMENTE a pessoa responsavel pelo e-mail verificado dela (responsibleEmail). Ela recebe a administracao da nova organizacao e passa a ser a responsavel (limite de vazias, desativar e reativar). O operador NAO recebe conta, papel nem acesso. Responsavel, operador, organizacao do operador e justificativa ficam gravados. A excecao dispensa o perfil (um membro pode ser indicado). Ela NAO dispensa os limites: o limite de organizacoes vazias do responsavel vale por padrao (409 empty_organization_limit_reached). A Nekkora o ultrapassa so por excecao EXPLICITA: exceedEmptyLimit true com limitJustification propria, que ficam gravadas. O teto de organizacoes criadas nao e ultrapassavel (409 organization_limit_reached). Outras recusas 409: organization_responsible_not_found (nao ha identidade ativa com esse e-mail verificado), organization_responsible_is_client (so tem conta do tipo Cliente: nao e indicado nem por excecao), organization_name_taken. Exige confirmacao reforcada.
          */
         post: operations["createOrganizationByOperator"];
         delete?: never;
@@ -1877,7 +1877,7 @@ export interface paths {
         };
         /**
          * Sessoes do Agent anterior sem desfecho confiavel, que ainda seguram a transferencia ou uma vaga
-         * @description Sessoes da organizacao alvo em RESULTADO DESCONHECIDO (OUTCOME_UNKNOWN) ou sem encerramento (READY, STARTING, RUNNING), ainda nao reconciliadas depois da ultima noticia da maquina. So identificador, automacao, estado e instantes: nada do conteudo da execucao. holdsSlot: a sessao ocupa uma vaga de execucao (as sem encerramento). reconcilable: o ato e aceito agora (resultado desconhecido; ou sem encerramento e sem noticia ha pelo menos uma hora). Ate 200, da mais antiga.
+         * @description Sessoes da organizacao alvo em RESULTADO DESCONHECIDO (OUTCOME_UNKNOWN) ou sem encerramento (READY, STARTING, RUNNING) que ainda seguram a transferencia e uma vaga de execucao. So identificador, automacao, estado e instantes: nada do conteudo da execucao. previouslyReconciledAt: ja houve declaracao do suporte e a maquina informou execucao ATIVA depois dela (por isso a sessao voltou a contar). Ate 200, da mais antiga.
          */
         get: operations["listUnresolvedPreviousAgentSessions"];
         put?: never;
@@ -1899,7 +1899,7 @@ export interface paths {
         put?: never;
         /**
          * Reconciliacao, pelo suporte, de uma sessao do Agent anterior sem desfecho confiavel
-         * @description Registra o operador, a justificativa e a VERIFICACAO REALIZADA. NAO altera a sessao: o resultado desconhecido continua desconhecido, nenhum desfecho e gravado e nada declara a maquina livre. O efeito e a sessao deixar de segurar a transferencia de licenca e a vaga de execucao. Se a maquina informar algo sobre a sessao DEPOIS, a reconciliacao deixa de valer para ela. O tempo decorrido, sozinho, nunca libera a vaga. Recusas 409: previous_agent_session_has_outcome, previous_agent_session_already_reconciled, previous_agent_session_recently_reported (sem encerramento e com noticia ha menos de uma hora). Sessao de outra organizacao: 404. Exige confirmacao reforcada.
+         * @description Registra o operador, a justificativa e a VERIFICACAO REALIZADA. NAO altera a sessao: o resultado desconhecido continua desconhecido, nenhum desfecho e gravado e nada declara a maquina livre. O efeito e a sessao deixar de segurar a transferencia de licenca e a vaga de execucao. Nao ha espera obrigatoria: o que autoriza o ato e a verificacao registrada (o processo terminou, ou a maquina esta fora de operacao); tempo sem contato, sozinho, nao basta e nunca libera a vaga. A declaracao fica no historico. Um relato posterior da maquina e tratado pelo conteudo: um desfecho resolve a duvida; um relato de execucao AINDA ATIVA faz a sessao voltar a segurar; outro relato nao desfaz a declaracao. Recusas 409: previous_agent_session_has_outcome, previous_agent_session_already_reconciled. Sessao de outra organizacao: 404. Exige confirmacao reforcada.
          */
         post: operations["reconcilePreviousAgentSession"];
         delete?: never;
@@ -2979,7 +2979,7 @@ export interface components {
              * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached, draft_exists, draft_changed, local_run_authorization_exists, organization_name_taken; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
              * @enum {string}
              */
-            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "license_already_assigned" | "automation_already_licensed" | "license_not_valid" | "license_automation_archived" | "license_ended" | "license_period_overlaps" | "license_period_already_ended" | "license_model_unchanged" | "license_preview_changed" | "license_required" | "license_expired" | "run_not_covered" | "capacity_pending_limit_reached" | "license_not_assigned" | "license_transfer_same_automation" | "license_transfer_work_in_progress" | "organization_responsible_not_found" | "organization_responsible_is_client" | "previous_agent_session_has_outcome" | "previous_agent_session_already_reconciled" | "previous_agent_session_recently_reported" | "license_transfer_requester_not_admin" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_machine_unconfirmed" | "remote_machine_finishing" | "remote_previous_processes_pending" | "remote_previous_result_unconfirmed" | "remote_attempt_not_unconfirmed" | "remote_attempt_already_reconciled" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_package_not_supported" | "remote_package_not_registered" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_dependency_check_too_soon" | "remote_dependency_check_closed" | "remote_result_unavailable" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken" | "organization_creation_client_profile" | "organization_creation_requires_request" | "empty_organization_limit_reached" | "organization_limit_reached" | "organization_request_not_available" | "organization_request_not_pending" | "organization_request_own" | "organization_request_approver_without_identity" | "organization_request_responsible_not_eligible" | "organization_not_responsible" | "organization_work_in_progress" | "organization_blocked_by_nekkora" | "organization_state_conflict";
+            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "license_already_assigned" | "automation_already_licensed" | "license_not_valid" | "license_automation_archived" | "license_ended" | "license_period_overlaps" | "license_period_already_ended" | "license_model_unchanged" | "license_preview_changed" | "license_required" | "license_expired" | "run_not_covered" | "capacity_pending_limit_reached" | "license_not_assigned" | "license_transfer_same_automation" | "license_transfer_work_in_progress" | "organization_responsible_not_found" | "organization_responsible_is_client" | "previous_agent_session_has_outcome" | "previous_agent_session_already_reconciled" | "license_transfer_requester_not_admin" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_machine_unconfirmed" | "remote_machine_finishing" | "remote_previous_processes_pending" | "remote_previous_result_unconfirmed" | "remote_attempt_not_unconfirmed" | "remote_attempt_already_reconciled" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_package_not_supported" | "remote_package_not_registered" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_dependency_check_too_soon" | "remote_dependency_check_closed" | "remote_result_unavailable" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken" | "organization_creation_client_profile" | "organization_creation_requires_request" | "empty_organization_limit_reached" | "organization_limit_reached" | "organization_request_not_available" | "organization_request_not_pending" | "organization_request_own" | "organization_request_approver_without_identity" | "organization_request_responsible_not_eligible" | "organization_not_responsible" | "organization_work_in_progress" | "organization_blocked_by_nekkora" | "organization_state_conflict";
         };
         /**
          * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
@@ -8390,6 +8390,16 @@ export interface operations {
                         model: "legacy" | "licensed";
                         workers: components["schemas"]["CapacityUsage"];
                         concurrentExecutions: components["schemas"]["CapacityUsage"] & {
+                            /**
+                             * Format: int64
+                             * @description execucoes ativas: remote + platform + previousAgent
+                             */
+                            active: number;
+                            /**
+                             * Format: int64
+                             * @description reservas por situacao incerta: unconfirmed + previousAgentUnconfirmed
+                             */
+                            reservedUncertain: number;
                             breakdown: {
                                 /** Format: int64 */
                                 remote: number;
@@ -8399,6 +8409,8 @@ export interface operations {
                                 platform: number;
                                 /** Format: int64 */
                                 previousAgent: number;
+                                /** Format: int64 */
+                                previousAgentUnconfirmed: number;
                             };
                         };
                         pendingExecutions: components["schemas"]["CapacityUsage"];
@@ -8555,6 +8567,10 @@ export interface operations {
                     name: string;
                     legalName: string;
                     justification: string;
+                    /** @description excecao explicita: ultrapassar o limite de organizacoes vazias do responsavel */
+                    exceedEmptyLimit?: boolean;
+                    /** @description obrigatoria com exceedEmptyLimit */
+                    limitJustification?: string;
                 };
             };
         };
@@ -8568,6 +8584,8 @@ export interface operations {
                     "application/json": {
                         /** Format: uuid */
                         organizationId: string;
+                        /** @description a criacao ultrapassou o limite de vazias do responsavel, pela excecao explicita */
+                        emptyLimitExceeded: boolean;
                     };
                 };
             };
@@ -8664,8 +8682,8 @@ export interface operations {
                             registeredAt: string;
                             /** Format: date-time */
                             lastReportAt: string;
-                            reconcilable: boolean;
-                            holdsSlot: boolean;
+                            /** Format: date-time */
+                            previouslyReconciledAt: string | null;
                         }[];
                     };
                 };

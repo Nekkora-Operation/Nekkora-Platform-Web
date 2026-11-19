@@ -66,8 +66,7 @@ const session = (over: Record<string, unknown> = {}) => ({
   state: 'OUTCOME_UNKNOWN',
   registeredAt: T,
   lastReportAt: T,
-  reconcilable: true,
-  holdsSlot: false,
+  previouslyReconciledAt: null,
   ...over,
 });
 
@@ -111,7 +110,7 @@ beforeEach(() => {
   api.on('GET', `${ops}/organizations/${TARGET}/enforcement-preview`, 'previewLicenseEnforcement', { status: 200, body: preview() });
   api.on('GET', `${ops}/organizations/${TARGET}/previous-agent-sessions`, 'listUnresolvedPreviousAgentSessions', {
     status: 200,
-    body: { items: [session(), session({ sessionId: S2, automationName: 'Folha', automationId: AUT2, state: 'RUNNING', holdsSlot: true, reconcilable: false })] },
+    body: { items: [session(), session({ sessionId: S2, automationName: 'Folha', automationId: AUT2, state: 'RUNNING', previouslyReconciledAt: T })] },
   });
 });
 
@@ -148,10 +147,11 @@ describe('Operador de licenças', () => {
     expect(screen.queryByRole('button', { name: 'Transferir a licença nº 2' })).toBeNull();
     const sessions = screen.getByRole('region', { name: 'Lista de sessões sem desfecho' });
     expect(within(sessions).getByText(SESSION_STATE.OUTCOME_UNKNOWN)).toBeInTheDocument();
-    expect(within(sessions).getByText('transferência e uma vaga de execução')).toBeInTheDocument();
-    // sessão com notícia recente não oferece o ato
-    expect(within(sessions).getByText('Notícia há menos de uma hora: aguarde.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Reconciliar a sessão de Folha' })).toBeNull();
+    // toda sessão sem desfecho segura a transferência e reserva vaga; não há espera obrigatória para reconciliar
+    expect(within(sessions).getAllByText('transferência e uma vaga de execução')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: 'Reconciliar a sessão de Folha' })).toBeInTheDocument();
+    // a que já tinha declaração e voltou porque a máquina informou execução ativa: a tela diz
+    expect(within(sessions).getByText(/depois disso a máquina informou execução ativa\./)).toBeInTheDocument();
   });
 
   it('reconciliar: explica que a sessão não muda e exige justificativa, verificação e a confirmação de que foi conferido', async () => {
@@ -219,7 +219,7 @@ describe('Operador de licenças', () => {
   });
 
   it('criação excepcional: o responsável é indicado; a tela diz que o operador não recebe acesso', async () => {
-    api.on('POST', `${ops}/organizations`, 'createOrganizationByOperator', { status: 201, body: { organizationId: TARGET } });
+    api.on('POST', `${ops}/organizations`, 'createOrganizationByOperator', { status: 201, body: { organizationId: TARGET, emptyLimitExceeded: false } });
     renderApp(`/o/${ORG}/operador-de-licencas`);
     fireEvent.click(await screen.findByRole('button', { name: 'Criar organização por exceção' }));
     const dialog = await screen.findByRole('alertdialog');
@@ -235,6 +235,46 @@ describe('Operador de licenças', () => {
     expect(await screen.findByText(/A pessoa indicada a administra; você não tem acesso a ela\./)).toBeInTheDocument();
     expect(api.sent('POST', `${ops}/organizations`)[0]).toMatchObject({
       body: { responsibleEmail: 'bruno@cliente.test', name: 'Filial Norte', legalName: 'Filial Norte Ltda', justification: 'contrato novo da matriz' },
+    });
+    // sem marcar a exceção, o pedido não a leva
+    expect((api.sent('POST', `${ops}/organizations`)[0].body as { exceedEmptyLimit?: boolean }).exceedEmptyLimit).toBeUndefined();
+  });
+
+  it('criação excepcional no limite de vazias: recusada por padrão; ultrapassar exige marcar a exceção e justificá-la', async () => {
+    let calls = 0;
+    api.on('POST', `${ops}/organizations`, 'createOrganizationByOperator', () =>
+      ++calls === 1
+        ? { status: 409, body: { error: 'conflict', reason: 'empty_organization_limit_reached' } }
+        : { status: 201, body: { organizationId: TARGET, emptyLimitExceeded: true } },
+    );
+    renderApp(`/o/${ORG}/operador-de-licencas`);
+    fireEvent.click(await screen.findByRole('button', { name: 'Criar organização por exceção' }));
+    let dialog = await screen.findByRole('alertdialog');
+    const fill = (d: HTMLElement) => {
+      fireEvent.change(within(d).getByLabelText('E-mail da pessoa responsável'), { target: { value: 'bruno@cliente.test' } });
+      fireEvent.change(within(d).getByLabelText('Nome da organização'), { target: { value: 'Filial Norte' } });
+      fireEvent.change(within(d).getByLabelText('Razão social'), { target: { value: 'Filial Norte Ltda' } });
+      fireEvent.change(within(d).getByLabelText('Justificativa'), { target: { value: 'contrato novo da matriz' } });
+    };
+    fill(dialog);
+    let confirm = within(dialog).getByRole('button', { name: 'Criar a organização' });
+    await waitFor(() => expect(confirm).toBeEnabled());
+    fireEvent.click(confirm);
+    expect(await within(dialog).findByText(/já está no limite de organizações vazias.*marcando a opção e justificando\. Nada foi alterado\./)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Criar organização por exceção' }));
+    dialog = await screen.findByRole('alertdialog');
+    fill(dialog);
+    confirm = within(dialog).getByRole('button', { name: 'Criar a organização' });
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: OPERATOR_TEXT.exceed }));
+    // marcada a exceção, sem a justificativa própria não envia
+    await waitFor(() => expect(confirm).toBeDisabled());
+    fireEvent.change(within(dialog).getByLabelText('Justificativa da exceção ao limite'), { target: { value: 'diretoria autorizou a quarta vazia' } });
+    await waitFor(() => expect(confirm).toBeEnabled());
+    fireEvent.click(confirm);
+    expect(await screen.findByText(/O limite de organizações vazias dela foi ultrapassado por exceção, registrada com a sua justificativa\./)).toBeInTheDocument();
+    expect(api.sent('POST', `${ops}/organizations`)[1]).toMatchObject({
+      body: { exceedEmptyLimit: true, limitJustification: 'diretoria autorizou a quarta vazia' },
     });
   });
 });

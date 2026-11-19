@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "dcd9be0f8848d35d4aef2bf1df1d84322e89f83d1e4b08063ba1e5bccbe298a8",
+  "openapiSha256": "95084c8c11ebfe498b7a74cb1ca34878e30545ee60faffda64cd5ff097db62f0",
   "schemas": {
     "Error": {
       "type": "object",
@@ -50,7 +50,6 @@
             "organization_responsible_is_client",
             "previous_agent_session_has_outcome",
             "previous_agent_session_already_reconciled",
-            "previous_agent_session_recently_reported",
             "license_transfer_requester_not_admin",
             "remote_execution_unavailable",
             "runtime_requirements_unresolved",
@@ -10878,16 +10877,29 @@
                   {
                     "type": "object",
                     "required": [
-                      "breakdown"
+                      "breakdown",
+                      "active",
+                      "reservedUncertain"
                     ],
                     "properties": {
+                      "active": {
+                        "type": "integer",
+                        "format": "int64",
+                        "minimum": 0
+                      },
+                      "reservedUncertain": {
+                        "type": "integer",
+                        "format": "int64",
+                        "minimum": 0
+                      },
                       "breakdown": {
                         "type": "object",
                         "required": [
                           "remote",
                           "unconfirmed",
                           "platform",
-                          "previousAgent"
+                          "previousAgent",
+                          "previousAgentUnconfirmed"
                         ],
                         "properties": {
                           "remote": {
@@ -10906,6 +10918,11 @@
                             "minimum": 0
                           },
                           "previousAgent": {
+                            "type": "integer",
+                            "format": "int64",
+                            "minimum": 0
+                          },
+                          "previousAgentUnconfirmed": {
                             "type": "integer",
                             "format": "int64",
                             "minimum": 0
@@ -11127,12 +11144,16 @@
             "type": "object",
             "additionalProperties": false,
             "required": [
-              "organizationId"
+              "organizationId",
+              "emptyLimitExceeded"
             ],
             "properties": {
               "organizationId": {
                 "type": "string",
                 "format": "uuid"
+              },
+              "emptyLimitExceeded": {
+                "type": "boolean"
               }
             }
           }
@@ -11332,8 +11353,7 @@
                     "state",
                     "registeredAt",
                     "lastReportAt",
-                    "reconcilable",
-                    "holdsSlot"
+                    "previouslyReconciledAt"
                   ],
                   "properties": {
                     "sessionId": {
@@ -11364,11 +11384,12 @@
                       "type": "string",
                       "format": "date-time"
                     },
-                    "reconcilable": {
-                      "type": "boolean"
-                    },
-                    "holdsSlot": {
-                      "type": "boolean"
+                    "previouslyReconciledAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
                     }
                   }
                 }

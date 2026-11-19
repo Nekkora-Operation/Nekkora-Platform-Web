@@ -39,17 +39,18 @@ export const OPERATOR_TEXT = {
     'Área do suporte da Nekkora. Cada ato pede a sua confirmação reforçada e uma justificativa, e fica registrado com o seu nome. Você não ganha acesso aos dados da organização do cliente: vê só o necessário para o ato.',
   target: 'O identificador é o que aparece no endereço da organização do cliente, depois de "/o/". Peça ao administrador no chamado.',
   create:
-    'Você indica a pessoa responsável pelo e-mail verificado dela. Ela recebe a administração da nova organização e passa a ser a responsável. Você não recebe conta nem acesso. A exceção dispensa o perfil e os limites de criação; quem só tem conta de Cliente não pode ser indicado.',
+    'Você indica a pessoa responsável pelo e-mail verificado dela. Ela recebe a administração da nova organização e passa a ser a responsável. Você não recebe conta nem acesso. Um membro pode ser indicado; quem só tem conta de Cliente, não. O limite de organizações vazias da pessoa continua valendo.',
+  exceed: 'Ultrapassar o limite de organizações vazias desta pessoa. É uma exceção da Nekkora: fica registrada com a justificativa abaixo.',
   enforceOn:
     'Ligar a exigência faz executar e monitorar pela Platform depender de licença nesta organização. As automações abaixo estão em uso e ficariam sem trabalho novo. Autorizações já entregues continuam valendo sem conexão até a validade: uma máquina desconectada não é bloqueada de imediato.',
   enforceOff: 'Desligar a exigência devolve a organização à ativação e aos limites anteriores. Licenças, vínculos e histórico ficam como estão.',
   transfer:
     'A transferência é feita a pedido de um administrador da organização, recebido pelo atendimento. Você atesta o pedido: o solicitante, o chamado e como a identidade foi verificada ficam gravados. É recusada enquanto puder existir trabalho na automação de origem.',
   reconcile:
-    'A reconciliação registra o que você verificou. Ela não altera a sessão: o estado continua o que a máquina informou, nenhum desfecho é gravado e nada declara a máquina livre. O efeito é a sessão deixar de segurar a transferência de licença e a vaga de execução. Se a máquina informar algo depois, a sessão volta a contar.',
-  reconcileAck: 'Verifiquei, fora do sistema, que não há execução desta sessão em andamento.',
+    'A reconciliação registra o que você verificou: que o processo terminou, ou que a máquina está fora de operação. Tempo sem contato, sozinho, não basta. Ela não altera a sessão: o estado continua o que a máquina informou, nenhum desfecho é gravado e nada declara a máquina livre. O efeito é a sessão deixar de segurar a transferência de licença e a vaga de execução. A declaração fica no histórico; se a máquina informar depois que a execução ainda está ativa, a sessão volta a contar.',
+  reconcileAck: 'Verifiquei, fora do sistema, que o processo terminou ou que a máquina está fora de operação.',
   sessions:
-    'Sessões do Agent anterior sem desfecho confiável. As de resultado desconhecido seguram a transferência de licença da automação; as sem encerramento seguram também uma vaga de execução. O tempo decorrido não libera nada: só a reconciliação.',
+    'Sessões do Agent anterior sem desfecho confiável: resultado desconhecido, ou sem encerramento. Cada uma segura a transferência de licença da automação e reserva uma vaga de execução da organização. O tempo decorrido não libera nada: só a reconciliação, ou o desfecho informado pela máquina.',
 } as const;
 
 export const SESSION_STATE: Record<PreviousAgentSession['state'], string> = {
@@ -69,6 +70,9 @@ const REFUSAL: Record<string, string> = {
   organization_responsible_not_found: 'Não há conta Nekkora ativa com esse e-mail verificado. A pessoa precisa se cadastrar e confirmar o e-mail antes.',
   organization_responsible_is_client: 'A pessoa indicada só tem conta do tipo Cliente e não pode ser responsável por uma organização.',
   organization_name_taken: 'A pessoa indicada já tem uma organização com esse nome.',
+  empty_organization_limit_reached:
+    'A pessoa indicada já está no limite de organizações vazias. Ela pode usar ou desativar uma delas; ou a Nekkora ultrapassa o limite por exceção, marcando a opção e justificando.',
+  organization_limit_reached: 'A pessoa indicada atingiu o número máximo de organizações criadas. Esse teto não é ultrapassado por aqui.',
   license_preview_changed: 'O conjunto de automações mudou desde a prévia. A prévia foi refeita: confira de novo antes de ligar.',
   license_model_unchanged: 'A organização já está nesse modelo.',
   license_not_assigned: 'A licença não está vinculada a nenhuma automação.',
@@ -84,7 +88,6 @@ const REFUSAL: Record<string, string> = {
   license_period_already_ended: 'O período informado já terminou.',
   previous_agent_session_has_outcome: 'A máquina já informou o desfecho desta sessão. Não há o que reconciliar.',
   previous_agent_session_already_reconciled: 'Esta sessão já foi reconciliada.',
-  previous_agent_session_recently_reported: 'A máquina informou sobre esta sessão há menos de uma hora: ela pode estar em execução. Aguarde.',
 };
 
 function refusal(e: unknown): string {
@@ -199,20 +202,28 @@ export function LicenseOperatorPage() {
     { key: 'estado', header: 'Estado informado pela máquina', render: (s) => SESSION_STATE[s.state] },
     { key: 'registro', header: 'Registrada em', render: (s) => <DateTimeText iso={s.registeredAt} /> },
     { key: 'noticia', header: 'Última notícia', render: (s) => <DateTimeText iso={s.lastReportAt} /> },
-    { key: 'segura', header: 'Segura', render: (s) => (s.holdsSlot ? 'transferência e uma vaga de execução' : 'transferência') },
+    {
+      key: 'segura',
+      header: 'Segura',
+      render: (s) => (
+        <Stack gap={1}>
+          <span>transferência e uma vaga de execução</span>
+          {s.previouslyReconciledAt && (
+            <Text variant="body-sm" color="secondary">
+              Reconciliada em <DateTimeText iso={s.previouslyReconciledAt} />; depois disso a máquina informou execução ativa.
+            </Text>
+          )}
+        </Stack>
+      ),
+    },
     {
       key: 'acoes',
       header: 'Ações',
-      render: (s) =>
-        s.reconcilable ? (
-          <Button size="sm" variant="secondary" onClick={() => open({ kind: 'reconcile', session: s })} aria-label={`Reconciliar a sessão de ${s.automationName}`}>
-            Reconciliar
-          </Button>
-        ) : (
-          <Text variant="body-sm" color="secondary">
-            Notícia há menos de uma hora: aguarde.
-          </Text>
-        ),
+      render: (s) => (
+        <Button size="sm" variant="secondary" onClick={() => open({ kind: 'reconcile', session: s })} aria-label={`Reconciliar a sessão de ${s.automationName}`}>
+          Reconciliar
+        </Button>
+      ),
     },
   ];
 
@@ -350,17 +361,29 @@ export function LicenseOperatorPage() {
         </>
       )}
 
-      <StepUpDialog<{ organizationId: string }>
+      <StepUpDialog<{ organizationId: string; emptyLimitExceeded: boolean }>
         {...common}
         open={act?.kind === 'create'}
-        ready={justified && /\S+@\S+\.\S+/.test(v('email')) && text(v('name'), 1, 120) && text(v('legalName'), 1, 120)}
+        ready={justified && /\S+@\S+\.\S+/.test(v('email')) && text(v('name'), 1, 120) && text(v('legalName'), 1, 120) && (!ack || text(v('limitJustification'), 10, 1000))}
         title="Criar uma organização por exceção?"
         guard={{ operation: 'license-operator.create-organization', target: `${v('email')}|${v('name')}` }}
         confirmLabel="Criar a organização"
         action={() =>
-          createOrganizationByOperator(org, { responsibleEmail: v('email').trim(), name: v('name').trim(), legalName: v('legalName').trim(), justification })
+          createOrganizationByOperator(org, {
+            responsibleEmail: v('email').trim(),
+            name: v('name').trim(),
+            legalName: v('legalName').trim(),
+            justification,
+            // a exceção ao limite de vazias só vai quando marcada, com a justificativa própria
+            ...(ack ? { exceedEmptyLimit: true, limitJustification: v('limitJustification').trim() } : {}),
+          })
         }
-        onDone={(r) => done(`Organização criada. Identificador: ${r.organizationId}. A pessoa indicada a administra; você não tem acesso a ela.`, false)}
+        onDone={(r) =>
+          done(
+            `Organização criada. Identificador: ${r.organizationId}. A pessoa indicada a administra; você não tem acesso a ela.${r.emptyLimitExceeded ? ' O limite de organizações vazias dela foi ultrapassado por exceção, registrada com a sua justificativa.' : ''}`,
+            false,
+          )
+        }
         uncertainText="Não foi possível confirmar a criação. Antes de repetir, confira com a pessoa indicada se a organização apareceu para ela."
       >
         <Stack gap={3}>
@@ -369,6 +392,16 @@ export function LicenseOperatorPage() {
           <Input label="Nome da organização" fullWidth value={v('name')} onChange={set('name')} />
           <Input label="Razão social" fullWidth value={v('legalName')} onChange={set('legalName')} />
           {justificationField}
+          <Checkbox label={OPERATOR_TEXT.exceed} checked={ack} onChange={(e) => setAck(e.target.checked)} />
+          {ack && (
+            <Textarea
+              label="Justificativa da exceção ao limite"
+              fullWidth
+              value={v('limitJustification')}
+              onChange={set('limitJustification')}
+              hint="Por que esta pessoa pode ter mais uma organização vazia. De 10 a 1000 caracteres."
+            />
+          )}
         </Stack>
       </StepUpDialog>
 

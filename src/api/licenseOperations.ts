@@ -100,7 +100,7 @@ export function reconcileSession(org: string, target: string, sessionId: string,
 /** Criação excepcional: a pessoa responsável é indicada explicitamente pelo e-mail verificado dela. */
 export function createOrganizationByOperator(
   org: string,
-  body: { responsibleEmail: string; name: string; legalName: string; justification: string },
-): Promise<{ organizationId: string }> {
+  body: { responsibleEmail: string; name: string; legalName: string; justification: string; exceedEmptyLimit?: boolean; limitJustification?: string },
+): Promise<{ organizationId: string; emptyLimitExceeded: boolean }> {
   return send(org, 'createOrganizationByOperator', '/organizations', { method: 'POST', body });
 }

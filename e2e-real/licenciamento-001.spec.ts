@@ -29,7 +29,7 @@ import { confirmStepUp, LAB, signUpAndEnroll, waitToken, type Person } from './s
  *
  * A máquina com o Client empacotado está no roteiro irmão, `licenciamento-001-maquina.spec.ts`.
  *
- *   FRONT_LAB_ID=frontlab-lic002 FRONT_PORTA=5191 npx playwright test -c playwright.real.config.ts licenciamento-001.spec
+ *   FRONT_LAB_ID=frontlab-lic003 FRONT_PORTA=5192 npx playwright test -c playwright.real.config.ts licenciamento-001.spec
  */
 const EVID = resolve(`tools/lab/saidas/${LAB}/evidencias-licenciamento-001`);
 const SEG = join(homedir(), '.nekkora', 'front-lab', LAB, 'segredos.env');
@@ -368,29 +368,55 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   expect(sql(`SELECT status FROM organizations WHERE organization_id = '${vazia2Id}'`)).toBe('3');
   log('A8_bloqueio_da_nekkora', { tela: 'Bloqueada pela Nekkora, sem botao', api: `${forced.status} ${forced.body}`, situacao: '3 (inalterada)' });
 
-  // A9. CRIAÇÃO EXCEPCIONAL pela operadora: ela indica a pessoa responsável; a pessoa administra; a operadora não entra
+  // A9. CRIAÇÃO EXCEPCIONAL pela operadora, pela TELA: ela indica a pessoa responsável; a pessoa administra; a operadora não entra.
+  //     O limite de vazias VALE por padrão; ultrapassá-lo é exceção explícita, com justificativa própria.
+  //     A Ana tem duas vazias ativas (Filial Norte e Vazia três; a bloqueada não conta): a primeira criação cabe no limite.
   const excecao = `Excecao ${TAG}`;
-  await go(naraPage, `/o/${orgN}/operador-de-licencas`);
-  await naraPage.getByRole('button', { name: 'Criar organização por exceção' }).click();
-  const exc = naraPage.getByRole('alertdialog');
-  await expect(exc.getByText(/Você não recebe conta nem acesso\./)).toBeVisible();
-  await exc.getByLabel('Nome da organização').fill(excecao);
-  await exc.getByLabel('Razão social').fill(`${excecao} Ltda`);
-  await exc.getByLabel('Justificativa').fill('roteiro integrado: criacao excepcional a pedido do cliente');
-  await expect(exc.getByRole('button', { name: 'Criar a organização' })).toBeDisabled();
-  await exc.getByLabel('E-mail da pessoa responsável').fill(bruno.email);
+  const excecaoAlem = `Excecao alem ${TAG}`;
+  const abrirExcecao = async (nome: string) => {
+    await go(naraPage, `/o/${orgN}/operador-de-licencas`);
+    await naraPage.getByRole('button', { name: 'Criar organização por exceção' }).click();
+    const d = naraPage.getByRole('alertdialog');
+    await expect(d.getByText(/Você não recebe conta nem acesso\..*O limite de organizações vazias da pessoa continua valendo\./)).toBeVisible();
+    await d.getByLabel('Nome da organização').fill(nome);
+    await d.getByLabel('Razão social').fill(`${nome} Ltda`);
+    await d.getByLabel('Justificativa', { exact: true }).fill('roteiro integrado: criacao excepcional a pedido do cliente');
+    await expect(d.getByRole('button', { name: 'Criar a organização' })).toBeDisabled();
+    await d.getByLabel('E-mail da pessoa responsável').fill(ana.email);
+    return d;
+  };
+  let exc = await abrirExcecao(excecao);
   await shot(naraPage, 'A9-criacao-excepcional');
   await confirmStepUp(naraPage, nara, 'Criar a organização');
   await settle(naraPage);
   await expect(naraPage.getByText(/Organização criada\..*A pessoa indicada a administra; você não tem acesso a ela\./)).toBeVisible();
-  await go(brunoPage, '/organizacoes');
-  await expect(brunoPage.getByRole('button', { name: `Entrar em ${excecao}` })).toBeVisible();
+  await expect(naraPage.getByText(/foi ultrapassado por exceção/)).toHaveCount(0);
+  await go(anaPage, '/organizacoes');
+  await expect(anaPage.getByRole('button', { name: `Entrar em ${excecao}` })).toBeVisible();
   await go(naraPage, '/organizacoes');
   await expect(naraPage.getByRole('button', { name: `Entrar em ${excecao}` })).toHaveCount(0);
+  // agora a Ana está no limite (3 vazias): a criação seguinte é RECUSADA, e nada é criado
+  exc = await abrirExcecao(excecaoAlem);
+  await confirmStepUp(naraPage, nara, 'Criar a organização');
+  await expect(exc.getByText(/já está no limite de organizações vazias\..*Nada foi alterado\./)).toBeVisible();
+  await shot(naraPage, 'A9-limite-de-vazias-vale-na-criacao-pela-nekkora');
+  await exc.getByRole('button', { name: 'Cancelar' }).click();
+  expect(sql(`SELECT count(*) FROM organizations WHERE name = '${excecaoAlem}'`), 'nada criado').toBe('0');
+  // a exceção EXPLÍCITA: marcada, exige justificativa própria; fica registrada
+  exc = await abrirExcecao(excecaoAlem);
+  await exc.getByRole('checkbox', { name: /Ultrapassar o limite de organizações vazias desta pessoa/ }).check();
+  await expect(exc.getByRole('button', { name: 'Criar a organização' })).toBeDisabled();
+  await exc.getByLabel('Justificativa da exceção ao limite').fill('roteiro integrado: diretoria autorizou a quarta organizacao vazia');
+  await shot(naraPage, 'A9-excecao-explicita-ao-limite');
+  await confirmStepUp(naraPage, nara, 'Criar a organização');
+  await settle(naraPage);
+  await expect(naraPage.getByText(/O limite de organizações vazias dela foi ultrapassado por exceção, registrada com a sua justificativa\./)).toBeVisible();
   log('A9_criacao_excepcional', {
-    pela_tela: 'operadora indicou o Bruno como responsavel',
-    banco: sql(`SELECT 'responsavel=' || (SELECT email FROM identities i WHERE i.identity_id = x.responsible_identity_id) || ' origem=' || r.source || ' operador_registrado=' || (x.operator_user_id IS NOT NULL) || ' contas_na_nova=' || (SELECT count(*) FROM users u WHERE u.organization_id = x.organization_id) || ' justificativa=' || x.justification FROM organization_exceptional_creations x JOIN organization_responsibility r ON r.organization_id = x.organization_id JOIN organizations o ON o.organization_id = x.organization_id WHERE o.name = '${excecao}'`),
-    operadora: 'sem acesso a organizacao criada',
+    pela_tela: 'operadora indicou a Ana como responsavel',
+    no_limite: 'recusada por padrao; nada criado',
+    excecao_explicita: 'criada com a opcao marcada e justificativa propria',
+    banco: sql(`SELECT string_agg(o.name || ': origem=' || r.source || ' limite_ultrapassado=' || x.empty_limit_exceeded || ' justificativa_do_limite=' || coalesce(x.limit_justification, '-') || ' contas=' || (SELECT count(*) FROM users u WHERE u.organization_id = x.organization_id), ' | ' ORDER BY x.created_at) FROM organization_exceptional_creations x JOIN organization_responsibility r ON r.organization_id = x.organization_id JOIN organizations o ON o.organization_id = x.organization_id WHERE o.name IN ('${excecao}', '${excecaoAlem}')`),
+    operadora: 'sem acesso as organizacoes criadas',
   });
 
   // ================================================================== B. Licenças
@@ -577,6 +603,14 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
     await confirmStepUp(naraPage, nara, 'Transferir');
     return d;
   };
+  // o resultado desconhecido RESERVA uma vaga: a administradora vê a reserva à parte das execuções ativas
+  await go(anaPage, `/o/${matriz}/administracao/licencas`);
+  const capB9 = anaPage.getByRole('group', { name: 'Capacidade técnica' });
+  await expect(capB9).toContainText(/Execuções simultâneas\s*1 de 5/);
+  await expect(capB9).toContainText('Em execução: 0');
+  await expect(capB9).toContainText('Reservadas por situação incerta: 1 (1 com resultado desconhecido (Agent anterior))');
+  await expect(anaPage.getByText('Há execução do Agent anterior com resultado desconhecido reservando vaga.')).toBeVisible();
+  await shot(anaPage, 'B9-reserva-por-resultado-desconhecido');
   await openTarget(naraPage, orgN, matriz);
   const sessions = naraPage.getByRole('region', { name: 'Lista de sessões sem desfecho' });
   await expect(sessions.getByRole('row').filter({ hasText: 'Notas de entrada' })).toContainText('Resultado desconhecido');
@@ -606,6 +640,7 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   await expect(naraPage.getByText('Nenhuma sessão sem desfecho nesta organização.')).toBeVisible();
   const reconciled = sql(`SELECT 'estado_da_sessao=' || r.supervisor_state || ' (9 = resultado desconhecido, inalterado) fim_gravado=' || (r.agent_ended_at IS NOT NULL) || ' operador=' || (c.operator_user_id IS NOT NULL) || ' verificacao=' || c.verification FROM agent_run_reconciliations c JOIN agent_runs r ON r.agent_run_id = c.agent_run_id WHERE c.organization_id = '${matriz}'`);
   expect(reconciled).toContain('estado_da_sessao=9');
+  expect(sql(`SELECT concurrent_previous_agent_uncertain FROM public.capacity_state('${matriz}')`), 'reconciliada: a reserva sai').toBe('0');
   // (d) agora a transferência passa; o ciclo não muda
   t = await transfer(ana.email);
   await settle(naraPage);
@@ -617,7 +652,7 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
     pela_tela: true,
     sem_chamado: 'a tela nao deixa enviar',
     solicitante_nao_administra: 'recusada',
-    resultado_desconhecido: 'segurou a transferencia (fixture declarada)',
+    resultado_desconhecido: 'segurou a transferencia e reservou uma vaga, mostrada a parte (fixture declarada)',
     reconciliacao: reconciled,
     transferida: 'Notas de entrada -> Folha',
     trilha: sql(`SELECT 'chamado=' || (detail->>'ticket') || ' verificacao=' || (detail->>'identityCheck') || ' solicitante=' || (requester_membership_id IS NOT NULL) || ' operador=' || (operator_user_id IS NOT NULL) FROM organization_license_acts WHERE license_id = '${l1}' AND act = 5`),

@@ -32,7 +32,7 @@ import { confirmStepUp, LAB, newVersionWithPackage, signInWithTotp, signUpAndEnr
  * na pasta de segredos do laboratório, fora dos repositórios) em vez de cadastrar outras, e a organização nova da cliente é
  * criada pela operadora, por exceção, com a cliente como responsável.
  *
- *   FRONT_LAB_ID=frontlab-lic002 FRONT_PORTA=5191 npx playwright test -c playwright.real.config.ts licenciamento-001-maquina
+ *   FRONT_LAB_ID=frontlab-lic003 FRONT_PORTA=5192 npx playwright test -c playwright.real.config.ts licenciamento-001-maquina
  */
 const DIR = resolve(process.cwd(), '../exe/maquina');
 const SAIDA = resolve(DIR, 'saida/exe-1.jsonl');
@@ -265,7 +265,7 @@ test('PLATFORM-LICENCIAMENTO-001 com o Client empacotado: licença → execuçã
       await exc.getByLabel('E-mail da pessoa responsável').fill(ana.email);
       await exc.getByLabel('Nome da organização').fill(fabricaName);
       await exc.getByLabel('Razão social').fill(`${fabricaName} Ltda`);
-      await exc.getByLabel('Justificativa').fill('roteiro da maquina: organizacao nova para a passada de laboratorio');
+      await exc.getByLabel('Justificativa', { exact: true }).fill('roteiro da maquina: organizacao nova para a passada de laboratorio');
       await confirmStepUp(naraPage, nara, 'Criar a organização');
       await settle(naraPage);
       await expect(naraPage.getByText(/Organização criada\./)).toBeVisible();
@@ -492,11 +492,14 @@ test('PLATFORM-LICENCIAMENTO-001 com o Client empacotado: licença → execuçã
 
     // ================================================================ 7. AGUARDANDO VAGA: capacidade, não licença
     // PROCEDIMENTO ADMINISTRATIVO: limite técnico de execuções simultâneas = 1 (o padrão é 5; com uma máquina só não há como chegar a 5).
-    // FIXTURE DECLARADA: uma sessão do Agent anterior "em execução", sem notícia há três horas, ocupa a única vaga.
+    // FIXTURE DECLARADA: uma sessão do Agent anterior "em execução", com a última notícia há CINCO MINUTOS, ocupa a única vaga
+    // (não há espera obrigatória para reconciliar: o que autoriza é a verificação registrada).
     sql(`UPDATE technical_capacity_limits SET limit_value = 1, updated_by = 'roteiro da maquina: limite 1 para chegar ao limite com uma maquina' WHERE resource_code = 2`);
-    sql(`SET session_replication_role = replica; INSERT INTO agent_runs (organization_id, workspace_id, automation_id, automation_version_id, authorization_id, agent_id, worker_id, worker_agent_assignment_id, agent_execution_id, package_fingerprint, authorization_state_at_registration, supervisor_state, last_report_at) VALUES ('${fabrica}', '${workspaceId}', '${automation}', '${versaoRapidaId}', gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'ex-' || repeat('7', 32), repeat('a', 64), 1, 3, clock_timestamp() - interval '3 hours')`);
+    sql(`SET session_replication_role = replica; INSERT INTO agent_runs (organization_id, workspace_id, automation_id, automation_version_id, authorization_id, agent_id, worker_id, worker_agent_assignment_id, agent_execution_id, package_fingerprint, authorization_state_at_registration, supervisor_state, last_report_at) VALUES ('${fabrica}', '${workspaceId}', '${automation}', '${versaoRapidaId}', gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'ex-' || repeat('7', 32), repeat('a', 64), 1, 3, clock_timestamp() - interval '5 minutes')`);
     await go(anaPage, `/o/${fabrica}/administracao/licencas`);
     await expect(anaPage.getByRole('group', { name: 'Capacidade técnica' })).toContainText(/Execuções simultâneas\s*1 de 1/);
+    await expect(anaPage.getByRole('group', { name: 'Capacidade técnica' })).toContainText('Em execução: 1 (1 pelo Agent anterior)');
+    await expect(anaPage.getByRole('group', { name: 'Capacidade técnica' })).toContainText('Reservadas por situação incerta: 0');
     await go(anaPage, versaoRapida);
     await maquinaLivre();
     await expect(linha()).toContainText('Pode solicitar', { timeout: 60_000 });
@@ -520,7 +523,7 @@ test('PLATFORM-LICENCIAMENTO-001 com o Client empacotado: licença → execuçã
     await expect(sessoes.getByRole('row').filter({ hasText: AUTOMACAO })).toContainText('transferência e uma vaga de execução');
     await naraPage.getByRole('button', { name: `Reconciliar a sessão de ${AUTOMACAO}` }).click();
     const rec = naraPage.getByRole('alertdialog');
-    await rec.getByLabel('Justificativa').fill('roteiro da maquina: chamado de laboratorio, computador antigo desligado');
+    await rec.getByLabel('Justificativa', { exact: true }).fill('roteiro da maquina: chamado de laboratorio, computador antigo desligado');
     await rec.getByLabel('Verificação realizada').fill('administradora confirmou por escrito que o computador antigo foi desligado e retirado');
     await rec.getByRole('checkbox', { name: /Verifiquei, fora do sistema/ }).check();
     await confirmStepUp(naraPage, nara, 'Registrar a reconciliação');
@@ -531,7 +534,7 @@ test('PLATFORM-LICENCIAMENTO-001 com o Client empacotado: licença → execuçã
     await fechamentos(tentativa);
     log('7_aguardando_vaga', {
       procedimento: 'limite tecnico de simultaneas = 1',
-      fixture: 'sessao do Agent anterior sem encerramento (3 h sem noticia)',
+      fixture: 'sessao do Agent anterior sem encerramento (ultima noticia ha 5 minutos: sem espera obrigatoria)',
       ocupacao_antes: ocupacao,
       na_web: '"Aguardando vaga", dito como capacidade e nao licenca',
       reconciliacao: sql(`SELECT 'estado_da_sessao=' || r.supervisor_state || ' (3 = em execucao, inalterado) verificacao=' || c.verification FROM agent_run_reconciliations c JOIN agent_runs r ON r.agent_run_id = c.agent_run_id WHERE c.organization_id = '${fabrica}'`),

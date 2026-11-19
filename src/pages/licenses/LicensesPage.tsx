@@ -39,6 +39,8 @@ export const CAPACITY_TEXT = {
   concurrentFull: 'No limite, nada é recusado: a execução seguinte fica pendente até uma vaga ser liberada.',
   pendingFull: 'Com a fila cheia, uma solicitação nova é recusada até uma execução pendente começar ou terminar.',
   workersFull: 'No limite, um Worker novo não é cadastrado até outro ser arquivado.',
+  previousAgentUnconfirmed:
+    'O Agent anterior informou que não sabe como essas execuções terminaram. Isso não comprova que deixaram de ocupar a máquina, então a vaga continua reservada. Ela volta quando o suporte da Nekkora registrar a reconciliação, depois de verificar que o processo terminou ou que a máquina está fora de operação. O tempo, sozinho, não libera a vaga.',
 } as const;
 
 const ASSIGN_REFUSAL: Record<string, string> = {
@@ -69,15 +71,30 @@ function Usage({ label, used, limit, note, children }: { label: string; used: nu
   );
 }
 
-/** De que é feita a ocupação das vagas de execução, em palavras. Só as parcelas que existem. */
-export function breakdownText(b: OrganizationCapacity['concurrentExecutions']['breakdown']): string {
-  const parts = [
+type Breakdown = OrganizationCapacity['concurrentExecutions']['breakdown'];
+
+/** Execuções ATIVAS (a máquina ou a Platform informa que estão em andamento), em palavras. Só as parcelas que existem. */
+export function activeText(b: Breakdown): string {
+  return [
     b.remote ? `${b.remote} pelo Agent Client` : '',
     b.previousAgent ? `${b.previousAgent} pelo Agent anterior` : '',
     b.platform ? `${b.platform} pela Platform` : '',
-    b.unconfirmed ? `${b.unconfirmed} com término não confirmado pela máquina` : '',
-  ].filter(Boolean);
-  return parts.join(' · ');
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+/**
+ * RESERVAS POR SITUAÇÃO INCERTA: não há prova de que a execução terminou, então a vaga continua reservada. Não são execuções
+ * confirmadas em andamento, e a tela as mostra à parte.
+ */
+export function reservedText(b: Breakdown): string {
+  return [
+    b.unconfirmed ? `${b.unconfirmed} com término não confirmado pela máquina (Agent Client)` : '',
+    b.previousAgentUnconfirmed ? `${b.previousAgentUnconfirmed} com resultado desconhecido (Agent anterior)` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 /**
@@ -268,17 +285,25 @@ export function LicensesPage() {
             </Card>
             <Card variant="outlined" padding="md">
               <Usage label="Execuções simultâneas" used={c.concurrentExecutions.used} limit={c.concurrentExecutions.limit} note={CAPACITY_TEXT.concurrentFull}>
-                {breakdownText(c.concurrentExecutions.breakdown) && (
-                  <Text variant="body-sm" color="secondary">
-                    {breakdownText(c.concurrentExecutions.breakdown)}
-                  </Text>
-                )}
+                <Text variant="body-sm" color="secondary">
+                  Em execução: {c.concurrentExecutions.active}
+                  {activeText(c.concurrentExecutions.breakdown) && ` (${activeText(c.concurrentExecutions.breakdown)})`}
+                </Text>
+                <Text variant="body-sm" color="secondary">
+                  Reservadas por situação incerta: {c.concurrentExecutions.reservedUncertain}
+                  {reservedText(c.concurrentExecutions.breakdown) && ` (${reservedText(c.concurrentExecutions.breakdown)})`}
+                </Text>
               </Usage>
             </Card>
             <Card variant="outlined" padding="md">
               <Usage label="Execuções pendentes (na fila)" used={c.pendingExecutions.used} limit={c.pendingExecutions.limit} note={CAPACITY_TEXT.pendingFull} />
             </Card>
           </div>
+          {c.concurrentExecutions.breakdown.previousAgentUnconfirmed > 0 && (
+            <Alert tone="warning" title="Há execução do Agent anterior com resultado desconhecido reservando vaga.">
+              {CAPACITY_TEXT.previousAgentUnconfirmed}
+            </Alert>
+          )}
           {c.concurrentExecutions.breakdown.unconfirmed > 0 && (
             <Alert tone="warning" title="Há execução com término não confirmado ocupando vaga.">
               A máquina ainda não confirmou que os processos dessas execuções terminaram. A vaga volta quando a máquina confirmar ou quando quem administra
