@@ -400,11 +400,23 @@ test('PLATFORM-LICENCIAMENTO-001 com o Client empacotado: licença → execuçã
     };
     const conferido = () => sql(`SELECT coalesce((SELECT c.outcome::text FROM remote_dependency_checks c WHERE c.agent_id = '${agente}' ORDER BY c.requested_at DESC LIMIT 1), 'pendente')`);
     let escolhido = -1;
+    let esperasDoIntervalo = 0;
     for (const n of [0, 1]) {
       await escolher(n);
       await reler(anaPage);
-      await linha().getByRole('button', { name: `Verificar as dependências em ${MAQUINA}` }).click();
-      await expect(secao.getByText(/Verificação pedida a/)).toBeVisible({ timeout: 30_000 });
+      // o produto aceita um pedido de verificação por minuto para a mesma máquina e automação: se vier cedo, a tela diz, e o
+      // roteiro ESPERA o intervalo e pede de novo, como a pessoa faria (nenhum limite é zerado)
+      for (let vez = 1; ; vez++) {
+        await linha().getByRole('button', { name: `Verificar as dependências em ${MAQUINA}` }).click();
+        const pedida = secao.getByText(/Verificação pedida a/);
+        const cedo = secao.getByText(/já houve um pedido para esta máquina e esta automação há pouco/);
+        await expect(pedida.or(cedo).first()).toBeVisible({ timeout: 30_000 });
+        if (await pedida.isVisible()) break;
+        if (vez >= 3) throw new Error('a verificação de dependências continuou recusada pelo intervalo mínimo');
+        esperasDoIntervalo++;
+        await anaPage.waitForTimeout(65_000);
+        await reler(anaPage);
+      }
       for (let vez = 1; vez <= 12 && conferido() === 'pendente'; vez++) {
         await comando('consulta');
         await anaPage.waitForTimeout(2_000);
@@ -416,6 +428,7 @@ test('PLATFORM-LICENCIAMENTO-001 com o Client empacotado: licença → execuçã
       }
     }
     expect(escolhido, 'um dos ambientes virtuais tem a dependência do pacote').toBeGreaterThanOrEqual(0);
+    log('4_python_e_dependencias', { ambiente_escolhido: `o ${escolhido + 1}o ambiente virtual informado pela maquina`, esperas_pelo_intervalo_de_um_minuto_entre_verificacoes: esperasDoIntervalo });
     // falta SÓ a autorização da versão: a tela oferece autorizar e solicitar no mesmo passo
     await expect(linha().getByRole('list', { name: `O que falta em ${MAQUINA}` })).toHaveText(/Falta a autorização de execução desta versão para o Worker desta máquina\./);
     await expect(linha().getByRole('button', { name: `Solicitar execução em ${MAQUINA}` })).toHaveCount(0);
@@ -643,7 +656,7 @@ test('PLATFORM-LICENCIAMENTO-001 com o Client empacotado: licença → execuçã
       procedimento: 'limite tecnico de Workers = 1, com um Worker cadastrado',
       na_web: recusaDoLimite,
       nada_criado: true,
-      aplicativo: 'nao participa: a Platform nao envia esse motivo a maquina (o texto do aplicativo para esse caso nao tem rota que o acione hoje)',
+      aplicativo: 'nao participa: a Platform nao envia esse motivo a maquina (o texto que o aplicativo tinha para isso foi retirado)',
     });
     // a máquina é desabilitada no aplicativo, pelo botão da janela
     l = await comando('desabilitar');
