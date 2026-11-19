@@ -1808,6 +1808,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/license-operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A sessao e de um operador de licencas da Nekkora?
+         * @description Para a tela decidir se mostra a area do operador. 200 so para sessao da organizacao interna configurada, com segundo fator, inscrita no cadastro de operadores. Fora da organizacao interna: 404. Sem cadastro: 403. Nao altera nada.
+         */
+        get: operations["getLicenseOperatorStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/license-operations/organizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Criacao excepcional de organizacao, com a pessoa responsavel indicada pelo operador
+         * @description O operador indica EXPLICITAMENTE a pessoa responsavel pelo e-mail verificado dela (responsibleEmail). Ela recebe a administracao da nova organizacao e passa a ser a responsavel (limite de vazias, desativar e reativar). O operador NAO recebe conta, papel nem acesso. Responsavel, operador, organizacao do operador e justificativa ficam gravados. A excecao dispensa o perfil (um membro pode ser indicado) e os limites de criacao e de vazias; a organizacao criada conta nos limites do responsavel dali em diante. Recusas 409: organization_responsible_not_found (nao ha identidade ativa com esse e-mail verificado), organization_responsible_is_client (so tem conta do tipo Cliente), organization_name_taken. Exige confirmacao reforcada.
+         */
+        post: operations["createOrganizationByOperator"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/license-operations/organizations/{target}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A organizacao alvo vista pelo operador: modelo, licencas e automacoes
+         * @description So leitura, para o operador escolher a licenca e a automacao dos atos. status da licenca: VALID (em periodo vigente), NOT_VALID (sem periodo vigente: vencida ou ainda nao iniciada) ou ENDED. Automacoes arquivadas nao aparecem.
+         */
+        get: operations["getLicenseOperatorOrganization"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/license-operations/organizations/{target}/previous-agent-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sessoes do Agent anterior sem desfecho confiavel, que ainda seguram a transferencia ou uma vaga
+         * @description Sessoes da organizacao alvo em RESULTADO DESCONHECIDO (OUTCOME_UNKNOWN) ou sem encerramento (READY, STARTING, RUNNING), ainda nao reconciliadas depois da ultima noticia da maquina. So identificador, automacao, estado e instantes: nada do conteudo da execucao. holdsSlot: a sessao ocupa uma vaga de execucao (as sem encerramento). reconcilable: o ato e aceito agora (resultado desconhecido; ou sem encerramento e sem noticia ha pelo menos uma hora). Ate 200, da mais antiga.
+         */
+        get: operations["listUnresolvedPreviousAgentSessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/license-operations/organizations/{target}/previous-agent-sessions/{sessionId}/reconciliation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reconciliacao, pelo suporte, de uma sessao do Agent anterior sem desfecho confiavel
+         * @description Registra o operador, a justificativa e a VERIFICACAO REALIZADA. NAO altera a sessao: o resultado desconhecido continua desconhecido, nenhum desfecho e gravado e nada declara a maquina livre. O efeito e a sessao deixar de segurar a transferencia de licenca e a vaga de execucao. Se a maquina informar algo sobre a sessao DEPOIS, a reconciliacao deixa de valer para ela. O tempo decorrido, sozinho, nunca libera a vaga. Recusas 409: previous_agent_session_has_outcome, previous_agent_session_already_reconciled, previous_agent_session_recently_reported (sem encerramento e com noticia ha menos de uma hora). Sessao de outra organizacao: 404. Exige confirmacao reforcada.
+         */
+        post: operations["reconcilePreviousAgentSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/license-operations/organizations/{target}/enforcement-preview": {
         parameters: {
             query?: never;
@@ -1879,7 +1979,7 @@ export interface paths {
         put?: never;
         /**
          * Transfere a licenca para outra automacao da mesma organizacao, a pedido de um administrador (operador da Nekkora)
-         * @description O pedido chega pelo atendimento externo; nao ha rota de pedido nem de transferencia para o administrador. O operador informa o administrador solicitante (requesterEmail: tem de administrar a organizacao NESTE instante, senao 409 license_transfer_requester_not_admin), a referencia do chamado, como a identidade dele foi verificada e a justificativa; tudo fica no ato 5 da trilha, com origem, destino, responsavel e instante. Informar o solicitante nao prova o pedido: quem o atesta e o operador. Na mesma transacao o vinculo de origem e encerrado (TRANSFERIDA) e o de destino e aberto: nao ha instante com as duas automacoes atendidas. Os periodos nao mudam (o fim do ciclo e preservado). Recusas 409: license_not_assigned, license_transfer_same_automation, license_automation_archived, automation_already_licensed, license_not_valid (licenca vencida: renovar antes), license_ended e license_transfer_work_in_progress (a automacao de origem tem execucao, monitoramento, pedido pendente ou tentativa remota nao terminada: precisa terminar ou ter o cancelamento confirmado). Automacao de destino de outra organizacao: 404. Roda sob trava exclusiva do modelo da organizacao: nenhum inicio de trabalho corre contra a transferencia.
+         * @description O pedido chega pelo atendimento externo; nao ha rota de pedido nem de transferencia para o administrador. O operador informa o administrador solicitante (requesterEmail: tem de administrar a organizacao NESTE instante, senao 409 license_transfer_requester_not_admin), a referencia do chamado, como a identidade dele foi verificada e a justificativa; tudo fica no ato 5 da trilha, com origem, destino, responsavel e instante. Informar o solicitante nao prova o pedido: quem o atesta e o operador. Na mesma transacao o vinculo de origem e encerrado (TRANSFERIDA) e o de destino e aberto: nao ha instante com as duas automacoes atendidas. Os periodos nao mudam (o fim do ciclo e preservado). Recusas 409: license_not_assigned, license_transfer_same_automation, license_automation_archived, automation_already_licensed, license_not_valid (licenca vencida: renovar antes), license_ended e license_transfer_work_in_progress (a automacao de origem tem execucao, monitoramento, pedido pendente ou tentativa remota nao terminada: precisa terminar ou ter o cancelamento confirmado; a sessao do Agent anterior com RESULTADO DESCONHECIDO tambem segura, ate a reconciliacao pelo suporte - 068). Automacao de destino de outra organizacao: 404. Roda sob trava exclusiva do modelo da organizacao: nenhum inicio de trabalho corre contra a transferencia.
          */
         post: operations["transferLicense"];
         delete?: never;
@@ -2879,7 +2979,7 @@ export interface components {
              * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached, draft_exists, draft_changed, local_run_authorization_exists, organization_name_taken; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
              * @enum {string}
              */
-            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "license_already_assigned" | "automation_already_licensed" | "license_not_valid" | "license_automation_archived" | "license_ended" | "license_period_overlaps" | "license_period_already_ended" | "license_model_unchanged" | "license_preview_changed" | "license_required" | "license_expired" | "run_not_covered" | "capacity_pending_limit_reached" | "license_not_assigned" | "license_transfer_same_automation" | "license_transfer_work_in_progress" | "license_transfer_requester_not_admin" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_machine_unconfirmed" | "remote_machine_finishing" | "remote_previous_processes_pending" | "remote_previous_result_unconfirmed" | "remote_attempt_not_unconfirmed" | "remote_attempt_already_reconciled" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_package_not_supported" | "remote_package_not_registered" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_dependency_check_too_soon" | "remote_dependency_check_closed" | "remote_result_unavailable" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken" | "organization_creation_client_profile" | "organization_creation_requires_request" | "empty_organization_limit_reached" | "organization_limit_reached" | "organization_request_not_available" | "organization_request_not_pending" | "organization_request_own" | "organization_request_approver_without_identity" | "organization_request_responsible_not_eligible" | "organization_not_responsible" | "organization_work_in_progress" | "organization_blocked_by_nekkora" | "organization_state_conflict";
+            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "license_already_assigned" | "automation_already_licensed" | "license_not_valid" | "license_automation_archived" | "license_ended" | "license_period_overlaps" | "license_period_already_ended" | "license_model_unchanged" | "license_preview_changed" | "license_required" | "license_expired" | "run_not_covered" | "capacity_pending_limit_reached" | "license_not_assigned" | "license_transfer_same_automation" | "license_transfer_work_in_progress" | "organization_responsible_not_found" | "organization_responsible_is_client" | "previous_agent_session_has_outcome" | "previous_agent_session_already_reconciled" | "previous_agent_session_recently_reported" | "license_transfer_requester_not_admin" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_machine_unconfirmed" | "remote_machine_finishing" | "remote_previous_processes_pending" | "remote_previous_result_unconfirmed" | "remote_attempt_not_unconfirmed" | "remote_attempt_already_reconciled" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_package_not_supported" | "remote_package_not_registered" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_dependency_check_too_soon" | "remote_dependency_check_closed" | "remote_result_unavailable" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken" | "organization_creation_client_profile" | "organization_creation_requires_request" | "empty_organization_limit_reached" | "organization_limit_reached" | "organization_request_not_available" | "organization_request_not_pending" | "organization_request_own" | "organization_request_approver_without_identity" | "organization_request_responsible_not_eligible" | "organization_not_responsible" | "organization_work_in_progress" | "organization_blocked_by_nekkora" | "organization_state_conflict";
         };
         /**
          * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
@@ -3602,6 +3702,7 @@ export interface components {
                 /** @description codigos dos papeis ativos do vinculo interno, em ordem */
                 roles: string[];
                 activationState: components["schemas"]["OrganizationActivationState"];
+                licenseModel?: components["schemas"]["OrganizationLicenseModel"];
             }[];
             /** @description so indicacao para a interface (P2): chave da criacao ligada e identity_org_creation_allowed verdadeira; a criacao reconfere tudo */
             canCreateOrganization: boolean;
@@ -3955,8 +4056,14 @@ export interface components {
             /** Format: uuid */
             organizationId: string;
             organizationActivationState: components["schemas"]["OrganizationActivationState"];
+            organizationLicenseModel?: components["schemas"]["OrganizationLicenseModel"];
             stepUpMethod: components["schemas"]["StepUpMethod"];
         };
+        /**
+         * @description PLATFORM-LICENCIAMENTO-001. licensed: a organizacao esta no modelo por licenca - a capacidade e tecnica (limites iguais para todas) e NAO depende da ativacao pela operacao; o que habilita uma automacao e a licenca. legacy: modelo anterior, em que a ativacao libera a capacidade. A tela usa para nao dizer "aguardando ativacao: nenhum Worker pode ser registrado" a quem ja pode registrar.
+         * @enum {string}
+         */
+        OrganizationLicenseModel: "legacy" | "licensed";
         /**
          * @description Ciclo de ativacao da organizacao (migration 022), INDEPENDENTE da situacao administrativa (ativa, suspensa, encerrada). AGUARDANDO_ATIVACAO: capacidade de execucao zero (nenhum Worker registrado, nenhuma execucao simultanea ou pendente) ate a ativacao pela operacao da Nekkora; toda organizacao criada nasce assim. ATIVADA: a operacao aplicou limites explicitos. So indicacao para a interface: os valores dos limites nao sao expostos e a admissao de execucao continua decidida no banco.
          * @enum {string}
@@ -4239,6 +4346,8 @@ export interface components {
             workspaceName?: string;
             /** @description Nome da automacao da solicitacao */
             automationName?: string;
+            /** @description PLATFORM-LICENCIAMENTO-001: a tentativa esta na fila e, neste instante, a organizacao (modelo por licenca) esta no limite tecnico de execucoes simultaneas: espera uma vaga. Capacidade, nao licenca. */
+            waitingForSlot?: boolean;
             attempts: {
                 /** Format: uuid */
                 attemptId: string;
@@ -8390,6 +8499,217 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LicenseAssignment"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getLicenseOperatorStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description E operador */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        operator: boolean;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    createOrganizationByOperator: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    responsibleEmail: string;
+                    name: string;
+                    legalName: string;
+                    justification: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Criada */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        organizationId: string;
+                    };
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getLicenseOperatorOrganization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description a organizacao do cliente (nunca a do operador) */
+                target: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A organizacao */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        organizationId: string;
+                        name: string;
+                        /** @enum {string} */
+                        model: "legacy" | "licensed";
+                        licenses: {
+                            /** Format: uuid */
+                            licenseId: string;
+                            number: number;
+                            /** @enum {string} */
+                            status: "VALID" | "NOT_VALID" | "ENDED";
+                            /** Format: date-time */
+                            validUntil: string | null;
+                            /** Format: uuid */
+                            automationId: string | null;
+                            automationName: string | null;
+                        }[];
+                        automations: {
+                            /** Format: uuid */
+                            automationId: string;
+                            name: string;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listUnresolvedPreviousAgentSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description a organizacao do cliente (nunca a do operador) */
+                target: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description As sessoes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            sessionId: string;
+                            /** Format: uuid */
+                            automationId: string;
+                            automationName: string;
+                            /** @enum {string} */
+                            state: "READY" | "STARTING" | "RUNNING" | "OUTCOME_UNKNOWN";
+                            /** Format: date-time */
+                            registeredAt: string;
+                            /** Format: date-time */
+                            lastReportAt: string;
+                            reconcilable: boolean;
+                            holdsSlot: boolean;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    reconcilePreviousAgentSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description a organizacao do cliente (nunca a do operador) */
+                target: string;
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    justification: string;
+                    verification: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Reconciliada */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        reconciliationId: string;
+                        /** Format: uuid */
+                        sessionId: string;
+                    };
                 };
             };
             400: components["responses"]["InvalidRequest"];

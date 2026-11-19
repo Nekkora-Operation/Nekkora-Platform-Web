@@ -144,7 +144,7 @@ export function OrganizationsPage() {
       ) : (
         <ul className="pw-identity__orgs" aria-label="Organizações">
           {organizations.map((o) => {
-            const activation = activationLabel(o.activationState);
+            const activation = activationLabel(o.activationState, o.licenseModel);
             const err = enterError?.org === o.organizationId ? enterError.message : null;
             return (
               <li key={o.organizationId}>
@@ -169,7 +169,7 @@ export function OrganizationsPage() {
                         </Badge>
                         {o.organizationId === created && <Badge tone="info">Criada agora</Badge>}
                       </div>
-                      {o.activationState === 'AGUARDANDO_ATIVACAO' && (
+                      {(o.licenseModel === 'licensed' || o.activationState === 'AGUARDANDO_ATIVACAO') && (
                         <Text variant="body-sm" color="secondary">
                           {activation.description}
                         </Text>

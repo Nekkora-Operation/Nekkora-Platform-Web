@@ -1,3 +1,4 @@
+import { isLicenseOperator } from '../api/licenseOperations';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink, Outlet, useLocation } from 'react-router';
 import { Alert, AppShell, Button, Link, Logo, Text, UserMenu, type AppNavGroup } from 'nekkora-lib';
@@ -41,7 +42,7 @@ export function useInternalArea(): InternalArea {
 const MAIN_ID = 'conteudo';
 
 /** Seção da área interna a que o endereço pertence (menu ativo e título do topo). */
-function sectionOf(pathname: string, org: string): 'inicio' | 'conta' | 'execucoes' | 'workspaces' | 'membros' | 'clientes' | 'concessoes' | 'convites' | 'auditoria' | 'workers' | 'supervisao' | 'licencas' | 'pedidos' | null {
+function sectionOf(pathname: string, org: string): 'inicio' | 'conta' | 'execucoes' | 'workspaces' | 'membros' | 'clientes' | 'concessoes' | 'convites' | 'auditoria' | 'workers' | 'supervisao' | 'operador' | 'licencas' | 'pedidos' | null {
   if (pathname === orgPath.home(org)) return 'inicio';
   const rest = pathname.slice(orgPath.home(org).length);
   if (rest === '/execucoes' || rest.startsWith('/execucoes/') || rest.startsWith('/execucoes-remotas/')) return 'execucoes';
@@ -53,6 +54,7 @@ function sectionOf(pathname: string, org: string): 'inicio' | 'conta' | 'execuco
   if (rest === '/administracao/auditoria') return 'auditoria';
   if (rest === '/administracao/licencas') return 'licencas';
   if (rest === '/administracao/pedidos-de-organizacao') return 'pedidos';
+  if (rest === '/operador-de-licencas') return 'operador';
   if (rest === '/administracao/clientes') return 'clientes';
   if (rest === '/administracao/concessoes') return 'concessoes';
   if (rest === '/conta') return 'conta';
@@ -78,6 +80,7 @@ function titleFor(pathname: string, org: string): string {
   if (rest === '/administracao/auditoria') return 'Auditoria de acessos';
   if (rest === '/administracao/licencas') return 'Licenças e capacidade';
   if (rest === '/administracao/pedidos-de-organizacao') return 'Pedidos de organização';
+  if (rest === '/operador-de-licencas') return 'Operador de licenças';
   if (rest === '/administracao/clientes') return 'Clientes';
   if (rest === '/administracao/concessoes') return 'Concessões';
   if (rest === '/conta') return 'Minha conta';
@@ -123,6 +126,18 @@ export function InternalShell() {
   const orgLabel = orgName ?? shortOrganizationId(org);
   const { pathname } = useLocation();
   const [permissions, setPermissions] = useState<PermissionsState>({ status: 'loading' });
+  // uma pergunta por organização da sessão; qualquer recusa (404 fora da organização interna, 403 sem cadastro) = não é operador
+  const [operator, setOperator] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    setOperator(false);
+    void isLicenseOperator(org).then((yes) => {
+      if (alive) setOperator(yes);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [org]);
   const generation = useRef(0);
   const { workspaces, reloadWorkspaces, loadMoreWorkspaces, restartWorkspaces } = useVisibleWorkspaces(org, expired);
   const section = sectionOf(pathname, org);
@@ -218,6 +233,13 @@ export function InternalShell() {
       admin.push({ id: 'pedidos', label: 'Pedidos de organização', href: orgPath.organizationRequests(org), icon: 'building', active: section === 'pedidos' });
     if (admin.length) nav.push({ id: 'administracao', label: 'Administração', items: admin });
   }
+  // PLATFORM-LICENCIAMENTO-001: a área do operador só aparece para quem a API reconhece como operador de licenças da Nekkora
+  if (operator)
+    nav.push({
+      id: 'operacao-nekkora',
+      label: 'Suporte Nekkora',
+      items: [{ id: 'operador', label: 'Operador de licenças', href: orgPath.licenseOperator(org), icon: 'key', active: section === 'operador' }],
+    });
 
   const access =
     permissions.status === 'ready'

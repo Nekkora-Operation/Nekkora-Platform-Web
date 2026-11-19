@@ -38,6 +38,7 @@ import { ResetPasswordPage } from '../pages/ResetPasswordPage';
 import { NoOrganizationPage, NotFoundInOrganizationPage } from '../pages/StatusPages';
 import { VerifyEmailPage } from '../pages/VerifyEmailPage';
 import { LicensesPage } from '../pages/licenses/LicensesPage';
+import { LicenseOperatorPage } from '../pages/licenses/LicenseOperatorPage';
 import { OrganizationRequestsPage } from '../pages/licenses/OrganizationRequestsPage';
 import { RequestOrganizationPage } from '../identity/RequestOrganizationPage';
 import { OrganizationRoute } from './organization';
@@ -119,6 +120,7 @@ export function AppRoutes() {
           <Route path="administracao/auditoria" element={<AccessEventsPage />} />
           <Route path="administracao/licencas" element={<LicensesPage />} />
           <Route path="administracao/pedidos-de-organizacao" element={<OrganizationRequestsPage />} />
+          <Route path="operador-de-licencas" element={<LicenseOperatorPage />} />
         </Route>
         <Route path="login" element={<LoginPage />} />
         <Route path="mfa" element={<MfaPage />} />

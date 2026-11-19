@@ -52,7 +52,18 @@ export function ActivationNotice() {
   const { me } = useSession();
   const state = me.organizationActivationState;
   if (!state) return null;
-  const a = activationLabel(state);
+  const a = activationLabel(state, me.organizationLicenseModel);
+  if (me.organizationLicenseModel === 'licensed') {
+    // modelo por licença: não há ativação a esperar. O aviso de "aguardando ativação" seria falso aqui
+    return (
+      <Text variant="body-sm" color="secondary" className="pw-start__activation">
+        <Badge tone={a.tone} dot>
+          {a.label}
+        </Badge>{' '}
+        {a.description}
+      </Text>
+    );
+  }
   if (state === 'ATIVADA') {
     return (
       <Text variant="body-sm" color="secondary" className="pw-start__activation">

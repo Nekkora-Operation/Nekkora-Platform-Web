@@ -62,6 +62,7 @@ export const orgPath = {
   /** PLATFORM-LICENCIAMENTO-001: licenças e capacidade da organização; pedidos de criação de organização. */
   licenses: (org: string) => `/o/${org}/administracao/licencas`,
   organizationRequests: (org: string) => `/o/${org}/administracao/pedidos-de-organizacao`,
+  licenseOperator: (org: string) => `/o/${org}/operador-de-licencas`,
   invitation: (org: string) => `/o/${org}/convite`,
 };
 

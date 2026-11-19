@@ -20,8 +20,7 @@ import {
   RETRY_BLOCKED_TEXT,
   dependencyCheckText,
   endedUnknownText,
-  environmentCode,
-} from './RemoteExecutions';
+  environmentCode, ACCEPT_VERSION, WAITING_SLOT_LABEL, WAITING_SLOT_TEXT } from './RemoteExecutions';
 import { logsExpiredText, storedText, writtenText } from './RemoteLogs';
 import { resultsExpiredText } from './RemoteResults';
 import { permissionsAutoRetry } from '../../area/useWorkspacePermissions';
@@ -323,6 +322,59 @@ describe('Versão: execução remota (T02)', () => {
     await waitFor(() => expect(within(s).getAllByText('Na fila · aguardando a máquina').length).toBeGreaterThan(0));
     expect(within(s).queryByText('Em execução')).toBeNull();
     expect(within(s).getByText(MISSING.MACHINE_BUSY)).toBeInTheDocument();
+  });
+
+  it('S2: falta só a autorização da versão - autorizar e solicitar no mesmo passo exige o aceite explícito e diz que não vale para versões futuras', async () => {
+    candidates = [candidate({ requestable: false, missing: ['AUTHORIZATION_MISSING'], authorization: null })];
+    api.on('POST', LIST, 'requestRemoteExecution', () => {
+      executions = [execution([attempt()])];
+      return { status: 201, body: executions[0] };
+    });
+    await open();
+    const s = await waitFor(section);
+    expect(within(s).queryByRole('button', { name: 'Solicitar execução em ESTACAO-01' })).toBeNull();
+    fireEvent.click(within(s).getByRole('button', { name: `${ACCEPT_VERSION.BUTTON} em ESTACAO-01` }));
+    expect(within(dialog()).getByText(ACCEPT_VERSION.SCOPE)).toBeInTheDocument();
+    const confirm = within(dialog()).getByRole('button', { name: 'Autorizar e solicitar' });
+    // modelo anterior: a validade é obrigatória, e sem o aceite marcado nada é enviado
+    const until = new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10);
+    fireEvent.change(within(dialog()).getByLabelText('Autorização válida até'), { target: { value: until } });
+    expect(confirm).toBeDisabled();
+    fireEvent.click(within(dialog()).getByRole('checkbox', { name: ACCEPT_VERSION.ACK('versão 3', 'Worker financeiro') }));
+    await waitFor(() => expect(confirm).toBeEnabled());
+    fireEvent.click(confirm);
+    expect(await screen.findByText(/Versão autorizada para este Worker e solicitação registrada/)).toBeInTheDocument();
+    const body = api.sent('POST', LIST)[0].body as { authorizeVersion: boolean; authorizationValidUntil: string; agentId: string };
+    expect(body.authorizeVersion).toBe(true);
+    expect(body.agentId).toBe(AG1);
+    expect(body.authorizationValidUntil.slice(0, 10)).toBe(new Date(`${until}T23:59:59`).toISOString().slice(0, 10));
+  });
+
+  it('S2: com outra pendência além da autorização, o atalho não é oferecido', async () => {
+    candidates = [candidate({ requestable: false, missing: ['AUTHORIZATION_MISSING', 'PYTHON_NOT_SELECTED'], authorization: null })];
+    await open();
+    const s = await waitFor(section);
+    await within(s).findByText(MISSING.AUTHORIZATION_MISSING);
+    expect(within(s).queryByRole('button', { name: new RegExp(ACCEPT_VERSION.BUTTON) })).toBeNull();
+  });
+
+  it('aguardando vaga: na fila com a organização no limite de simultâneas - diz que é capacidade, não licença', async () => {
+    candidates = [candidate({ requestable: false, missing: ['MACHINE_BUSY'] })];
+    executions = [execution([attempt()], { waitingForSlot: true })];
+    await open();
+    const s = await waitFor(section);
+    expect(await within(s).findByText(WAITING_SLOT_LABEL)).toBeInTheDocument();
+    expect(within(s).getByText(WAITING_SLOT_TEXT)).toBeInTheDocument();
+    expect(WAITING_SLOT_TEXT).toMatch(/limite de capacidade, não falta de licença/);
+  });
+
+  it('na fila sem limite atingido: continua "aguardando a máquina", sem falar de vaga', async () => {
+    candidates = [candidate({ requestable: false, missing: ['MACHINE_BUSY'] })];
+    executions = [execution([attempt()], { waitingForSlot: false })];
+    await open();
+    const s = await waitFor(section);
+    await waitFor(() => expect(within(s).getAllByText('Na fila · aguardando a máquina').length).toBeGreaterThan(0));
+    expect(within(s).queryByText(WAITING_SLOT_LABEL)).toBeNull();
   });
 
   it('cada recusa do servidor diz a exigência que faltou, e nada é dado como solicitado', async () => {
