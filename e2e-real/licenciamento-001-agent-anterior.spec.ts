@@ -313,7 +313,7 @@ test('PLATFORM-LICENCIAMENTO-001 com o Agent anterior em cópia isolada: recusa 
     // A execução começa COM a licença vigente, mas o canal das máquinas está fora do ar: nada chega à Platform. A licença vence.
     // O canal volta: o Agent entrega sozinho, e a Platform registra — a execução estava coberta quando começou (base 2).
     compose(LAB, ['stop', 'agent-gateway'], { stdio: ['ignore', 'ignore', 'inherit'] }, ['compose.licencas.yml']);
-    l = await comando('executar');
+    l = await comando('executar-sem-conexao');
     const autorizada = String(l.ultimaExecucao);
     expect(l.estadoLocal, 'executou neste computador, sem conexão com a Platform').toBe('SUCCEEDED');
     expect(String(l.enviosParados), 'sem conexão não é recusa: o envio fica pendente, não parado').not.toContain(autorizada);
