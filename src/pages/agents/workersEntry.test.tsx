@@ -8,7 +8,7 @@ import { fakeLocks } from '../../test/fakeLocks';
 import { location } from '../../test/helpers';
 import { renderApp } from '../../test/render';
 import { RouteApi } from '../../test/routeApi';
-import { WORKER_LIMIT_TEXT } from './WorkersPage';
+import { WORKER_LIMIT_TEXT, workerLimitText } from './WorkersPage';
 
 /**
  * PLATFORM-AGENT-V2-002, T07 — Workers como entrada única do fluxo diário: criar o Worker (sem Agent, sem código, sem
@@ -145,6 +145,10 @@ describe('Workers: criar Worker (T07)', () => {
     await openCreate('Worker financeiro');
     expect(await within(dialog()).findByText(WORKER_LIMIT_TEXT)).toBeInTheDocument();
     expect(WORKER_LIMIT_TEXT).toMatch(/aguarda ativação, o limite é zero; depois da ativação, ele é definido pela Nekkora/);
+    // PLATFORM-LICENCIAMENTO-001: no modelo por licença o limite é técnico; a recusa não fala em ativação nem em licença como causa
+    expect(workerLimitText('licensed')).toMatch(/limite técnico de Workers cadastrados/);
+    expect(workerLimitText('licensed')).not.toMatch(/aguarda ativação|depois da ativação/);
+    expect(workerLimitText(undefined)).toBe(WORKER_LIMIT_TEXT);
     expect(workerPosts()).toHaveLength(1);
     nothingElse();
   });

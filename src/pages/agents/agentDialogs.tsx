@@ -131,7 +131,7 @@ export const CLIENT_CONFIRMATION_REQUIRED = 'Marque a confirmação para gerar o
  * execução remota"): sem marcá-la, o botão não gera o código. O Agent anterior continua com o pedido de sempre, sem a opção.
  */
 export function PairAgentDialog({ worker, onDone, onClose }: { worker: FreeWorker | null; onDone: (code: AgentCode) => void; onClose: () => void }) {
-  const { org, expired } = useSession();
+  const { org, expired, me } = useSession();
   const [agentName, setAgentName] = useState('');
   const [minutes, setMinutes] = useState('15');
   const [app, setApp] = useState<PairingApp>('client');
@@ -176,7 +176,11 @@ export function PairAgentDialog({ worker, onDone, onClose }: { worker: FreeWorke
           ? REMOTE_UNAVAILABLE_TEXT
           : accessRefusal(e, {
           conflict: 'Este Worker já tem um Agent vinculado. Atualize a lista.',
-          forbidden: 'O código não foi gerado: faltam permissões (Agents, credenciais, vínculo de Workers) ou a organização ainda não foi ativada.',
+          // no modelo por licença a ativação não se aplica: a recusa é só de permissão
+          forbidden:
+            me.organizationLicenseModel === 'licensed'
+              ? 'O código não foi gerado: faltam permissões (Agents, credenciais, vínculo de Workers).'
+              : 'O código não foi gerado: faltam permissões (Agents, credenciais, vínculo de Workers) ou a organização ainda não foi ativada.',
         })
       }
       uncertainText="Não foi possível confirmar se o código foi gerado. Feche: se foi, ele não pode ser exibido de novo e vence sozinho; gere outro."

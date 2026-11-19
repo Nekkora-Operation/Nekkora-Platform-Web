@@ -131,8 +131,9 @@ export function CreateOrganizationPage() {
         onOutcome={(kind) => kind === 'uncertain' && setUncertain(true)}
       >
         <Text>
-          A organização é criada com você como administradora ou administrador. Ela fica aguardando a ativação pela
-          operação da Nekkora antes de poder executar automações.
+          A organização é criada com você como administradora ou administrador. O que ela pode executar depende do modelo em que
+          nascer: no modelo por licença, de uma licença vinculada a cada automação; no modelo anterior, da ativação pela operação
+          da Nekkora. A lista de organizações mostra qual é.
         </Text>
       </StepUpDialog>
     </Stack>

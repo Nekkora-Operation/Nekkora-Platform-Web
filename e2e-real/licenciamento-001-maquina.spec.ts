@@ -607,49 +607,45 @@ test('PLATFORM-LICENCIAMENTO-001 com o Client empacotado: licença → execuçã
     let motivo = '';
     [estado, motivo] = await ateEstado(versaoRapidaId, (e) => e >= 7);
     expect([estado, motivo], 'a tentativa não inicia: recusada por licença antes do início').toEqual(['11', 'LICENSE_EXPIRED']);
-    l = await comando('tela');
-    expect(String(l.atividade), 'a JANELA do aplicativo diz que a Platform recusou por licença').toMatch(/licença/i);
+    // a janela "Execução remota" ESTÁ ABERTA desde a habilitação: a mensagem aparece nela sem fechar nem reabrir
+    l = await comando('consulta');
+    expect(String(l.atividade), 'a JANELA ABERTA do aplicativo diz que a Platform recusou por licença').toMatch(/A Platform não iniciou a última execução solicitada a este computador: a licença da automação venceu\. Nada foi executado aqui\./);
     guardarJanelas('M9');
+    const reaberta = await comando('tela');
+    expect(String(reaberta.atividade), 'reaberta, a janela continua dizendo').toMatch(/a licença da automação venceu/);
     await reler(anaPage);
     await expect(secao.getByText(/a licença da automação venceu antes do início/).first()).toBeVisible({ timeout: 60_000 });
     await shot(anaPage, 'M9-recusada-por-licenca-antes-do-inicio');
     log('9_mensagem_do_aplicativo_recusa_por_licenca', { fixture: 'gatilho de laboratorio vence a licenca quando a maquina comeca a preparar', tentativa: `${estado}|${motivo}`, janela_do_aplicativo: l.atividade, na_web: 'Nao iniciada: a licenca da automacao venceu antes do inicio', nada_executou: sql(`SELECT started_at IS NULL FROM remote_attempts t JOIN remote_executions x ON x.remote_execution_id = t.remote_execution_id WHERE x.automation_version_id = '${versaoRapidaId}' ORDER BY t.created_at DESC LIMIT 1`) });
     sql('DROP TRIGGER IF EXISTS trg_lab_expire_on_preparing ON public.remote_attempts; DROP FUNCTION IF EXISTS public.lab_expire_on_preparing()');
 
-    // ================================================================ 10. A MENSAGEM DO APLICATIVO: limite de máquinas da organização
-    // a máquina é desabilitada no aplicativo; a organização cria um segundo Worker; PROCEDIMENTO: limite técnico de Workers = 1
-    l = await comando('desabilitar');
-    expect(l.estado).toBe('NOT_ENABLED');
-    await go(anaPage, `/o/${fabrica}/workers`);
-    await anaPage.getByRole('button', { name: 'Criar Worker' }).click();
-    await anaPage.getByRole('alertdialog').getByLabel(/^Nome do Worker/).fill('Worker dois');
-    await anaPage.getByRole('alertdialog').getByRole('button', { name: 'Criar Worker' }).click();
-    await settle(anaPage);
-    const criouSegundo = await anaPage.getByText('Worker Worker dois criado, sem Agent.', { exact: false }).isVisible().catch(() => false);
+    // ================================================================ 10. LIMITE DE WORKERS: a recusa é dita à PESSOA, na Platform
+    // PROCEDIMENTO ADMINISTRATIVO: limite técnico de Workers = 1 (a organização já tem um). O limite é conferido quando a
+    // pessoa cria o Worker; a máquina não participa e o aplicativo não recebe esse motivo.
     sql(`UPDATE technical_capacity_limits SET limit_value = 1, updated_by = 'roteiro da maquina: limite 1 de Workers' WHERE resource_code = 1`);
     await go(anaPage, `/o/${fabrica}/workers`);
-    let limiteNaJanela: Linha | null = null;
-    let limiteNaWeb = '';
-    if (criouSegundo) {
-      await anaPage.getByRole('button', { name: 'Vincular Agent a Worker dois' }).click();
-      await anaPage.getByRole('alertdialog').getByLabel(/^Nome da máquina/).fill(`${MAQUINA} 2`);
-      await anaPage.getByRole('alertdialog').getByLabel('Habilitar esta máquina para execução remota').check();
-      await confirmStepUp(anaPage, ana, 'Gerar código');
-      const codigo2 = anaPage.getByLabel('Código de uso único');
-      if (await codigo2.isVisible({ timeout: 15_000 }).catch(() => false)) {
-        limiteNaJanela = await comando('habilitar', (await codigo2.innerText()).trim());
-        guardarJanelas('M10');
-      } else {
-        limiteNaWeb = (await anaPage.getByRole('alertdialog').innerText()).replace(/\s+/g, ' ').slice(0, 300);
-      }
-    }
-    log('10_limite_de_maquinas', {
-      procedimento: 'limite tecnico de Workers = 1, com dois Workers cadastrados',
-      segundo_worker_criado: criouSegundo,
-      janela_do_aplicativo: limiteNaJanela ? { estado: limiteNaJanela.estado, resultado: limiteNaJanela.resultado, erro: limiteNaJanela.resultadoErro } : 'o codigo nao chegou a ser gerado',
-      na_web: limiteNaWeb || '(codigo gerado)',
+    await anaPage.getByRole('button', { name: 'Criar Worker' }).click();
+    const novo = anaPage.getByRole('alertdialog');
+    await novo.getByLabel(/^Nome do Worker/).fill('Worker dois');
+    await novo.getByRole('button', { name: 'Criar Worker' }).click();
+    await settle(anaPage);
+    await expect(novo.getByRole('alert').first()).toBeVisible({ timeout: 30_000 });
+    const recusaDoLimite = (await novo.getByRole('alert').first().innerText()).replace(/\s+/g, ' ').trim();
+    expect(recusaDoLimite, 'no modelo por licença a recusa fala do limite técnico, sem ativação').toMatch(/limite técnico de Workers cadastrados/);
+    expect(recusaDoLimite).not.toMatch(/aguarda ativação|depois da ativação/);
+    expect(recusaDoLimite, 'capacidade, não licença').toMatch(/sem relação com a ativação nem com a quantidade de licenças/);
+    await shot(anaPage, 'M10-limite-de-workers-na-platform');
+    expect(sql(`SELECT count(*) FROM workers WHERE organization_id = '${fabrica}'`), 'nada foi criado').toBe('1');
+    log('10_limite_de_workers', {
+      procedimento: 'limite tecnico de Workers = 1, com um Worker cadastrado',
+      na_web: recusaDoLimite,
+      nada_criado: true,
+      aplicativo: 'nao participa: a Platform nao envia esse motivo a maquina (o texto do aplicativo para esse caso nao tem rota que o acione hoje)',
     });
-    await shot(anaPage, 'M10-limite-de-maquinas-web');
+    // a máquina é desabilitada no aplicativo, pelo botão da janela
+    l = await comando('desabilitar');
+    expect(l.estado).toBe('NOT_ENABLED');
+    guardarJanelas('M10');
 
     await fecharExe();
     log('limites_de_frequencia', `nenhum limite de frequencia foi zerado. "Tentar novamente" usado ${retried} vez(es)`);
