@@ -247,6 +247,45 @@ export async function createOrganization(name: string, legalName?: string): Prom
   return data.organizationId;
 }
 
+// ------------------------------------------------------------------ criação por perfil, pedido, desativar e reativar (PLATFORM-LICENCIAMENTO-001)
+
+export type OrganizationCreationState = S['OrganizationCreationState'];
+export type ResponsibleOrganization = OrganizationCreationState['responsibleFor'][number];
+export type MyOrganizationRequest = S['MyOrganizationRequest'];
+
+/**
+ * Perfil de quem cria (primeira organização, administradora, membro ou Cliente), limites e as organizações de que a pessoa
+ * é responsável. Só indicação: a API decide em cada ato.
+ */
+export async function organizationCreation(): Promise<OrganizationCreationState> {
+  return send<OrganizationCreationState>('identityOrganizationCreation', '/api/v1/me/organization-creation');
+}
+
+/** O membro pede a criação ao administrador da organização `organizationId`, em que é membro (step-up de até 5 min). */
+export async function requestOrganization(organizationId: string, name: string, legalName?: string): Promise<string> {
+  const data = await send<{ requestId: string }>('identityRequestOrganization', '/api/v1/organization-requests', {
+    method: 'POST',
+    body: legalName ? { organizationId, name, legalName } : { organizationId, name },
+    csrf: await identityCsrf(),
+  });
+  return data.requestId;
+}
+
+export async function myOrganizationRequests(): Promise<MyOrganizationRequest[]> {
+  const data = await send<{ items: MyOrganizationRequest[] }>('identityOrganizationRequests', '/api/v1/me/organization-requests');
+  return data.items;
+}
+
+/** O responsável desativa a organização (step-up). Nada é apagado nem liberado: licenças e histórico ficam como estão. */
+export async function deactivateOrganization(organizationId: string): Promise<void> {
+  await send('identityDeactivateOrganization', '/api/v1/organization-deactivations', { method: 'POST', body: { organizationId }, csrf: await identityCsrf() });
+}
+
+/** O responsável reativa a organização que desativou (step-up). O limite de vazias é reconferido; bloqueio da Nekkora não sai. */
+export async function reactivateOrganization(organizationId: string): Promise<void> {
+  await send('identityReactivateOrganization', '/api/v1/organization-reactivations', { method: 'POST', body: { organizationId }, csrf: await identityCsrf() });
+}
+
 /**
  * Troca a sessão de identidade por uma sessão de organização. `sem_acesso` é a resposta única para qualquer recusa. O
  * cookie de organização é um por origem: a sessão de outra organização (inclusive em outra aba) deixa de valer.

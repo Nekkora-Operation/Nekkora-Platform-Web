@@ -37,6 +37,9 @@ import { MfaSetupPage } from '../pages/MfaSetupPage';
 import { ResetPasswordPage } from '../pages/ResetPasswordPage';
 import { NoOrganizationPage, NotFoundInOrganizationPage } from '../pages/StatusPages';
 import { VerifyEmailPage } from '../pages/VerifyEmailPage';
+import { LicensesPage } from '../pages/licenses/LicensesPage';
+import { OrganizationRequestsPage } from '../pages/licenses/OrganizationRequestsPage';
+import { RequestOrganizationPage } from '../identity/RequestOrganizationPage';
 import { OrganizationRoute } from './organization';
 
 /** Endereço antigo de Agents (links e favoritos): leva à tela de Workers, que reúne todos os atos sobre a máquina. */
@@ -79,6 +82,7 @@ export function AppRoutes() {
       <Route element={<IdentityArea />}>
         <Route path="/organizacoes" element={<OrganizationsPage />} />
         <Route path="/organizacoes/nova" element={<CreateOrganizationPage />} />
+        <Route path="/organizacoes/solicitar" element={<RequestOrganizationPage />} />
         <Route path="/conta" element={<AccountPage />} />
         <Route path="/conta/fator" element={<ReplaceFactorPage />} />
         <Route path="/conta/ativar-autenticacao" element={<ActivateMfaPage />} />
@@ -113,6 +117,8 @@ export function AppRoutes() {
           <Route path="administracao/membros/:userId" element={<MemberAccessPage />} />
           <Route path="administracao/convites" element={<InvitationsPage />} />
           <Route path="administracao/auditoria" element={<AccessEventsPage />} />
+          <Route path="administracao/licencas" element={<LicensesPage />} />
+          <Route path="administracao/pedidos-de-organizacao" element={<OrganizationRequestsPage />} />
         </Route>
         <Route path="login" element={<LoginPage />} />
         <Route path="mfa" element={<MfaPage />} />

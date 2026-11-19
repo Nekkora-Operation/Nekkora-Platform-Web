@@ -59,6 +59,9 @@ export const orgPath = {
   memberAccess: (org: string, userId: string) => `/o/${org}/administracao/membros/${encodeURIComponent(userId)}`,
   invitations: (org: string) => `/o/${org}/administracao/convites`,
   accessEvents: (org: string) => `/o/${org}/administracao/auditoria`,
+  /** PLATFORM-LICENCIAMENTO-001: licenças e capacidade da organização; pedidos de criação de organização. */
+  licenses: (org: string) => `/o/${org}/administracao/licencas`,
+  organizationRequests: (org: string) => `/o/${org}/administracao/pedidos-de-organizacao`,
   invitation: (org: string) => `/o/${org}/convite`,
 };
 

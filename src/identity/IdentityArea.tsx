@@ -42,6 +42,7 @@ const MAIN_ID = 'conteudo';
 
 function titleFor(pathname: string): string {
   if (pathname === identityPath.newOrganization) return 'Nova organização';
+  if (pathname === identityPath.requestOrganization) return 'Solicitar organização';
   if (pathname === identityPath.organizations) return 'Organizações';
   if (pathname === identityPath.replaceFactor) return 'Autenticador';
   if (pathname === identityPath.activateMfa) return 'Autenticação em duas etapas';

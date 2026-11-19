@@ -41,7 +41,7 @@ export function useInternalArea(): InternalArea {
 const MAIN_ID = 'conteudo';
 
 /** Seção da área interna a que o endereço pertence (menu ativo e título do topo). */
-function sectionOf(pathname: string, org: string): 'inicio' | 'conta' | 'execucoes' | 'workspaces' | 'membros' | 'clientes' | 'concessoes' | 'convites' | 'auditoria' | 'workers' | 'supervisao' | null {
+function sectionOf(pathname: string, org: string): 'inicio' | 'conta' | 'execucoes' | 'workspaces' | 'membros' | 'clientes' | 'concessoes' | 'convites' | 'auditoria' | 'workers' | 'supervisao' | 'licencas' | 'pedidos' | null {
   if (pathname === orgPath.home(org)) return 'inicio';
   const rest = pathname.slice(orgPath.home(org).length);
   if (rest === '/execucoes' || rest.startsWith('/execucoes/') || rest.startsWith('/execucoes-remotas/')) return 'execucoes';
@@ -51,6 +51,8 @@ function sectionOf(pathname: string, org: string): 'inicio' | 'conta' | 'execuco
   if (rest === '/workers') return 'workers';
   if (rest === '/supervisao' || rest.startsWith('/supervisao/')) return 'supervisao';
   if (rest === '/administracao/auditoria') return 'auditoria';
+  if (rest === '/administracao/licencas') return 'licencas';
+  if (rest === '/administracao/pedidos-de-organizacao') return 'pedidos';
   if (rest === '/administracao/clientes') return 'clientes';
   if (rest === '/administracao/concessoes') return 'concessoes';
   if (rest === '/conta') return 'conta';
@@ -74,6 +76,8 @@ function titleFor(pathname: string, org: string): string {
   if (rest === '/supervisao') return 'Supervisão';
   if (rest.startsWith('/supervisao/')) return 'Execução local';
   if (rest === '/administracao/auditoria') return 'Auditoria de acessos';
+  if (rest === '/administracao/licencas') return 'Licenças e capacidade';
+  if (rest === '/administracao/pedidos-de-organizacao') return 'Pedidos de organização';
   if (rest === '/administracao/clientes') return 'Clientes';
   if (rest === '/administracao/concessoes') return 'Concessões';
   if (rest === '/conta') return 'Minha conta';
@@ -207,6 +211,11 @@ export function InternalShell() {
       admin.push({ id: 'concessoes', label: 'Concessões', href: orgPath.grants(org), icon: 'key', active: section === 'concessoes' });
     if (has('org.manage'))
       admin.push({ id: 'auditoria', label: 'Auditoria de acessos', href: orgPath.accessEvents(org), icon: 'file', active: section === 'auditoria' });
+    // PLATFORM-LICENCIAMENTO-001: licenças e capacidade, e os pedidos de criação de organização feitos a esta
+    if (has('org.manage'))
+      admin.push({ id: 'licencas', label: 'Licenças e capacidade', href: orgPath.licenses(org), icon: 'key', active: section === 'licencas' });
+    if (has('org.manage'))
+      admin.push({ id: 'pedidos', label: 'Pedidos de organização', href: orgPath.organizationRequests(org), icon: 'building', active: section === 'pedidos' });
     if (admin.length) nav.push({ id: 'administracao', label: 'Administração', items: admin });
   }
 

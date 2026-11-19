@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "5076a4b98e4382d8575ca4d07f373b05e5e609cd8c777bf761dffac077ae4521",
+  "openapiSha256": "d54c7a3f5c59ce5d6afe85c7774e6f8ff79ae5b3148e6306a1814d5e9064a0a5",
   "schemas": {
     "Error": {
       "type": "object",
@@ -30,6 +30,23 @@
             "workspace_name_taken",
             "step_up_required",
             "worker_limit_reached",
+            "license_already_assigned",
+            "automation_already_licensed",
+            "license_not_valid",
+            "license_automation_archived",
+            "license_ended",
+            "license_period_overlaps",
+            "license_period_already_ended",
+            "license_model_unchanged",
+            "license_preview_changed",
+            "license_required",
+            "license_expired",
+            "run_not_covered",
+            "capacity_pending_limit_reached",
+            "license_not_assigned",
+            "license_transfer_same_automation",
+            "license_transfer_work_in_progress",
+            "license_transfer_requester_not_admin",
             "remote_execution_unavailable",
             "runtime_requirements_unresolved",
             "runtime_requirements_changed",
@@ -61,7 +78,20 @@
             "draft_exists",
             "draft_changed",
             "local_run_authorization_exists",
-            "organization_name_taken"
+            "organization_name_taken",
+            "organization_creation_client_profile",
+            "organization_creation_requires_request",
+            "empty_organization_limit_reached",
+            "organization_limit_reached",
+            "organization_request_not_available",
+            "organization_request_not_pending",
+            "organization_request_own",
+            "organization_request_approver_without_identity",
+            "organization_request_responsible_not_eligible",
+            "organization_not_responsible",
+            "organization_work_in_progress",
+            "organization_blocked_by_nekkora",
+            "organization_state_conflict"
           ]
         }
       }
@@ -969,6 +999,367 @@
               "type": "null"
             }
           ]
+        }
+      }
+    },
+    "LicenseSummary": {
+      "type": "object",
+      "required": [
+        "model",
+        "modelSince",
+        "contracted",
+        "used",
+        "available",
+        "licensedAutomations",
+        "expiredWithAutomation",
+        "asOf"
+      ],
+      "properties": {
+        "model": {
+          "type": "string",
+          "enum": [
+            "legacy",
+            "licensed"
+          ]
+        },
+        "modelSince": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "contracted": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "used": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "available": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "licensedAutomations": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "expiredWithAutomation": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "OrganizationLicense": {
+      "type": "object",
+      "required": [
+        "licenseId",
+        "number",
+        "status",
+        "validFrom",
+        "validUntil",
+        "nextPeriodStartsAt",
+        "renewals",
+        "automation"
+      ],
+      "properties": {
+        "licenseId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "scheduled",
+            "expired",
+            "ended"
+          ]
+        },
+        "validFrom": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "validUntil": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "nextPeriodStartsAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "renewals": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "automation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "automationId",
+            "name",
+            "status",
+            "workspaceId",
+            "workspaceName",
+            "assignedAt",
+            "executionInProgress"
+          ],
+          "properties": {
+            "automationId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "name": {
+              "type": "string"
+            },
+            "status": {
+              "$ref": "#/components/schemas/ResourceStatus"
+            },
+            "workspaceId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "workspaceName": {
+              "type": "string"
+            },
+            "assignedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "executionInProgress": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "LicenseEnforcementPreview": {
+      "type": "object",
+      "required": [
+        "organizationId",
+        "model",
+        "modelSince",
+        "contracted",
+        "used",
+        "available",
+        "blockedAutomations",
+        "licensedAutomations",
+        "offlineAuthorizations",
+        "offlineAuthorizationsValidUntil",
+        "workInProgress",
+        "previewToken",
+        "asOf"
+      ],
+      "properties": {
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "model": {
+          "type": "string",
+          "enum": [
+            "legacy",
+            "licensed"
+          ]
+        },
+        "modelSince": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "contracted": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "used": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "available": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "blockedAutomations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/LicensePreviewAutomation"
+          }
+        },
+        "licensedAutomations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/LicensePreviewAutomation"
+          }
+        },
+        "offlineAuthorizations": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "offlineAuthorizationsValidUntil": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "previewToken": {
+          "type": "string"
+        },
+        "workInProgress": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "CapacityUsage": {
+      "type": "object",
+      "required": [
+        "used",
+        "limit"
+      ],
+      "properties": {
+        "used": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "limit": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    },
+    "LicensePreviewAutomation": {
+      "type": "object",
+      "required": [
+        "automationId",
+        "name",
+        "workspaceName",
+        "inUseBecause",
+        "authorizationsValidUntil"
+      ],
+      "properties": {
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "workspaceName": {
+          "type": "string"
+        },
+        "inUseBecause": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "validAuthorization",
+              "recentUse",
+              "workInProgress"
+            ]
+          }
+        },
+        "authorizationsValidUntil": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "licenseId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "LicenseAssignment": {
+      "type": "object",
+      "required": [
+        "licenseId",
+        "number",
+        "automationId",
+        "workspaceId",
+        "assignedAt"
+      ],
+      "properties": {
+        "licenseId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "assignedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "OrganizationLicensePage": {
+      "type": "object",
+      "required": [
+        "items",
+        "nextCursor",
+        "asOf"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/OrganizationLicense"
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
         }
       }
     },
@@ -2243,6 +2634,367 @@
         }
       }
     },
+    "OrganizationRef": {
+      "type": "object",
+      "required": [
+        "organizationId"
+      ],
+      "properties": {
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "UsedOfLimit": {
+      "type": "object",
+      "required": [
+        "used",
+        "limit"
+      ],
+      "properties": {
+        "used": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "limit": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        }
+      }
+    },
+    "OrganizationCreationState": {
+      "type": "object",
+      "required": [
+        "profile",
+        "canCreate",
+        "cannotCreateReason",
+        "canRequest",
+        "organizationsCreated",
+        "emptyOrganizations",
+        "pendingRequests",
+        "responsibleFor"
+      ],
+      "properties": {
+        "profile": {
+          "type": "string",
+          "enum": [
+            "FIRST",
+            "ADMIN",
+            "MEMBER",
+            "CLIENT"
+          ]
+        },
+        "canCreate": {
+          "type": "boolean"
+        },
+        "cannotCreateReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "canRequest": {
+          "type": "boolean"
+        },
+        "organizationsCreated": {
+          "$ref": "#/components/schemas/UsedOfLimit"
+        },
+        "emptyOrganizations": {
+          "type": "object",
+          "required": [
+            "used",
+            "limit",
+            "organizationIds"
+          ],
+          "properties": {
+            "used": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "limit": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "organizationIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          }
+        },
+        "pendingRequests": {
+          "$ref": "#/components/schemas/UsedOfLimit"
+        },
+        "responsibleFor": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "organizationId",
+              "name",
+              "state",
+              "empty",
+              "deactivatedAt",
+              "canReactivate"
+            ],
+            "properties": {
+              "organizationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "ACTIVE",
+                  "DEACTIVATED",
+                  "BLOCKED"
+                ]
+              },
+              "empty": {
+                "type": "boolean"
+              },
+              "deactivatedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "canReactivate": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "MyOrganizationRequest": {
+      "type": "object",
+      "required": [
+        "requestId",
+        "organizationId",
+        "organizationName",
+        "name",
+        "legalName",
+        "state",
+        "requestedAt",
+        "decidedAt",
+        "responsible",
+        "refusalReason",
+        "createdOrganizationId"
+      ],
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "legalName": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "PENDING",
+            "APPROVED",
+            "REFUSED"
+          ]
+        },
+        "requestedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "decidedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "responsible": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "APPROVER",
+            "REQUESTER",
+            null
+          ]
+        },
+        "refusalReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "createdOrganizationId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        }
+      }
+    },
+    "OrganizationRequest": {
+      "type": "object",
+      "required": [
+        "requestId",
+        "name",
+        "legalName",
+        "state",
+        "requestedAt",
+        "decidedAt",
+        "responsible",
+        "refusalReason",
+        "requester",
+        "decidedByDisplayName",
+        "ownRequest"
+      ],
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "legalName": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "PENDING",
+            "APPROVED",
+            "REFUSED"
+          ]
+        },
+        "requestedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "decidedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "responsible": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "APPROVER",
+            "REQUESTER",
+            null
+          ]
+        },
+        "refusalReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "requester": {
+          "type": "object",
+          "required": [
+            "membershipId",
+            "displayName",
+            "email"
+          ],
+          "properties": {
+            "membershipId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "displayName": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "email": {
+              "type": "string"
+            }
+          }
+        },
+        "decidedByDisplayName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ownRequest": {
+          "type": "boolean"
+        }
+      }
+    },
+    "OrganizationRequestDecision": {
+      "type": "object",
+      "required": [
+        "requestId",
+        "state",
+        "responsible",
+        "createdOrganizationId"
+      ],
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "APPROVED",
+            "REFUSED"
+          ]
+        },
+        "responsible": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "APPROVER",
+            "REQUESTER",
+            null
+          ]
+        },
+        "createdOrganizationId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        }
+      }
+    },
     "OrganizationCreateRequest": {
       "type": "object",
       "required": [
@@ -3179,6 +3931,13 @@
         "requestKey": {
           "type": "string",
           "format": "uuid"
+        },
+        "authorizeVersion": {
+          "type": "boolean"
+        },
+        "authorizationValidUntil": {
+          "type": "string",
+          "format": "date-time"
         }
       }
     },
@@ -3226,6 +3985,8 @@
                 "items": {
                   "type": "string",
                   "enum": [
+                    "LICENSE_REQUIRED",
+                    "LICENSE_EXPIRED",
                     "PACKAGE_NOT_SUPPORTED",
                     "PACKAGE_NOT_REGISTERED",
                     "REQUIREMENTS_NOT_DECLARED",
@@ -3876,6 +4637,8 @@
                   "MACHINE_NOT_ENABLED",
                   "MACHINE_INCOMPATIBLE",
                   "COMMUNICATION_LOST",
+                  "LICENSE_REQUIRED",
+                  "LICENSE_EXPIRED",
                   null
                 ]
               },
@@ -7853,6 +8616,268 @@
         }
       }
     },
+    "identityOrganizationCreation": {
+      "method": "GET",
+      "path": "/api/v1/me/organization-creation",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/OrganizationCreationState"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "identityRequestOrganization": {
+      "method": "POST",
+      "path": "/api/v1/organization-requests",
+      "responses": {
+        "201": {
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "requestId"
+            ],
+            "properties": {
+              "requestId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "identityOrganizationRequests": {
+      "method": "GET",
+      "path": "/api/v1/me/organization-requests",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "items"
+            ],
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MyOrganizationRequest"
+                }
+              }
+            }
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "identityDeactivateOrganization": {
+      "method": "POST",
+      "path": "/api/v1/organization-deactivations",
+      "responses": {
+        "204": {
+          "contentType": null,
+          "schema": null
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "identityReactivateOrganization": {
+      "method": "POST",
+      "path": "/api/v1/organization-reactivations",
+      "responses": {
+        "204": {
+          "contentType": null,
+          "schema": null
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
     "identityLinkStart": {
       "method": "POST",
       "path": "/api/v1/links/start",
@@ -9666,6 +10691,710 @@
           }
         },
         "500": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "listOrganizationRequests": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/organization-requests",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "items"
+            ],
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/OrganizationRequest"
+                }
+              }
+            }
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "approveOrganizationRequest": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/organization-requests/{requestId}/approve",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/OrganizationRequestDecision"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "refuseOrganizationRequest": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/organization-requests/{requestId}/refuse",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/OrganizationRequestDecision"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "getOrganizationCapacity": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/capacity",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "model",
+              "workers",
+              "concurrentExecutions",
+              "pendingExecutions",
+              "asOf"
+            ],
+            "properties": {
+              "model": {
+                "type": "string",
+                "enum": [
+                  "legacy",
+                  "licensed"
+                ]
+              },
+              "workers": {
+                "$ref": "#/components/schemas/CapacityUsage"
+              },
+              "concurrentExecutions": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/CapacityUsage"
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "breakdown"
+                    ],
+                    "properties": {
+                      "breakdown": {
+                        "type": "object",
+                        "required": [
+                          "remote",
+                          "unconfirmed",
+                          "platform",
+                          "previousAgent"
+                        ],
+                        "properties": {
+                          "remote": {
+                            "type": "integer",
+                            "format": "int64",
+                            "minimum": 0
+                          },
+                          "unconfirmed": {
+                            "type": "integer",
+                            "format": "int64",
+                            "minimum": 0
+                          },
+                          "platform": {
+                            "type": "integer",
+                            "format": "int64",
+                            "minimum": 0
+                          },
+                          "previousAgent": {
+                            "type": "integer",
+                            "format": "int64",
+                            "minimum": 0
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "pendingExecutions": {
+                "$ref": "#/components/schemas/CapacityUsage"
+              },
+              "asOf": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "getLicenseSummary": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/licenses/summary",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/LicenseSummary"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "500": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "listOrganizationLicenses": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/licenses",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/OrganizationLicensePage"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "500": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "assignLicense": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/licenses/{licenseId}/assignment",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/LicenseAssignment"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "previewLicenseEnforcement": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/license-operations/organizations/{target}/enforcement-preview",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/LicenseEnforcementPreview"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "grantLicenses": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/license-operations/organizations/{target}/licenses",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "items"
+            ],
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "licenseId",
+                    "number"
+                  ],
+                  "properties": {
+                    "licenseId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "number": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "renewLicense": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/license-operations/organizations/{target}/licenses/{licenseId}/renewal",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "licenseId",
+              "periodId"
+            ],
+            "properties": {
+              "licenseId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "periodId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "transferLicense": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/license-operations/organizations/{target}/licenses/{licenseId}/transfer",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "licenseId",
+              "fromAutomationId",
+              "toAutomationId",
+              "actId"
+            ],
+            "properties": {
+              "licenseId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "fromAutomationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "toAutomationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "actId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "endLicense": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/license-operations/organizations/{target}/licenses/{licenseId}/end",
+      "responses": {
+        "204": {
+          "contentType": null,
+          "schema": null
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "setLicenseEnforcement": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/license-operations/organizations/{target}/enforcement",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "required": [
+              "organizationId",
+              "model",
+              "blockedAutomations"
+            ],
+            "properties": {
+              "organizationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "model": {
+                "type": "string",
+                "enum": [
+                  "licensed",
+                  "legacy"
+                ]
+              },
+              "blockedAutomations": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/Error"
