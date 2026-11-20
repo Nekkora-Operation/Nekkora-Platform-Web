@@ -485,13 +485,13 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   const count = anaPage.getByRole('group', { name: 'Conta das licenças' });
   await expect(count).toContainText(/Contratadas \(vigentes\)\s*2/);
   await expect(count).toContainText(/Disponíveis \(sem automação\)\s*2/);
-  await anaPage.getByRole('button', { name: 'Vincular a licença nº 1 a uma automação' }).click();
+  await anaPage.getByRole('button', { name: 'Vincular à automação a licença nº 1' }).click();
   const assign = anaPage.getByRole('alertdialog');
   await assign.getByLabel('Automação que vai usar esta licença').selectOption({ label: 'Notas de entrada · Fiscal' });
   await expect(assign.getByText('Você não desfaz este vínculo por aqui.')).toBeVisible();
   await confirmStepUp(anaPage, ana, 'Vincular licença');
   await settle(anaPage);
-  await expect(anaPage.getByText('Licença vinculada a Notas de entrada.')).toBeVisible();
+  await expect(anaPage.getByText("Licença nº 1 vinculada a Notas de entrada.", { exact: false })).toBeVisible();
   await expect(count).toContainText(/Utilizadas \(com automação\)\s*1/);
   await shot(anaPage, 'B3-licencas-modelo-anterior');
   log('B3_vinculo_pela_administradora', sql(`SELECT 'licenca ' || l.license_number || ' -> ' || a.name FROM organization_license_assignments s JOIN organization_licenses l ON l.license_id = s.license_id JOIN automations a ON a.automation_id = s.automation_id WHERE s.organization_id = '${matriz}' AND s.released_at IS NULL`));

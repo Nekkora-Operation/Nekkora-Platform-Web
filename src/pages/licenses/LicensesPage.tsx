@@ -8,7 +8,8 @@ import { useSession } from '../../area/session';
 import { StepUpDialog } from '../../components/StepUpDialog';
 import { accessRefusal, orgStepUp } from '../access/shared';
 import { ForbiddenState } from '../admin/shared';
-import { DateTimeText, LoadErrorState, PageHeader } from '../product/shared';
+import { DateTimeText, LoadErrorState, PageHeader, RouteLink } from '../product/shared';
+import { orgPath } from '../../auth/organization';
 import './licenses.css';
 
 type Loaded = { summary: LicenseSummary; licenses: OrganizationLicense[]; capacity: OrganizationCapacity };
@@ -159,6 +160,11 @@ export function LicensesPage() {
     .filter((a) => a.status !== 'archived' && !licensed.has(a.automationId))
     .map((a) => ({ value: a.automationId, label: `${a.name} · ${a.workspaceName}` }));
   const chosen = automations?.find((a) => a.automationId === automationId);
+  // nenhuma automação que possa receber licença: ou a organização ainda não tem automação, ou todas já têm a sua
+  const noneAtAll = (automations ?? []).every((a) => a.status === 'archived');
+  // as automações que estão usando licença vigente, pelo número da licença: é o que "Utilizadas" conta
+  const inUse = licenses.filter((l) => l.status === 'active' && l.automation).sort((a, b) => a.number - b.number);
+  const free = licenses.filter((l) => l.status === 'active' && !l.automation).sort((a, b) => a.number - b.number);
 
   const columns: TableColumn<OrganizationLicense>[] = [
     { key: 'numero', header: 'Licença', render: (l) => `nº ${l.number}` },
@@ -208,8 +214,8 @@ export function LicensesPage() {
       header: 'Ações',
       render: (l) =>
         l.status === 'active' && !l.automation ? (
-          <Button size="sm" variant="secondary" onClick={() => void openAssign(l)} aria-label={`Vincular a licença nº ${l.number} a uma automação`}>
-            Vincular a uma automação
+          <Button size="sm" variant="secondary" onClick={() => void openAssign(l)} aria-label={`Vincular à automação a licença nº ${l.number}`}>
+            Vincular à automação
           </Button>
         ) : null,
     },
@@ -240,12 +246,36 @@ export function LicensesPage() {
               <Usage label="Contratadas (vigentes)" used={summary.contracted} limit={null} />
             </Card>
             <Card variant="outlined" padding="md">
-              <Usage label="Utilizadas (com automação)" used={summary.used} limit={null} />
+              <Usage label="Utilizadas (com automação)" used={summary.used} limit={null}>
+                {inUse.length > 0 && (
+                  <ul className="pw-lic__names" aria-label="Automações com licença">
+                    {inUse.map((l) => (
+                      <li key={l.licenseId}>
+                        <Text variant="body-sm" color="secondary">
+                          nº {l.number}: {l.automation!.name}
+                        </Text>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Usage>
             </Card>
             <Card variant="outlined" padding="md">
-              <Usage label="Disponíveis (sem automação)" used={summary.available} limit={null} />
+              <Usage label="Disponíveis (sem automação)" used={summary.available} limit={null}>
+                {free.length > 0 && (
+                  <Text variant="body-sm" color="secondary">
+                    {free.map((l) => `nº ${l.number}`).join(', ')}
+                  </Text>
+                )}
+              </Usage>
             </Card>
           </div>
+          {free.length > 0 && (
+            <Alert tone="info" title={free.length === 1 ? 'Você tem 1 licença disponível.' : `Você tem ${free.length} licenças disponíveis.`}>
+              Para usar uma licença, escolha a automação que ela vai atender: na lista abaixo, na linha da licença, use “Vincular à automação”. Enquanto não
+              for vinculada, a licença não libera a execução de nenhuma automação.
+            </Alert>
+          )}
           {summary.expiredWithAutomation > 0 && (
             <Alert tone="warning" title={summary.expiredWithAutomation === 1 ? 'Uma licença vencida continua vinculada a uma automação.' : `${summary.expiredWithAutomation} licenças vencidas continuam vinculadas a automações.`}>
               {summary.model === 'licensed'
@@ -323,8 +353,8 @@ export function LicensesPage() {
         action={() => (assigning && chosen ? assignLicense(org, assigning.licenseId, chosen.automationId) : Promise.reject())}
         onDone={() => {
           const name = chosen?.name ?? 'a automação';
+          setNotice({ tone: 'success', text: `Licença nº ${assigning?.number} vinculada a ${name}. A conta e a lista abaixo já mostram o vínculo.` });
           setAssigning(null);
-          setNotice({ tone: 'success', text: `Licença vinculada a ${name}.` });
           void load();
         }}
         onClose={() => setAssigning(null)}
@@ -340,7 +370,14 @@ export function LicensesPage() {
           {automations === null ? (
             <Text color="secondary">Carregando as automações…</Text>
           ) : choices.length === 0 ? (
-            <Alert tone="info">Não há automação sem licença para receber esta. Automações arquivadas não recebem licença.</Alert>
+            noneAtAll ? (
+              <Alert tone="info" title="Esta organização ainda não tem automação para receber a licença.">
+                Crie a automação em um workspace e volte aqui para vincular: <RouteLink to={orgPath.workspaces(org)}>abrir Workspaces</RouteLink>. A licença
+                continua disponível enquanto isso.
+              </Alert>
+            ) : (
+              <Alert tone="info">Todas as automações desta organização já têm licença. Automações arquivadas não recebem licença.</Alert>
+            )
           ) : (
             <Select
               label="Automação que vai usar esta licença"

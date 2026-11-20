@@ -328,11 +328,11 @@ test('PLATFORM-LICENCIAMENTO-001 com o Client empacotado: licença → execuçã
 
     await go(anaPage, `/o/${fabrica}/administracao/licencas`);
     await expect(anaPage.getByText('Esta organização exige licença.')).toBeVisible();
-    await anaPage.getByRole('button', { name: 'Vincular a licença nº 1 a uma automação' }).click();
+    await anaPage.getByRole('button', { name: 'Vincular à automação a licença nº 1' }).click();
     await anaPage.getByRole('alertdialog').getByLabel('Automação que vai usar esta licença').selectOption({ label: `${AUTOMACAO} · Fiscal` });
     await confirmStepUp(anaPage, ana, 'Vincular licença');
     await settle(anaPage);
-    await expect(anaPage.getByText(`Licença vinculada a ${AUTOMACAO}.`)).toBeVisible();
+    await expect(anaPage.getByText(`Licença nº 1 vinculada a ${AUTOMACAO}.`, { exact: false })).toBeVisible();
 
     // as dependências de execução: só as do próprio pacote
     await go(anaPage, automationUrl);

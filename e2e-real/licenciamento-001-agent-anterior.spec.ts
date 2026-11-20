@@ -263,11 +263,11 @@ test('PLATFORM-LICENCIAMENTO-001 com o Agent anterior em cópia isolada: recusa 
     await settle(anaPage);
     await expect.poll(() => sql(`SELECT status FROM automation_versions WHERE automation_version_id = '${versaoId}'`), { timeout: 60_000 }).toBe('2');
     await go(anaPage, `/o/${oficina}/administracao/licencas`);
-    await anaPage.getByRole('button', { name: 'Vincular a licença nº 1 a uma automação' }).click();
+    await anaPage.getByRole('button', { name: 'Vincular à automação a licença nº 1' }).click();
     await anaPage.getByRole('alertdialog').getByLabel('Automação que vai usar esta licença').selectOption({ label: `${AUTOMACAO} · Oficina` });
     await confirmStepUp(anaPage, ana, 'Vincular licença');
     await settle(anaPage);
-    await expect(anaPage.getByText(`Licença vinculada a ${AUTOMACAO}.`)).toBeVisible();
+    await expect(anaPage.getByText(`Licença nº 1 vinculada a ${AUTOMACAO}.`, { exact: false })).toBeVisible();
 
     await go(anaPage, `/o/${oficina}/workers`);
     await anaPage.getByRole('heading', { name: 'Workers', level: 1 }).waitFor();
