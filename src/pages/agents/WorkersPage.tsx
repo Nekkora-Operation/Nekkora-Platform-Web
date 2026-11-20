@@ -26,9 +26,13 @@ export const WORKERS_INTRO = 'Crie Workers, vincule as máquinas e escolha em qu
 /** T08: o destino do "Retirar" legível por teclado e leitor de tela (o workspace e o Worker do item). */
 export const removeLabel = (workspace: string, worker: string) => `Retirar autorização de ${workspace} do Worker ${worker}`;
 
-/** Texto da recusa por capacidade (409 worker_limit_reached). */
+/** Texto da recusa por capacidade (409 worker_limit_reached), no modelo anterior: o limite vem da ativação. */
 export const WORKER_LIMIT_TEXT =
   'A organização atingiu o limite de Workers. Enquanto ela aguarda ativação, o limite é zero; depois da ativação, ele é definido pela Nekkora. Nada foi criado.';
+/** A mesma recusa no modelo por licença: o limite é técnico, igual para todas, e não depende de ativação nem de licença. */
+export const WORKER_LIMIT_TEXT_LICENSED =
+  'A organização atingiu o limite técnico de Workers cadastrados. É um limite de capacidade, igual para todas as organizações, sem relação com a ativação nem com a quantidade de licenças. Nada foi criado.';
+export const workerLimitText = (model: 'legacy' | 'licensed' | undefined) => (model === 'licensed' ? WORKER_LIMIT_TEXT_LICENSED : WORKER_LIMIT_TEXT);
 
 type Pending = { kind: 'authorize'; worker: Worker } | { kind: 'remove'; worker: Worker; workspaceId: string };
 
@@ -39,7 +43,7 @@ type Pending = { kind: 'authorize'; worker: Worker } | { kind: 'remove'; worker:
  * vinculada (só quando a lista do servidor a traz, depois do resgate do código) e a comunicação (último sinal).
  */
 function WorkersManagement() {
-  const { org, expired } = useSession();
+  const { org, expired, me } = useSession();
   const { workspaces, permissions } = useInternalArea();
   const has = (p: string) => permissions.status === 'ready' && (permissions.data.organization.permissions as string[]).includes(p);
   // T11 (PLATFORM-AGENT-V2-003): releitura a cada 30 s com a página visível; falha mantém os dados como não confirmados
@@ -246,7 +250,7 @@ function WorkersManagement() {
           void load();
         }}
         onClose={() => setCreating(false)}
-        refusalText={(e) => (hasReason(e, 'conflict', 'worker_limit_reached') ? WORKER_LIMIT_TEXT : accessRefusal(e))}
+        refusalText={(e) => (hasReason(e, 'conflict', 'worker_limit_reached') ? workerLimitText(me.organizationLicenseModel) : accessRefusal(e))}
         uncertainText="Não foi possível confirmar se o Worker foi criado. Feche e confira a lista de Workers antes de criar de novo, para não registrar um Worker repetido."
         onUnauthenticated={expired}
       >

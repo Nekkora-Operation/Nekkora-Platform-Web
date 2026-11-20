@@ -30,7 +30,6 @@ export const RESPONSIBLE_TEXT = {
 const DECISION_REFUSAL: Record<string, string> = {
   empty_organization_limit_reached:
     'A pessoa escolhida como responsável já tem o limite de organizações vazias (sem automações). Escolha o outro responsável, ou a pessoa precisa usar ou desativar uma organização vazia. O pedido continua aguardando.',
-  organization_limit_reached: 'A pessoa escolhida como responsável já criou o número máximo de organizações. O pedido continua aguardando.',
   organization_request_not_pending: 'Este pedido já foi decidido. Atualize a lista.',
   organization_request_own: 'Você não decide um pedido feito por você.',
   organization_request_approver_without_identity:

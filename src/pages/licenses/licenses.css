@@ -7,3 +7,4 @@
 .pw-lic__choice label { display: flex; gap: var(--nk-space-2); align-items: flex-start; }
 .pw-lic__reason { width: 100%; min-height: 5rem; font: inherit; padding: var(--nk-space-2); }
 .pw-visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.pw-lic__names { list-style: none; margin: 0; padding: 0; }

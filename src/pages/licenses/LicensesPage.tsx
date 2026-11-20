@@ -8,7 +8,8 @@ import { useSession } from '../../area/session';
 import { StepUpDialog } from '../../components/StepUpDialog';
 import { accessRefusal, orgStepUp } from '../access/shared';
 import { ForbiddenState } from '../admin/shared';
-import { DateTimeText, LoadErrorState, PageHeader } from '../product/shared';
+import { DateTimeText, LoadErrorState, PageHeader, RouteLink } from '../product/shared';
+import { orgPath } from '../../auth/organization';
 import './licenses.css';
 
 type Loaded = { summary: LicenseSummary; licenses: OrganizationLicense[]; capacity: OrganizationCapacity };
@@ -39,6 +40,8 @@ export const CAPACITY_TEXT = {
   concurrentFull: 'No limite, nada é recusado: a execução seguinte fica pendente até uma vaga ser liberada.',
   pendingFull: 'Com a fila cheia, uma solicitação nova é recusada até uma execução pendente começar ou terminar.',
   workersFull: 'No limite, um Worker novo não é cadastrado até outro ser arquivado.',
+  previousAgentUnconfirmed:
+    'O Agent anterior informou que não sabe como essas execuções terminaram. Isso não comprova que deixaram de ocupar a máquina, então a vaga continua reservada. Ela volta quando o suporte da Nekkora registrar a reconciliação, depois de verificar que o processo terminou ou que a máquina está fora de operação. O tempo, sozinho, não libera a vaga.',
 } as const;
 
 const ASSIGN_REFUSAL: Record<string, string> = {
@@ -69,15 +72,30 @@ function Usage({ label, used, limit, note, children }: { label: string; used: nu
   );
 }
 
-/** De que é feita a ocupação das vagas de execução, em palavras. Só as parcelas que existem. */
-export function breakdownText(b: OrganizationCapacity['concurrentExecutions']['breakdown']): string {
-  const parts = [
+type Breakdown = OrganizationCapacity['concurrentExecutions']['breakdown'];
+
+/** Execuções ATIVAS (a máquina ou a Platform informa que estão em andamento), em palavras. Só as parcelas que existem. */
+export function activeText(b: Breakdown): string {
+  return [
     b.remote ? `${b.remote} pelo Agent Client` : '',
     b.previousAgent ? `${b.previousAgent} pelo Agent anterior` : '',
     b.platform ? `${b.platform} pela Platform` : '',
-    b.unconfirmed ? `${b.unconfirmed} com término não confirmado pela máquina` : '',
-  ].filter(Boolean);
-  return parts.join(' · ');
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+/**
+ * RESERVAS POR SITUAÇÃO INCERTA: não há prova de que a execução terminou, então a vaga continua reservada. Não são execuções
+ * confirmadas em andamento, e a tela as mostra à parte.
+ */
+export function reservedText(b: Breakdown): string {
+  return [
+    b.unconfirmed ? `${b.unconfirmed} com término não confirmado pela máquina (Agent Client)` : '',
+    b.previousAgentUnconfirmed ? `${b.previousAgentUnconfirmed} com resultado desconhecido (Agent anterior)` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 /**
@@ -142,6 +160,11 @@ export function LicensesPage() {
     .filter((a) => a.status !== 'archived' && !licensed.has(a.automationId))
     .map((a) => ({ value: a.automationId, label: `${a.name} · ${a.workspaceName}` }));
   const chosen = automations?.find((a) => a.automationId === automationId);
+  // nenhuma automação que possa receber licença: ou a organização ainda não tem automação, ou todas já têm a sua
+  const noneAtAll = (automations ?? []).every((a) => a.status === 'archived');
+  // as automações que estão usando licença vigente, pelo número da licença: é o que "Utilizadas" conta
+  const inUse = licenses.filter((l) => l.status === 'active' && l.automation).sort((a, b) => a.number - b.number);
+  const free = licenses.filter((l) => l.status === 'active' && !l.automation).sort((a, b) => a.number - b.number);
 
   const columns: TableColumn<OrganizationLicense>[] = [
     { key: 'numero', header: 'Licença', render: (l) => `nº ${l.number}` },
@@ -191,8 +214,8 @@ export function LicensesPage() {
       header: 'Ações',
       render: (l) =>
         l.status === 'active' && !l.automation ? (
-          <Button size="sm" variant="secondary" onClick={() => void openAssign(l)} aria-label={`Vincular a licença nº ${l.number} a uma automação`}>
-            Vincular a uma automação
+          <Button size="sm" variant="secondary" onClick={() => void openAssign(l)} aria-label={`Vincular à automação a licença nº ${l.number}`}>
+            Vincular à automação
           </Button>
         ) : null,
     },
@@ -223,12 +246,36 @@ export function LicensesPage() {
               <Usage label="Contratadas (vigentes)" used={summary.contracted} limit={null} />
             </Card>
             <Card variant="outlined" padding="md">
-              <Usage label="Utilizadas (com automação)" used={summary.used} limit={null} />
+              <Usage label="Utilizadas (com automação)" used={summary.used} limit={null}>
+                {inUse.length > 0 && (
+                  <ul className="pw-lic__names" aria-label="Automações com licença">
+                    {inUse.map((l) => (
+                      <li key={l.licenseId}>
+                        <Text variant="body-sm" color="secondary">
+                          nº {l.number}: {l.automation!.name}
+                        </Text>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Usage>
             </Card>
             <Card variant="outlined" padding="md">
-              <Usage label="Disponíveis (sem automação)" used={summary.available} limit={null} />
+              <Usage label="Disponíveis (sem automação)" used={summary.available} limit={null}>
+                {free.length > 0 && (
+                  <Text variant="body-sm" color="secondary">
+                    {free.map((l) => `nº ${l.number}`).join(', ')}
+                  </Text>
+                )}
+              </Usage>
             </Card>
           </div>
+          {free.length > 0 && (
+            <Alert tone="info" title={free.length === 1 ? 'Você tem 1 licença disponível.' : `Você tem ${free.length} licenças disponíveis.`}>
+              Para usar uma licença, escolha a automação que ela vai atender: na lista abaixo, na linha da licença, use “Vincular à automação”. Enquanto não
+              for vinculada, a licença não libera a execução de nenhuma automação.
+            </Alert>
+          )}
           {summary.expiredWithAutomation > 0 && (
             <Alert tone="warning" title={summary.expiredWithAutomation === 1 ? 'Uma licença vencida continua vinculada a uma automação.' : `${summary.expiredWithAutomation} licenças vencidas continuam vinculadas a automações.`}>
               {summary.model === 'licensed'
@@ -268,17 +315,25 @@ export function LicensesPage() {
             </Card>
             <Card variant="outlined" padding="md">
               <Usage label="Execuções simultâneas" used={c.concurrentExecutions.used} limit={c.concurrentExecutions.limit} note={CAPACITY_TEXT.concurrentFull}>
-                {breakdownText(c.concurrentExecutions.breakdown) && (
-                  <Text variant="body-sm" color="secondary">
-                    {breakdownText(c.concurrentExecutions.breakdown)}
-                  </Text>
-                )}
+                <Text variant="body-sm" color="secondary">
+                  Em execução: {c.concurrentExecutions.active}
+                  {activeText(c.concurrentExecutions.breakdown) && ` (${activeText(c.concurrentExecutions.breakdown)})`}
+                </Text>
+                <Text variant="body-sm" color="secondary">
+                  Reservadas por situação incerta: {c.concurrentExecutions.reservedUncertain}
+                  {reservedText(c.concurrentExecutions.breakdown) && ` (${reservedText(c.concurrentExecutions.breakdown)})`}
+                </Text>
               </Usage>
             </Card>
             <Card variant="outlined" padding="md">
               <Usage label="Execuções pendentes (na fila)" used={c.pendingExecutions.used} limit={c.pendingExecutions.limit} note={CAPACITY_TEXT.pendingFull} />
             </Card>
           </div>
+          {c.concurrentExecutions.breakdown.previousAgentUnconfirmed > 0 && (
+            <Alert tone="warning" title="Há execução do Agent anterior com resultado desconhecido reservando vaga.">
+              {CAPACITY_TEXT.previousAgentUnconfirmed}
+            </Alert>
+          )}
           {c.concurrentExecutions.breakdown.unconfirmed > 0 && (
             <Alert tone="warning" title="Há execução com término não confirmado ocupando vaga.">
               A máquina ainda não confirmou que os processos dessas execuções terminaram. A vaga volta quando a máquina confirmar ou quando quem administra
@@ -298,8 +353,8 @@ export function LicensesPage() {
         action={() => (assigning && chosen ? assignLicense(org, assigning.licenseId, chosen.automationId) : Promise.reject())}
         onDone={() => {
           const name = chosen?.name ?? 'a automação';
+          setNotice({ tone: 'success', text: `Licença nº ${assigning?.number} vinculada a ${name}. A conta e a lista abaixo já mostram o vínculo.` });
           setAssigning(null);
-          setNotice({ tone: 'success', text: `Licença vinculada a ${name}.` });
           void load();
         }}
         onClose={() => setAssigning(null)}
@@ -315,7 +370,14 @@ export function LicensesPage() {
           {automations === null ? (
             <Text color="secondary">Carregando as automações…</Text>
           ) : choices.length === 0 ? (
-            <Alert tone="info">Não há automação sem licença para receber esta. Automações arquivadas não recebem licença.</Alert>
+            noneAtAll ? (
+              <Alert tone="info" title="Esta organização ainda não tem automação para receber a licença.">
+                Crie a automação em um workspace e volte aqui para vincular: <RouteLink to={orgPath.workspaces(org)}>abrir Workspaces</RouteLink>. A licença
+                continua disponível enquanto isso.
+              </Alert>
+            ) : (
+              <Alert tone="info">Todas as automações desta organização já têm licença. Automações arquivadas não recebem licença.</Alert>
+            )
           ) : (
             <Select
               label="Automação que vai usar esta licença"

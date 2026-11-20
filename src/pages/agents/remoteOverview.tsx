@@ -8,7 +8,7 @@ import { useWorkspacePermissions } from '../../area/useWorkspacePermissions';
 import { orgPath } from '../../auth/organization';
 import { usePolling } from '../../hooks/usePolling';
 import { DateTimeText, errorText, NotFoundState, PageHeader, RouteLink } from '../product/shared';
-import { ATTEMPT_STATE, endedUnknownText, refusalText } from './RemoteExecutions';
+import { ATTEMPT_STATE, WAITING_SLOT_LABEL, WAITING_SLOT_TEXT, endedUnknownText, refusalText } from './RemoteExecutions';
 import { RemoteLogs } from './RemoteLogs';
 import { RemoteResults } from './RemoteResults';
 import { durationText } from './supervision';
@@ -46,8 +46,9 @@ export interface RemoteFilter {
   to?: string;
 }
 
-function StateBadge({ state, exitCode }: { state: RemoteAttempt['state']; exitCode?: number | null }) {
-  const s = ATTEMPT_STATE[state];
+function StateBadge({ state, exitCode, waitingForSlot }: { state: RemoteAttempt['state']; exitCode?: number | null; waitingForSlot?: boolean }) {
+  // na fila com a organização no limite de simultâneas: aguarda vaga (capacidade, não licença)
+  const s = state === 'QUEUED' && waitingForSlot ? { label: WAITING_SLOT_LABEL, tone: 'warning' as const } : ATTEMPT_STATE[state];
   return (
     <span className="pw-remote__state">
       <Badge tone={s.tone} size="sm">
@@ -177,7 +178,7 @@ export function RemoteRequestsSection({
       ),
     },
     { key: 'workspace', header: 'Workspace', render: (x) => <RouteLink to={orgPath.workspace(org, x.workspaceId)} variant="default">{x.workspaceName ?? `Workspace ${x.workspaceId.slice(0, 8)}`}</RouteLink> },
-    { key: 'estado', header: 'Estado', render: (x) => <StateBadge state={x.state} exitCode={last(x)?.exitCode} /> },
+    { key: 'estado', header: 'Estado', render: (x) => <StateBadge state={x.state} exitCode={last(x)?.exitCode} waitingForSlot={x.waitingForSlot} /> },
     { key: 'origem', header: 'Origem', render: () => REMOTE_ORIGIN },
     { key: 'maquina', header: 'Máquina · Worker', render: (x) => (last(x) ? `${last(x)!.agentName} · ${last(x)!.workerName}` : '—') },
     { key: 'solicitada', header: 'Solicitada em', render: (x) => <DateTimeText iso={x.requestedAt} /> },
@@ -266,7 +267,8 @@ export function RemoteExecutionPage() {
       <StateView status="loading" title="Carregando a execução remota…" />
     );
   }
-  const current = ATTEMPT_STATE[x.state];
+  const waiting = x.state === 'QUEUED' && !!x.waitingForSlot;
+  const current = waiting ? { label: WAITING_SLOT_LABEL, tone: 'warning' as const } : ATTEMPT_STATE[x.state];
   return (
     <Stack gap={5}>
       <PageHeader
@@ -285,6 +287,11 @@ export function RemoteExecutionPage() {
               Atualizar
             </Button>
           </div>
+          {waiting && (
+            <Text variant="body-sm" color="secondary">
+              {WAITING_SLOT_TEXT}
+            </Text>
+          )}
           <DescriptionList
             items={[
               { key: 'automacao', term: 'Automação', description: <RouteLink to={orgPath.automation(org, x.automationId)}>{x.automationName ?? x.automationId}</RouteLink> },

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Badge, Button, Card, Checkbox, Heading, Select, Stack, Table, Text, Textarea, type TableColumn, type Tone } from 'nekkora-lib';
+import { Alert, Badge, Button, Card, Checkbox, Heading, Input, Select, Stack, Table, Text, Textarea, type TableColumn, type Tone } from 'nekkora-lib';
 import {
   cancelRemoteExecution,
   checkRemoteMachineDependencies,
@@ -18,7 +18,7 @@ import {
   type RemoteMissing,
   type RemotePythonChoice,
 } from '../../api/remoteExecutions';
-import { listRemoteMachinePythonEnvironments, type PythonEnvironment } from '../../api/agents';
+import { listLocalRunAuthorizations, listRemoteMachinePythonEnvironments, type PythonEnvironment } from '../../api/agents';
 import { ApiError, isApiError } from '../../api/http';
 import { useSession } from '../../area/session';
 import { orgPath } from '../../auth/organization';
@@ -29,7 +29,7 @@ import { DateTimeText, RouteLink } from '../product/shared';
 import { RemoteLogs } from './RemoteLogs';
 import { RemoteResults } from './RemoteResults';
 import './agents.css';
-import { CAPACITY_PENDING_TEXT, LICENSE_EXPIRED_TEXT, LICENSE_REQUIRED_TEXT } from '../licenses/texts';
+import { CAPACITY_PENDING_TEXT, LICENSE_EXPIRED_TEXT, LICENSE_REQUIRED_TEXT, reducedValidityText } from '../licenses/texts';
 
 /**
  * PLATFORM-CLIENT-EXECUCAO-REMOTA-001, T02 — execução remota de uma versão publicada. A tela mostra, por máquina, o que
@@ -42,6 +42,27 @@ export const REMOTE_INTERVAL_MS = 5_000;
 
 const TERMINAL: RemoteAttemptState[] = ['SUCCEEDED', 'FAILED', 'CANCELLED', 'TIMED_OUT', 'REFUSED', 'EXPIRED', 'ENDED_UNKNOWN'];
 const finished = (s: RemoteAttemptState) => TERMINAL.includes(s);
+
+/**
+ * AGUARDANDO VAGA (PLATFORM-LICENCIAMENTO-001): a tentativa está na fila e a organização está no limite técnico de execuções
+ * simultâneas. É capacidade, não licença - a licença da automação foi conferida quando a solicitação foi aceita.
+ */
+export const WAITING_SLOT_LABEL = 'Aguardando vaga';
+export const WAITING_SLOT_TEXT =
+  'A organização está no limite de execuções simultâneas. Esta execução começa quando uma vaga for liberada, sem nova solicitação. É um limite de capacidade, não falta de licença: a licença desta automação já foi conferida quando a solicitação foi aceita.';
+
+/** S2: o que falta nesta máquina é SÓ a autorização da versão (ausente, revogada ou vencida)? Então dá para autorizar e solicitar no mesmo passo. */
+export const onlyAuthorizationMissing = (missing: readonly string[]) =>
+  missing.length > 0 && missing.every((m) => m === 'AUTHORIZATION_MISSING' || m === 'AUTHORIZATION_REVOKED' || m === 'AUTHORIZATION_EXPIRED');
+
+export const ACCEPT_VERSION = {
+  BUTTON: 'Autorizar esta versão e solicitar',
+  ACK: (version: string, worker: string) => `Autorizo a execução da ${version} no Worker ${worker}.`,
+  SCOPE:
+    'A autorização vale só para esta versão, neste Worker. Versões futuras não ficam autorizadas: cada versão nova pede uma autorização nova. É o mesmo ato de "Autorizações de execução local", feito aqui no mesmo passo, e fica registrado com o seu nome.',
+  UNTIL_LICENSED: 'Opcional. Em branco, a autorização vale até o fim da licença desta automação; uma data além disso é reduzida ao fim da licença.',
+  UNTIL_LEGACY: 'Data futura, até 366 dias.',
+};
 
 /** O que a tela pode afirmar de cada estado. Entregar não prova recebimento; receber não prova início. */
 export const ATTEMPT_STATE: Record<RemoteAttemptState, { label: string; tone: Tone }> = {
@@ -300,9 +321,14 @@ export function RemoteExecutions({
   /** O pacote desta versão é um pacote Python externo: o único tipo que a execução remota aceita nesta versão do produto. */
   externalPackage: boolean;
 }) {
-  const { org, expired } = useSession();
+  const { org, expired, me } = useSession();
+  const licensed = me.organizationLicenseModel === 'licensed';
   const [absent, setAbsent] = useState(false);
   const [requesting, setRequesting] = useState<RemoteCandidate | null>(null);
+  // S2: autorizar a versão no mesmo passo de solicitar (aceite explícito, com validade)
+  const [accepting, setAccepting] = useState<RemoteCandidate | null>(null);
+  const [acceptAck, setAcceptAck] = useState(false);
+  const [acceptUntil, setAcceptUntil] = useState('');
   const [cancelling, setCancelling] = useState<RemoteExecution | null>(null);
   const [retrying, setRetrying] = useState<RemoteExecution | null>(null);
   const [retryAgent, setRetryAgent] = useState('');
@@ -343,7 +369,8 @@ export function RemoteExecutions({
       current = false;
     };
   }, [choosing, org, workspaceId]);
-  const requestKey = useMemo(() => (requesting ? crypto.randomUUID() : ''), [requesting]);
+  // uma chave por diálogo aberto (solicitar, ou autorizar e solicitar): repetir pelo mesmo diálogo devolve a mesma solicitação
+  const requestKey = useMemo(() => (requesting || accepting ? crypto.randomUUID() : ''), [requesting, accepting]);
 
   const poll = usePolling<Data>(
     async () => {
@@ -372,6 +399,8 @@ export function RemoteExecutions({
   if (data.candidates.length === 0 && data.executions.length === 0) return null;
 
   const requestable = data.candidates.filter((c) => c.requestable);
+  const acceptUntilDate = acceptUntil ? new Date(`${acceptUntil}T23:59:59`) : null;
+  const acceptUntilOk = !!acceptUntilDate && acceptUntilDate.getTime() > Date.now() && acceptUntilDate.getTime() <= Date.now() + 366 * 86_400_000;
   const versionLabel = `versão ${version.versionNumber ?? ''}`.trim();
 
   /** A ação que resolve o que falta — oferecida só a quem pode fazê-la. */
@@ -393,6 +422,9 @@ export function RemoteExecutions({
     if (m === 'MACHINE_INCOMPATIBLE') return 'É preciso uma versão do Nekkora Agent que execute solicitações da Platform nesse computador.';
     if (m === 'PYTHON_NOT_SELECTED' || m === 'PYTHON_NOT_IN_INVENTORY')
       return canManage ? 'Escolha o Python na coluna "Python desta automação".' : 'Peça a quem gerencia esta automação.';
+    // licença não é pendência da máquina: quem resolve é a administração da organização (vínculo) ou o suporte (renovação)
+    if (m === 'LICENSE_REQUIRED') return 'Não há ação nesta máquina: quem administra a organização vincula uma licença a esta automação.';
+    if (m === 'LICENSE_EXPIRED') return 'Não há ação nesta máquina: a renovação da licença é feita pelo suporte da Nekkora.';
     return 'Aguarde a execução em andamento nessa máquina terminar.';
   };
 
@@ -487,6 +519,19 @@ export function RemoteExecutions({
         canExecute && c.requestable && externalPackage ? (
           <Button size="sm" onClick={() => setRequesting(c)} aria-label={`Solicitar execução em ${c.agentName}`}>
             Solicitar execução
+          </Button>
+        ) : canExecute && externalPackage && onlyAuthorizationMissing(c.missing) ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              setAcceptAck(false);
+              setAcceptUntil('');
+              setAccepting(c);
+            }}
+            aria-label={`${ACCEPT_VERSION.BUTTON} em ${c.agentName}`}
+          >
+            {ACCEPT_VERSION.BUTTON}
           </Button>
         ) : (
           '—'
@@ -594,13 +639,22 @@ export function RemoteExecutions({
           <Card key={x.remoteExecutionId} variant="outlined" padding="md" aria-label={`Solicitação de ${new Date(x.requestedAt).toLocaleString('pt-BR')}`}>
             <Stack gap={2}>
               <div className="pw-form__row">
-                <Badge tone={ATTEMPT_STATE[x.state].tone}>{ATTEMPT_STATE[x.state].label}</Badge>
+                {x.state === 'QUEUED' && x.waitingForSlot ? (
+                  <Badge tone="warning">{WAITING_SLOT_LABEL}</Badge>
+                ) : (
+                  <Badge tone={ATTEMPT_STATE[x.state].tone}>{ATTEMPT_STATE[x.state].label}</Badge>
+                )}
                 {last?.processes === 'ACTIVE' && <Badge tone="warning">Finalizando</Badge>}
                 {last?.processes === 'UNCERTAIN' && <Badge tone="warning">Ocupação incerta</Badge>}
                 <Text variant="body-sm" color="secondary">
                   Solicitada em <DateTimeText iso={x.requestedAt} />
                 </Text>
               </div>
+              {x.state === 'QUEUED' && x.waitingForSlot && (
+                <Text variant="body-sm" color="secondary">
+                  {WAITING_SLOT_TEXT}
+                </Text>
+              )}
               {x.cancelRequestedAt && !done && (
                 <Alert tone="info">Cancelamento pedido. A execução só para quando a máquina receber o pedido e informar; até lá o estado não muda.</Alert>
               )}
@@ -675,6 +729,69 @@ export function RemoteExecutions({
           A máquina recebe a solicitação na próxima consulta. Antes de iniciar, a Platform confere de novo a autorização desta versão para o Worker dela: se
           tiver sido revogada ou vencido, a execução não inicia e o motivo aparece aqui.
         </Text>
+      </StepUpDialog>
+
+      <StepUpDialog<RemoteExecution>
+        open={!!accepting}
+        ready={acceptAck && (licensed ? !acceptUntil || acceptUntilOk : acceptUntilOk)}
+        title={accepting ? `Autorizar a ${versionLabel} no Worker ${accepting.workerName} e solicitar a execução em ${accepting.agentName}?` : ''}
+        guard={{ operation: 'remote-execution.request', target: requestKey }}
+        confirmLabel="Autorizar e solicitar"
+        stepUp={orgStepUp(org)}
+        action={() =>
+          accepting
+            ? requestRemoteExecution(org, workspaceId, {
+                automationVersionId: version.automationVersionId,
+                agentId: accepting.agentId,
+                requestKey,
+                authorizeVersion: true,
+                ...(acceptUntilDate ? { authorizationValidUntil: acceptUntilDate.toISOString() } : {}),
+              })
+            : Promise.reject()
+        }
+        onDone={() => {
+          const asked = acceptUntilDate?.toISOString() ?? null;
+          const worker = accepting?.workerId;
+          setAccepting(null);
+          setNotice({ tone: 'success', text: 'Versão autorizada para este Worker e solicitação registrada. A máquina recebe na próxima consulta.' });
+          poll.refresh();
+          // a validade EFETIVA da autorização criada: se saiu menor que a pedida, a tela diz (a redução nunca fica em silêncio)
+          void listLocalRunAuthorizations(org, workspaceId)
+            .then((l) => {
+              const made = l.items
+                .filter((a) => a.workerId === worker && a.automationVersionId === version.automationVersionId && !a.revokedAt)
+                .sort((a, b) => String(b.grantedAt).localeCompare(String(a.grantedAt)))[0];
+              if (!made?.validUntil) return;
+              const reduced = asked ? reducedValidityText(asked, made.validUntil) : null;
+              setNotice({
+                tone: reduced ? 'warning' : 'success',
+                text: `Versão autorizada para este Worker e solicitação registrada. ${reduced ?? `A autorização vale até ${new Date(made.validUntil).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}.`}`,
+              });
+            })
+            .catch(() => undefined);
+        }}
+        onClose={() => setAccepting(null)}
+        refusalText={remoteRefusal}
+        uncertainText="Não foi possível confirmar a autorização e a solicitação. Atualize a página e confira as autorizações e a lista antes de repetir."
+        onUnauthenticated={expired}
+      >
+        <Stack gap={3}>
+          <Text>{ACCEPT_VERSION.SCOPE}</Text>
+          <Input
+            label="Autorização válida até"
+            type="date"
+            fullWidth
+            value={acceptUntil}
+            onChange={(e) => setAcceptUntil(e.target.value)}
+            hint={licensed ? ACCEPT_VERSION.UNTIL_LICENSED : ACCEPT_VERSION.UNTIL_LEGACY}
+            error={acceptUntil && !acceptUntilOk ? 'Escolha uma data futura dentro de 366 dias.' : undefined}
+          />
+          <Checkbox
+            label={accepting ? ACCEPT_VERSION.ACK(versionLabel, accepting.workerName) : ''}
+            checked={acceptAck}
+            onChange={(e) => setAcceptAck(e.target.checked)}
+          />
+        </Stack>
       </StepUpDialog>
 
       <StepUpDialog<RemoteExecution>

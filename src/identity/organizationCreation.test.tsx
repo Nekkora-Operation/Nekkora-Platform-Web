@@ -8,7 +8,8 @@ import { fakeLocks } from '../test/fakeLocks';
 import { lbl, user } from '../test/helpers';
 import { renderApp } from '../test/render';
 import { RouteApi } from '../test/routeApi';
-import { CANNOT_CREATE, DEACTIVATE_TEXT } from './OrganizationCreationPanel';
+import { BORN_LICENSED } from './labels';
+import { CANNOT_CREATE, creationRateLimitText, DEACTIVATE_TEXT } from './OrganizationCreationPanel';
 
 /**
  * PLATFORM-LICENCIAMENTO-001 — criação por perfil na área da conta: o membro solicita, o Cliente não cria nem solicita, o
@@ -28,9 +29,9 @@ const creation = (over: Record<string, unknown> = {}) => ({
   canCreate: true,
   cannotCreateReason: null,
   canRequest: false,
-  organizationsCreated: { used: 1, limit: 10 },
   emptyOrganizations: { used: 0, limit: 3, organizationIds: [] },
   pendingRequests: { used: 0, limit: 3 },
+  newOrganizationLicenseModel: 'legacy',
   responsibleFor: [],
   ...over,
 });
@@ -54,6 +55,48 @@ beforeEach(() => {
   api.on('GET', '/api/v1/me/session', 'identitySessionState', { status: 200, body: { restricted: false, csrfToken: 'id-csrf', mfaEnabled: true, stepUpMethod: 'totp' } });
   api.on('GET', '/api/v1/me/organization-requests', 'identityOrganizationRequests', { status: 200, body: { items: [] } });
   api.on('POST', '/api/v1/auth/step-up', 'identityStepUp', { status: 204 });
+});
+
+describe('o que a tela de criação diz antes de criar, pelo modelo em que a organização nasce', () => {
+  it('modelo por licença: nasce pronta para configurar, sem "aguardando ativação" e sem depender de aprovação da Nekkora', async () => {
+    api.on('GET', '/api/v1/me/organization-creation', 'identityOrganizationCreation', { status: 200, body: creation({ newOrganizationLicenseModel: 'licensed' }) });
+    renderApp('/organizacoes/nova');
+    expect(await screen.findByText(BORN_LICENSED.title)).toBeInTheDocument();
+    expect(screen.getByText(BORN_LICENSED.body)).toBeInTheDocument();
+    expect(BORN_LICENSED.body).toMatch(/sem depender de aprovação da Nekkora/);
+    expect(BORN_LICENSED.body).toMatch(/Para executar e monitorar uma automação, vincule a ela uma licença vigente\./);
+    expect(screen.queryByText(/aguardando ativação/i)).toBeNull();
+    expect(screen.queryByText(/nenhum Worker pode ser registrado/)).toBeNull();
+  });
+
+  it('modelo anterior (chave desligada): continua dizendo que nasce aguardando ativação', async () => {
+    api.on('GET', '/api/v1/me/organization-creation', 'identityOrganizationCreation', { status: 200, body: creation() });
+    renderApp('/organizacoes/nova');
+    expect(await screen.findByText('A organização nasce aguardando ativação.')).toBeInTheDocument();
+    expect(screen.queryByText(BORN_LICENSED.title)).toBeNull();
+  });
+
+  it('sem a informação do modelo: a tela não afirma nenhum dos dois', async () => {
+    api.on('GET', '/api/v1/me/organization-creation', 'identityOrganizationCreation', { status: 404, body: { error: 'not_found' } });
+    renderApp('/organizacoes/nova');
+    expect(await screen.findByRole('heading', { name: 'Criar organização' })).toBeInTheDocument();
+    await waitFor(() => expect(api.sent('GET', '/api/v1/me/organization-creation').length).toBeGreaterThanOrEqual(1));
+    expect(screen.queryByText(BORN_LICENSED.title)).toBeNull();
+    expect(screen.queryByText(/aguardando ativação/i)).toBeNull();
+  });
+
+  it('situação e disponibilidade de execução têm rótulos que dizem a dimensão', async () => {
+    listing([{ ...org(ORG_A, 'Casa', ['ORG_ADMIN']), activationState: 'AGUARDANDO_ATIVACAO', licenseModel: 'licensed' }], true);
+    api.on('GET', '/api/v1/me/organization-creation', 'identityOrganizationCreation', {
+      status: 200,
+      body: creation({ responsibleFor: [{ organizationId: ORG_A, name: 'Casa', state: 'ACTIVE', empty: true, deactivatedAt: null, canReactivate: false }] }),
+    });
+    renderApp('/organizacoes');
+    expect(await screen.findByText('Situação: ativa')).toBeInTheDocument();
+    expect(screen.getByText('Execução: por licença')).toBeInTheDocument();
+    expect(screen.queryByText('Ativa')).toBeNull();
+    expect(screen.queryByText(/aguardando ativação/i)).toBeNull();
+  });
 });
 
 describe('criação por perfil', () => {
@@ -150,7 +193,7 @@ describe('desativar e reativar', () => {
     expect(within(list).getByRole('button', { name: 'Desativar a organização Ativa' })).toBeInTheDocument();
     expect(within(list).getByRole('button', { name: 'Reativar a organização Parada por mim' })).toBeInTheDocument();
     const blocked = within(list).getByRole('heading', { name: 'Parada pela Nekkora' }).closest('li')!;
-    expect(within(blocked).getByText('Bloqueada pela Nekkora')).toBeInTheDocument();
+    expect(within(blocked).getByText('Situação: bloqueada pela Nekkora')).toBeInTheDocument();
     expect(within(blocked).getByText(DEACTIVATE_TEXT.blocked)).toBeInTheDocument();
     expect(within(blocked).queryByRole('button')).toBeNull();
   });
@@ -206,5 +249,20 @@ describe('desativar e reativar', () => {
     await waitFor(() => expect(confirm).toBeEnabled());
     await user().click(confirm);
     expect(await within(dialog).findByText(/Há trabalho em andamento nesta organização.*Nada foi alterado\./)).toBeInTheDocument();
+  });
+  it('limite de frequência da criação: diz a regra, quando será possível tentar de novo e que não é o limite de vazias', () => {
+    const now = new Date(2026, 10, 19, 20, 0, 0);
+    const amanha = creationRateLimitText(22 * 3600 + 30 * 60, now);
+    expect(amanha).toContain('Cada pessoa pode criar até três organizações por dia.');
+    expect(amanha).toContain('poderá criar outra amanhã, a partir das 18:30.');
+    expect(amanha).toContain('não tem relação com o limite de organizações vazias');
+    expect(amanha).toContain('Nada foi criado.');
+    expect(creationRateLimitText(2 * 3600, now)).toContain('poderá criar outra hoje, a partir das 22:00.');
+    expect(creationRateLimitText(50 * 3600, now)).toContain('poderá criar outra em 21/11, a partir das 22:00.');
+    expect(creationRateLimitText(20 * 60, now)).toContain('poderá criar outra em cerca de 20 minutos.');
+    expect(creationRateLimitText(30, now)).toContain('em cerca de um minuto');
+    // sem o tempo informado pelo servidor, não inventa um horário
+    expect(creationRateLimitText(undefined, now)).toContain('tente de novo mais tarde');
+    expect(creationRateLimitText(undefined, now)).not.toMatch(/a partir das/);
   });
 });

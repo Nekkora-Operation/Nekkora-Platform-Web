@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "d54c7a3f5c59ce5d6afe85c7774e6f8ff79ae5b3148e6306a1814d5e9064a0a5",
+  "openapiSha256": "eb2462cdd39af1d0810216cdb9b00fe6f7fd1fe168971d180923158b8fff4a59",
   "schemas": {
     "Error": {
       "type": "object",
@@ -46,6 +46,10 @@
             "license_not_assigned",
             "license_transfer_same_automation",
             "license_transfer_work_in_progress",
+            "organization_responsible_not_found",
+            "organization_responsible_is_client",
+            "previous_agent_session_has_outcome",
+            "previous_agent_session_already_reconciled",
             "license_transfer_requester_not_admin",
             "remote_execution_unavailable",
             "runtime_requirements_unresolved",
@@ -82,7 +86,6 @@
             "organization_creation_client_profile",
             "organization_creation_requires_request",
             "empty_organization_limit_reached",
-            "organization_limit_reached",
             "organization_request_not_available",
             "organization_request_not_pending",
             "organization_request_own",
@@ -2625,6 +2628,9 @@
               },
               "activationState": {
                 "$ref": "#/components/schemas/OrganizationActivationState"
+              },
+              "licenseModel": {
+                "$ref": "#/components/schemas/OrganizationLicenseModel"
               }
             }
           }
@@ -2672,9 +2678,9 @@
         "canCreate",
         "cannotCreateReason",
         "canRequest",
-        "organizationsCreated",
         "emptyOrganizations",
         "pendingRequests",
+        "newOrganizationLicenseModel",
         "responsibleFor"
       ],
       "properties": {
@@ -2698,9 +2704,6 @@
         },
         "canRequest": {
           "type": "boolean"
-        },
-        "organizationsCreated": {
-          "$ref": "#/components/schemas/UsedOfLimit"
         },
         "emptyOrganizations": {
           "type": "object",
@@ -2731,6 +2734,13 @@
         },
         "pendingRequests": {
           "$ref": "#/components/schemas/UsedOfLimit"
+        },
+        "newOrganizationLicenseModel": {
+          "type": "string",
+          "enum": [
+            "legacy",
+            "licensed"
+          ]
         },
         "responsibleFor": {
           "type": "array",
@@ -3712,10 +3722,20 @@
         "organizationActivationState": {
           "$ref": "#/components/schemas/OrganizationActivationState"
         },
+        "organizationLicenseModel": {
+          "$ref": "#/components/schemas/OrganizationLicenseModel"
+        },
         "stepUpMethod": {
           "$ref": "#/components/schemas/StepUpMethod"
         }
       }
+    },
+    "OrganizationLicenseModel": {
+      "type": "string",
+      "enum": [
+        "legacy",
+        "licensed"
+      ]
     },
     "OrganizationActivationState": {
       "type": "string",
@@ -4560,6 +4580,9 @@
         },
         "automationName": {
           "type": "string"
+        },
+        "waitingForSlot": {
+          "type": "boolean"
         },
         "attempts": {
           "type": "array",
@@ -10857,16 +10880,29 @@
                   {
                     "type": "object",
                     "required": [
-                      "breakdown"
+                      "breakdown",
+                      "active",
+                      "reservedUncertain"
                     ],
                     "properties": {
+                      "active": {
+                        "type": "integer",
+                        "format": "int64",
+                        "minimum": 0
+                      },
+                      "reservedUncertain": {
+                        "type": "integer",
+                        "format": "int64",
+                        "minimum": 0
+                      },
                       "breakdown": {
                         "type": "object",
                         "required": [
                           "remote",
                           "unconfirmed",
                           "platform",
-                          "previousAgent"
+                          "previousAgent",
+                          "previousAgentUnconfirmed"
                         ],
                         "properties": {
                           "remote": {
@@ -10885,6 +10921,11 @@
                             "minimum": 0
                           },
                           "previousAgent": {
+                            "type": "integer",
+                            "format": "int64",
+                            "minimum": 0
+                          },
+                          "previousAgentUnconfirmed": {
                             "type": "integer",
                             "format": "int64",
                             "minimum": 0
@@ -11011,6 +11052,403 @@
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/LicenseAssignment"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "getLicenseOperatorStatus": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/license-operations",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "operator"
+            ],
+            "properties": {
+              "operator": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "createOrganizationByOperator": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/license-operations/organizations",
+      "responses": {
+        "201": {
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "organizationId",
+              "emptyLimitExceeded"
+            ],
+            "properties": {
+              "organizationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "emptyLimitExceeded": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "getLicenseOperatorOrganization": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/license-operations/organizations/{target}",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "organizationId",
+              "name",
+              "model",
+              "licenses",
+              "automations"
+            ],
+            "properties": {
+              "organizationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string",
+                "enum": [
+                  "legacy",
+                  "licensed"
+                ]
+              },
+              "licenses": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "licenseId",
+                    "number",
+                    "status",
+                    "validUntil",
+                    "automationId",
+                    "automationName"
+                  ],
+                  "properties": {
+                    "licenseId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "number": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "VALID",
+                        "NOT_VALID",
+                        "ENDED"
+                      ]
+                    },
+                    "validUntil": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "automationId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "automationName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              },
+              "automations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "automationId",
+                    "name"
+                  ],
+                  "properties": {
+                    "automationId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "listUnresolvedPreviousAgentSessions": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/license-operations/organizations/{target}/previous-agent-sessions",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "items"
+            ],
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "sessionId",
+                    "automationId",
+                    "automationName",
+                    "state",
+                    "registeredAt",
+                    "lastReportAt",
+                    "previouslyReconciledAt"
+                  ],
+                  "properties": {
+                    "sessionId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "automationId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "automationName": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "READY",
+                        "STARTING",
+                        "RUNNING",
+                        "OUTCOME_UNKNOWN"
+                      ]
+                    },
+                    "registeredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "lastReportAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "previouslyReconciledAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "reconcilePreviousAgentSession": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/license-operations/organizations/{target}/previous-agent-sessions/{sessionId}/reconciliation",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "reconciliationId",
+              "sessionId"
+            ],
+            "properties": {
+              "reconciliationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "sessionId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
           }
         },
         "400": {

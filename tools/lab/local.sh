@@ -50,6 +50,9 @@ falha() { echo "ERRO: $*" >&2; exit 1; }
 carregar() {
     [ -f "$SEG/segredos.env" ] || falha "ambiente $ID não instalado (rode: bash tools/lab/local.sh instalar <copia da API>)"
     set -a; . "$SEG/segredos.env"; set +a
+    # As chaves sao base64 e podem comecar com "/": sem isto o Git Bash as converte em caminho (C:/Program Files/Git/...) ao
+    # entrega-las ao docker, e a Platform nao sobe (visto com E2E_HMAC_CHAVE num laboratorio novo, 1 chance em 64 por chave).
+    export MSYS2_ENV_CONV_EXCL='E2E_HMAC_CHAVE;E2E_MFA_CHAVES'
     # caminhos no formato C:/... (Git Bash): valem com e sem a conversão automática de caminhos (MSYS_NO_PATHCONV)
     local aqui_m; aqui_m="$(cygpath -m "$AQUI" 2>/dev/null || echo "$AQUI")"
     COMPOSE=(docker compose -f "$LAB_API_REPO/api/e2e/compose.e2e.yml" -f "$aqui_m/compose.front.yml")

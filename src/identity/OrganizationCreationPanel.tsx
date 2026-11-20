@@ -16,6 +16,7 @@ import {
 import { identityPath } from '../auth/flow';
 import { StepUpDialog } from '../components/StepUpDialog';
 import { useIdentityArea } from './IdentityArea';
+import { SITUATION_LABEL } from './labels';
 import './identity.css';
 
 type Loaded = { creation: OrganizationCreationState; requests: MyOrganizationRequest[] };
@@ -34,11 +35,30 @@ export const CANNOT_CREATE: Record<string, { title: string; body: string }> = {
     title: 'Você atingiu o limite de organizações vazias.',
     body: 'Cada pessoa pode ser responsável por até três organizações ativas sem nenhuma automação. Crie uma automação em uma delas ou desative uma organização vazia para criar outra.',
   },
-  organization_limit_reached: {
-    title: 'Você atingiu o número máximo de organizações criadas.',
-    body: 'Não é possível criar outra organização com esta conta.',
-  },
 };
+
+/**
+ * Limite de FREQUÊNCIA da criação (até três por dia por pessoa): proteção contra abuso, diferente do limite de organizações
+ * vazias. O servidor informa em quanto tempo a próxima criação é possível (Retry-After); a tela diz quando.
+ */
+export function creationRateLimitText(retryAfterSeconds: number | undefined, now: Date = new Date()): string {
+  const rule = 'Cada pessoa pode criar até três organizações por dia.';
+  const other = 'Este limite é de frequência e não tem relação com o limite de organizações vazias.';
+  if (!retryAfterSeconds || retryAfterSeconds <= 0) return `${rule} Você atingiu esse limite; tente de novo mais tarde. ${other} Nada foi criado.`;
+  let when: string;
+  if (retryAfterSeconds < 90) {
+    when = 'em cerca de um minuto';
+  } else if (retryAfterSeconds < 3600) {
+    when = `em cerca de ${Math.ceil(retryAfterSeconds / 60)} minutos`;
+  } else {
+    const at = new Date(now.getTime() + retryAfterSeconds * 1000);
+    const hour = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+    const days = Math.round((new Date(at.getFullYear(), at.getMonth(), at.getDate()).getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) / 86_400_000);
+    const day = days === 0 ? 'hoje' : days === 1 ? 'amanhã' : `em ${String(at.getDate()).padStart(2, '0')}/${String(at.getMonth() + 1).padStart(2, '0')}`;
+    when = `${day}, a partir das ${hour}`;
+  }
+  return `${rule} Você atingiu esse limite e poderá criar outra ${when}. ${other} Nada foi criado.`;
+}
 
 export const DEACTIVATE_TEXT = {
   consequences:
@@ -209,17 +229,17 @@ export function OrganizationCreationPanel({ organizations, onChanged }: { organi
                         <div className="pw-identity__badges">
                           {o.state === 'ACTIVE' && (
                             <Badge tone="success" dot>
-                              Ativa
+                              {SITUATION_LABEL.ACTIVE}
                             </Badge>
                           )}
                           {o.state === 'DEACTIVATED' && (
                             <Badge tone="neutral" dot>
-                              Desativada por você{o.deactivatedAt ? ` em ${dateText(o.deactivatedAt)}` : ''}
+                              {SITUATION_LABEL.DEACTIVATED}{o.deactivatedAt ? ` em ${dateText(o.deactivatedAt)}` : ''}
                             </Badge>
                           )}
                           {o.state === 'BLOCKED' && (
                             <Badge tone="warning" dot>
-                              Bloqueada pela Nekkora
+                              {SITUATION_LABEL.BLOCKED}
                             </Badge>
                           )}
                           {o.empty && <Badge tone="info">Vazia (sem automações)</Badge>}

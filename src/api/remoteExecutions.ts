@@ -38,7 +38,12 @@ export function listRemoteExecutionCandidates(org: string, workspaceId: string, 
  * Solicita (step-up). `requestKey` é gerada pelo navegador: repetir com a mesma chave devolve a mesma solicitação. Cada
  * exigência que falta responde 409 conflict com o seu `reason`; nada é gravado.
  */
-export function requestRemoteExecution(org: string, workspaceId: string, body: { automationVersionId: string; agentId: string; requestKey: string }): Promise<RemoteExecution> {
+export function requestRemoteExecution(
+  org: string,
+  workspaceId: string,
+  // authorizeVersion (S2): aceite EXPLÍCITO desta versão nesta máquina, no mesmo passo. Nunca vale para versões futuras.
+  body: { automationVersionId: string; agentId: string; requestKey: string; authorizeVersion?: boolean; authorizationValidUntil?: string },
+): Promise<RemoteExecution> {
   return send(org, 'requestRemoteExecution', `/workspaces/${id(workspaceId)}/remote-executions`, { method: 'POST', body });
 }
 

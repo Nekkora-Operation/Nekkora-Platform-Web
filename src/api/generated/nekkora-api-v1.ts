@@ -908,7 +908,7 @@ export interface paths {
         put?: never;
         /**
          * Cria uma organizacao com a identidade como ORG_ADMIN (exige step-up da identidade de ate 5 min)
-         * @description P2 (contrato de 2026-10-13). Sessao de identidade nao restrita (cookie __Host-nekkora_id) e CSRF dela. Corpo: name e legalName opcional, cada um com 1 a 120 pontos de codigo, sem espaco nas pontas e sem caractere de controle (fora disso: 400). Uma transacao que chama so identity_create_organization: a funcao reconfere, sob o lock da identidade, sessao nao restrita, step-up de ate 5 min, identidade ACTIVE e verificada e o teto de 10, e cria organizacao, conta, vinculo, ORG_ADMIN e o evento 6 (ORG_CREATED) no mesmo commit. Recusa da funcao: 403 generico; sessao que caiu: 401. R11 (3 reservas por identidade a cada 24 h; devolvidas quando a criacao comprovadamente nao aconteceu, mantidas em resultado desconhecido; Redis fora: 503) e R12. Chave propria (nekkora.criacao-organizacao.enabled) e a da entrada geral: qualquer uma desligada, 404. Em seguida, a troca (/api/v1/sessions/organization) da a sessao de organizacao. PLATFORM-AGENT-V2-003 T10 (034): o nome e unico entre as organizacoes CRIADAS PELA MESMA IDENTIDADE pelo cadastro (autoria, nao propriedade; espacos internos repetidos e maiusculas/minusculas nao distinguem; acentos e pontuacao distinguem). Repetido: 409 conflict + reason organization_name_taken, nada criado (a reserva de R11 e devolvida). Outras identidades, e organizacoes em que a pessoa so participa por convite, nao contam. Concorrentes da mesma identidade: uma criada, a outra 409. A organizacao nova recebe um identificador legivel unico e estavel (handle). PLATFORM-LICENCIAMENTO-001 (067): o PERFIL de quem cria e decidido no servidor a cada tentativa. Cria direto a recem-cadastrada (sem conta ativa) e quem administra alguma organizacao. O membro interno que nao administra nenhuma NAO cria: 409 organization_creation_requires_request (ele solicita: POST /api/v1/organization-requests). Quem so tem conta do tipo Cliente (mesmo e-mail verificado) nao cria nem solicita: 403 forbidden + reason organization_creation_client_profile. Limite de organizacoes VAZIAS (ativas, sem nenhuma automacao) por responsavel, tres: 409 empty_organization_limit_reached. Teto de 10 criadas: 409 organization_limit_reached. Quem cria fica registrado como RESPONSAVEL pela organizacao. A funcao do banco reconfere tudo sob a trava da identidade (se ela recusar depois da conferencia da aplicacao, 403 generico). Em nenhuma recusa algo e criado, e a reserva de R11 e devolvida. Criar organizacao nao concede licenca.
+         * @description P2 (contrato de 2026-10-13). Sessao de identidade nao restrita (cookie __Host-nekkora_id) e CSRF dela. Corpo: name e legalName opcional, cada um com 1 a 120 pontos de codigo, sem espaco nas pontas e sem caractere de controle (fora disso: 400). Uma transacao que chama so identity_create_organization: a funcao reconfere, sob o lock da identidade, sessao nao restrita, step-up de ate 5 min, identidade ACTIVE e verificada e o teto de 10, e cria organizacao, conta, vinculo, ORG_ADMIN e o evento 6 (ORG_CREATED) no mesmo commit. Recusa da funcao: 403 generico; sessao que caiu: 401. R11 (3 reservas por identidade a cada 24 h; devolvidas quando a criacao comprovadamente nao aconteceu, mantidas em resultado desconhecido; Redis fora: 503) e R12. Chave propria (nekkora.criacao-organizacao.enabled) e a da entrada geral: qualquer uma desligada, 404. Em seguida, a troca (/api/v1/sessions/organization) da a sessao de organizacao. PLATFORM-AGENT-V2-003 T10 (034): o nome e unico entre as organizacoes CRIADAS PELA MESMA IDENTIDADE pelo cadastro (autoria, nao propriedade; espacos internos repetidos e maiusculas/minusculas nao distinguem; acentos e pontuacao distinguem). Repetido: 409 conflict + reason organization_name_taken, nada criado (a reserva de R11 e devolvida). Outras identidades, e organizacoes em que a pessoa so participa por convite, nao contam. Concorrentes da mesma identidade: uma criada, a outra 409. A organizacao nova recebe um identificador legivel unico e estavel (handle). PLATFORM-LICENCIAMENTO-001 (067): o PERFIL de quem cria e decidido no servidor a cada tentativa. Cria direto a recem-cadastrada (sem conta ativa) e quem administra alguma organizacao. O membro interno que nao administra nenhuma NAO cria: 409 organization_creation_requires_request (ele solicita: POST /api/v1/organization-requests). Quem so tem conta do tipo Cliente (mesmo e-mail verificado) nao cria nem solicita: 403 forbidden + reason organization_creation_client_profile. Limite de organizacoes VAZIAS (ativas, sem nenhuma automacao) por responsavel, tres: 409 empty_organization_limit_reached. Nao ha teto fixo de organizacoes criadas. Quem cria fica registrado como RESPONSAVEL pela organizacao. A funcao do banco reconfere tudo sob a trava da identidade (se ela recusar depois da conferencia da aplicacao, 403 generico). Em nenhuma recusa algo e criado, e a reserva de R11 e devolvida. Criar organizacao nao concede licenca.
          */
         post: operations["identityCreateOrganization"];
         delete?: never;
@@ -926,7 +926,7 @@ export interface paths {
         };
         /**
          * Perfil de quem cria organizacao, limites e as organizacoes de que a pessoa e responsavel
-         * @description SO indicacao para a interface; o servidor decide em cada ato. profile: FIRST (sem conta ativa: cria a primeira), ADMIN (administra alguma organizacao: cria direto), MEMBER (conta interna ativa, nao administra nenhuma: solicita) ou CLIENT (so conta do tipo Cliente, reconhecida pelo mesmo e-mail verificado: nao cria nem solicita). O perfil e reavaliado a cada chamada; ser Cliente numa organizacao nao tira a administracao de outra. canCreate e cannotCreateReason (o reason que a criacao responderia). canRequest: MEMBER com menos de tres pedidos pendentes. emptyOrganizations: as organizacoes ATIVAS e sem nenhuma automacao de que a pessoa e responsavel, contra o limite (tres, configuravel); desativadas nao contam. responsibleFor: as organizacoes de que a pessoa e responsavel, inclusive as desativadas, que nao aparecem em /api/v1/me/organizations - state ACTIVE, DEACTIVATED (desativada por esta acao; canReactivate) ou BLOCKED (parada por decisao da Nekkora, ou com bloqueio registrado: a reativacao nao a remove). Mesmas chaves da criacao: qualquer uma desligada, 404.
+         * @description SO indicacao para a interface; o servidor decide em cada ato. profile: FIRST (sem conta ativa: cria a primeira), ADMIN (administra alguma organizacao: cria direto), MEMBER (conta interna ativa, nao administra nenhuma: solicita) ou CLIENT (so conta do tipo Cliente, reconhecida pelo mesmo e-mail verificado: nao cria nem solicita). O perfil e reavaliado a cada chamada; ser Cliente numa organizacao nao tira a administracao de outra. canCreate e cannotCreateReason (o reason que a criacao responderia). canRequest: MEMBER com menos de tres pedidos pendentes. emptyOrganizations: as organizacoes ATIVAS e sem nenhuma automacao de que a pessoa e responsavel, contra o limite (tres, configuravel); desativadas nao contam. responsibleFor: as organizacoes de que a pessoa e responsavel, inclusive as desativadas, que nao aparecem em /api/v1/me/organizations - state ACTIVE, DEACTIVATED (desativada por esta acao; canReactivate) ou BLOCKED (parada por decisao da Nekkora, ou com bloqueio registrado: a reativacao nao a remove). newOrganizationLicenseModel: o modelo em que a organizacao criada agora nasce (D7). Mesmas chaves da criacao: qualquer uma desligada, 404.
          */
         get: operations["identityOrganizationCreation"];
         put?: never;
@@ -1699,7 +1699,7 @@ export interface paths {
         put?: never;
         /**
          * Aprova o pedido escolhendo o responsavel pela nova organizacao (org.manage, confirmacao reforcada)
-         * @description responsible e obrigatorio e explicito: APPROVER (quem aprova; a escolha padrao da tela) ou REQUESTER (quem pediu). A escolha CONCEDE a administracao da nova organizacao ao escolhido e decide de quem e contado o limite de organizacoes vazias. O limite do escolhido e reconferido aqui, sob a trava dele (409 empty_organization_limit_reached ou organization_limit_reached; o pedido continua pendente). A organizacao nasce na MESMA transacao. So o responsavel recebe acesso: o outro nao entra na nova organizacao. createdOrganizationId so vem quando quem aprovou ficou responsavel. Quem aprova com conta sem identidade geral nao pode ser o responsavel (409 organization_request_approver_without_identity; pode escolher REQUESTER). Pedido ja decidido: 409 organization_request_not_pending. Proprio pedido: 409 organization_request_own. Responsavel que deixou de poder receber: 409 organization_request_responsible_not_eligible. Nome repetido para o responsavel: 409 organization_name_taken. O banco reconfere que quem decide administra esta organizacao agora.
+         * @description responsible e obrigatorio e explicito: APPROVER (quem aprova; a escolha padrao da tela) ou REQUESTER (quem pediu). A escolha CONCEDE a administracao da nova organizacao ao escolhido e decide de quem e contado o limite de organizacoes vazias. O limite do escolhido e reconferido aqui, sob a trava dele (409 empty_organization_limit_reached; o pedido continua pendente). A organizacao nasce na MESMA transacao. So o responsavel recebe acesso: o outro nao entra na nova organizacao. createdOrganizationId so vem quando quem aprovou ficou responsavel. Quem aprova com conta sem identidade geral nao pode ser o responsavel (409 organization_request_approver_without_identity; pode escolher REQUESTER). Pedido ja decidido: 409 organization_request_not_pending. Proprio pedido: 409 organization_request_own. Responsavel que deixou de poder receber: 409 organization_request_responsible_not_eligible. Nome repetido para o responsavel: 409 organization_name_taken. O banco reconfere que quem decide administra esta organizacao agora.
          */
         post: operations["approveOrganizationRequest"];
         delete?: never;
@@ -1737,7 +1737,7 @@ export interface paths {
         };
         /**
          * Capacidade tecnica da organizacao, separada das licencas (org.manage)
-         * @description Workers cadastrados, vagas de execucao ocupadas e execucoes pendentes, cada uma com o limite TECNICO. Os limites sao iguais para todas as organizacoes do modelo por licenca (iniciais: 50 Workers, 5 simultaneas, 50 pendentes), configuraveis por procedimento administrativo; nao sao contratados e nao tem relacao com a quantidade de licencas. A VAGA de execucao e uma so para a organizacao e e reservada quando o trabalho e autorizado a iniciar: na entrega da tentativa remota a maquina, na entrega do pedido ao Agent anterior e na reserva da execucao da Platform. Sem vaga, o trabalho NAO e recusado: continua pendente ate haver vaga ou vencer o proprio prazo. concurrentExecutions.breakdown diz de que a ocupacao e feita (a soma e used): remote (tentativa remota entregue ate em execucao), unconfirmed (tentativa remota com ocupacao incerta: terminou sem confirmacao ou com processo possivelmente vivo, ate a maquina confirmar ou um administrador declarar a reconciliacao), platform (execucao da Platform) e previousAgent (pedido entregue ou aceito e sessao em andamento do Agent anterior). A sessao que o Agent anterior inicia na propria maquina nao pode ser segurada: ocupa vaga ao ser registrada, e used pode passar de limit. pendingExecutions: na fila, ainda nao entregues, no prazo; fila cheia responde 409 capacity_pending_limit_reached a solicitacao nova. O cadastro de Worker no limite responde 409 worker_limit_reached. Nenhum limite daqui consome nem libera licenca. Na organizacao do modelo anterior, limit vem nulo: a capacidade dela continua sendo a da ativacao.
+         * @description Workers cadastrados, vagas de execucao ocupadas e execucoes pendentes, cada uma com o limite TECNICO. Os limites sao iguais para todas as organizacoes do modelo por licenca (iniciais: 50 Workers, 5 simultaneas, 50 pendentes), configuraveis por procedimento administrativo; nao sao contratados e nao tem relacao com a quantidade de licencas. A VAGA de execucao e uma so para a organizacao e e reservada quando o trabalho e autorizado a iniciar: na entrega da tentativa remota a maquina, na entrega do pedido ao Agent anterior e na reserva da execucao da Platform. Sem vaga, o trabalho NAO e recusado: continua pendente ate haver vaga ou vencer o proprio prazo. concurrentExecutions.breakdown diz de que a ocupacao e feita (a soma e used): remote (tentativa remota entregue ate em execucao), unconfirmed (tentativa remota com ocupacao incerta: terminou sem confirmacao ou com processo possivelmente vivo, ate a maquina confirmar ou um administrador declarar a reconciliacao), platform (execucao da Platform) e previousAgent (pedido entregue ou aceito e sessao em andamento do Agent anterior) e previousAgentUnconfirmed (068: sessao do Agent anterior em RESULTADO DESCONHECIDO, que nao comprova que a execucao deixou de ocupar a maquina; reserva uma vaga ate a reconciliacao pelo suporte). active soma as execucoes ativas (remote, platform, previousAgent); reservedUncertain, as reservas por situacao incerta (unconfirmed, previousAgentUnconfirmed). A sessao que o Agent anterior inicia na propria maquina nao pode ser segurada: ocupa vaga ao ser registrada, e used pode passar de limit. pendingExecutions: na fila, ainda nao entregues, no prazo; fila cheia responde 409 capacity_pending_limit_reached a solicitacao nova. O cadastro de Worker no limite responde 409 worker_limit_reached. Nenhum limite daqui consome nem libera licenca. Na organizacao do modelo anterior, limit vem nulo: a capacidade dela continua sendo a da ativacao.
          */
         get: operations["getOrganizationCapacity"];
         put?: never;
@@ -1802,6 +1802,106 @@ export interface paths {
          * @description Ato EXPLICITO do administrador da organizacao: a licenca passa a atender a automacao e fica vinculada a ela durante o ciclo. Suspender, renomear ou arquivar a automacao depois NAO desfaz o vinculo; renovar a licenca o mantem; so a transferencia pelo suporte muda a automacao atendida. A licenca tem de estar vigente e sem automacao; a automacao nao pode estar arquivada nem ja consumir outra licenca. Recusas com 409 conflict e reason: license_already_assigned, automation_already_licensed, license_not_valid, license_automation_archived. Duas tentativas simultaneas de vincular a mesma licenca: uma e aceita e a outra recebe license_already_assigned; nunca ha dois vinculos. O ato fica na trilha (quem, licenca, automacao, instante). NESTA ETAPA o vinculo nao muda o que a organizacao pode executar: nenhum fluxo confere licenca.
          */
         post: operations["assignLicense"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/license-operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A sessao e de um operador de licencas da Nekkora?
+         * @description Para a tela decidir se mostra a area do operador. 200 so para sessao da organizacao interna configurada, com segundo fator, inscrita no cadastro de operadores. Fora da organizacao interna: 404. Sem cadastro: 403. Nao altera nada.
+         */
+        get: operations["getLicenseOperatorStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/license-operations/organizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Criacao excepcional de organizacao, com a pessoa responsavel indicada pelo operador
+         * @description O operador indica EXPLICITAMENTE a pessoa responsavel pelo e-mail verificado dela (responsibleEmail). Ela recebe a administracao da nova organizacao e passa a ser a responsavel (limite de vazias, desativar e reativar). O operador NAO recebe conta, papel nem acesso. Responsavel, operador, organizacao do operador e justificativa ficam gravados. A excecao dispensa o perfil (um membro pode ser indicado). Ela NAO dispensa os limites: o limite de organizacoes vazias do responsavel vale por padrao (409 empty_organization_limit_reached). A Nekkora o ultrapassa so por excecao EXPLICITA: exceedEmptyLimit true com limitJustification propria, que ficam gravadas. Nao ha teto fixo de organizacoes criadas. Outras recusas 409: organization_responsible_not_found (nao ha identidade ativa com esse e-mail verificado), organization_responsible_is_client (so tem conta do tipo Cliente: nao e indicado nem por excecao), organization_name_taken. Exige confirmacao reforcada.
+         */
+        post: operations["createOrganizationByOperator"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/license-operations/organizations/{target}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A organizacao alvo vista pelo operador: modelo, licencas e automacoes
+         * @description So leitura, para o operador escolher a licenca e a automacao dos atos. status da licenca: VALID (em periodo vigente), NOT_VALID (sem periodo vigente: vencida ou ainda nao iniciada) ou ENDED. Automacoes arquivadas nao aparecem.
+         */
+        get: operations["getLicenseOperatorOrganization"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/license-operations/organizations/{target}/previous-agent-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sessoes do Agent anterior sem desfecho confiavel, que ainda seguram a transferencia ou uma vaga
+         * @description Sessoes da organizacao alvo em RESULTADO DESCONHECIDO (OUTCOME_UNKNOWN) ou sem encerramento (READY, STARTING, RUNNING) que ainda seguram a transferencia e uma vaga de execucao. So identificador, automacao, estado e instantes: nada do conteudo da execucao. previouslyReconciledAt: ja houve declaracao do suporte e a maquina informou execucao ATIVA depois dela (por isso a sessao voltou a contar). Ate 200, da mais antiga.
+         */
+        get: operations["listUnresolvedPreviousAgentSessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/license-operations/organizations/{target}/previous-agent-sessions/{sessionId}/reconciliation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reconciliacao, pelo suporte, de uma sessao do Agent anterior sem desfecho confiavel
+         * @description Registra o operador, a justificativa e a VERIFICACAO REALIZADA. NAO altera a sessao: o resultado desconhecido continua desconhecido, nenhum desfecho e gravado e nada declara a maquina livre. O efeito e a sessao deixar de segurar a transferencia de licenca e a vaga de execucao. Nao ha espera obrigatoria: o que autoriza o ato e a verificacao registrada (o processo terminou, ou a maquina esta fora de operacao); tempo sem contato, sozinho, nao basta e nunca libera a vaga. A declaracao fica no historico. Um relato posterior da maquina e tratado pelo conteudo: um desfecho resolve a duvida; um relato de execucao AINDA ATIVA faz a sessao voltar a segurar; outro relato nao desfaz a declaracao. Recusas 409: previous_agent_session_has_outcome, previous_agent_session_already_reconciled. Sessao de outra organizacao: 404. Exige confirmacao reforcada.
+         */
+        post: operations["reconcilePreviousAgentSession"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1879,7 +1979,7 @@ export interface paths {
         put?: never;
         /**
          * Transfere a licenca para outra automacao da mesma organizacao, a pedido de um administrador (operador da Nekkora)
-         * @description O pedido chega pelo atendimento externo; nao ha rota de pedido nem de transferencia para o administrador. O operador informa o administrador solicitante (requesterEmail: tem de administrar a organizacao NESTE instante, senao 409 license_transfer_requester_not_admin), a referencia do chamado, como a identidade dele foi verificada e a justificativa; tudo fica no ato 5 da trilha, com origem, destino, responsavel e instante. Informar o solicitante nao prova o pedido: quem o atesta e o operador. Na mesma transacao o vinculo de origem e encerrado (TRANSFERIDA) e o de destino e aberto: nao ha instante com as duas automacoes atendidas. Os periodos nao mudam (o fim do ciclo e preservado). Recusas 409: license_not_assigned, license_transfer_same_automation, license_automation_archived, automation_already_licensed, license_not_valid (licenca vencida: renovar antes), license_ended e license_transfer_work_in_progress (a automacao de origem tem execucao, monitoramento, pedido pendente ou tentativa remota nao terminada: precisa terminar ou ter o cancelamento confirmado). Automacao de destino de outra organizacao: 404. Roda sob trava exclusiva do modelo da organizacao: nenhum inicio de trabalho corre contra a transferencia.
+         * @description O pedido chega pelo atendimento externo; nao ha rota de pedido nem de transferencia para o administrador. O operador informa o administrador solicitante (requesterEmail: tem de administrar a organizacao NESTE instante, senao 409 license_transfer_requester_not_admin), a referencia do chamado, como a identidade dele foi verificada e a justificativa; tudo fica no ato 5 da trilha, com origem, destino, responsavel e instante. Informar o solicitante nao prova o pedido: quem o atesta e o operador. Na mesma transacao o vinculo de origem e encerrado (TRANSFERIDA) e o de destino e aberto: nao ha instante com as duas automacoes atendidas. Os periodos nao mudam (o fim do ciclo e preservado). Recusas 409: license_not_assigned, license_transfer_same_automation, license_automation_archived, automation_already_licensed, license_not_valid (licenca vencida: renovar antes), license_ended e license_transfer_work_in_progress (a automacao de origem tem execucao, monitoramento, pedido pendente ou tentativa remota nao terminada: precisa terminar ou ter o cancelamento confirmado; a sessao do Agent anterior com RESULTADO DESCONHECIDO tambem segura, ate a reconciliacao pelo suporte - 068). Automacao de destino de outra organizacao: 404. Roda sob trava exclusiva do modelo da organizacao: nenhum inicio de trabalho corre contra a transferencia.
          */
         post: operations["transferLicense"];
         delete?: never;
@@ -2879,7 +2979,7 @@ export interface components {
              * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached, draft_exists, draft_changed, local_run_authorization_exists, organization_name_taken; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
              * @enum {string}
              */
-            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "license_already_assigned" | "automation_already_licensed" | "license_not_valid" | "license_automation_archived" | "license_ended" | "license_period_overlaps" | "license_period_already_ended" | "license_model_unchanged" | "license_preview_changed" | "license_required" | "license_expired" | "run_not_covered" | "capacity_pending_limit_reached" | "license_not_assigned" | "license_transfer_same_automation" | "license_transfer_work_in_progress" | "license_transfer_requester_not_admin" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_machine_unconfirmed" | "remote_machine_finishing" | "remote_previous_processes_pending" | "remote_previous_result_unconfirmed" | "remote_attempt_not_unconfirmed" | "remote_attempt_already_reconciled" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_package_not_supported" | "remote_package_not_registered" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_dependency_check_too_soon" | "remote_dependency_check_closed" | "remote_result_unavailable" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken" | "organization_creation_client_profile" | "organization_creation_requires_request" | "empty_organization_limit_reached" | "organization_limit_reached" | "organization_request_not_available" | "organization_request_not_pending" | "organization_request_own" | "organization_request_approver_without_identity" | "organization_request_responsible_not_eligible" | "organization_not_responsible" | "organization_work_in_progress" | "organization_blocked_by_nekkora" | "organization_state_conflict";
+            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "license_already_assigned" | "automation_already_licensed" | "license_not_valid" | "license_automation_archived" | "license_ended" | "license_period_overlaps" | "license_period_already_ended" | "license_model_unchanged" | "license_preview_changed" | "license_required" | "license_expired" | "run_not_covered" | "capacity_pending_limit_reached" | "license_not_assigned" | "license_transfer_same_automation" | "license_transfer_work_in_progress" | "organization_responsible_not_found" | "organization_responsible_is_client" | "previous_agent_session_has_outcome" | "previous_agent_session_already_reconciled" | "license_transfer_requester_not_admin" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_machine_unconfirmed" | "remote_machine_finishing" | "remote_previous_processes_pending" | "remote_previous_result_unconfirmed" | "remote_attempt_not_unconfirmed" | "remote_attempt_already_reconciled" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_package_not_supported" | "remote_package_not_registered" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_dependency_check_too_soon" | "remote_dependency_check_closed" | "remote_result_unavailable" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken" | "organization_creation_client_profile" | "organization_creation_requires_request" | "empty_organization_limit_reached" | "organization_request_not_available" | "organization_request_not_pending" | "organization_request_own" | "organization_request_approver_without_identity" | "organization_request_responsible_not_eligible" | "organization_not_responsible" | "organization_work_in_progress" | "organization_blocked_by_nekkora" | "organization_state_conflict";
         };
         /**
          * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
@@ -3602,6 +3702,7 @@ export interface components {
                 /** @description codigos dos papeis ativos do vinculo interno, em ordem */
                 roles: string[];
                 activationState: components["schemas"]["OrganizationActivationState"];
+                licenseModel?: components["schemas"]["OrganizationLicenseModel"];
             }[];
             /** @description so indicacao para a interface (P2): chave da criacao ligada e identity_org_creation_allowed verdadeira; a criacao reconfere tudo */
             canCreateOrganization: boolean;
@@ -3622,7 +3723,6 @@ export interface components {
             canCreate: boolean;
             cannotCreateReason: string | null;
             canRequest: boolean;
-            organizationsCreated: components["schemas"]["UsedOfLimit"];
             emptyOrganizations: {
                 /** Format: int64 */
                 used: number;
@@ -3631,6 +3731,11 @@ export interface components {
                 organizationIds: string[];
             };
             pendingRequests: components["schemas"]["UsedOfLimit"];
+            /**
+             * @description D7: o modelo em que uma organizacao criada AGORA nasce (a chave license_rollout). licensed: nasce pronta para configurar, sem ativacao a esperar; executar e monitorar uma automacao depende de licenca vinculada a ela. legacy: nasce aguardando a ativacao pela operacao. So indicacao para a tela; quem decide e a criacao.
+             * @enum {string}
+             */
+            newOrganizationLicenseModel: "legacy" | "licensed";
             responsibleFor: {
                 /** Format: uuid */
                 organizationId: string;
@@ -3955,8 +4060,14 @@ export interface components {
             /** Format: uuid */
             organizationId: string;
             organizationActivationState: components["schemas"]["OrganizationActivationState"];
+            organizationLicenseModel?: components["schemas"]["OrganizationLicenseModel"];
             stepUpMethod: components["schemas"]["StepUpMethod"];
         };
+        /**
+         * @description PLATFORM-LICENCIAMENTO-001. licensed: a organizacao esta no modelo por licenca - a capacidade e tecnica (limites iguais para todas) e NAO depende da ativacao pela operacao; o que habilita uma automacao e a licenca. legacy: modelo anterior, em que a ativacao libera a capacidade. A tela usa para nao dizer "aguardando ativacao: nenhum Worker pode ser registrado" a quem ja pode registrar.
+         * @enum {string}
+         */
+        OrganizationLicenseModel: "legacy" | "licensed";
         /**
          * @description Ciclo de ativacao da organizacao (migration 022), INDEPENDENTE da situacao administrativa (ativa, suspensa, encerrada). AGUARDANDO_ATIVACAO: capacidade de execucao zero (nenhum Worker registrado, nenhuma execucao simultanea ou pendente) ate a ativacao pela operacao da Nekkora; toda organizacao criada nasce assim. ATIVADA: a operacao aplicou limites explicitos. So indicacao para a interface: os valores dos limites nao sao expostos e a admissao de execucao continua decidida no banco.
          * @enum {string}
@@ -4239,6 +4350,8 @@ export interface components {
             workspaceName?: string;
             /** @description Nome da automacao da solicitacao */
             automationName?: string;
+            /** @description PLATFORM-LICENCIAMENTO-001: a tentativa esta na fila e, neste instante, a organizacao (modelo por licenca) esta no limite tecnico de execucoes simultaneas: espera uma vaga. Capacidade, nao licenca. */
+            waitingForSlot?: boolean;
             attempts: {
                 /** Format: uuid */
                 attemptId: string;
@@ -6582,7 +6695,7 @@ export interface operations {
                 };
             };
             404: components["responses"]["SignupDisabled"];
-            /** @description T10 (034): esta identidade ja criou, pelo cadastro, uma organizacao com esse nome (organization_name_taken); ou, 067: organization_creation_requires_request, empty_organization_limit_reached, organization_limit_reached. Nada foi criado */
+            /** @description T10 (034): esta identidade ja criou, pelo cadastro, uma organizacao com esse nome (organization_name_taken); ou, 067: organization_creation_requires_request, empty_organization_limit_reached. Nada foi criado */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8281,6 +8394,16 @@ export interface operations {
                         model: "legacy" | "licensed";
                         workers: components["schemas"]["CapacityUsage"];
                         concurrentExecutions: components["schemas"]["CapacityUsage"] & {
+                            /**
+                             * Format: int64
+                             * @description execucoes ativas: remote + platform + previousAgent
+                             */
+                            active: number;
+                            /**
+                             * Format: int64
+                             * @description reservas por situacao incerta: unconfirmed + previousAgentUnconfirmed
+                             */
+                            reservedUncertain: number;
                             breakdown: {
                                 /** Format: int64 */
                                 remote: number;
@@ -8290,6 +8413,8 @@ export interface operations {
                                 platform: number;
                                 /** Format: int64 */
                                 previousAgent: number;
+                                /** Format: int64 */
+                                previousAgentUnconfirmed: number;
                             };
                         };
                         pendingExecutions: components["schemas"]["CapacityUsage"];
@@ -8390,6 +8515,223 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LicenseAssignment"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getLicenseOperatorStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description E operador */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        operator: boolean;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    createOrganizationByOperator: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    responsibleEmail: string;
+                    name: string;
+                    legalName: string;
+                    justification: string;
+                    /** @description excecao explicita: ultrapassar o limite de organizacoes vazias do responsavel */
+                    exceedEmptyLimit?: boolean;
+                    /** @description obrigatoria com exceedEmptyLimit */
+                    limitJustification?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Criada */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        organizationId: string;
+                        /** @description a criacao ultrapassou o limite de vazias do responsavel, pela excecao explicita */
+                        emptyLimitExceeded: boolean;
+                    };
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getLicenseOperatorOrganization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description a organizacao do cliente (nunca a do operador) */
+                target: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A organizacao */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        organizationId: string;
+                        name: string;
+                        /** @enum {string} */
+                        model: "legacy" | "licensed";
+                        licenses: {
+                            /** Format: uuid */
+                            licenseId: string;
+                            number: number;
+                            /** @enum {string} */
+                            status: "VALID" | "NOT_VALID" | "ENDED";
+                            /** Format: date-time */
+                            validUntil: string | null;
+                            /** Format: uuid */
+                            automationId: string | null;
+                            automationName: string | null;
+                        }[];
+                        automations: {
+                            /** Format: uuid */
+                            automationId: string;
+                            name: string;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listUnresolvedPreviousAgentSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description a organizacao do cliente (nunca a do operador) */
+                target: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description As sessoes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            sessionId: string;
+                            /** Format: uuid */
+                            automationId: string;
+                            automationName: string;
+                            /** @enum {string} */
+                            state: "READY" | "STARTING" | "RUNNING" | "OUTCOME_UNKNOWN";
+                            /** Format: date-time */
+                            registeredAt: string;
+                            /** Format: date-time */
+                            lastReportAt: string;
+                            /** Format: date-time */
+                            previouslyReconciledAt: string | null;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    reconcilePreviousAgentSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description a organizacao do cliente (nunca a do operador) */
+                target: string;
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    justification: string;
+                    verification: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Reconciliada */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        reconciliationId: string;
+                        /** Format: uuid */
+                        sessionId: string;
+                    };
                 };
             };
             400: components["responses"]["InvalidRequest"];

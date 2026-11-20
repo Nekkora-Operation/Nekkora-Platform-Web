@@ -58,7 +58,7 @@ const summary = (over: Record<string, unknown> = {}) => ({
 const capacity = (over: Record<string, unknown> = {}) => ({
   model: 'licensed',
   workers: { used: 3, limit: 50 },
-  concurrentExecutions: { used: 5, limit: 5, breakdown: { remote: 3, unconfirmed: 1, platform: 0, previousAgent: 1 } },
+  concurrentExecutions: { used: 5, limit: 5, active: 3, reservedUncertain: 2, breakdown: { remote: 2, unconfirmed: 1, platform: 0, previousAgent: 1, previousAgentUnconfirmed: 1 } },
   pendingExecutions: { used: 2, limit: 50 },
   asOf: T,
   ...over,
@@ -131,12 +131,15 @@ describe('Licenças e capacidade', () => {
     const usage = within(cap).getByRole('group', { name: 'Capacidade técnica' });
     expect(usage.textContent).toMatch(/Workers cadastrados3 de 50/);
     expect(usage.textContent).toMatch(/Execuções simultâneas5 de 5/);
-    expect(usage.textContent).toMatch(/3 pelo Agent Client · 1 pelo Agent anterior · 1 com término não confirmado pela máquina/);
+    // execuções ATIVAS e RESERVAS por situação incerta aparecem separadas
+    expect(usage.textContent).toMatch(/Em execução: 3 \(2 pelo Agent Client · 1 pelo Agent anterior\)/);
+    expect(usage.textContent).toMatch(/Reservadas por situação incerta: 2 \(1 com término não confirmado pela máquina \(Agent Client\) · 1 com resultado desconhecido \(Agent anterior\)\)/);
+    expect(within(cap).getByText(CAPACITY_TEXT.previousAgentUnconfirmed)).toBeInTheDocument();
     expect(within(cap).getByText(CAPACITY_TEXT.concurrentFull)).toBeInTheDocument();
     expect(usage.textContent).toMatch(/Execuções pendentes \(na fila\)2 de 50/);
     expect(within(licenses).queryByText(/Workers cadastrados/)).toBeNull();
     // só a licença vigente e sem automação oferece o vínculo
-    expect(screen.getAllByRole('button', { name: /Vincular a licença/ })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /Vincular à automação a licença/ })).toHaveLength(1);
   });
 
   it('organização que ainda não exige licença: diz isso, e a capacidade é a da ativação', async () => {
@@ -146,7 +149,7 @@ describe('Licenças e capacidade', () => {
       body: capacity({
         model: 'legacy',
         workers: { used: 1, limit: null },
-        concurrentExecutions: { used: 0, limit: null, breakdown: { remote: 0, unconfirmed: 0, platform: 0, previousAgent: 0 } },
+        concurrentExecutions: { used: 0, limit: null, active: 0, reservedUncertain: 0, breakdown: { remote: 0, unconfirmed: 0, platform: 0, previousAgent: 0, previousAgentUnconfirmed: 0 } },
         pendingExecutions: { used: 0, limit: null },
       }),
     });
@@ -165,7 +168,7 @@ describe('Licenças e capacidade', () => {
     expect(await screen.findByText('Uma licença vencida continua vinculada a uma automação.')).toBeInTheDocument();
     expect(screen.getByText(/não iniciam trabalho novo até a renovação\. O que já estava em execução termina e entrega/)).toBeInTheDocument();
     expect(screen.getByText('Vencida')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Vincular a licença/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Vincular à automação a licença/ })).toBeNull();
   });
 
   it('vincular: só automações sem licença; avisa que o vínculo não é desfeito por aqui; envia a automação escolhida', async () => {
@@ -174,7 +177,7 @@ describe('Licenças e capacidade', () => {
       body: { licenseId: L2, number: 2, automationId: AUT2, workspaceId: WS, assignedAt: T },
     });
     renderApp(`/o/${ORG}/administracao/licencas`);
-    fireEvent.click(await screen.findByRole('button', { name: 'Vincular a licença nº 2 a uma automação' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Vincular à automação a licença nº 2' }));
     const dialog = await screen.findByRole('alertdialog');
     const select = (await within(dialog).findByLabelText('Automação que vai usar esta licença')) as HTMLSelectElement;
     // a automação que já tem licença não é oferecida
@@ -185,8 +188,37 @@ describe('Licenças e capacidade', () => {
     fireEvent.change(select, { target: { value: AUT2 } });
     await waitFor(() => expect(confirm).toBeEnabled());
     fireEvent.click(confirm);
-    expect(await screen.findByText('Licença vinculada a Notas de saída.')).toBeInTheDocument();
+    expect(await screen.findByText('Licença nº 2 vinculada a Notas de saída. A conta e a lista abaixo já mostram o vínculo.')).toBeInTheDocument();
     expect(api.sent('POST', `${base}/licenses/${L2}/assignment`)[0]).toMatchObject({ body: { automationId: AUT2 } });
+  });
+
+  it('licença disponível: a conta diz qual está livre e qual automação usa cada licença, e a tela aponta o "Vincular à automação"', async () => {
+    renderApp(`/o/${ORG}/administracao/licencas`);
+    expect(await screen.findByText('Você tem 1 licença disponível.')).toBeInTheDocument();
+    expect(screen.getByText(/na linha da licença, use “Vincular à automação”/)).toBeInTheDocument();
+    const count = screen.getByRole('group', { name: 'Conta das licenças' });
+    expect(count.textContent).toMatch(/Utilizadas \(com automação\)1nº 1: Notas de entrada/);
+    expect(count.textContent).toMatch(/Disponíveis \(sem automação\)1nº 2/);
+    expect(screen.getByRole('button', { name: 'Vincular à automação a licença nº 2' })).toHaveTextContent('Vincular à automação');
+  });
+
+  it('sem licença disponível: a tela não aponta vínculo nenhum', async () => {
+    api.on('GET', `${base}/licenses/summary`, 'getLicenseSummary', { status: 200, body: summary({ contracted: 1, used: 1, available: 0 }) });
+    api.on('GET', `${base}/licenses`, 'listOrganizationLicenses', { status: 200, body: { items: [license({ automation: assigned })], nextCursor: null, asOf: T } });
+    renderApp(`/o/${ORG}/administracao/licencas`);
+    expect(await screen.findByText('Notas de entrada')).toBeInTheDocument();
+    expect(screen.queryByText(/Você tem .* disponíve/)).toBeNull();
+    expect(screen.getByRole('group', { name: 'Conta das licenças' }).textContent).toMatch(/Disponíveis \(sem automação\)0$/);
+  });
+
+  it('vincular sem nenhuma automação na organização: diz para criar a automação e leva aos workspaces', async () => {
+    api.on('GET', new RegExp(`${base}/automations`), 'listOrganizationAutomations', { status: 200, body: { items: [], nextCursor: null } });
+    renderApp(`/o/${ORG}/administracao/licencas`);
+    fireEvent.click(await screen.findByRole('button', { name: 'Vincular à automação a licença nº 2' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(await within(dialog).findByText('Esta organização ainda não tem automação para receber a licença.')).toBeInTheDocument();
+    expect(within(dialog).getByRole('link', { name: 'abrir Workspaces' })).toHaveAttribute('href', `/o/${ORG}/workspaces`);
+    expect(within(dialog).getByRole('button', { name: 'Vincular licença' })).toBeDisabled();
   });
 
   it('quem não administra: a API recusa e a tela diz que não há permissão', async () => {

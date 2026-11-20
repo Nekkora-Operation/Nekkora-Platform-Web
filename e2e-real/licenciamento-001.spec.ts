@@ -8,22 +8,28 @@ import { compose } from '../tools/lab/lab.mjs';
 import { confirmStepUp, LAB, signUpAndEnroll, waitToken, type Person } from './support/lab';
 
 /**
- * PLATFORM-LICENCIAMENTO-001 — ROTEIRO INTEGRADO, executado com a Web e a API REAIS no laboratório descartável da missão
- * (migrations 001-067, as com elevação aplicadas só nele). Três pessoas, cada uma no seu contexto de navegador:
+ * PLATFORM-LICENCIAMENTO-001 — ROTEIRO INTEGRADO (navegador), executado com a Web e a API REAIS no laboratório descartável da
+ * missão (migrations 001-068, as com elevação aplicadas só nele). Três pessoas, cada uma no seu contexto de navegador:
  *
- *   Ana    administra a organização cliente (tudo o que ela faz é pela TELA);
- *   Bruno  é membro convidado da organização da Ana (pela TELA);
- *   Nara   é operadora de licenças da Nekkora. Os atos do operador NÃO têm tela nesta entrega: são feitos pela API real,
- *          com a sessão dela (cookie, CSRF e confirmação reforçada), e ficam ditos assim nas evidências.
+ *   Ana    administra a organização cliente;
+ *   Bruno  é membro convidado da organização da Ana;
+ *   Nara   é operadora de licenças da Nekkora, pela TELA do operador (Suporte Nekkora › Operador de licenças).
+ *
+ * CONFIGURAÇÃO REPRESENTATIVA: a Web é a versão de PRODUÇÃO (`vite build` + `vite preview`), e os limites de frequência da
+ * API NÃO são zerados em nenhum momento. O roteiro anda no ritmo de uma pessoa (um respiro entre páginas); se a tela
+ * mostrar "Tentar novamente", ele espera e usa o botão, como a pessoa faria, e conta quantas vezes.
  *
  * Atos de PROCEDIMENTO ADMINISTRATIVO (o que na vida real o migrador faz), executados por SQL no banco do laboratório e
  * registrados: cadastro da operadora, bloqueio de uma organização pela Nekkora, a chave das organizações novas (D7) e a
  * "passagem do tempo" que vence uma licença (não há como esperar 30 dias).
  *
- * O que este roteiro NÃO cobre (está nos testes automatizados da API, pelo canal real das máquinas): a reserva de vaga com
- * inícios concorrentes, a entrega pelo Agent Client e o registro pelo Agent anterior. Nenhuma máquina real participa aqui.
+ * FIXTURES DECLARADAS: limites de recursos da organização da Ana antes das licenças (no lugar da ativação pela CLI dos
+ * operadores), e UMA sessão do Agent anterior em "resultado desconhecido" gravada direto no banco (não há Agent anterior no
+ * laboratório), para a transferência e a reconciliação.
  *
- *   FRONT_LAB_ID=frontlab-lic001 FRONT_PORTA=5190 npx playwright test -c playwright.real.config.ts licenciamento-001
+ * A máquina com o Client empacotado está no roteiro irmão, `licenciamento-001-maquina.spec.ts`.
+ *
+ *   FRONT_LAB_ID=frontlab-lic003 FRONT_PORTA=5192 npx playwright test -c playwright.real.config.ts licenciamento-001.spec
  */
 const EVID = resolve(`tools/lab/saidas/${LAB}/evidencias-licenciamento-001`);
 const SEG = join(homedir(), '.nekkora', 'front-lab', LAB, 'segredos.env');
@@ -36,18 +42,6 @@ const log = (k: string, v: unknown) => {
   appendFileSync(join(EVID, 'roteiro.txt'), `${line}\n`);
   console.log(line);
 };
-/**
- * AJUDA DE LABORATÓRIO, registrada a cada uso: zera os limites de frequência (Redis do laboratório, `lab.mjs limpar-redis`).
- * O roteiro concentra em minutos, saindo de UM endereço (o Vite), o que três pessoas fariam ao longo de horas; sem isso os
- * limites por endereço recusam os atos ("Muitas tentativas em pouco tempo"). Os limites em si não são objeto deste roteiro.
- */
-let resets = 0;
-const resetLimits = (fase: string) => {
-  execFileSync('node', ['tools/lab/lab.mjs', LAB, 'limpar-redis'], { stdio: 'ignore' });
-  resets++;
-  log('ajuda_de_laboratorio', `limites de frequencia zerados antes de: ${fase}`);
-};
-
 /** Só telas sem segredo (nenhuma de MFA, de código ou de link). */
 const shot = async (page: Page, name: string) => {
   mkdirSync(EVID, { recursive: true });
@@ -63,28 +57,28 @@ function watch(page: Page): string[] {
 }
 
 /**
- * OBSERVAÇÃO DE LABORATÓRIO, contada e registrada. A API limita as leituras por sessão (regra R7: 60 de capacidade, 2 por
- * segundo) e o nginx do laboratório limita a rajada por endereço. Em modo de desenvolvimento a Web repete cada leitura, e o
- * roteiro abre páginas mais depressa do que uma pessoa: o limite esgota, parte das leituras recebe 429 e a tela mostra
- * "Muitas tentativas" ou "Não foi possível carregar…", com o botão "Tentar novamente". Quando isso acontece o roteiro zera
- * os limites de frequência do laboratório (a mesma ajuda de `resetLimits`) e usa o botão da própria tela.
+ * A API limita as leituras por sessão. Nada é zerado: se a tela mostrar "Tentar novamente" (leitura recusada com 429), o
+ * roteiro espera como uma pessoa esperaria e usa o botão da própria tela. Cada uso é contado e vai para a evidência.
  */
 let retried = 0;
+const retriedAt: string[] = [];
 async function settle(page: Page) {
   for (let i = 0; i < 4; i++) {
     await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => undefined);
+    // o estado de erro pode aparecer um instante depois de a rede assentar
+    await page.waitForTimeout(400);
     const retry = page.getByRole('button', { name: 'Tentar novamente' });
     if ((await retry.count()) === 0) return;
     retried++;
-    execFileSync('node', ['tools/lab/lab.mjs', LAB, 'limpar-redis'], { stdio: 'ignore' });
-    await page.waitForTimeout(1_200);
+    retriedAt.push(new URL(page.url()).pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27}/g, 'ID'));
+    await page.waitForTimeout(20_000);
     await retry.first().click().catch(() => undefined);
-    await page.waitForTimeout(900);
+    await page.waitForTimeout(1_500);
   }
 }
 async function go(page: Page, url: string) {
-  // um respiro entre páginas: sem ele o roteiro esgota o limite de leituras da sessão em poucos segundos
-  await page.waitForTimeout(2_500);
+  // o ritmo de uma pessoa: alguns segundos entre uma página e a seguinte
+  await page.waitForTimeout(4_000);
   await page.goto(url);
   await settle(page);
 }
@@ -158,11 +152,13 @@ async function api(page: Page, org: string, method: 'GET' | 'POST', path: string
   );
 }
 
-/** Ato do operador: confirma a identidade (TOTP) na sessão e executa. */
-async function operatorAct(page: Page, nara: Person, org: string, path: string, body: unknown) {
-  const stepUp = await api(page, org, 'POST', `/api/v1/o/${org}/auth/mfa/step-up`, { code: await nara.auth.next() });
-  expect(stepUp.status, 'confirmação reforçada do operador').toBe(204);
-  return api(page, org, 'POST', path, body);
+/** A operadora abre a organização do cliente na tela do operador. */
+async function openTarget(page: Page, orgN: string, target: string) {
+  await go(page, `/o/${orgN}/operador-de-licencas`);
+  await page.getByLabel('Identificador da organização').fill(target);
+  await page.getByRole('button', { name: 'Abrir' }).click();
+  await expect(page.getByRole('button', { name: 'Conceder licenças' })).toBeVisible();
+  await settle(page);
 }
 
 async function waitPlatform(page: Page) {
@@ -178,7 +174,7 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   test.setTimeout(2_400_000);
   rmSync(EVID, { recursive: true, force: true });
   log('laboratorio', readFileSync(resolve(`tools/lab/saidas/${LAB}/laboratorio.txt`), 'utf8').replace(/\n/g, ' | '));
-  log('migrador', sql("SELECT 'migrations aplicadas ate ' || max(substr(c.relname, 1, 0) || '067') FROM pg_class c WHERE c.relname = 'organization_responsibility'"));
+  log('migrador', sql("SELECT 'migrations aplicadas ate ' || max(substr(c.relname, 1, 0) || '068') FROM pg_class c WHERE c.relname = 'agent_run_reconciliations'"));
   log('estado_inicial', sql("SELECT 'chave D7=' || (SELECT new_organizations_licensed FROM license_rollout) || ' limite de vazias=' || (SELECT empty_organizations_limit FROM organization_creation_settings) || ' limites tecnicos=' || (SELECT string_agg(resource_code || ':' || limit_value, ',' ORDER BY resource_code) FROM technical_capacity_limits)"));
   expect(sql('SELECT new_organizations_licensed FROM license_rollout')).toBe('f');
 
@@ -188,7 +184,6 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   const naraPage = await (await browser.newContext()).newPage();
 
   // ================================================================== 0. A operadora da Nekkora (preparo)
-  resetLimits('a operadora');
   const nara = await signUpAndEnroll(naraPage, 'lic-op');
   const operatorOrgName = `Nekkora Operação ${TAG}`;
   await createOrganization(naraPage, nara, operatorOrgName);
@@ -202,19 +197,24 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   writeFileSync(SEG, `${env.replace(/^LAB_LICENCAS_ORGANIZACAO_OPERADORA=.*\n/m, '')}LAB_LICENCAS_ORGANIZACAO_OPERADORA=${orgN}\n`);
   compose(LAB, ['up', '-d', '--no-deps', '--wait', 'platform'], { stdio: ['ignore', 'ignore', 'inherit'] }, ['compose.licencas.yml']);
   await waitPlatform(naraPage);
-  await go(naraPage, '/organizacoes');
-  log('0_operadora', { procedimento: 'license_operators + organizacao operadora configurada; Platform recriada', organizacao: orgN });
+  await go(naraPage, `/o/${orgN}`);
+  await expect(naraPage.getByRole('link', { name: 'Operador de licenças' })).toBeVisible();
+  await go(naraPage, `/o/${orgN}/operador-de-licencas`);
+  await expect(naraPage.getByRole('heading', { name: 'Criação excepcional de organização' })).toBeVisible();
+  log('0_operadora', { procedimento: 'license_operators + organizacao operadora configurada; Platform recriada', organizacao: orgN, tela: 'menu "Suporte Nekkora > Operador de licencas" visivel para ela' });
 
   // ================================================================== A. Organizações por perfil
   // A1. recém-cadastrada cria a primeira organização direto
-  resetLimits('A1 primeira organizacao');
   const ana = await signUpAndEnroll(anaPage, 'lic-a');
   await go(anaPage, '/organizacoes');
   await expect(anaPage.getByRole('button', { name: 'Criar minha primeira organização' })).toBeVisible();
   const matrizName = `Matriz ${TAG}`;
   await createOrganization(anaPage, ana, matrizName);
   const matriz = await enter(anaPage, matrizName);
-  log('A1_primeira_organizacao', { quem: 'Ana (recem-cadastrada)', resultado: 'criada direto', organizacao: matriz });
+  await expect(anaPage.getByRole('link', { name: 'Operador de licenças' })).toHaveCount(0);
+  await expect(anaPage.getByText('Organização aguardando ativação')).toBeVisible();
+  await shot(anaPage, 'A1-inicio-modelo-anterior-aguardando-ativacao');
+  log('A1_primeira_organizacao', { quem: 'Ana (recem-cadastrada)', resultado: 'criada direto', organizacao: matriz, inicio: 'modelo anterior: "aguardando ativacao"', menu_do_operador: 'ausente' });
 
   // ambiente e duas automações (só o nome)
   await go(anaPage, `/o/${matriz}/workspaces`);
@@ -241,7 +241,6 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   const automationId = (name: string) => sql(`SELECT automation_id FROM automations WHERE organization_id = '${matriz}' AND name = '${name}'`);
 
   // A2. Bruno entra como membro (convite com papel de operador do ambiente)
-  resetLimits('A2 convite');
   const bruno = await signUpAndEnroll(brunoPage, 'lic-b');
   await go(anaPage, `/o/${matriz}/administracao/convites`);
   await anaPage.getByLabel(/^E-mail da pessoa/).fill(bruno.email);
@@ -260,7 +259,6 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   await expect(brunoPage.getByRole('heading', { name: 'Convite aceito' })).toBeVisible();
 
   // A3. o membro NÃO cria: a tela explica e oferece solicitar; a criação direta é recusada pelo servidor
-  resetLimits('A3 membro');
   await go(brunoPage, '/organizacoes');
   await expect(brunoPage.getByText('Para ter uma nova organização, solicite a quem administra a sua.')).toBeVisible();
   await expect(brunoPage.getByRole('button', { name: 'Criar organização' })).toHaveCount(0);
@@ -276,7 +274,6 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   log('A3_membro', { quem: 'Bruno (operador de ambiente)', tela: 'sem "Criar organizacao", com "Solicitar organizacao"', criacao_direta: 'recusada pelo servidor, nada criado' });
 
   // A4. Bruno solicita; Ana aprova ficando ELA responsável (padrão); Bruno não recebe acesso
-  resetLimits('A4 pedidos');
   const filial = `Filial Norte ${TAG}`;
   const filialDele = `Filial Sul ${TAG}`;
   for (const name of [filial, filialDele]) {
@@ -322,7 +319,6 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   log('A5_aprovacao_responsavel_solicitante', { bruno: 'administra a Filial Sul', ana: 'sem acesso a ela' });
 
   // A6. limite de três organizações vazias da Ana: Filial Norte + duas novas; a Matriz tem automações e não conta
-  resetLimits('A6 vazias');
   const vazia2 = `Vazia dois ${TAG}`;
   const vazia3 = `Vazia tres ${TAG}`;
   await createOrganization(anaPage, ana, vazia2);
@@ -335,7 +331,6 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   log('A6_limite_de_vazias', sql(`SELECT 'vazias da Ana=' || cardinality(empty_organization_ids) || '/' || empty_limit FROM (SELECT array_agg(o.organization_id) AS empty_organization_ids, (SELECT empty_organizations_limit FROM organization_creation_settings) AS empty_limit FROM organization_responsibility r JOIN organizations o ON o.organization_id = r.organization_id AND o.status = 1 JOIN identities i ON i.identity_id = r.responsible_identity_id WHERE i.email = '${ana.email}' AND NOT EXISTS (SELECT 1 FROM automations a WHERE a.organization_id = o.organization_id)) x`));
 
   // A7. desativar uma vazia: sai da lista de entrada, deixa de contar, e só ela reativa
-  resetLimits('A7 desativar');
   await anaPage.getByRole('button', { name: `Desativar a organização ${vazia3}` }).click();
   const off = anaPage.getByRole('alertdialog');
   await expect(off.getByText(/Nada é apagado: histórico, automações, máquinas, licenças e entregas ficam como estão\./)).toBeVisible();
@@ -373,10 +368,59 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   expect(sql(`SELECT status FROM organizations WHERE organization_id = '${vazia2Id}'`)).toBe('3');
   log('A8_bloqueio_da_nekkora', { tela: 'Bloqueada pela Nekkora, sem botao', api: `${forced.status} ${forced.body}`, situacao: '3 (inalterada)' });
 
+  // A9. CRIAÇÃO EXCEPCIONAL pela operadora, pela TELA: ela indica a pessoa responsável; a pessoa administra; a operadora não entra.
+  //     O limite de vazias VALE por padrão; ultrapassá-lo é exceção explícita, com justificativa própria.
+  //     A Ana tem duas vazias ativas (Filial Norte e Vazia três; a bloqueada não conta): a primeira criação cabe no limite.
+  const excecao = `Excecao ${TAG}`;
+  const excecaoAlem = `Excecao alem ${TAG}`;
+  const abrirExcecao = async (nome: string) => {
+    await go(naraPage, `/o/${orgN}/operador-de-licencas`);
+    await naraPage.getByRole('button', { name: 'Criar organização por exceção' }).click();
+    const d = naraPage.getByRole('alertdialog');
+    await expect(d.getByText(/Você não recebe conta nem acesso\..*O limite de organizações vazias da pessoa continua valendo\./)).toBeVisible();
+    await d.getByLabel('Nome da organização').fill(nome);
+    await d.getByLabel('Razão social').fill(`${nome} Ltda`);
+    await d.getByLabel('Justificativa', { exact: true }).fill('roteiro integrado: criacao excepcional a pedido do cliente');
+    await expect(d.getByRole('button', { name: 'Criar a organização' })).toBeDisabled();
+    await d.getByLabel('E-mail da pessoa responsável').fill(ana.email);
+    return d;
+  };
+  let exc = await abrirExcecao(excecao);
+  await shot(naraPage, 'A9-criacao-excepcional');
+  await confirmStepUp(naraPage, nara, 'Criar a organização');
+  await settle(naraPage);
+  await expect(naraPage.getByText(/Organização criada\..*A pessoa indicada a administra; você não tem acesso a ela\./)).toBeVisible();
+  await expect(naraPage.getByText(/foi ultrapassado por exceção/)).toHaveCount(0);
+  await go(anaPage, '/organizacoes');
+  await expect(anaPage.getByRole('button', { name: `Entrar em ${excecao}` })).toBeVisible();
+  await go(naraPage, '/organizacoes');
+  await expect(naraPage.getByRole('button', { name: `Entrar em ${excecao}` })).toHaveCount(0);
+  // agora a Ana está no limite (3 vazias): a criação seguinte é RECUSADA, e nada é criado
+  exc = await abrirExcecao(excecaoAlem);
+  await confirmStepUp(naraPage, nara, 'Criar a organização');
+  await expect(exc.getByText(/já está no limite de organizações vazias\..*Nada foi alterado\./)).toBeVisible();
+  await shot(naraPage, 'A9-limite-de-vazias-vale-na-criacao-pela-nekkora');
+  await exc.getByRole('button', { name: 'Cancelar' }).click();
+  expect(sql(`SELECT count(*) FROM organizations WHERE name = '${excecaoAlem}'`), 'nada criado').toBe('0');
+  // a exceção EXPLÍCITA: marcada, exige justificativa própria; fica registrada
+  exc = await abrirExcecao(excecaoAlem);
+  await exc.getByRole('checkbox', { name: /Ultrapassar o limite de organizações vazias desta pessoa/ }).check();
+  await expect(exc.getByRole('button', { name: 'Criar a organização' })).toBeDisabled();
+  await exc.getByLabel('Justificativa da exceção ao limite').fill('roteiro integrado: diretoria autorizou a quarta organizacao vazia');
+  await shot(naraPage, 'A9-excecao-explicita-ao-limite');
+  await confirmStepUp(naraPage, nara, 'Criar a organização');
+  await settle(naraPage);
+  await expect(naraPage.getByText(/O limite de organizações vazias dela foi ultrapassado por exceção, registrada com a sua justificativa\./)).toBeVisible();
+  log('A9_criacao_excepcional', {
+    pela_tela: 'operadora indicou a Ana como responsavel',
+    no_limite: 'recusada por padrao; nada criado',
+    excecao_explicita: 'criada com a opcao marcada e justificativa propria',
+    banco: sql(`SELECT string_agg(o.name || ': origem=' || r.source || ' limite_ultrapassado=' || x.empty_limit_exceeded || ' justificativa_do_limite=' || coalesce(x.limit_justification, '-') || ' contas=' || (SELECT count(*) FROM users u WHERE u.organization_id = x.organization_id), ' | ' ORDER BY x.created_at) FROM organization_exceptional_creations x JOIN organization_responsibility r ON r.organization_id = x.organization_id JOIN organizations o ON o.organization_id = x.organization_id WHERE o.name IN ('${excecao}', '${excecaoAlem}')`),
+    operadora: 'sem acesso as organizacoes criadas',
+  });
+
   // ================================================================== B. Licenças
-  resetLimits('B licencas');
-  const ops = (rest: string) => `/api/v1/o/${orgN}/license-operations/organizations/${matriz}${rest}`;
-  const day = (days: number) => {
+    const day = (days: number) => {
     const d = new Date(Date.now() + days * 86_400_000);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
@@ -407,25 +451,33 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   await expect(anaPage.getByText(/A validade foi reduzida/)).toHaveCount(0);
   log('B0_uso_no_modelo_anterior', { fixture: 'limites de recursos do laboratorio (lab.mjs limites)', folha: 'monitoramento autorizado por 20 dias, sem licenca (modelo anterior)' });
 
-  // B1. a prévia do operador mostra o que ficaria impedido; nada muda
-  resetLimits('B1 previa');
-  const before = await api(naraPage, orgN, 'GET', ops('/enforcement-preview'));
-  expect(before.status).toBe(200);
-  expect(before.body.model).toBe('legacy');
+  // B1. a prévia do operador, pela TELA: mostra o que ficaria impedido; nada muda
+  await openTarget(naraPage, orgN, matriz);
+  await expect(naraPage.getByText('Modelo anterior (exigência desligada)')).toBeVisible();
+  await expect(naraPage.getByText(/1 automação\(ões\) em uso ficaria\(m\) sem licença; 1\s+autorização\(ões\) já entregue\(s\) continuaria\(m\) valendo/)).toBeVisible();
   // impedida = automação EM USO sem licença. As que nunca foram usadas não aparecem: nada pararia nelas
-  expect(before.body.blockedAutomations.map((a: { name: string }) => a.name)).toEqual(['Folha']);
-  expect(before.body.offlineAuthorizations).toBe(1);
-  log('B1_previa', { modelo: before.body.model, impedidas: ['Folha'], autorizacoes_anteriores: before.body.offlineAuthorizations, ate: String(before.body.offlineAuthorizationsValidUntil).slice(0, 10), contratadas: before.body.contracted });
+  await expect(naraPage.getByRole('list', { name: 'Automações em uso sem licença' })).toHaveText(/Folha \(Fiscal\)/);
+  await shot(naraPage, 'B1-operador-previa');
+  log('B1_previa', { pela_tela: true, modelo: 'anterior', impedidas: ['Folha'], autorizacoes_anteriores: 1 });
   // quem administra o cliente não usa as rotas do operador
   expect((await api(anaPage, matriz, 'GET', `/api/v1/o/${matriz}/license-operations/organizations/${matriz}/enforcement-preview`)).status).toBe(404);
 
-  // B2. o operador concede duas licenças de 30 dias (com justificativa e confirmação reforçada)
-  const from = new Date(Date.now() - 3_600_000).toISOString();
-  const until = new Date(Date.now() + 30 * 86_400_000).toISOString();
-  const granted = await operatorAct(naraPage, nara, orgN, ops('/licenses'), { count: 2, startsAt: from, endsAt: until, justification: 'roteiro integrado: contratacao de duas licencas' });
-  expect(granted.status, JSON.stringify(granted.body)).toBe(200);
-  const [l1, l2] = granted.body.items.map((i: { licenseId: string }) => i.licenseId);
-  log('B2_concessao', { licencas: 2, ate: until.slice(0, 10) });
+  // B2. a operadora concede duas licenças de 30 dias, pela TELA (justificativa e confirmação reforçada)
+  const until = new Date(`${day(30)}T23:59:59`).toISOString();
+  await naraPage.getByRole('button', { name: 'Conceder licenças' }).click();
+  const grant = naraPage.getByRole('alertdialog');
+  await grant.getByLabel('Quantidade').fill('2');
+  await grant.getByLabel('Início da validade').fill(day(0));
+  await grant.getByLabel('Fim da validade').fill(day(30));
+  await expect(grant.getByRole('button', { name: 'Conceder' })).toBeDisabled();
+  await grant.getByLabel('Justificativa').fill('roteiro integrado: contratacao de duas licencas');
+  await confirmStepUp(naraPage, nara, 'Conceder');
+  await settle(naraPage);
+  await expect(naraPage.getByText(/Licenças concedidas\. Elas nascem sem vínculo/)).toBeVisible();
+  await expect(naraPage.getByRole('region', { name: 'Lista de licenças da organização' }).getByText('sem vínculo')).toHaveCount(2);
+  const l1 = sql(`SELECT license_id FROM organization_licenses WHERE organization_id = '${matriz}' AND license_number = 1`);
+  const l2 = sql(`SELECT license_id FROM organization_licenses WHERE organization_id = '${matriz}' AND license_number = 2`);
+  log('B2_concessao', { pela_tela: true, licencas: 2, ate: until.slice(0, 10) });
 
   // B3. a administradora vê as licenças e vincula a nº 1 a uma automação, pela tela
   await go(anaPage, `/o/${matriz}/administracao/licencas`);
@@ -433,28 +485,57 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   const count = anaPage.getByRole('group', { name: 'Conta das licenças' });
   await expect(count).toContainText(/Contratadas \(vigentes\)\s*2/);
   await expect(count).toContainText(/Disponíveis \(sem automação\)\s*2/);
-  await anaPage.getByRole('button', { name: 'Vincular a licença nº 1 a uma automação' }).click();
+  await anaPage.getByRole('button', { name: 'Vincular à automação a licença nº 1' }).click();
   const assign = anaPage.getByRole('alertdialog');
   await assign.getByLabel('Automação que vai usar esta licença').selectOption({ label: 'Notas de entrada · Fiscal' });
   await expect(assign.getByText('Você não desfaz este vínculo por aqui.')).toBeVisible();
   await confirmStepUp(anaPage, ana, 'Vincular licença');
   await settle(anaPage);
-  await expect(anaPage.getByText('Licença vinculada a Notas de entrada.')).toBeVisible();
+  await expect(anaPage.getByText("Licença nº 1 vinculada a Notas de entrada.", { exact: false })).toBeVisible();
   await expect(count).toContainText(/Utilizadas \(com automação\)\s*1/);
   await shot(anaPage, 'B3-licencas-modelo-anterior');
   log('B3_vinculo_pela_administradora', sql(`SELECT 'licenca ' || l.license_number || ' -> ' || a.name FROM organization_license_assignments s JOIN organization_licenses l ON l.license_id = s.license_id JOIN automations a ON a.automation_id = s.automation_id WHERE s.organization_id = '${matriz}' AND s.released_at IS NULL`));
 
-  // B4. ligar a exigência: a prévia antiga não serve mais (o conjunto mudou); com a prévia refeita, liga
-  resetLimits('B4 exigencia');
-  const stale = await operatorAct(naraPage, nara, orgN, ops('/enforcement'), { model: 'licensed', confirmPreview: before.body.previewToken, justification: 'roteiro integrado: ligar com a previa antiga' });
-  expect(stale.status).toBe(409);
-  expect(stale.body.reason).toBe('license_preview_changed');
-  const fresh = await api(naraPage, orgN, 'GET', ops('/enforcement-preview'));
-  expect(fresh.body.blockedAutomations.map((a: { name: string }) => a.name), 'a Folha continua sem licença: ficaria impedida de trabalho novo').toEqual(['Folha']);
-  expect(fresh.body.licensedAutomations.map((a: { name: string }) => a.name)).toEqual(['Notas de entrada']);
-  const on = await operatorAct(naraPage, nara, orgN, ops('/enforcement'), { model: 'licensed', confirmPreview: fresh.body.previewToken, justification: 'roteiro integrado: exigencia ligada apos a previa conferida' });
-  expect(on.status, JSON.stringify(on.body)).toBe(200);
-  log('B4_exigencia', { previa_antiga: `${stale.status} ${stale.body.reason}`, previa_refeita: { impedidas: ['Folha'], cobertas: ['Notas de entrada'] }, ligada: on.body.model });
+  // B4. ligar a exigência, pela TELA. A tela da operadora ainda mostra a prévia de ANTES do vínculo da Ana: o servidor recusa
+  //     (o conjunto mudou), a tela refaz a prévia, e com ela conferida de novo a exigência liga
+  await naraPage.getByRole('button', { name: 'Ligar a exigência de licença' }).click();
+  let enforce = naraPage.getByRole('alertdialog');
+  await expect(enforce.getByText(/Autorizações já entregues continuam valendo sem conexão até a validade/)).toBeVisible();
+  await expect(enforce.getByRole('list', { name: 'Automações que ficariam sem trabalho novo' })).toHaveText(/Folha \(Fiscal\)/);
+  await enforce.getByLabel('Justificativa').fill('roteiro integrado: ligar com a previa antiga');
+  await expect(enforce.getByRole('button', { name: 'Ligar a exigência' })).toBeDisabled();
+  await enforce.getByRole('checkbox', { name: /Conferi a prévia/ }).check();
+  await confirmStepUp(naraPage, nara, 'Ligar a exigência');
+  await expect(enforce.getByText(/O conjunto de automações mudou desde a prévia\..*Nada foi alterado\./)).toBeVisible();
+  await shot(naraPage, 'B4-previa-antiga-recusada');
+  await enforce.getByRole('button', { name: /Cancelar|Fechar/ }).first().click();
+  expect(sql(`SELECT public.license_model('${matriz}')`), 'nada mudou').toBe('1');
+  await settle(naraPage);
+  await expect(naraPage.getByRole('region', { name: 'Lista de licenças da organização' }).getByText('Notas de entrada')).toBeVisible();
+  await naraPage.getByRole('button', { name: 'Ligar a exigência de licença' }).click();
+  enforce = naraPage.getByRole('alertdialog');
+  await enforce.getByLabel('Justificativa').fill('roteiro integrado: exigencia ligada apos a previa conferida');
+  await enforce.getByRole('checkbox', { name: /Conferi a prévia/ }).check();
+  await confirmStepUp(naraPage, nara, 'Ligar a exigência');
+  await settle(naraPage);
+  await expect(naraPage.getByText('Exigência de licença ligada.')).toBeVisible();
+  await expect(naraPage.getByText('Modelo por licença (exigência ligada)')).toBeVisible();
+  log('B4_exigencia', { pela_tela: true, previa_antiga: 'recusada: o conjunto mudou; nada alterado', previa_refeita: { impedidas: ['Folha'], cobertas: ['Notas de entrada'] }, ligada: sql(`SELECT public.license_model('${matriz}')`) });
+
+  // B4b. os textos acompanham o modelo: nada de "aguardando ativação" para quem já pode registrar Workers
+  await go(anaPage, `/o/${matriz}`);
+  await expect(anaPage.getByText('Organização aguardando ativação')).toHaveCount(0);
+  await expect(anaPage.getByText(/Esta organização usa o modelo por licença: Workers podem ser registrados dentro do limite técnico/)).toBeVisible();
+  await shot(anaPage, 'B4b-inicio-modelo-por-licenca');
+  await go(anaPage, '/organizacoes');
+  const matrizItem = anaPage.getByRole('list', { name: 'Organizações' }).getByRole('listitem').filter({ hasText: matrizName });
+  await expect(matrizItem.getByText('Execução: por licença', { exact: true })).toBeVisible();
+  await expect(matrizItem.getByText('Aguardando ativação')).toHaveCount(0);
+  await expect(matrizItem.getByText(/nenhum Worker pode ser registrado/)).toHaveCount(0);
+  await shot(anaPage, 'B4b-organizacoes-modelo-por-licenca');
+  await anaPage.getByRole('button', { name: `Entrar em ${matrizName}` }).click();
+  await expect(anaPage).toHaveURL(new RegExp(`/o/${matriz}$`));
+  log('B4b_textos_por_modelo', { inicio: 'sem "aguardando ativacao"; diz modelo por licenca', lista: 'selo "Modelo por licenca"; a ativacao da operacao continua em ' + sql(`SELECT state FROM ops_activation.organization_states WHERE organization_id = '${matriz}'`) + ' (aguardando), sem efeito' });
 
   // B5. a tela passa a dizer que a organização exige licença, e mostra a capacidade em seção própria
   await go(anaPage, `/o/${matriz}/administracao/licencas`);
@@ -466,7 +547,6 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   await expect(anaPage.getByText(/Não são contratados e não têm relação com a quantidade de licenças/)).toBeVisible();
 
   // B6. capacidade no lugar da ativação: a organização (nunca ativada) cadastra um Worker
-  resetLimits('B6 capacidade');
   await newWorker(anaPage, matriz, 'Worker dois');
   await settle(anaPage);
   await expect(anaPage.getByText('Worker Worker dois criado, sem Agent.', { exact: false })).toBeVisible();
@@ -492,7 +572,6 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   log('B7_validade_reduzida', { pedida: day(90), efetiva: sql(`SELECT to_char(valid_until AT TIME ZONE 'UTC', 'YYYY-MM-DD') FROM local_run_authorizations WHERE organization_id = '${matriz}' AND automation_id = '${automationId('Notas de entrada')}'`), fim_da_licenca: until.slice(0, 10), tela: 'data efetiva e motivo exibidos' });
 
   // B8. automação SEM licença: a autorização é recusada com o motivo de licença (não de capacidade)
-  resetLimits('B8 sem licenca');
   await go(anaPage, automationUrls['Conciliação']);
   await anaPage.getByLabel(/^Worker autorizado neste workspace/).selectOption({ label: 'Worker fiscal' });
   await anaPage.getByLabel(/^Vale até/).fill(day(10));
@@ -505,28 +584,82 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   expect(sql(`SELECT count(*) FROM local_run_authorizations WHERE automation_id = '${automationId('Conciliação')}'`)).toBe('0');
   log('B8_sem_licenca', { automacao: 'Conciliação', resultado: 'autorizacao recusada: sem licenca; nada gravado' });
 
-  // B9. TRANSFERÊNCIA pelo operador, a pedido da administradora: exige chamado e verificação; preserva o ciclo
-  resetLimits('B9 transferencia');
+  // B9. TRANSFERÊNCIA pela operadora, pela TELA, a pedido da administradora.
+  // FIXTURE DECLARADA: uma sessão do Agent anterior em RESULTADO DESCONHECIDO na automação de origem, gravada direto no banco
+  // (não há Agent anterior neste laboratório). Ela não comprova o término: segura a transferência até a reconciliação.
   const cycle = sql(`SELECT string_agg(period_number || ':' || starts_at || ':' || ends_at, ',' ORDER BY period_number) FROM organization_license_periods WHERE license_id = '${l1}'`);
-  const noTicket = await operatorAct(naraPage, nara, orgN, ops(`/licenses/${l1}/transfer`), { toAutomationId: automationId('Folha'), requesterEmail: ana.email, identityVerification: 'retorno por telefone ao numero do cadastro', justification: 'roteiro integrado: sem chamado' });
-  expect(noTicket.status, 'sem referência do chamado').toBe(400);
-  const notAdmin = await operatorAct(naraPage, nara, orgN, ops(`/licenses/${l1}/transfer`), { toAutomationId: automationId('Folha'), requesterEmail: bruno.email, ticketReference: 'CH-LAB-0001', identityVerification: 'retorno por telefone ao numero do cadastro', justification: 'roteiro integrado: solicitante nao administra' });
-  expect(notAdmin.body.reason).toBe('license_transfer_requester_not_admin');
-  const moved = await operatorAct(naraPage, nara, orgN, ops(`/licenses/${l1}/transfer`), { toAutomationId: automationId('Folha'), requesterEmail: ana.email, ticketReference: 'CH-LAB-0001', identityVerification: 'retorno por telefone ao numero do cadastro', justification: 'roteiro integrado: a automacao foi substituida' });
-  expect(moved.status, JSON.stringify(moved.body)).toBe(200);
+  sql(`SET session_replication_role = replica; INSERT INTO agent_runs (organization_id, workspace_id, automation_id, automation_version_id, authorization_id, agent_id, worker_id, worker_agent_assignment_id, agent_execution_id, package_fingerprint, authorization_state_at_registration, supervisor_state, last_report_at) VALUES ('${matriz}', '${workspaceId}', '${automationId('Notas de entrada')}', gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'ex-' || repeat('9', 32), repeat('a', 64), 1, 9, clock_timestamp() - interval '2 days')`);
+  const transfer = async (requester: string) => {
+    await naraPage.getByRole('button', { name: 'Transferir a licença nº 1' }).click();
+    const d = naraPage.getByRole('alertdialog');
+    await expect(d.getByText(/Você atesta o pedido: o solicitante, o chamado e como a identidade foi verificada ficam gravados/)).toBeVisible();
+    await d.getByLabel('Automação de destino').selectOption({ label: 'Folha' });
+    await d.getByLabel('E-mail do administrador que pediu').fill(requester);
+    await d.getByLabel('Como a identidade do solicitante foi verificada').fill('retorno por telefone ao numero do cadastro');
+    await d.getByLabel('Justificativa').fill('roteiro integrado: a automacao foi substituida');
+    // sem a referência do chamado a tela não deixa enviar
+    await expect(d.getByRole('button', { name: 'Transferir' })).toBeDisabled();
+    await d.getByLabel('Referência do chamado').fill('CH-LAB-0001');
+    await confirmStepUp(naraPage, nara, 'Transferir');
+    return d;
+  };
+  // o resultado desconhecido RESERVA uma vaga: a administradora vê a reserva à parte das execuções ativas
+  await go(anaPage, `/o/${matriz}/administracao/licencas`);
+  const capB9 = anaPage.getByRole('group', { name: 'Capacidade técnica' });
+  await expect(capB9).toContainText(/Execuções simultâneas\s*1 de 5/);
+  await expect(capB9).toContainText('Em execução: 0');
+  await expect(capB9).toContainText('Reservadas por situação incerta: 1 (1 com resultado desconhecido (Agent anterior))');
+  await expect(anaPage.getByText('Há execução do Agent anterior com resultado desconhecido reservando vaga.')).toBeVisible();
+  await shot(anaPage, 'B9-reserva-por-resultado-desconhecido');
+  await openTarget(naraPage, orgN, matriz);
+  const sessions = naraPage.getByRole('region', { name: 'Lista de sessões sem desfecho' });
+  await expect(sessions.getByRole('row').filter({ hasText: 'Notas de entrada' })).toContainText('Resultado desconhecido');
+  // (a) solicitante que não administra a organização
+  let t = await transfer(bruno.email);
+  await expect(t.getByText(/O solicitante informado não administra esta organização agora\..*Nada foi alterado\./)).toBeVisible();
+  await t.getByRole('button', { name: /Cancelar|Fechar/ }).first().click();
+  // (b) pode existir trabalho na origem: a sessão de resultado desconhecido segura
+  t = await transfer(ana.email);
+  await expect(t.getByText(/sessão do Agent anterior sem desfecho confiável.*Nada foi alterado\./)).toBeVisible();
+  await shot(naraPage, 'B9-transferencia-segura-por-resultado-desconhecido');
+  await t.getByRole('button', { name: /Cancelar|Fechar/ }).first().click();
+  expect(sql(`SELECT a.name FROM organization_license_assignments s JOIN automations a ON a.automation_id = s.automation_id WHERE s.license_id = '${l1}' AND s.released_at IS NULL`), 'nada mudou').toBe('Notas de entrada');
+  // (c) RECONCILIAÇÃO pelo suporte: justificativa, verificação realizada e a afirmação explícita; a sessão não muda
+  await naraPage.getByRole('button', { name: 'Reconciliar a sessão de Notas de entrada' }).click();
+  const rec = naraPage.getByRole('alertdialog');
+  await expect(rec.getByText(/Ela não altera a sessão: o estado continua o que a máquina informou, nenhum desfecho é gravado e nada declara a máquina livre/)).toBeVisible();
+  await rec.getByLabel('Justificativa').fill('roteiro integrado: chamado CH-LAB-0001, maquina substituida pelo cliente');
+  await expect(rec.getByRole('button', { name: 'Registrar a reconciliação' })).toBeDisabled();
+  await rec.getByLabel('Verificação realizada').fill('cliente confirmou por escrito que o computador antigo foi formatado');
+  await expect(rec.getByRole('button', { name: 'Registrar a reconciliação' })).toBeDisabled();
+  await rec.getByRole('checkbox', { name: /Verifiquei, fora do sistema/ }).check();
+  await shot(naraPage, 'B9-reconciliacao');
+  await confirmStepUp(naraPage, nara, 'Registrar a reconciliação');
+  await settle(naraPage);
+  await expect(naraPage.getByText(/Reconciliação registrada\. A sessão não foi alterada/)).toBeVisible();
+  await expect(naraPage.getByText('Nenhuma sessão sem desfecho nesta organização.')).toBeVisible();
+  const reconciled = sql(`SELECT 'estado_da_sessao=' || r.supervisor_state || ' (9 = resultado desconhecido, inalterado) fim_gravado=' || (r.agent_ended_at IS NOT NULL) || ' operador=' || (c.operator_user_id IS NOT NULL) || ' verificacao=' || c.verification FROM agent_run_reconciliations c JOIN agent_runs r ON r.agent_run_id = c.agent_run_id WHERE c.organization_id = '${matriz}'`);
+  expect(reconciled).toContain('estado_da_sessao=9');
+  expect(sql(`SELECT concurrent_previous_agent_uncertain FROM public.capacity_state('${matriz}')`), 'reconciliada: a reserva sai').toBe('0');
+  // (d) agora a transferência passa; o ciclo não muda
+  t = await transfer(ana.email);
+  await settle(naraPage);
+  await expect(naraPage.getByText('Licença transferida. O fim do ciclo não mudou.')).toBeVisible();
   expect(sql(`SELECT string_agg(period_number || ':' || starts_at || ':' || ends_at, ',' ORDER BY period_number) FROM organization_license_periods WHERE license_id = '${l1}'`), 'fim do ciclo preservado').toBe(cycle);
   await go(anaPage, `/o/${matriz}/administracao/licencas`);
   await expect(anaPage.getByRole('row').filter({ hasText: 'nº 1' })).toContainText('Folha');
   log('B9_transferencia', {
-    sem_chamado: noTicket.status,
-    solicitante_nao_administra: notAdmin.body.reason,
+    pela_tela: true,
+    sem_chamado: 'a tela nao deixa enviar',
+    solicitante_nao_administra: 'recusada',
+    resultado_desconhecido: 'segurou a transferencia e reservou uma vaga, mostrada a parte (fixture declarada)',
+    reconciliacao: reconciled,
     transferida: 'Notas de entrada -> Folha',
     trilha: sql(`SELECT 'chamado=' || (detail->>'ticket') || ' verificacao=' || (detail->>'identityCheck') || ' solicitante=' || (requester_membership_id IS NOT NULL) || ' operador=' || (operator_user_id IS NOT NULL) FROM organization_license_acts WHERE license_id = '${l1}' AND act = 5`),
     ciclo: 'inalterado',
   });
 
   // B10. VENCIMENTO (passagem do tempo simulada no banco do laboratório): a tela avisa, e trabalho novo é recusado
-  resetLimits('B10 vencimento');
   sql(`SET session_replication_role = replica; UPDATE organization_license_periods SET ends_at = clock_timestamp() WHERE license_id = '${l1}'`);
   await go(anaPage, `/o/${matriz}/administracao/licencas`);
   await expect(anaPage.getByText('Uma licença vencida continua vinculada a uma automação.')).toBeVisible();
@@ -545,17 +678,31 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   await expect(anaPage.getByRole('region', { name: 'Autorizações de execução local' })).toContainText('Worker fiscal');
   log('B10_vencimento', { tela: 'licenca vencida avisada', trabalho_novo: 'recusado: licenca vencida', historico: 'legivel' });
 
-  // B11. o operador renova: a mesma automação continua vinculada (não precisa vincular de novo)
-  const renewed = await operatorAct(naraPage, nara, orgN, ops(`/licenses/${l1}/renewal`), { startsAt: new Date(Date.now() + 2_000).toISOString(), endsAt: new Date(Date.now() + 30 * 86_400_000).toISOString(), justification: 'roteiro integrado: renovacao depois do vencimento' });
-  log('B11_renovacao', { status: renewed.status, corpo: renewed.status === 200 ? 'renovada' : renewed.body });
+  // B11. a operadora renova, pela TELA: a mesma automação continua vinculada (não precisa vincular de novo)
+  await openTarget(naraPage, orgN, matriz);
+  await expect(naraPage.getByRole('region', { name: 'Lista de licenças da organização' }).getByRole('row').filter({ hasText: 'nº 1' })).toContainText('Sem período vigente');
+  await naraPage.getByRole('button', { name: 'Renovar a licença nº 1' }).click();
+  const renew = naraPage.getByRole('alertdialog');
+  await renew.getByLabel('Fim do novo período').fill(day(30));
+  await renew.getByLabel('Justificativa').fill('roteiro integrado: renovacao do ciclo');
+  await confirmStepUp(naraPage, nara, 'Renovar');
+  await settle(naraPage);
+  await expect(naraPage.getByText('Licença renovada. O vínculo com a automação não muda.')).toBeVisible();
+  const renewedRow = naraPage.getByRole('region', { name: 'Lista de licenças da organização' }).getByRole('row').filter({ hasText: 'nº 1' });
+  await expect(renewedRow).toContainText('Vigente');
+  await expect(renewedRow).toContainText('Folha');
+  log('B11_renovacao', { pela_tela: true, licenca: 'nº 1 vigente de novo', vinculo: 'Folha (inalterado)' });
   expect(l2).toBeTruthy();
 
   // ================================================================== C. D7 — organizações novas no modelo por licença
-  resetLimits('C D7');
   sql(`UPDATE license_rollout SET new_organizations_licensed = true, updated_by = 'roteiro de laboratorio PLATFORM-LICENCIAMENTO-001', updated_at = clock_timestamp()`);
   try {
     const born = `Nascida licenciada ${TAG}`;
     await createOrganization(brunoPage, bruno, born);
+    await go(brunoPage, '/organizacoes');
+    const bornItem = brunoPage.getByRole('list', { name: 'Organizações' }).getByRole('listitem').filter({ hasText: born });
+    await expect(bornItem.getByText('Execução: por licença', { exact: true })).toBeVisible();
+    await expect(bornItem.getByText(/nenhum Worker pode ser registrado/)).toHaveCount(0);
     const bornId = await enter(brunoPage, born);
     await go(brunoPage, `/o/${bornId}/administracao/licencas`);
     await expect(brunoPage.getByText('Esta organização exige licença.')).toBeVisible();
@@ -577,6 +724,6 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
     sql(`UPDATE license_rollout SET new_organizations_licensed = false, updated_by = 'roteiro de laboratorio (chave devolvida)', updated_at = clock_timestamp()`);
   }
   expect(sql('SELECT new_organizations_licensed FROM license_rollout')).toBe('f');
-  log('observacao_de_laboratorio', `"Tentar novamente" usado ${retried} vezes (com os limites zerados antes): leituras recusadas com 429 pelo limite de leituras por sessao, esgotado pelo ritmo do roteiro e pela repeticao de leituras do modo de desenvolvimento`);
-  log('fim', `roteiro integrado concluido (limites de frequencia zerados ${resets} vezes, como ajuda de laboratorio)`);
+  log('limites_de_frequencia', `nenhum limite foi zerado. "Tentar novamente" usado ${retried} vez(es)${retried ? ` em: ${retriedAt.join(', ')}` : ''}`);
+  log('fim', 'roteiro integrado (navegador) concluido, com a Web de producao e sem zerar limites de frequencia');
 });

@@ -18,6 +18,8 @@ export interface Me {
   organizationId: string;
   /** Ciclo de ativação da organização (022); ausente numa API anterior ao campo. */
   organizationActivationState?: 'AGUARDANDO_ATIVACAO' | 'ATIVADA';
+  /** PLATFORM-LICENCIAMENTO-001: modelo de habilitação; ausente numa API anterior ao campo (tratado como o anterior). */
+  organizationLicenseModel?: 'legacy' | 'licensed';
 }
 
 // ------------------------------------------------------------------ CSRF de pré-autenticação

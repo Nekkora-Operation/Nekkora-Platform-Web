@@ -88,6 +88,9 @@ umask 077
     echo "LAB_API_REPO=$(cygpath -m "$API_REPO" 2>/dev/null || echo "$API_REPO")"
 } > "$SEG/segredos.env"
 set -a; . "$SEG/segredos.env"; set +a
+# As chaves sao base64 e podem comecar com "/": sem isto o Git Bash as converte em caminho (C:/Program Files/Git/...) ao
+# entrega-las ao docker, e a Platform nao sobe (visto com E2E_HMAC_CHAVE num laboratorio novo, 1 chance em 64 por chave).
+export MSYS2_ENV_CONV_EXCL='E2E_HMAC_CHAVE;E2E_MFA_CHAVES'
 
 (cd "$SEG/tls" && MSYS2_ARG_CONV_EXCL='*' openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 7 -subj "/CN=localhost" \
     -addext "subjectAltName=DNS:localhost" -keyout key.pem -out cert.pem 2>/dev/null) || falha "certificado TLS descartável"

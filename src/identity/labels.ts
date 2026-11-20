@@ -9,17 +9,53 @@ export const ROLE_LABEL: Record<string, string> = {
   VIEWER: 'Leitura',
 };
 
+export const LICENSED_MODEL_TEXT =
+  'Organização pronta para configurar: pessoas, workspaces, automações e Workers já podem ser preparados, dentro do limite técnico de capacidade, sem depender de aprovação da Nekkora. Para executar e monitorar uma automação, vincule a ela uma licença vigente.';
+
 /**
- * Ciclo de ativação (022), independente da situação administrativa. AGUARDANDO_ATIVACAO: capacidade de execução zero
- * até a operação da Nekkora ativar; a interface não promete execução nem oferece botão de ativação (não há rota).
+ * O que dizer ANTES de criar, pelo modelo em que a organização nova nasce (D7, `newOrganizationLicenseModel`). No modelo por
+ * licença a criação não depende de autorização da Nekkora e não há ativação a esperar: a falta de licença só impede executar
+ * e monitorar, não preparar.
  */
-export function activationLabel(state: OrganizationActivationState): { label: string; tone: Tone; description: string } {
+export const BORN_LICENSED = {
+  title: 'A organização nasce pronta para configurar.',
+  body: 'Você já pode preparar pessoas, workspaces, automações e Workers, sem depender de aprovação da Nekkora. Para executar e monitorar uma automação, vincule a ela uma licença vigente.',
+};
+
+/**
+ * DISPONIBILIDADE DE EXECUÇÃO da organização, que é outra coisa que a SITUAÇÃO dela (ativa, desativada pelo responsável,
+ * bloqueada pela Nekkora; ver {@link SITUATION_LABEL}). Os rótulos dizem a dimensão ("Execução: …") para que "ativa" e
+ * "aguardando ativação" não apareçam lado a lado como se fossem a mesma coisa.
+ *
+ * Modelo anterior (022): AGUARDANDO_ATIVACAO é capacidade de execução zero até a operação da Nekkora ativar; a interface
+ * não promete execução nem oferece botão de ativação (não há rota).
+ */
+export function activationLabel(
+  state: OrganizationActivationState,
+  licenseModel?: 'legacy' | 'licensed',
+): { label: string; tone: Tone; description: string } {
+  // PLATFORM-LICENCIAMENTO-001: no modelo por licença a capacidade é técnica e não depende da ativação. Dizer "aguardando
+  // ativação: nenhum Worker pode ser registrado" seria falso; o que habilita cada automação é a licença.
+  if (licenseModel === 'licensed') {
+    return {
+      label: 'Execução: por licença',
+      tone: 'info',
+      description: LICENSED_MODEL_TEXT,
+    };
+  }
   return state === 'ATIVADA'
-    ? { label: 'Ativada', tone: 'success', description: 'A operação da Nekkora definiu a capacidade de execução desta organização.' }
+    ? { label: 'Execução: liberada', tone: 'success', description: 'A operação da Nekkora definiu a capacidade de execução desta organização.' }
     : {
-        label: 'Aguardando ativação',
+        label: 'Execução: aguardando ativação',
         tone: 'warning',
         description:
           'Organização criada, ainda sem capacidade de execução: nenhum Worker pode ser registrado e nenhuma automação executa até a ativação pela operação da Nekkora. Pessoas, workspaces e automações já podem ser preparados.',
       };
 }
+
+/** SITUAÇÃO da organização (não é a disponibilidade de execução): quem a mantém em funcionamento ou a parou. */
+export const SITUATION_LABEL = {
+  ACTIVE: 'Situação: ativa',
+  DEACTIVATED: 'Situação: desativada por você',
+  BLOCKED: 'Situação: bloqueada pela Nekkora',
+} as const;

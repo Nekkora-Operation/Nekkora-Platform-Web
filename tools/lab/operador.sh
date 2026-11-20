@@ -35,6 +35,9 @@ falha() { echo "ERRO: $*" >&2; exit 1; }
 mixed() { cygpath -m "$1" 2>/dev/null || echo "$1"; }
 [ -f "$SEG/segredos.env" ] || falha "laboratório $ID não instalado"
 set -a; . "$SEG/segredos.env"; set +a
+# As chaves sao base64 e podem comecar com "/": sem isto o Git Bash as converte em caminho (C:/Program Files/Git/...) ao
+# entrega-las ao docker, e a Platform nao sobe (visto com E2E_HMAC_CHAVE num laboratorio novo, 1 chance em 64 por chave).
+export MSYS2_ENV_CONV_EXCL='E2E_HMAC_CHAVE;E2E_MFA_CHAVES'
 [[ "$FRONT_AMBIENTE" =~ ^ensaio-frontlab- ]] || falha "operador local só em laboratório ensaio-frontlab-*"
 export OPERADOR_DIR="$(mixed "$OP")"
 BASE=(-f "$LAB_API_REPO/api/e2e/compose.e2e.yml" -f "$(mixed "$AQUI")/compose.front.yml")  # C:/...: vale com MSYS_NO_PATHCONV
