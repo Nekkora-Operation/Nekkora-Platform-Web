@@ -6,7 +6,7 @@
 import { ApiError } from '../../api/http';
 
 export const LICENSE_REQUIRED_TEXT =
-  'Esta automação não tem licença. Nesta organização, executar e monitorar pela Platform exige uma licença vinculada à automação. Quem administra a organização vincula uma licença disponível em Administração › Licenças e capacidade.';
+  'Esta automação não tem licença. Nesta organização, executar e monitorar pela Platform exige uma licença vinculada à automação. Quem administra a organização ativa a automação em Administração › Licenças e automações.';
 export const LICENSE_EXPIRED_TEXT =
   'A licença desta automação venceu. O que já estava em execução termina e entrega os resultados, e o histórico continua disponível; trabalho novo só depois da renovação, que é feita pelo suporte da Nekkora.';
 export const CAPACITY_PENDING_TEXT =

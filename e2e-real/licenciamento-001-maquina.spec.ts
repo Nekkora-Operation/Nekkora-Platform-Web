@@ -6,7 +6,7 @@ import { expect, test, type Page } from '@playwright/test';
 // @ts-expect-error módulo .mjs da ferramenta do laboratório (sem tipos)
 import { compose } from '../tools/lab/lab.mjs';
 import { Authenticator } from '../mock/totp';
-import { confirmStepUp, LAB, newVersionWithPackage, signInWithTotp, signUpAndEnroll, type Person } from './support/lab';
+import { activateAutomation, confirmStepUp, LAB, newVersionWithPackage, signInWithTotp, signUpAndEnroll, type Person } from './support/lab';
 
 /**
  * PLATFORM-LICENCIAMENTO-001 — ROTEIRO DA MÁQUINA: a Web de produção, a API real do laboratório descartável e o EXECUTÁVEL
@@ -326,13 +326,14 @@ test('PLATFORM-LICENCIAMENTO-001 com o Client empacotado: licença → execuçã
     const versaoRapida = await publicar(RAPIDO);
     const versaoRapidaId = /versoes\/([0-9a-f-]{36})/.exec(versaoRapida)![1];
 
+    // PLATFORM-FLUXO-002: a licença é vinculada por "Ativar automação" (a máquina ainda não foi habilitada: sem Worker, a
+    // ativação fica com "Configuração pendente" e a execução aceita a versão para a máquina na própria confirmação)
     await go(anaPage, `/o/${fabrica}/administracao/licencas`);
     await expect(anaPage.getByText('Esta organização exige licença.')).toBeVisible();
-    await anaPage.getByRole('button', { name: 'Vincular à automação a licença nº 1' }).click();
-    await anaPage.getByRole('alertdialog').getByLabel('Automação que vai usar esta licença').selectOption({ label: `${AUTOMACAO} · Fiscal` });
-    await confirmStepUp(anaPage, ana, 'Vincular licença');
+    await activateAutomation(anaPage, ana, fabrica, { workspace: 'Fiscal', automation: AUTOMACAO });
     await settle(anaPage);
-    await expect(anaPage.getByText(`Licença nº 1 vinculada a ${AUTOMACAO}.`, { exact: false })).toBeVisible();
+    await expect(anaPage.getByText('Uma licença foi vinculada a esta automação.')).toBeVisible();
+    expect(sql(`SELECT l.license_number FROM organization_license_assignments g JOIN organization_licenses l ON l.license_id = g.license_id WHERE g.automation_id = '${automation}' AND g.released_at IS NULL`)).toBe('1');
 
     // as dependências de execução: só as do próprio pacote
     await go(anaPage, automationUrl);
@@ -449,23 +450,23 @@ test('PLATFORM-LICENCIAMENTO-001 com o Client empacotado: licença → execuçã
       }
     };
 
-    // ================================================================ 5. S2: autorizar a versão e solicitar no MESMO passo
+    // ================================================================ 5. um botão só: o aceite da versão para a máquina na confirmação da execução
     const ultima = (versao: string) =>
       sql(
         `SELECT t.state || '|' || coalesce(t.refusal_reason, '') || '|' || coalesce(t.exit_code::text, '') || '|' || t.attempt_id FROM remote_attempts t JOIN remote_executions x ON x.remote_execution_id = t.remote_execution_id WHERE x.automation_version_id = '${versao}' ORDER BY t.created_at DESC LIMIT 1`,
       ).split('|');
     const autorizarESolicitar = async () => {
-      await linha().getByRole('button', { name: `Autorizar esta versão e solicitar em ${MAQUINA}` }).click();
+      await linha().getByRole('button', { name: `Solicitar execução em ${MAQUINA}` }).click();
       const d = anaPage.getByRole('alertdialog');
-      await expect(d.getByText(/A autorização vale só para esta versão, neste Worker\. Versões futuras não ficam autorizadas/)).toBeVisible();
-      await expect(d.getByRole('button', { name: 'Autorizar e solicitar' })).toBeDisabled();
-      await d.getByRole('checkbox', { name: /^Autorizo a execução da versão/ }).check();
-      await confirmStepUp(anaPage, ana, 'Autorizar e solicitar');
+      await expect(d.getByText(/O aceite vale só para esta versão, neste Worker: versões futuras não ficam aceitas/)).toBeVisible();
+      await expect(d.getByRole('button', { name: 'Solicitar execução' })).toBeDisabled();
+      await d.getByRole('checkbox', { name: /^Aceito executar a versão/ }).check();
+      await confirmStepUp(anaPage, ana, 'Solicitar execução');
       await settle(anaPage);
     };
     await autorizarESolicitar();
-    await expect(anaPage.getByText(/Versão autorizada para este Worker e solicitação registrada\./)).toBeVisible({ timeout: 30_000 });
-    await expect(anaPage.getByText(/A autorização vale até /)).toBeVisible({ timeout: 30_000 });
+    await expect(anaPage.getByText(/Versão aceita para este Worker e solicitação registrada\./)).toBeVisible({ timeout: 30_000 });
+    await expect(anaPage.getByText(/O aceite vale até /)).toBeVisible({ timeout: 30_000 });
     await shot(anaPage, 'M5-autorizada-e-solicitada-no-mesmo-passo');
     const autorizacao = sql(`SELECT to_char(valid_until AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') || ' por ' || (SELECT email FROM users u JOIN organization_memberships m ON m.user_id = u.user_id WHERE m.membership_id = z.granted_by_membership_id) FROM local_run_authorizations z WHERE z.automation_version_id = '${versaoRapidaId}' AND z.worker_id = '${worker}' AND z.revoked_at IS NULL`);
     log('5_autorizar_e_solicitar_no_mesmo_passo', { pela_tela: true, autorizacao_criada: autorizacao, fim_da_licenca: day(30), validade_em_branco: 'vale ate o fim da licenca, e a tela disse a data' });
@@ -593,7 +594,7 @@ test('PLATFORM-LICENCIAMENTO-001 com o Client empacotado: licença → execuçã
     await expect(linha().getByRole('list', { name: `O que falta em ${MAQUINA}` })).toContainText('A licença desta automação venceu.', { timeout: 60_000 });
     await expect(linha().getByRole('list', { name: `O que falta em ${MAQUINA}` })).toContainText('a renovação da licença é feita pelo suporte da Nekkora');
     await expect(linha().getByText(/Aguarde a execução em andamento/)).toHaveCount(0);
-    await expect(linha().getByRole('button', { name: /Solicitar execução|Autorizar esta versão e solicitar/ })).toHaveCount(0);
+    await expect(linha().getByRole('button', { name: /Solicitar execução/ })).toHaveCount(0);
     await shot(anaPage, 'M8-entregue-depois-do-vencimento-e-trabalho-novo-recusado');
     const antes = sql(`SELECT count(*) FROM remote_executions WHERE organization_id = '${fabrica}'`);
     const direto = await api(anaPage, fabrica, 'POST', `/api/v1/o/${fabrica}/workspaces/${workspaceId}/remote-executions`, { automationVersionId: versaoLongaId, agentId: agente, requestKey: crypto.randomUUID() });

@@ -55,13 +55,16 @@ export const WAITING_SLOT_TEXT =
 export const onlyAuthorizationMissing = (missing: readonly string[]) =>
   missing.length > 0 && missing.every((m) => m === 'AUTHORIZATION_MISSING' || m === 'AUTHORIZATION_REVOKED' || m === 'AUTHORIZATION_EXPIRED');
 
+/**
+ * PLATFORM-FLUXO-002: o aceite da versão e da máquina faz parte da CONFIRMAÇÃO da execução (um botão só, "Solicitar
+ * execução"), quando a versão ainda não foi aceita para o Worker desta máquina. Com uma autorização válida, nada a aceitar.
+ */
 export const ACCEPT_VERSION = {
-  BUTTON: 'Autorizar esta versão e solicitar',
-  ACK: (version: string, worker: string) => `Autorizo a execução da ${version} no Worker ${worker}.`,
+  ACK: (version: string, worker: string) => `Aceito executar a ${version} no Worker ${worker}.`,
   SCOPE:
-    'A autorização vale só para esta versão, neste Worker. Versões futuras não ficam autorizadas: cada versão nova pede uma autorização nova. É o mesmo ato de "Autorizações de execução local", feito aqui no mesmo passo, e fica registrado com o seu nome.',
-  UNTIL_LICENSED: 'Opcional. Em branco, a autorização vale até o fim da licença desta automação; uma data além disso é reduzida ao fim da licença.',
-  UNTIL_LEGACY: 'Data futura, até 366 dias.',
+    'Esta versão ainda não foi aceita para o Worker desta máquina. Ao confirmar, você a aceita aqui e a solicitação segue no mesmo passo. O aceite vale só para esta versão, neste Worker: versões futuras não ficam aceitas. Fica registrado com o seu nome.',
+  UNTIL_LICENSED: 'O aceite vale até o fim da licença desta automação.',
+  UNTIL_LEGACY: 'Esta organização ainda não exige licença: escolha até quando o aceite vale (data futura, até 366 dias).',
 };
 
 /** O que a tela pode afirmar de cada estado. Entregar não prova recebimento; receber não prova início. */
@@ -529,9 +532,9 @@ export function RemoteExecutions({
               setAcceptUntil('');
               setAccepting(c);
             }}
-            aria-label={`${ACCEPT_VERSION.BUTTON} em ${c.agentName}`}
+            aria-label={`Solicitar execução em ${c.agentName}`}
           >
-            {ACCEPT_VERSION.BUTTON}
+            Solicitar execução
           </Button>
         ) : (
           '—'
@@ -733,10 +736,10 @@ export function RemoteExecutions({
 
       <StepUpDialog<RemoteExecution>
         open={!!accepting}
-        ready={acceptAck && (licensed ? !acceptUntil || acceptUntilOk : acceptUntilOk)}
-        title={accepting ? `Autorizar a ${versionLabel} no Worker ${accepting.workerName} e solicitar a execução em ${accepting.agentName}?` : ''}
+        ready={acceptAck && (licensed || acceptUntilOk)}
+        title={accepting ? `Solicitar a execução da ${versionLabel} em ${accepting.agentName}?` : ''}
         guard={{ operation: 'remote-execution.request', target: requestKey }}
-        confirmLabel="Autorizar e solicitar"
+        confirmLabel="Solicitar execução"
         stepUp={orgStepUp(org)}
         action={() =>
           accepting
@@ -745,7 +748,7 @@ export function RemoteExecutions({
                 agentId: accepting.agentId,
                 requestKey,
                 authorizeVersion: true,
-                ...(acceptUntilDate ? { authorizationValidUntil: acceptUntilDate.toISOString() } : {}),
+                ...(!licensed && acceptUntilDate ? { authorizationValidUntil: acceptUntilDate.toISOString() } : {}),
               })
             : Promise.reject()
         }
@@ -753,7 +756,7 @@ export function RemoteExecutions({
           const asked = acceptUntilDate?.toISOString() ?? null;
           const worker = accepting?.workerId;
           setAccepting(null);
-          setNotice({ tone: 'success', text: 'Versão autorizada para este Worker e solicitação registrada. A máquina recebe na próxima consulta.' });
+          setNotice({ tone: 'success', text: 'Versão aceita para este Worker e solicitação registrada. A máquina recebe na próxima consulta.' });
           poll.refresh();
           // a validade EFETIVA da autorização criada: se saiu menor que a pedida, a tela diz (a redução nunca fica em silêncio)
           void listLocalRunAuthorizations(org, workspaceId)
@@ -765,7 +768,7 @@ export function RemoteExecutions({
               const reduced = asked ? reducedValidityText(asked, made.validUntil) : null;
               setNotice({
                 tone: reduced ? 'warning' : 'success',
-                text: `Versão autorizada para este Worker e solicitação registrada. ${reduced ?? `A autorização vale até ${new Date(made.validUntil).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}.`}`,
+                text: `Versão aceita para este Worker e solicitação registrada. ${reduced ?? `O aceite vale até ${new Date(made.validUntil).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}.`}`,
               });
             })
             .catch(() => undefined);
@@ -776,16 +779,25 @@ export function RemoteExecutions({
         onUnauthenticated={expired}
       >
         <Stack gap={3}>
+          <Text>
+            A máquina recebe a solicitação na próxima consulta. Antes de iniciar, a Platform confere a licença e o aceite desta versão para o Worker dela.
+          </Text>
           <Text>{ACCEPT_VERSION.SCOPE}</Text>
-          <Input
-            label="Autorização válida até"
-            type="date"
-            fullWidth
-            value={acceptUntil}
-            onChange={(e) => setAcceptUntil(e.target.value)}
-            hint={licensed ? ACCEPT_VERSION.UNTIL_LICENSED : ACCEPT_VERSION.UNTIL_LEGACY}
-            error={acceptUntil && !acceptUntilOk ? 'Escolha uma data futura dentro de 366 dias.' : undefined}
-          />
+          {licensed ? (
+            <Text variant="body-sm" color="secondary">
+              {ACCEPT_VERSION.UNTIL_LICENSED}
+            </Text>
+          ) : (
+            <Input
+              label="Aceite válido até"
+              type="date"
+              fullWidth
+              value={acceptUntil}
+              onChange={(e) => setAcceptUntil(e.target.value)}
+              hint={ACCEPT_VERSION.UNTIL_LEGACY}
+              error={acceptUntil && !acceptUntilOk ? 'Escolha uma data futura dentro de 366 dias.' : undefined}
+            />
+          )}
           <Checkbox
             label={accepting ? ACCEPT_VERSION.ACK(versionLabel, accepting.workerName) : ''}
             checked={acceptAck}

@@ -325,7 +325,7 @@ function WorkersManagement() {
             .map((w) => ({ value: w.workspaceId, label: w.name }))}
         />
         <Text variant="body-sm" color="secondary">
-          Autorizar o Worker não executa nada: é preciso também autorizar a execução local de uma versão publicada.
+          Autorizar o Worker no ambiente não executa nada: a automação passa a executar e ser monitorada nele quando quem administra a organização a ativa para este Worker, em Licenças e automações.
         </Text>
       </StepUpDialog>
 

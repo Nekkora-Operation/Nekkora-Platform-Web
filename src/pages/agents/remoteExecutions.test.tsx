@@ -324,7 +324,7 @@ describe('Versão: execução remota (T02)', () => {
     expect(within(s).getByText(MISSING.MACHINE_BUSY)).toBeInTheDocument();
   });
 
-  it('S2: falta só a autorização da versão - autorizar e solicitar no mesmo passo exige o aceite explícito e diz que não vale para versões futuras', async () => {
+  it('FLUXO-002: falta só o aceite da versão - um botão só, "Solicitar execução"; o aceite explícito faz parte da confirmação e não vale para versões futuras', async () => {
     candidates = [candidate({ requestable: false, missing: ['AUTHORIZATION_MISSING'], authorization: null })];
     api.on('POST', LIST, 'requestRemoteExecution', () => {
       executions = [execution([attempt()])];
@@ -332,18 +332,18 @@ describe('Versão: execução remota (T02)', () => {
     });
     await open();
     const s = await waitFor(section);
-    expect(within(s).queryByRole('button', { name: 'Solicitar execução em ESTACAO-01' })).toBeNull();
-    fireEvent.click(within(s).getByRole('button', { name: `${ACCEPT_VERSION.BUTTON} em ESTACAO-01` }));
+    expect(within(s).queryByRole('button', { name: /Autorizar/ })).toBeNull();
+    fireEvent.click(within(s).getByRole('button', { name: 'Solicitar execução em ESTACAO-01' }));
     expect(within(dialog()).getByText(ACCEPT_VERSION.SCOPE)).toBeInTheDocument();
-    const confirm = within(dialog()).getByRole('button', { name: 'Autorizar e solicitar' });
+    const confirm = within(dialog()).getByRole('button', { name: 'Solicitar execução' });
     // modelo anterior: a validade é obrigatória, e sem o aceite marcado nada é enviado
     const until = new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10);
-    fireEvent.change(within(dialog()).getByLabelText('Autorização válida até'), { target: { value: until } });
+    fireEvent.change(within(dialog()).getByLabelText('Aceite válido até'), { target: { value: until } });
     expect(confirm).toBeDisabled();
     fireEvent.click(within(dialog()).getByRole('checkbox', { name: ACCEPT_VERSION.ACK('versão 3', 'Worker financeiro') }));
     await waitFor(() => expect(confirm).toBeEnabled());
     fireEvent.click(confirm);
-    expect(await screen.findByText(/Versão autorizada para este Worker e solicitação registrada/)).toBeInTheDocument();
+    expect(await screen.findByText(/Versão aceita para este Worker e solicitação registrada/)).toBeInTheDocument();
     const body = api.sent('POST', LIST)[0].body as { authorizeVersion: boolean; authorizationValidUntil: string; agentId: string; requestKey: string };
     // defeito visto no laboratório: a chave ia vazia neste diálogo e a API recusava o pedido (400)
     expect(body.requestKey).toMatch(/^[0-9a-f-]{36}$/);
@@ -359,15 +359,15 @@ describe('Versão: execução remota (T02)', () => {
     expect(await within(s).findByText(MISSING.LICENSE_EXPIRED)).toBeInTheDocument();
     expect(within(s).getByText('Não há ação nesta máquina: a renovação da licença é feita pelo suporte da Nekkora.')).toBeInTheDocument();
     expect(within(s).queryByText(/Aguarde a execução em andamento/)).toBeNull();
-    expect(within(s).queryByRole('button', { name: /Solicitar execução|Autorizar esta versão/ })).toBeNull();
+    expect(within(s).queryByRole('button', { name: /Solicitar execução/ })).toBeNull();
   });
 
-  it('S2: com outra pendência além da autorização, o atalho não é oferecido', async () => {
+  it('S2: com outra pendência além do aceite, a solicitação não é oferecida', async () => {
     candidates = [candidate({ requestable: false, missing: ['AUTHORIZATION_MISSING', 'PYTHON_NOT_SELECTED'], authorization: null })];
     await open();
     const s = await waitFor(section);
     await within(s).findByText(MISSING.AUTHORIZATION_MISSING);
-    expect(within(s).queryByRole('button', { name: new RegExp(ACCEPT_VERSION.BUTTON) })).toBeNull();
+    expect(within(s).queryByRole('button', { name: /Solicitar execução/ })).toBeNull();
   });
 
   it('aguardando vaga: na fila com a organização no limite de simultâneas - diz que é capacidade, não licença', async () => {

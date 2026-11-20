@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "eb2462cdd39af1d0810216cdb9b00fe6f7fd1fe168971d180923158b8fff4a59",
+  "openapiSha256": "2cccefbdf86912916932698af12eaa252709d262a74b1081dcf388d726501742",
   "schemas": {
     "Error": {
       "type": "object",
@@ -94,7 +94,12 @@
             "organization_not_responsible",
             "organization_work_in_progress",
             "organization_blocked_by_nekkora",
-            "organization_state_conflict"
+            "organization_state_conflict",
+            "license_unavailable",
+            "activation_worker_not_in_workspace",
+            "activation_automation_inactive",
+            "activation_without_workers",
+            "activation_renewal_not_applicable"
           ]
         }
       }
@@ -1002,6 +1007,480 @@
               "type": "null"
             }
           ]
+        }
+      }
+    },
+    "LicenseCount": {
+      "type": "object",
+      "required": [
+        "contracted",
+        "used",
+        "available"
+      ],
+      "properties": {
+        "contracted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "used": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "available": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "AutomationActivationVersion": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "versionId",
+        "number"
+      ],
+      "properties": {
+        "versionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "number": {
+          "type": "integer"
+        },
+        "publishedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    },
+    "AutomationActivationAuthorization": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "authorizationId",
+        "validUntil",
+        "status"
+      ],
+      "properties": {
+        "authorizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "automationVersionId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "validUntil": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "expired",
+            "replaced"
+          ]
+        }
+      }
+    },
+    "AutomationActivation": {
+      "type": "object",
+      "required": [
+        "automationId",
+        "name",
+        "automationStatus",
+        "workspaceId",
+        "workspaceName",
+        "state",
+        "pending",
+        "license",
+        "currentVersion",
+        "acceptedVersion",
+        "workers"
+      ],
+      "properties": {
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "automationStatus": {
+          "type": "string",
+          "enum": [
+            "active",
+            "suspended",
+            "archived"
+          ]
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workspaceName": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "ACTIVE",
+            "CONFIGURATION_PENDING",
+            "RENEWAL_AVAILABLE",
+            "LICENSE_REQUIRED",
+            "LICENSE_EXPIRED"
+          ]
+        },
+        "pending": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "LICENSE_REQUIRED",
+              "LICENSE_EXPIRED",
+              "NO_PUBLISHED_VERSION",
+              "NO_WORKER",
+              "WORKER_WITHOUT_EXECUTION",
+              "WORKER_WITHOUT_MONITORING",
+              "NEW_VERSION_AVAILABLE",
+              "RENEWAL_AVAILABLE"
+            ]
+          }
+        },
+        "license": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "licenseId",
+            "number",
+            "assignedAt",
+            "state"
+          ],
+          "properties": {
+            "licenseId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "number": {
+              "type": "integer"
+            },
+            "assignedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "lastPeriodEndsAt": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "LEGACY",
+                "OK",
+                "LICENSE_EXPIRED",
+                "LICENSE_REQUIRED"
+              ]
+            },
+            "coverageUntil": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            }
+          }
+        },
+        "currentVersion": {
+          "$ref": "#/components/schemas/AutomationActivationVersion"
+        },
+        "acceptedVersion": {
+          "$ref": "#/components/schemas/AutomationActivationVersion"
+        },
+        "workers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "workerId",
+              "name",
+              "execution",
+              "monitoring"
+            ],
+            "properties": {
+              "workerId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "execution": {
+                "$ref": "#/components/schemas/AutomationActivationAuthorization"
+              },
+              "monitoring": {
+                "$ref": "#/components/schemas/AutomationActivationAuthorization"
+              }
+            }
+          }
+        }
+      }
+    },
+    "AutomationActivationList": {
+      "type": "object",
+      "required": [
+        "model",
+        "licenses",
+        "items",
+        "asOf"
+      ],
+      "properties": {
+        "model": {
+          "type": "string",
+          "enum": [
+            "legacy",
+            "licensed"
+          ]
+        },
+        "licenses": {
+          "$ref": "#/components/schemas/LicenseCount"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AutomationActivation"
+          }
+        },
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "AutomationActivationOptions": {
+      "type": "object",
+      "required": [
+        "workspaceId",
+        "workspaceName",
+        "model",
+        "licenses",
+        "nextLicense",
+        "automations",
+        "workers"
+      ],
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workspaceName": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string",
+          "enum": [
+            "legacy",
+            "licensed"
+          ]
+        },
+        "licenses": {
+          "$ref": "#/components/schemas/LicenseCount"
+        },
+        "nextLicense": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "licenseId",
+            "number"
+          ],
+          "properties": {
+            "licenseId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "number": {
+              "type": "integer"
+            },
+            "validUntil": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            }
+          }
+        },
+        "automations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "automationId",
+              "name",
+              "licensed",
+              "state",
+              "currentVersion",
+              "workerIds"
+            ],
+            "properties": {
+              "automationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "licensed": {
+                "type": "boolean"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "ACTIVE",
+                  "CONFIGURATION_PENDING",
+                  "RENEWAL_AVAILABLE",
+                  "LICENSE_REQUIRED",
+                  "LICENSE_EXPIRED"
+                ]
+              },
+              "currentVersion": {
+                "$ref": "#/components/schemas/AutomationActivationVersion"
+              },
+              "workerIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "workers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "workerId",
+              "name"
+            ],
+            "properties": {
+              "workerId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "AutomationActivationRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "automationId"
+      ],
+      "properties": {
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workerIds": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "validUntil": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "AutomationActivationOutcome": {
+      "type": "object",
+      "required": [
+        "results",
+        "activation"
+      ],
+      "properties": {
+        "licenseConsumedNow": {
+          "type": "boolean"
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "workerId",
+              "kind",
+              "outcome"
+            ],
+            "properties": {
+              "workerId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "execution",
+                  "monitoring"
+                ]
+              },
+              "automationVersionId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "issued",
+                  "already",
+                  "failed"
+                ]
+              },
+              "authorizationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "validUntil": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "activation": {
+          "$ref": "#/components/schemas/AutomationActivation"
         }
       }
     },
@@ -11085,6 +11564,294 @@
           }
         },
         "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "listAutomationActivations": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/automation-activations",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/AutomationActivationList"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "activateAutomation": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/automation-activations",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/AutomationActivationOutcome"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "getAutomationActivationOptions": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/automation-activations/options",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/AutomationActivationOptions"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "getAutomationActivation": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/automation-activations/{automationId}",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/AutomationActivation"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "acceptAutomationActivationVersion": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/automation-activations/{automationId}/version",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/AutomationActivationOutcome"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "renewAutomationActivation": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/automation-activations/{automationId}/renewal",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/AutomationActivationOutcome"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/Error"
