@@ -243,9 +243,9 @@ test('PLATFORM-LICENCIAMENTO-001 com o Agent anterior em cópia isolada: recusa 
 
     // ================================================================ 2. automação publicada, licença vinculada, Worker e máquina pareada
     await go(anaPage, `/o/${oficina}/workspaces`);
-    await anaPage.getByRole('button', { name: 'Criar workspace' }).click();
+    await anaPage.getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
     await anaPage.getByRole('alertdialog').getByLabel(/^Nome/).fill('Oficina');
-    await anaPage.getByRole('alertdialog').getByRole('button', { name: 'Criar workspace' }).click();
+    await anaPage.getByRole('alertdialog').getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
     await expect(anaPage).toHaveURL(new RegExp(`/o/${oficina}/workspaces/[0-9a-f-]{36}$`));
     await settle(anaPage);
     const workspaceId = /workspaces\/([0-9a-f-]{36})/.exec(anaPage.url())![1];
@@ -287,15 +287,15 @@ test('PLATFORM-LICENCIAMENTO-001 com o Agent anterior em cópia isolada: recusa 
     await anaPage.getByRole('button', { name: 'Concluir' }).click();
     const worker = sql(`SELECT worker_id FROM workers WHERE organization_id = '${oficina}' AND name = '${WORKER}'`);
     await go(anaPage, `/o/${oficina}/workers`);
-    await anaPage.getByRole('button', { name: `Autorizar ${WORKER} num workspace` }).click();
-    await anaPage.getByRole('alertdialog').getByLabel('Workspace').selectOption(workspaceId);
+    await anaPage.getByRole('button', { name: `Autorizar ${WORKER} num ambiente de trabalho` }).click();
+    await anaPage.getByRole('alertdialog').getByLabel('Ambiente de trabalho').selectOption(workspaceId);
     await confirmStepUp(anaPage, ana, 'Autorizar');
     await settle(anaPage);
 
     // a autorização de execução local desta versão para o Worker (com a licença vigente)
     await go(anaPage, versao);
     const cartao = anaPage.locator('section').filter({ has: anaPage.getByRole('heading', { name: /Autorizações de execução local/ }) });
-    await cartao.getByLabel('Worker autorizado neste workspace').selectOption(worker);
+    await cartao.getByLabel('Worker autorizado neste ambiente de trabalho').selectOption(worker);
     await cartao.getByLabel('Vale até').fill(day(10));
     await cartao.getByRole('button', { name: 'Autorizar execução local' }).click();
     await confirmStepUp(anaPage, ana, 'Autorizar execução local');

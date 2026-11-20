@@ -25,7 +25,7 @@ async function control<T>(route: string, body: unknown): Promise<T> {
   return (await res.json()) as T;
 }
 
-const WHERE = '(cliente Cliente Vizinho, workspace Workspace da organização vizinha)';
+const WHERE = '(cliente Cliente Vizinho, ambiente de trabalho Workspace da organização vizinha)';
 const A = `Externa Um ${WHERE}`;
 const B = `Externa Dois ${WHERE}`;
 
@@ -83,7 +83,7 @@ const panel = (page: Page) => page.getByRole('region', { name: 'Ações sem resu
 const announce = (page: Page) => page.getByRole('status', { name: 'Resultado das ações' });
 const anchor = (page: Page, id: string) => page.locator(`[data-concessao-linha="${id}"]`);
 
-test('teclado: revogar com a confirmação identificando cliente e workspace; foco na linha; axe no diálogo e depois', async ({ page }) => {
+test('teclado: revogar com a confirmação identificando cliente e ambiente de trabalho; foco na linha; axe no diálogo e depois', async ({ page }) => {
   const sent = posts(page);
   const { grants } = await setup(page);
   await page.getByRole('button', { name: `Revogar a concessão de ${A}` }).focus();

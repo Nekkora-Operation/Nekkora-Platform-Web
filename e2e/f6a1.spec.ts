@@ -103,7 +103,7 @@ test('papel só de workspace: sem o grupo Administração; endereço direto → 
   const urls = recordRequests(page);
   const acc = await account({ workspaceRoles: [['financeiro', ['WORKSPACE_ADMIN']]] });
   await enter(page, acc);
-  await expect(nav(page).getByRole('link', { name: 'Workspaces' })).toBeVisible();
+  await expect(nav(page).getByRole('link', { name: 'Ambientes de trabalho' })).toBeVisible();
   await expect(nav(page).getByText('Administração')).toHaveCount(0);
   for (const [path, area] of [
     ['/administracao/membros', 'os membros desta organização'],

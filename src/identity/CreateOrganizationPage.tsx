@@ -153,7 +153,7 @@ export function CreateOrganizationPage() {
           {bornModel === 'licensed'
             ? 'Ela nasce pronta para configurar, sem depender de aprovação da Nekkora. Para executar e monitorar uma automação, vincule a ela uma licença vigente.'
             : bornModel === 'legacy'
-              ? 'Ela nasce aguardando a ativação pela operação da Nekkora; até lá, pessoas, workspaces e automações já podem ser preparados.'
+              ? 'Ela nasce aguardando a ativação pela operação da Nekkora; até lá, pessoas, ambientes de trabalho e automações já podem ser preparados.'
               : 'A lista de organizações mostra a disponibilidade de execução dela.'}
         </Text>
       </StepUpDialog>

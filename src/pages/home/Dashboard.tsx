@@ -172,7 +172,7 @@ function AutomationCard({ a }: { a: OrganizationAutomation }) {
           <ResourceStatusBadge status={a.status} />
         </div>
         <Text variant="body-sm" color="secondary">
-          Workspace {a.workspaceName}
+          Ambiente de trabalho {a.workspaceName}
         </Text>
         {a.description && <Text className="pw-dash__automation-description">{a.description}</Text>}
         <dl className="pw-dash__facts">
@@ -277,7 +277,7 @@ function Automations() {
   if (list.items.length === 0) {
     return (
       <Card variant="outlined" padding="lg">
-        <StateView status="neutral" title="Nenhuma automação ainda" description="Quando houver automações nos seus workspaces, elas aparecem aqui." />
+        <StateView status="neutral" title="Nenhuma automação ainda" description="Quando houver automações nos seus ambientes de trabalho, elas aparecem aqui." />
       </Card>
     );
   }
@@ -369,8 +369,8 @@ export function Dashboard({ header }: { header: (period: ReactNode) => ReactNode
         <Card variant="outlined" padding="lg">
           <StateView
             status="neutral"
-            title="Você ainda não tem acesso a nenhum workspace"
-            description="As execuções e as automações aparecem aqui quando alguém que administra a organização der acesso a um workspace."
+            title="Você ainda não tem acesso a nenhum ambiente de trabalho"
+            description="As execuções e as automações aparecem aqui quando alguém que administra a organização der acesso a um ambiente de trabalho."
           />
         </Card>
       ) : (
@@ -380,7 +380,7 @@ export function Dashboard({ header }: { header: (period: ReactNode) => ReactNode
             description={
               <>
                 De <time dateTime={range.from}>{formatDateTime(range.from).text}</time> até <time dateTime={range.to}>{formatDateTime(range.to).text}</time> · horários em {tz}.
-                Contam as execuções pedidas nesse intervalo, nos workspaces que você pode ver.
+                Contam as execuções pedidas nesse intervalo, nos ambientes de trabalho que você pode ver.
               </>
             }
           >
@@ -394,11 +394,11 @@ export function Dashboard({ header }: { header: (period: ReactNode) => ReactNode
           <Section title="Próximas execuções" description="Execuções previstas por agendamento. Não dependem do período escolhido acima.">
             <Upcoming />
           </Section>
-          <Section title="Automações" description="As automações dos seus workspaces, com a última execução de cada uma.">
+          <Section title="Automações" description="As automações dos seus ambientes de trabalho, com a última execução de cada uma.">
             <Automations />
             <div>
               <RouteButton to={orgPath.workspaces(org)} variant="secondary" size="lg" rightIcon="arrow-right">
-                Ver workspaces
+                Ver ambientes de trabalho
               </RouteButton>
             </div>
           </Section>

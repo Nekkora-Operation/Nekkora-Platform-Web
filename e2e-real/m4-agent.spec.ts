@@ -37,7 +37,7 @@ async function prepareOrganization(page: Page, person: Person) {
   return org;
 }
 
-test('J12: código emitido na tela, pareamento do Agent real, presença, Worker no workspace e autorização de execução local', async ({ page }) => {
+test('J12: código emitido na tela, pareamento do Agent real, presença, Worker no ambiente de trabalho e autorização de execução local', async ({ page }) => {
   test.setTimeout(900_000);
   // Agent do laboratório sem pareamento anterior (dados locais da cópia descartável)
   agent('parar');
@@ -47,9 +47,9 @@ test('J12: código emitido na tela, pareamento do Agent real, presença, Worker 
 
   // versão publicada (o mesmo caminho do M3)
   await page.goto(`/o/${org}/workspaces`);
-  await page.getByRole('button', { name: 'Criar workspace' }).click();
+  await page.getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await page.getByRole('alertdialog').getByLabel(/^Nome/).fill('Operações');
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar workspace' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await expect(page.getByRole('heading', { name: 'Operações' })).toBeVisible();
   const workspaceId = /workspaces\/([0-9a-f-]{36})/.exec(page.url())![1];
   await page.getByRole('button', { name: 'Criar automação' }).click();
@@ -94,14 +94,14 @@ test('J12: código emitido na tela, pareamento do Agent real, presença, Worker 
 
   // Worker no workspace (step-up)
   await page.goto(`/o/${org}/workers`);
-  await page.getByRole('button', { name: 'Autorizar Worker do laboratório num workspace' }).click();
-  await page.getByRole('alertdialog').getByLabel('Workspace').selectOption(workspaceId);
+  await page.getByRole('button', { name: 'Autorizar Worker do laboratório num ambiente de trabalho' }).click();
+  await page.getByRole('alertdialog').getByLabel('Ambiente de trabalho').selectOption(workspaceId);
   await confirmStepUp(page, ana, 'Autorizar');
-  await expect(page.getByText('Worker autorizado no workspace.')).toBeVisible();
+  await expect(page.getByText('Worker autorizado no ambiente de trabalho.')).toBeVisible();
 
   // autorização de execução local (step-up) — não inicia nada
   await page.goto(versionUrl);
-  await page.getByLabel(/^Worker autorizado neste workspace/).selectOption({ label: 'Worker do laboratório' });
+  await page.getByLabel(/^Worker autorizado neste ambiente de trabalho/).selectOption({ label: 'Worker do laboratório' });
   await page.getByRole('button', { name: 'Autorizar execução local' }).click();
   await confirmStepUp(page, ana, 'Autorizar execução local');
   await expect(page.getByText(/Execução local autorizada\. Nada foi iniciado/)).toBeVisible();

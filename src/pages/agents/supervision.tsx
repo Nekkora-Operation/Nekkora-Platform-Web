@@ -172,7 +172,7 @@ export function AgentRunsPage() {
     },
     { key: 'processo', header: 'Processo', render: (r) => (r.process ? PROCESS[r.process] : '—') },
     { key: 'historico', header: 'Histórico', render: (r) => (r.history?.completeness ? COMPLETENESS[r.history.completeness].label : '—') },
-    { key: 'workspace', header: 'Workspace', render: (r) => workspaces.items.find((w) => w.workspaceId === r.correlation?.workspaceId)?.name ?? short(r.correlation?.workspaceId) },
+    { key: 'workspace', header: 'Ambiente de trabalho', render: (r) => workspaces.items.find((w) => w.workspaceId === r.correlation?.workspaceId)?.name ?? short(r.correlation?.workspaceId) },
   ];
 
   return (
@@ -180,7 +180,7 @@ export function AgentRunsPage() {
       <PageHeader title="Supervisão" subtitle="Execuções registradas pelos Agents: iniciadas na máquina (inclusive Python externo monitorado) ou pedidas pela Platform. O desfecho é sempre o do supervisor da máquina." />
       <div className="pw-form__row">
         <Select
-          label="Workspace"
+          label="Ambiente de trabalho"
           value={workspaceId}
           onChange={(e) => setWorkspaceId(e.target.value)}
           options={[{ value: '', label: 'Todos' }, ...workspaces.items.map((w) => ({ value: w.workspaceId, label: w.name }))]}

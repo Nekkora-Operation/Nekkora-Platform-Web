@@ -51,7 +51,7 @@ export function AccessEventsPage() {
             e.role && `papel ${ROLE_LABEL[e.role] ?? e.role}`,
             e.previousRole && `antes ${ROLE_LABEL[e.previousRole] ?? e.previousRole}`,
             e.decision && `decisão ${e.decision}`,
-            e.workspaceId && `workspace ${short(e.workspaceId)}`,
+            e.workspaceId && `ambiente de trabalho ${short(e.workspaceId)}`,
           ]
             .filter(Boolean)
             .join(' · ') || '—'}

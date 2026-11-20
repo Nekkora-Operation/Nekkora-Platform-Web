@@ -117,7 +117,7 @@ async function openAutomation() {
   await screen.findByRole('heading', { name: 'Monitoramento de Python externo' });
 }
 async function chooseWorker(id: string) {
-  const select = (await screen.findByLabelText('Worker autorizado neste workspace')) as HTMLSelectElement;
+  const select = (await screen.findByLabelText('Worker autorizado neste ambiente de trabalho')) as HTMLSelectElement;
   fireEvent.change(select, { target: { value: id } });
   return select;
 }

@@ -48,7 +48,7 @@ afterEach(() => vi.unstubAllGlobals());
 function conforming(url: string): unknown {
   const path = url.split('?')[0];
   if (/\/portal\/api\/v1\/o\/[^/]+\/executions\/[^/]+$/.test(path)) return fx.portalExecution;
-  if (path.startsWith('/portal/') && /\/(workspaces|events)$/.test(path)) return { items: [] };
+  if (path.startsWith('/portal/') && /\/(ambientes de trabalho|events)$/.test(path)) return { items: [] };
   if (/\/workspaces\/[^/]+$/.test(path)) return fx.workspace;
   if (/\/automations\/[^/]+$/.test(path)) return fx.automation;
   if (/\/executions\/[^/]+$/.test(path)) return fx.executionDetail;
@@ -159,7 +159,7 @@ describe('escritas (sessão + CSRF de sessão)', () => {
 });
 
 describe('effectiveInWorkspace', () => {
-  it('une allWorkspaces e as permissões explícitas do workspace', () => {
+  it('une allWorkspaces e as permissões explícitas do ambiente de trabalho', () => {
     const me = { allWorkspaces: { permissions: ['automation.read'] } } as unknown as MyPermissions;
     const eff = effectiveInWorkspace(me, { workspaceId: W, roles: ['OPERATOR'], permissions: ['automation.execute', 'automation.read'] });
     expect([...eff].sort()).toEqual(['automation.execute', 'automation.read']);

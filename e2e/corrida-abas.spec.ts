@@ -50,7 +50,7 @@ function countCreates(context: BrowserContext) {
 
 async function openCreate(page: Page, name: string) {
   await page.goto(`/o/${DEV_ORG}/workspaces`);
-  await page.getByRole('button', { name: 'Criar workspace' }).click();
+  await page.getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   const dialog = page.getByRole('alertdialog');
   await dialog.getByLabel(/^Nome/).fill(name);
   return dialog;
@@ -59,7 +59,7 @@ async function openCreate(page: Page, name: string) {
 /** Agenda o clique em "Criar workspace" do diálogo para o instante `at` (Date.now() comum às duas abas). */
 async function clickAt(page: Page, at: number) {
   await page.evaluate((when) => {
-    const button = [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find((b) => b.textContent?.trim() === 'Criar workspace');
+    const button = [...document.querySelectorAll<HTMLButtonElement>('[role="alertdialog"] button')].find((b) => b.textContent?.trim() === 'Criar ambiente de trabalho');
     if (!button) throw new Error('botão de confirmação não encontrado');
     setTimeout(() => button.click(), Math.max(0, when - Date.now()));
   }, at);
@@ -78,8 +78,8 @@ test.describe('FRONT-V1-004: mesma operação em duas abas ao mesmo tempo', () =
       const before = sent.length;
       const name = `Corrida ${i} ${Date.now()}`;
       const [da, db] = [await openCreate(a, name), await openCreate(b, name)];
-      await expect(da.getByRole('button', { name: 'Criar workspace' })).toBeEnabled();
-      await expect(db.getByRole('button', { name: 'Criar workspace' })).toBeEnabled();
+      await expect(da.getByRole('button', { name: 'Criar ambiente de trabalho' })).toBeEnabled();
+      await expect(db.getByRole('button', { name: 'Criar ambiente de trabalho' })).toBeEnabled();
       const at = Date.now() + 400;
       await Promise.all([clickAt(a, at), clickAt(b, at)]);
       // uma aba conclui (navega ao workspace criado); a outra fica barrada pelo envio em andamento ou pela confirmação
@@ -111,8 +111,8 @@ test.describe('FRONT-V1-004: mesma operação em duas abas ao mesmo tempo', () =
       const [da, db] = [await openCreate(a, name), await openCreate(b, name)];
       await expect(da.getByText(NO_LOCKS_NOTICE)).toBeVisible();
       await expect(db.getByText(NO_LOCKS_NOTICE)).toBeVisible();
-      await expect(da.getByRole('button', { name: 'Criar workspace' })).toBeDisabled();
-      await expect(db.getByRole('button', { name: 'Criar workspace' })).toBeDisabled();
+      await expect(da.getByRole('button', { name: 'Criar ambiente de trabalho' })).toBeDisabled();
+      await expect(db.getByRole('button', { name: 'Criar ambiente de trabalho' })).toBeDisabled();
       const at = Date.now() + 400;
       await Promise.all([clickAt(a, at), clickAt(b, at)]);
       await a.waitForTimeout(1_000);

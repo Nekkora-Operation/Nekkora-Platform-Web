@@ -17,7 +17,7 @@ async function createOrganizationAndEnter(page: Page, person: Person, name: stri
   return /\/o\/([0-9a-f-]{36})/.exec(page.url())![1];
 }
 
-test('J07/J08: workspace, convite com papel, aceite pela caixa, visão limitada, mudança de papel, último admin e retirada', async ({ browser }) => {
+test('J07/J08: ambiente de trabalho, convite com papel, aceite pela caixa, visão limitada, mudança de papel, último admin e retirada', async ({ browser }) => {
   const adminCtx = await browser.newContext();
   const guestCtx = await browser.newContext();
   const admin = await adminCtx.newPage();
@@ -28,10 +28,10 @@ test('J07/J08: workspace, convite com papel, aceite pela caixa, visão limitada,
 
   // workspace (workspace.lifecycle) com a organização ainda aguardando ativação
   await admin.goto(`/o/${org}/workspaces`);
-  await admin.getByRole('button', { name: 'Criar workspace' }).click();
+  await admin.getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   const wsName = `Financeiro ${Date.now().toString(36)}`;
   await admin.getByRole('alertdialog').getByLabel(/^Nome/).fill(wsName);
-  await admin.getByRole('alertdialog').getByRole('button', { name: 'Criar workspace' }).click();
+  await admin.getByRole('alertdialog').getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await expect(admin).toHaveURL(new RegExp(`/o/${org}/workspaces/[0-9a-f-]{36}$`));
   await expect(admin.getByRole('heading', { name: wsName })).toBeVisible();
   const workspaceId = /workspaces\/([0-9a-f-]{36})/.exec(admin.url())![1];
@@ -43,7 +43,7 @@ test('J07/J08: workspace, convite com papel, aceite pela caixa, visão limitada,
   await admin.goto(`/o/${org}/administracao/convites`);
   await admin.getByLabel(/^E-mail da pessoa/).fill(bia.email);
   await admin.getByLabel(/^Papel/).selectOption('OPERATOR');
-  await admin.getByLabel(/^Workspace do papel/).selectOption(workspaceId);
+  await admin.getByLabel(/^Ambiente de trabalho do papel/).selectOption(workspaceId);
   await admin.getByRole('button', { name: 'Convidar' }).click();
   await confirmStepUp(admin, ana, 'Enviar convite');
   await expect(admin.getByText('Convite enviado.')).toBeVisible();

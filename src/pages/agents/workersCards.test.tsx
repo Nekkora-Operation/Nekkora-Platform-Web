@@ -149,7 +149,7 @@ describe('Workers em cartões, por perfil (T07 + T08 R1)', () => {
     const r = await screen.findByRole('region', { name: 'Lista de Workers' });
     await waitFor(() => expect(r).toHaveAttribute('data-format', 'cartoes'));
     expect(within(r).queryByRole('button', { name: /Vincular Agent|Renovar credencial|Revogar vínculo/ })).toBeNull();
-    expect(within(cardOf(r, 'Worker livre')).getByRole('button', { name: 'Autorizar Worker livre num workspace' })).toBeInTheDocument();
+    expect(within(cardOf(r, 'Worker livre')).getByRole('button', { name: 'Autorizar Worker livre num ambiente de trabalho' })).toBeInTheDocument();
     expect(within(cardOf(r, 'Worker financeiro')).getByRole('button', { name: /Retirar autorização de Financeiro/ })).toBeInTheDocument();
   });
 

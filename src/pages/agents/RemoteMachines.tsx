@@ -144,13 +144,13 @@ export function RemoteMachines({ workspaceId }: { workspaceId: string }) {
       </Heading>
       <Text variant="body-sm" color="secondary">
         O estado é o que a Platform conhece no momento da leitura e não reserva a máquina. Uma máquina habilitada não autoriza
-        nenhuma automação: as autorizações deste workspace continuam valendo como estão.
+        nenhuma automação: as autorizações deste ambiente de trabalho continuam valendo como estão.
       </Text>
       {list.status === 'error' && <LoadErrorState error={list.error} onRetry={() => void load()} />}
       {list.status === 'ready' && (
         <>
           <div className="pw-prod__scroll" role="region" aria-label="Lista de máquinas habilitadas para execução remota" tabIndex={0}>
-            <Table columns={columns} data={list.items} rowKey="agentId" size="sm" caption="Máquinas habilitadas para execução remota neste workspace." />
+            <Table columns={columns} data={list.items} rowKey="agentId" size="sm" caption="Máquinas habilitadas para execução remota neste ambiente de trabalho." />
           </div>
           <div>
             <Button size="sm" variant="ghost" onClick={() => void load()}>

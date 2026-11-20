@@ -58,7 +58,7 @@ beforeEach(() => {
   session();
 });
 
-describe('nome de workspace já usado na organização (T03)', () => {
+describe('nome de ambiente de trabalho já usado na organização (T03)', () => {
   it('409 conflict + workspace_name_taken: mensagem exata, formulário mantido, um único envio; corrigir o nome cria', async () => {
     let answer: 'taken' | 'created' = 'taken';
     api.on('POST', `/api/v1/o/${ORG}/workspaces`, 'createWorkspace', () =>
@@ -67,13 +67,13 @@ describe('nome de workspace já usado na organização (T03)', () => {
         : { status: 201, body: { workspaceId: '33333333-3333-4333-8333-333333333333', name: 'Financeiro Norte', status: 'ACTIVE', createdAt: T } },
     );
     renderApp(`/o/${ORG}/workspaces`);
-    fireEvent.click(await screen.findByRole('button', { name: 'Criar workspace' }));
-    const dialog = await screen.findByRole('alertdialog', { name: 'Criar workspace' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Criar ambiente de trabalho' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Criar ambiente de trabalho' });
     const nome = within(dialog).getByLabelText(/^Nome/) as HTMLInputElement;
     const descricao = within(dialog).getByLabelText(/^Descrição/) as HTMLTextAreaElement;
     fireEvent.change(nome, { target: { value: ' financeiro ' } });
     fireEvent.change(descricao, { target: { value: 'Contas a pagar' } });
-    const confirmar = within(dialog).getByRole('button', { name: 'Criar workspace' });
+    const confirmar = within(dialog).getByRole('button', { name: 'Criar ambiente de trabalho' });
     await waitFor(() => expect(confirmar).toBeEnabled());
     fireEvent.click(confirmar);
     fireEvent.click(confirmar); // duplo clique: continua um envio só
@@ -82,7 +82,7 @@ describe('nome de workspace já usado na organização (T03)', () => {
     expect(posts()).toHaveLength(1);
     expect(posts()[0].body).toEqual({ name: 'financeiro', description: 'Contas a pagar' });
     // formulário preservado, campo marcado, nada reenviado sozinho
-    expect(screen.getByRole('alertdialog', { name: 'Criar workspace' })).toBe(dialog);
+    expect(screen.getByRole('alertdialog', { name: 'Criar ambiente de trabalho' })).toBe(dialog);
     expect(nome.value).toBe(' financeiro ');
     expect(descricao.value).toBe('Contas a pagar');
     expect(nome).toHaveAttribute('aria-invalid', 'true');
@@ -103,11 +103,11 @@ describe('nome de workspace já usado na organização (T03)', () => {
   it('outro 409 (conflito genérico) continua com o texto genérico, sem atribuir a causa ao nome', async () => {
     api.on('POST', `/api/v1/o/${ORG}/workspaces`, 'createWorkspace', { status: 409, body: { error: 'conflict' } });
     renderApp(`/o/${ORG}/workspaces`);
-    fireEvent.click(await screen.findByRole('button', { name: 'Criar workspace' }));
-    const dialog = await screen.findByRole('alertdialog', { name: 'Criar workspace' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Criar ambiente de trabalho' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Criar ambiente de trabalho' });
     const nome = within(dialog).getByLabelText(/^Nome/);
     fireEvent.change(nome, { target: { value: 'Compras' } });
-    const confirmar = within(dialog).getByRole('button', { name: 'Criar workspace' });
+    const confirmar = within(dialog).getByRole('button', { name: 'Criar ambiente de trabalho' });
     await waitFor(() => expect(confirmar).toBeEnabled());
     fireEvent.click(confirmar);
     expect(await within(dialog).findByText(/O estado atual não permite este ato/)).toBeInTheDocument();

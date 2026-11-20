@@ -218,9 +218,9 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
 
   // ambiente e duas automações (só o nome)
   await go(anaPage, `/o/${matriz}/workspaces`);
-  await anaPage.getByRole('button', { name: 'Criar workspace' }).click();
+  await anaPage.getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await anaPage.getByRole('alertdialog').getByLabel(/^Nome/).fill('Fiscal');
-  await anaPage.getByRole('alertdialog').getByRole('button', { name: 'Criar workspace' }).click();
+  await anaPage.getByRole('alertdialog').getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await expect(anaPage).toHaveURL(new RegExp(`/o/${matriz}/workspaces/[0-9a-f-]{36}$`));
   await expect(anaPage.getByRole('heading', { name: 'Fiscal' })).toBeVisible();
   const workspaceUrl = anaPage.url();
@@ -245,7 +245,7 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   await go(anaPage, `/o/${matriz}/administracao/convites`);
   await anaPage.getByLabel(/^E-mail da pessoa/).fill(bruno.email);
   await anaPage.getByLabel(/^Papel/).selectOption('OPERATOR');
-  await anaPage.getByLabel(/^Workspace do papel/).selectOption(workspaceId);
+  await anaPage.getByLabel(/^Ambiente de trabalho do papel/).selectOption(workspaceId);
   await anaPage.getByRole('button', { name: 'Convidar' }).click();
   await confirmStepUp(anaPage, ana, 'Enviar convite');
   await settle(anaPage);
@@ -426,11 +426,11 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   };
   const authorizeWorkerInWorkspace = async (worker: string) => {
     await go(anaPage, `/o/${matriz}/workers`);
-    await anaPage.getByRole('button', { name: `Autorizar ${worker} num workspace` }).click();
-    await anaPage.getByRole('alertdialog').getByLabel('Workspace').selectOption(workspaceId);
+    await anaPage.getByRole('button', { name: `Autorizar ${worker} num ambiente de trabalho` }).click();
+    await anaPage.getByRole('alertdialog').getByLabel('Ambiente de trabalho').selectOption(workspaceId);
     await confirmStepUp(anaPage, ana, 'Autorizar');
     await settle(anaPage);
-    await expect(anaPage.getByText('Worker autorizado no workspace.')).toBeVisible();
+    await expect(anaPage.getByText('Worker autorizado no ambiente de trabalho.')).toBeVisible();
   };
   // B0. USO NO MODELO ANTERIOR, antes de qualquer licença: a organização já monitora a automação "Folha".
   // FIXTURE DECLARADA do laboratório (`lab.mjs limites`): limites de recursos como os de uma organização ativada pela operação
@@ -442,7 +442,7 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   await authorizeWorkerInWorkspace('Worker fiscal');
   await go(anaPage, automationUrls['Folha']);
   await expect(anaPage.getByRole('heading', { name: 'Monitoramento de Python externo' })).toBeVisible();
-  await anaPage.getByLabel(/^Worker autorizado neste workspace/).selectOption({ label: 'Worker fiscal' });
+  await anaPage.getByLabel(/^Worker autorizado neste ambiente de trabalho/).selectOption({ label: 'Worker fiscal' });
   await anaPage.getByLabel(/^Vale até/).fill(day(20));
   await anaPage.getByRole('button', { name: 'Autorizar monitoramento' }).click();
   await confirmStepUp(anaPage, ana, 'Autorizar monitoramento');
@@ -559,7 +559,7 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   // B7. VALIDADE REDUZIDA: a autorização pedida para 90 dias sai até o fim da licença (30), e a tela diz a data e o motivo
   await go(anaPage, automationUrls['Notas de entrada']);
   await expect(anaPage.getByRole('heading', { name: 'Monitoramento de Python externo' })).toBeVisible();
-  await anaPage.getByLabel(/^Worker autorizado neste workspace/).selectOption({ label: 'Worker fiscal' });
+  await anaPage.getByLabel(/^Worker autorizado neste ambiente de trabalho/).selectOption({ label: 'Worker fiscal' });
   await anaPage.getByLabel(/^Vale até/).fill(day(90));
   await anaPage.getByRole('button', { name: 'Autorizar monitoramento' }).click();
   await confirmStepUp(anaPage, ana, 'Autorizar monitoramento');
@@ -573,7 +573,7 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
 
   // B8. automação SEM licença: a autorização é recusada com o motivo de licença (não de capacidade)
   await go(anaPage, automationUrls['Conciliação']);
-  await anaPage.getByLabel(/^Worker autorizado neste workspace/).selectOption({ label: 'Worker fiscal' });
+  await anaPage.getByLabel(/^Worker autorizado neste ambiente de trabalho/).selectOption({ label: 'Worker fiscal' });
   await anaPage.getByLabel(/^Vale até/).fill(day(10));
   await anaPage.getByRole('button', { name: 'Autorizar monitoramento' }).click();
   await confirmStepUp(anaPage, ana, 'Autorizar monitoramento');
@@ -666,7 +666,7 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   await expect(anaPage.getByRole('row').filter({ hasText: 'nº 1' })).toContainText('Vencida');
   await shot(anaPage, 'B10-licenca-vencida');
   await go(anaPage, automationUrls['Folha']);
-  await anaPage.getByLabel(/^Worker autorizado neste workspace/).selectOption({ label: 'Worker dois' });
+  await anaPage.getByLabel(/^Worker autorizado neste ambiente de trabalho/).selectOption({ label: 'Worker dois' });
   await anaPage.getByLabel(/^Vale até/).fill(day(10));
   await anaPage.getByRole('button', { name: 'Autorizar monitoramento' }).click();
   await confirmStepUp(anaPage, ana, 'Autorizar monitoramento');

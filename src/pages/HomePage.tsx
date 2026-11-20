@@ -83,12 +83,12 @@ export function InternalHome() {
     workspaces.status === 'loading'
       ? 'Carregando…'
       : workspaces.status === 'error'
-        ? 'Não foi possível carregar a lista de workspaces.'
+        ? 'Não foi possível carregar a lista de ambientes de trabalho.'
         : workspaces.items.length === 0
-          ? 'Nenhum workspace visível para você.'
+          ? 'Nenhum ambiente de trabalho visível para você.'
           : workspaces.complete
-            ? `${workspaces.items.length} ${workspaces.items.length === 1 ? 'workspace visível' : 'workspaces visíveis'}`
-            : `Pelo menos ${workspaces.items.length} workspaces visíveis (lista parcial)`;
+            ? `${workspaces.items.length} ${workspaces.items.length === 1 ? 'ambiente de trabalho visível' : 'ambientes de trabalho visíveis'}`
+            : `Pelo menos ${workspaces.items.length} ambientes de trabalho visíveis (lista parcial)`;
 
   const access =
     permissions.status === 'loading'
@@ -96,9 +96,9 @@ export function InternalHome() {
       : permissions.status === 'error'
         ? 'Não foi possível carregar.'
         : permissions.data.organization.roles.includes('ORG_ADMIN')
-          ? 'Administração da organização (todos os workspaces)'
+          ? 'Administração da organização (todos os ambientes de trabalho)'
           : permissions.data.hasWorkspaceAssignments
-            ? 'Por atribuição em workspaces'
+            ? 'Por atribuição em ambientes de trabalho'
             : 'Sem atribuições de acesso';
 
   return (
@@ -132,7 +132,7 @@ export function InternalHome() {
           <DescriptionList
             items={[
               { key: 'acesso', term: 'Acesso', description: access },
-              { key: 'workspaces', term: 'Workspaces', description: visible },
+              { key: 'workspaces', term: 'Ambientes de trabalho', description: visible },
             ]}
           />
         </Stack>

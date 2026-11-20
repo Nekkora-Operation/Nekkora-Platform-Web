@@ -372,7 +372,7 @@ export function LicensesPage() {
           ) : choices.length === 0 ? (
             noneAtAll ? (
               <Alert tone="info" title="Esta organização ainda não tem automação para receber a licença.">
-                Crie a automação em um workspace e volte aqui para vincular: <RouteLink to={orgPath.workspaces(org)}>abrir Workspaces</RouteLink>. A licença
+                Crie a automação em um ambiente de trabalho e volte aqui para vincular: <RouteLink to={orgPath.workspaces(org)}>abrir os ambientes de trabalho</RouteLink>. A licença
                 continua disponível enquanto isso.
               </Alert>
             ) : (

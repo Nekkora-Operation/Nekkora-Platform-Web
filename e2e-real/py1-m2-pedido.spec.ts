@@ -128,9 +128,9 @@ test('M2: pacote externo publicado, aprovado na máquina e disparado pela Platfo
   const ana = await signUpAndEnroll(page, 'py1m2');
   const org = await prepareOrganization(page, ana);
   await page.goto(`/o/${org}/workspaces`);
-  await page.getByRole('button', { name: 'Criar workspace' }).click();
+  await page.getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await page.getByRole('alertdialog').getByLabel(/^Nome/).fill('Operações');
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar workspace' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await expect(page.getByRole('heading', { name: 'Operações' })).toBeVisible();
   const workspaceId = /workspaces\/([0-9a-f-]{36})/.exec(page.url())![1];
   await page.getByRole('button', { name: 'Criar automação' }).click();
@@ -158,12 +158,12 @@ test('M2: pacote externo publicado, aprovado na máquina e disparado pela Platfo
   await page.getByRole('button', { name: 'Concluir' }).click();
   await expect.poll(() => workersText(page, org), { timeout: 240_000, intervals: [10_000] }).toMatch(/ESTACAO-PY1-M2[\s\S]*Conectada/);
   await page.goto(`/o/${org}/workers`);
-  await page.getByRole('button', { name: 'Autorizar Worker pedidos num workspace' }).click();
-  await page.getByRole('alertdialog').getByLabel('Workspace').selectOption(workspaceId);
+  await page.getByRole('button', { name: 'Autorizar Worker pedidos num ambiente de trabalho' }).click();
+  await page.getByRole('alertdialog').getByLabel('Ambiente de trabalho').selectOption(workspaceId);
   await confirmStepUp(page, ana, 'Autorizar');
-  await expect(page.getByText('Worker autorizado no workspace.')).toBeVisible();
+  await expect(page.getByText('Worker autorizado no ambiente de trabalho.')).toBeVisible();
   await page.goto(versionUrl);
-  await page.getByLabel(/^Worker autorizado neste workspace/).selectOption({ label: 'Worker pedidos' }, { timeout: 30_000 });
+  await page.getByLabel(/^Worker autorizado neste ambiente de trabalho/).selectOption({ label: 'Worker pedidos' }, { timeout: 30_000 });
   await page.getByRole('button', { name: 'Autorizar execução local' }).click();
   await confirmStepUp(page, ana, 'Autorizar execução local');
   await expect(page.getByText(/Execução local autorizada\. Nada foi iniciado/)).toBeVisible();

@@ -104,7 +104,7 @@ test('Início: áreas na ordem, números que fecham, período, cards e navegaç�
   expect(await cards.count()).toBeGreaterThan(0);
   const first = cards.first();
   await expect(first.getByRole('heading', { level: 3 })).toBeVisible();
-  await expect(first).toContainText(/Workspace /);
+  await expect(first).toContainText(/Ambiente de trabalho /);
   await expect(first).toContainText('Última execução');
   await expect(first.getByRole('button', { name: /^Ver automação / })).toBeVisible();
   await expect(page.getByRole('main').getByRole('button', { name: /executar|solicitar/i })).toHaveCount(0);
@@ -139,17 +139,17 @@ test('Início: áreas na ordem, números que fecham, período, cards e navegaç�
   await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
 });
 
-test('Início por permissão: quem lê um só workspace vê só as automações dele; sem workspace, o aviso (sem métricas zeradas)', async ({ page }) => {
+test('Início por permissão: quem lê um só ambiente de trabalho vê só as automações dele; sem ambiente de trabalho, o aviso (sem métricas zeradas)', async ({ page }) => {
   await enter(page, { workspaceRoles: [['atendimento', ['VIEWER']]] }, 'Leitora Atendimento');
   await ready(page);
   const cards = page.getByRole('list', { name: 'Automações' }).getByRole('listitem');
-  for (const text of await cards.allInnerTexts()) expect(text).toContain('Workspace Atendimento');
+  for (const text of await cards.allInnerTexts()) expect(text).toContain('Ambiente de trabalho Atendimento');
   await audit(page, 'inicio-leitora-de-um-workspace');
 });
 
 test('Início sem acesso a workspace: aviso próprio', async ({ page }) => {
-  await enter(page, {}, 'Pessoa Sem Workspace');
-  await expect(page.getByText('Você ainda não tem acesso a nenhum workspace')).toBeVisible();
+  await enter(page, {}, 'Pessoa Sem Ambiente de trabalho');
+  await expect(page.getByText('Você ainda não tem acesso a nenhum ambiente de trabalho')).toBeVisible();
   await expect(page.getByRole('heading', { level: 3, name: 'Total de execuções' })).toHaveCount(0);
   await audit(page, 'inicio-sem-workspace');
 });

@@ -140,13 +140,13 @@ async function pick(file: File) {
 const submit = () => screen.getByRole('button', { name: /Criar e enviar o pacote|Continuar$|Salvar rascunho/ });
 
 describe('criar automação com versão e ZIP (T04 + T09)', () => {
-  it('permissões do workspace não conferidas (429): avisa e deixa tentar de novo, sem "sem permissão" e sem gravar; a nova tentativa abre o formulário', async () => {
+  it('permissões do ambiente de trabalho não conferidas (429): avisa e deixa tentar de novo, sem "sem permissão" e sem gravar; a nova tentativa abre o formulário', async () => {
     let fail = true;
     api.on('GET', new RegExp(`/api/v1/o/${ORG}/me/permissions/workspaces`), 'listMyWorkspacePermissions', () =>
       fail ? { status: 429, body: { error: 'rate_limited' } } : { status: 200, body: { items: [], nextCursor: null } },
     );
     renderApp(`/o/${ORG}/workspaces/${WS}/nova-automacao`);
-    const alert = (await screen.findByText('Não foi possível verificar suas permissões neste workspace agora.')).closest('.nk-alert') as HTMLElement;
+    const alert = (await screen.findByText('Não foi possível verificar suas permissões neste ambiente de trabalho agora.')).closest('.nk-alert') as HTMLElement;
     expect(screen.queryByText(/Você não tem permissão/)).toBeNull();
     expect(screen.queryByLabelText(/^Nome da automação/)).toBeNull();
     fail = false;

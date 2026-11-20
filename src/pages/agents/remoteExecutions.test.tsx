@@ -229,7 +229,7 @@ describe('Versão: execução remota (T02)', () => {
     ];
     await open();
     const s = await waitFor(section);
-    const table = within(s).getByRole('table', { name: /Máquinas habilitadas do workspace/ });
+    const table = within(s).getByRole('table', { name: /Máquinas habilitadas do ambiente de trabalho/ });
     const rows = within(table).getAllByRole('row');
     expect(within(rows[1]).getByText('Pode solicitar')).toBeInTheDocument();
     expect(within(rows[1]).getByRole('button', { name: 'Solicitar execução em ESTACAO-01' })).toBeInTheDocument();
@@ -295,7 +295,7 @@ describe('Versão: execução remota (T02)', () => {
     const missing = within(s).getByRole('list', { name: 'O que falta em ESTACAO-02' });
     expect(within(missing).getByText(MISSING.REQUIREMENTS_CONFLICT)).toBeInTheDocument();
     expect(within(missing).getByText('Peça a quem gerencia esta automação.')).toBeInTheDocument();
-    expect(within(missing).getByText('Peça a autorização a quem pode executar neste workspace.')).toBeInTheDocument();
+    expect(within(missing).getByText('Peça a autorização a quem pode executar neste ambiente de trabalho.')).toBeInTheDocument();
     expect(within(missing).queryByRole('link')).toBeNull();
     expect(within(s).queryByRole('button', { name: /Solicitar execução/ })).toBeNull();
   });
@@ -504,12 +504,12 @@ describe('Versão: execução remota (T02)', () => {
       );
       renderApp(`/o/${ORG}/versoes/${VERSION}`);
       // primeiro a tela diz que não conseguiu conferir, e que isso vale também para a execução remota
-      const alert = await screen.findByText('Não foi possível verificar suas permissões neste workspace agora.');
+      const alert = await screen.findByText('Não foi possível verificar suas permissões neste ambiente de trabalho agora.');
       expect(alert.closest('.nk-alert')).toHaveTextContent(/As ações de execução local e de execução remota só aparecem depois dessa verificação/);
       // depois confere de novo sozinha: o aviso some e Solicitar aparece, sem a pessoa clicar em nada
       const s = await waitFor(section);
       expect(await within(s).findByRole('button', { name: /Solicitar execução/ })).toBeInTheDocument();
-      expect(screen.queryByText('Não foi possível verificar suas permissões neste workspace agora.')).toBeNull();
+      expect(screen.queryByText('Não foi possível verificar suas permissões neste ambiente de trabalho agora.')).toBeNull();
       expect(api.sent('GET', new RegExp(`/api/v1/o/${ORG}/me/permissions/workspaces`))).toHaveLength(2);
     } finally {
       permissionsAutoRetry.delaysMs = before;
@@ -523,7 +523,7 @@ describe('Versão: execução remota (T02)', () => {
       candidates = [candidate()];
       api.on('GET', new RegExp(`/api/v1/o/${ORG}/me/permissions/workspaces`), 'listMyWorkspacePermissions', { status: 429, body: { error: 'rate_limited' } });
       renderApp(`/o/${ORG}/versoes/${VERSION}`);
-      await screen.findByText('Não foi possível verificar suas permissões neste workspace agora.');
+      await screen.findByText('Não foi possível verificar suas permissões neste ambiente de trabalho agora.');
       await waitFor(() => expect(api.sent('GET', new RegExp(`/api/v1/o/${ORG}/me/permissions/workspaces`))).toHaveLength(3));
       await new Promise((r) => setTimeout(r, 150));
       // a primeira leitura e duas repetições: não mais que isso
@@ -774,7 +774,7 @@ describe('Versão: execução remota (T02)', () => {
     });
     await open();
     const s = await waitFor(section);
-    const rows = within(within(s).getByRole('table', { name: /Máquinas habilitadas do workspace/ })).getAllByRole('row');
+    const rows = within(within(s).getByRole('table', { name: /Máquinas habilitadas do ambiente de trabalho/ })).getAllByRole('row');
     expect(within(rows[1]).getByText('Não escolhido')).toBeInTheDocument();
     expect(within(rows[1]).getByText(MISSING.PYTHON_NOT_SELECTED)).toBeInTheDocument();
     expect(within(rows[2]).getByText('Python 3.11.9 · código BBBBBB')).toBeInTheDocument();
@@ -822,7 +822,7 @@ describe('Versão: execução remota (T02)', () => {
     });
     await open();
     const s = await waitFor(section);
-    const rows = within(within(s).getByRole('table', { name: /Máquinas habilitadas do workspace/ })).getAllByRole('row');
+    const rows = within(within(s).getByRole('table', { name: /Máquinas habilitadas do ambiente de trabalho/ })).getAllByRole('row');
     // nunca verificado; faltam (com a lista, e dito que nada é instalado); sem resposta; aguardando; verificação de outra configuração
     expect(within(rows[1]).getByText(DEPENDENCY_CHECK.NONE)).toBeInTheDocument();
     expect(within(rows[2]).getByText(/Faltam neste Python: requests==2\.32\.3, idna==3\.7\. A Platform não instala nada/)).toBeInTheDocument();

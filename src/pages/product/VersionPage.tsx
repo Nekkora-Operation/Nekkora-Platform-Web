@@ -99,7 +99,7 @@ export function VersionPage() {
       expired();
       return null;
     }
-    if (isMissing(version.error)) return <NotFoundState title="Versão não encontrada." back={{ to: orgPath.workspaces(org), label: 'Voltar para workspaces' }} />;
+    if (isMissing(version.error)) return <NotFoundState title="Versão não encontrada." back={{ to: orgPath.workspaces(org), label: 'Voltar para ambientes de trabalho' }} />;
     return <LoadErrorState error={version.error} onRetry={version.refresh} page />;
   }
 
@@ -256,9 +256,9 @@ export function VersionPage() {
       {!draft && (
         <Alert tone="info" title="Versão publicada: não muda mais.">
           Para alterar comando ou pacote, crie uma nova versão na automação. Publicar não executa nada nem autoriza
-          execução: a execução local depende de uma autorização para um Worker, no workspace (
+          execução: a execução local depende de uma autorização para um Worker, no ambiente de trabalho (
           <Link as={RouterLink} to={orgPath.workspace(org, data.workspaceId!)}>
-            abrir o workspace
+            abrir o ambiente de trabalho
           </Link>
           ), e do início confirmado pela pessoa no Agent.
         </Alert>

@@ -106,11 +106,11 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 /** A lista do modelo anterior, vazia (o texto depende de haver workspaces carregados). */
-const EMPTY_OLD_MODEL = /Nenhuma execução encontrada\.|Você ainda não tem acesso a nenhum workspace\./;
+const EMPTY_OLD_MODEL = /Nenhuma execução encontrada\.|Você ainda não tem acesso a nenhum ambiente de trabalho\./;
 const region = (name: string) => screen.findByRole('region', { name });
 
 describe('Execuções: a execução remota aparece pela solicitação', () => {
-  it('uma linha por solicitação, com automação, versão, workspace, máquina, origem, horários e resultado; continua lá ao recarregar', async () => {
+  it('uma linha por solicitação, com automação, versão, ambiente de trabalho, máquina, origem, horários e resultado; continua lá ao recarregar', async () => {
     api.on('GET', ALL, 'listVisibleRemoteExecutions', { status: 200, body: { items: [twoAttempts()] } });
     renderApp(`/o/${ORG}/execucoes`);
     // a página ainda se redesenha enquanto carrega (workspaces, permissões): as linhas são relidas a cada conferência
@@ -139,7 +139,7 @@ describe('Execuções: a execução remota aparece pela solicitação', () => {
     await waitFor(() => expect(within(screen.getByRole('region', { name: 'Lista de execuções remotas' })).getByRole('link', { name: /Execução remota de Conciliação/ })).toBeInTheDocument());
   });
 
-  it('o filtro de workspace e o período da tela vão na consulta', async () => {
+  it('o filtro de ambiente de trabalho e o período da tela vão na consulta', async () => {
     api.on('GET', ALL, 'listVisibleRemoteExecutions', { status: 200, body: { items: [] } });
     // o registro de chamadas do teste guarda só o caminho: os parâmetros são lidos do endereço pedido
     const inner = globalThis.fetch;

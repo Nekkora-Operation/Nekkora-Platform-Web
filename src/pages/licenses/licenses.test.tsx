@@ -211,13 +211,13 @@ describe('Licenças e capacidade', () => {
     expect(screen.getByRole('group', { name: 'Conta das licenças' }).textContent).toMatch(/Disponíveis \(sem automação\)0$/);
   });
 
-  it('vincular sem nenhuma automação na organização: diz para criar a automação e leva aos workspaces', async () => {
+  it('vincular sem nenhuma automação na organização: diz para criar a automação e leva aos ambientes de trabalho', async () => {
     api.on('GET', new RegExp(`${base}/automations`), 'listOrganizationAutomations', { status: 200, body: { items: [], nextCursor: null } });
     renderApp(`/o/${ORG}/administracao/licencas`);
     fireEvent.click(await screen.findByRole('button', { name: 'Vincular à automação a licença nº 2' }));
     const dialog = await screen.findByRole('alertdialog');
     expect(await within(dialog).findByText('Esta organização ainda não tem automação para receber a licença.')).toBeInTheDocument();
-    expect(within(dialog).getByRole('link', { name: 'abrir Workspaces' })).toHaveAttribute('href', `/o/${ORG}/workspaces`);
+    expect(within(dialog).getByRole('link', { name: 'abrir os ambientes de trabalho' })).toHaveAttribute('href', `/o/${ORG}/workspaces`);
     expect(within(dialog).getByRole('button', { name: 'Vincular licença' })).toBeDisabled();
   });
 

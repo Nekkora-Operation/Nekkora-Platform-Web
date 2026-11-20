@@ -21,7 +21,7 @@ const STATUS: Record<NonNullable<Worker['status']>, { label: string; tone: 'succ
 };
 
 /** T08: texto de abertura da tela. */
-export const WORKERS_INTRO = 'Crie Workers, vincule as máquinas e escolha em quais workspaces elas podem executar automações.';
+export const WORKERS_INTRO = 'Crie Workers, vincule as máquinas e escolha em quais ambientes de trabalho elas podem executar automações.';
 
 /** T08: o destino do "Retirar" legível por teclado e leitor de tela (o workspace e o Worker do item). */
 export const removeLabel = (workspace: string, worker: string) => `Retirar autorização de ${workspace} do Worker ${worker}`;
@@ -63,7 +63,7 @@ function WorkersManagement() {
 
   if (list.status === 'error' && isApiError(list.error, 'forbidden')) return <ForbiddenState area="os Workers" onRetry={() => void load()} />;
 
-  const wsName = (id: string) => workspaces.items.find((w) => w.workspaceId === id)?.name ?? `Workspace ${id.slice(0, 8)}…`;
+  const wsName = (id: string) => workspaces.items.find((w) => w.workspaceId === id)?.name ?? `Ambiente de trabalho ${id.slice(0, 8)}…`;
   const canCreate = has('worker.manage');
   // pareamento: a API exige agent.manage, agent_credential.manage e worker_agent.assign
   const canPair = has('agent.manage') && has('agent_credential.manage') && has('worker_agent.assign');
@@ -108,11 +108,11 @@ function WorkersManagement() {
     },
     {
       key: 'workspaces',
-      header: 'Workspaces autorizados',
+      header: 'Ambientes de trabalho autorizados',
       align: 'center',
       render: (w) =>
         w.workspaceIds?.length ? (
-          <ul className="pw-workers__ws" aria-label={`Workspaces autorizados de ${w.name}`}>
+          <ul className="pw-workers__ws" aria-label={`Ambientes de trabalho autorizados de ${w.name}`}>
             {w.workspaceIds.map((id) => (
               <li key={id} className="pw-workers__ws-item">
                 <span className="pw-workers__ws-name">{wsName(id)}</span>
@@ -147,9 +147,9 @@ function WorkersManagement() {
                 setTarget('');
                 setPending({ kind: 'authorize', worker: w });
               }}
-              aria-label={`Autorizar ${w.name} num workspace`}
+              aria-label={`Autorizar ${w.name} num ambiente de trabalho`}
             >
-              Autorizar em workspace
+              Autorizar em ambiente de trabalho
             </Button>
           )}
           {w.status === 'ACTIVE' && !w.agentId && canPair && (
@@ -225,7 +225,7 @@ function WorkersManagement() {
           <StateView
             status="neutral"
             title="Nenhum Worker criado."
-            description="Use Criar Worker para registrar onde as automações vão rodar. Depois, autorize o Worker nos workspaces e vincule o Agent da máquina, na linha do Worker, na ordem que preferir."
+            description="Use Criar Worker para registrar onde as automações vão rodar. Depois, autorize o Worker nos ambientes de trabalho e vincule o Agent da máquina, na linha do Worker, na ordem que preferir."
           />
         ) : (
           <>
@@ -246,7 +246,7 @@ function WorkersManagement() {
         action={() => createWorker(org, newName.trim())}
         onDone={(w) => {
           setCreating(false);
-          setNotice({ tone: 'success', text: `Worker ${w.name} criado, sem Agent. Autorize-o nos workspaces e vincule o Agent da máquina quando quiser.` });
+          setNotice({ tone: 'success', text: `Worker ${w.name} criado, sem Agent. Autorize-o nos ambientes de trabalho e vincule o Agent da máquina quando quiser.` });
           void load();
         }}
         onClose={() => setCreating(false)}
@@ -292,7 +292,7 @@ function WorkersManagement() {
           setRevoking(null);
           setNotice({
             tone: 'success',
-            text: `Vínculo revogado: o Worker ${a?.workerName ?? ''} está livre, com os workspaces e o histórico mantidos. A máquina precisa ser pareada de novo para voltar a executar. Isso não prova que um processo já em execução numa máquina desconectada parou.`,
+            text: `Vínculo revogado: o Worker ${a?.workerName ?? ''} está livre, com os ambientes de trabalho e o histórico mantidos. A máquina precisa ser pareada de novo para voltar a executar. Isso não prova que um processo já em execução numa máquina desconectada parou.`,
           });
           void load();
         }}
@@ -302,23 +302,23 @@ function WorkersManagement() {
 
       <StepUpDialog
         open={pending?.kind === 'authorize'}
-        title={pending?.kind === 'authorize' ? `Autorizar ${pending.worker.name} num workspace` : ''}
+        title={pending?.kind === 'authorize' ? `Autorizar ${pending.worker.name} num ambiente de trabalho` : ''}
         guard={{ operation: 'worker.authorize', target: pending?.kind === 'authorize' ? `${pending.worker.workerId}|${target}` : undefined }}
         confirmLabel="Autorizar"
         ready={!!target}
         stepUp={orgStepUp(org)}
         action={() => (pending?.kind === 'authorize' ? authorizeWorkerInWorkspace(org, pending.worker.workerId!, target) : Promise.reject())}
-        onDone={(r) => done(r.created === false ? 'O Worker já estava autorizado neste workspace.' : 'Worker autorizado no workspace.')}
+        onDone={(r) => done(r.created === false ? 'O Worker já estava autorizado neste ambiente de trabalho.' : 'Worker autorizado no ambiente de trabalho.')}
         onClose={() => setPending(null)}
-        refusalText={(e) => accessRefusal(e, { conflict: 'O Worker ou o workspace não está ativo.' })}
+        refusalText={(e) => accessRefusal(e, { conflict: 'O Worker ou o ambiente de trabalho não está ativo.' })}
         uncertainText="Não foi possível confirmar a autorização. Feche e confira a lista (repetir é idempotente)."
         onUnauthenticated={expired}
       >
         <Select
-          label="Workspace"
+          label="Ambiente de trabalho"
           fullWidth
           value={target}
-          placeholder="Escolha um workspace"
+          placeholder="Escolha um ambiente de trabalho"
           onChange={(e) => setTarget(e.target.value)}
           options={workspaces.items
             .filter((w) => w.status === 'active' && !(pending?.kind === 'authorize' && pending.worker.workspaceIds?.includes(w.workspaceId)))
@@ -336,13 +336,13 @@ function WorkersManagement() {
         confirmLabel="Retirar"
         tone="danger"
         action={() => (pending?.kind === 'remove' ? revokeWorkerInWorkspace(org, pending.worker.workerId!, pending.workspaceId) : Promise.reject())}
-        onDone={() => done('Worker retirado do workspace. As autorizações de execução local dele ali deixam de ser entregues ao Agent.')}
+        onDone={() => done('Worker retirado do ambiente de trabalho. As autorizações de execução local dele ali deixam de ser entregues ao Agent.')}
         onClose={() => setPending(null)}
         refusalText={(e) => accessRefusal(e)}
         uncertainText="Não foi possível confirmar a retirada. Feche e confira a lista."
         onUnauthenticated={expired}
       >
-        <Text>As autorizações de execução local deste Worker no workspace deixam de ser entregues ao Agent. Uma máquina desconectada só percebe na próxima conexão.</Text>
+        <Text>As autorizações de execução local deste Worker no ambiente de trabalho deixam de ser entregues ao Agent. Uma máquina desconectada só percebe na próxima conexão.</Text>
       </StepUpDialog>
     </Stack>
   );

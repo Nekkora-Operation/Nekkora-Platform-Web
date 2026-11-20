@@ -215,7 +215,7 @@ export function PairAgentDialog({ worker, onDone, onClose }: { worker: FreeWorke
             label="Habilitar esta máquina para execução remota"
             checked={remote}
             onChange={(e) => setRemote(e.target.checked)}
-            hint="O código passa a servir para habilitar o computador a receber execuções solicitadas pela Platform. A habilitação só vale depois de confirmada no próprio computador, e você fica registrado como quem habilitou. Não autoriza nenhuma automação: as autorizações de workspace e de versão continuam valendo como hoje."
+            hint="O código passa a servir para habilitar o computador a receber execuções solicitadas pela Platform. A habilitação só vale depois de confirmada no próprio computador, e você fica registrado como quem habilitou. Não autoriza nenhuma automação: as autorizações de ambiente de trabalho e de versão continuam valendo como hoje."
           />
           {!remote && (
             <Text variant="body-sm" color="secondary" role="note">
@@ -285,7 +285,7 @@ export function RevokeLinkDialog({
     >
       <Text>
         A credencial da máquina é revogada e os códigos abertos são cancelados. O Worker fica livre na Platform e continua
-        existindo, com as autorizações de workspace e o histórico. Para usar uma máquina de novo, será preciso vincular um
+        existindo, com as autorizações de ambiente de trabalho e o histórico. Para usar uma máquina de novo, será preciso vincular um
         Agent (novo pareamento).
       </Text>
       <Text>A máquina em si não é contatada: um processo que já esteja rodando numa máquina sem conexão não é interrompido.</Text>

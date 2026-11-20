@@ -213,10 +213,10 @@ export function ExecutionsPage() {
     },
     {
       key: 'workspace',
-      header: 'Workspace',
+      header: 'Ambiente de trabalho',
       render: (e) => (
         <RouteLink to={orgPath.workspace(org, e.workspaceId)} state={backState} variant="default">
-          {workspaceName.get(e.workspaceId) ?? `Workspace ${e.workspaceId.slice(0, 8)}`}
+          {workspaceName.get(e.workspaceId) ?? `Ambiente de trabalho ${e.workspaceId.slice(0, 8)}`}
         </RouteLink>
       ),
     },
@@ -256,7 +256,7 @@ export function ExecutionsPage() {
         : `${range.from ? `De ${formatDateTime(range.from).text}` : 'Desde o início'} ${range.to ? `até ${formatDateTime(range.to).text} (exclusivo)` : 'até agora'} · ${tzOffset}`
       : range.from
         ? `Desde ${formatDateTime(range.from).text} (${tzOffset}). Execuções anteriores ficam fora do período; altere-o para ver mais.`
-        : 'Sem limite de período: todo o histórico dos workspaces visíveis.';
+        : 'Sem limite de período: todo o histórico dos ambientes de trabalho visíveis.';
 
   const noWorkspaces = workspaces.status === 'ready' && workspaces.complete && workspaces.items.length === 0;
   const errorTitle = (e: unknown) =>
@@ -264,8 +264,8 @@ export function ExecutionsPage() {
       ? 'A resposta do servidor veio fora do formato esperado.'
       : isApiError(e, 'not_found')
         ? filters.automationId
-          ? 'Automação ou workspace não encontrado ou sem acesso.'
-          : 'Workspace não encontrado ou sem acesso.'
+          ? 'Automação ou ambiente de trabalho não encontrado ou sem acesso.'
+          : 'Ambiente de trabalho não encontrado ou sem acesso.'
         : isApiError(e, 'invalid_request')
           ? 'Algum filtro não foi aceito.'
           : commonMessage(e).title;
@@ -276,23 +276,23 @@ export function ExecutionsPage() {
         <form className="pw-exec__filters" aria-label="Filtros de execuções" onSubmit={(e) => e.preventDefault()}>
           <Grid columns={3} minColumnWidth="220px" gap={4}>
             <Select
-              label="Workspace"
+              label="Ambiente de trabalho"
               value={filters.workspaceId}
               onChange={(e) => set({ workspaceId: e.target.value })}
               disabled={workspaces.status === 'loading'}
               hint={
                 workspaces.status === 'loading'
-                  ? 'Carregando workspaces…'
+                  ? 'Carregando ambientes de trabalho…'
                   : workspaces.status === 'error'
-                    ? 'Não foi possível carregar a lista de workspaces.'
+                    ? 'Não foi possível carregar a lista de ambientes de trabalho.'
                     : undefined
               }
               options={[
-                { value: ALL_WORKSPACES, label: 'Todos os workspaces visíveis' },
+                { value: ALL_WORKSPACES, label: 'Todos os ambientes de trabalho visíveis' },
                 ...workspaces.items.map((w) => ({ value: w.workspaceId, label: w.name })),
                 // workspace vindo do endereço e ainda fora da parte carregada da lista
                 ...(filters.workspaceId !== ALL_WORKSPACES && !workspaces.items.some((w) => w.workspaceId === filters.workspaceId)
-                  ? [{ value: filters.workspaceId, label: `Workspace ${filters.workspaceId.slice(0, 8)}` }]
+                  ? [{ value: filters.workspaceId, label: `Ambiente de trabalho ${filters.workspaceId.slice(0, 8)}` }]
                   : []),
               ]}
               fullWidth
@@ -327,22 +327,22 @@ export function ExecutionsPage() {
               {workspaces.cursorRejected ? (
                 <>
                   <Text variant="body-sm" color="secondary" as="span">
-                    A continuação da lista de workspaces deixou de valer (a lista mudou ou a continuação expirou).{' '}
-                    {workspaces.items.length} workspaces carregados.
+                    A continuação da lista de ambientes de trabalho deixou de valer (a lista mudou ou a continuação expirou).{' '}
+                    {workspaces.items.length} ambientes de trabalho carregados.
                     {workspaces.moreError != null && ' Não foi possível recomeçar.'}
                   </Text>
                   <Button variant="ghost" size="sm" leftIcon="refresh" loading={workspaces.loadingMore} onClick={restartWorkspaces}>
-                    Recomeçar lista de workspaces
+                    Recomeçar lista de ambientes de trabalho
                   </Button>
                 </>
               ) : (
                 <>
                   <Text variant="body-sm" color="secondary" as="span">
-                    Lista parcial: {workspaces.items.length} workspaces carregados; há mais.
+                    Lista parcial: {workspaces.items.length} ambientes de trabalho carregados; há mais.
                     {workspaces.moreError != null && ' Não foi possível carregar a próxima parte.'}
                   </Text>
                   <Button variant="ghost" size="sm" loading={workspaces.loadingMore} onClick={loadMoreWorkspaces}>
-                    Carregar mais workspaces
+                    Carregar mais ambientes de trabalho
                   </Button>
                 </>
               )}
@@ -411,12 +411,12 @@ export function ExecutionsPage() {
             list.error instanceof ContractViolation
               ? 'Nada foi exibido a partir dela. Tente novamente; se continuar, avise o suporte.'
               : isApiError(list.error, 'not_found')
-                ? 'O workspace escolhido não está disponível para você agora.'
+                ? 'O ambiente de trabalho escolhido não está disponível para você agora.'
                 : commonMessage(list.error).description
           }
           actions={
             isApiError(list.error, 'not_found') && (filters.workspaceId !== ALL_WORKSPACES || filters.automationId) ? (
-              <Button onClick={() => set({ workspaceId: ALL_WORKSPACES, automationId: '' })}>Ver todos os workspaces</Button>
+              <Button onClick={() => set({ workspaceId: ALL_WORKSPACES, automationId: '' })}>Ver todos os ambientes de trabalho</Button>
             ) : (
               <Button onClick={list.reload}>Tentar novamente</Button>
             )
@@ -426,7 +426,7 @@ export function ExecutionsPage() {
         range.error ? null : remote === 'items' || remote === 'error' ? null : remote === 'loading' ? ( // há remotas (ou a consulta delas falhou): sem vazio geral
           <StateView status="loading" title="Carregando execuções…" />
         ) : noWorkspaces ? (
-          <StateView status="neutral" title="Você ainda não tem acesso a nenhum workspace." description="Quando um administrador der acesso, as execuções aparecem aqui." />
+          <StateView status="neutral" title="Você ainda não tem acesso a nenhum ambiente de trabalho." description="Quando um administrador der acesso, as execuções aparecem aqui." />
         ) : (
           <StateView
             status="neutral"
