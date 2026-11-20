@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { Alert, Button, Card, Checkbox, CodeInput, Input, QrCode, SectionHeader, Stack, Text } from 'nekkora-lib';
 import { isApiError } from '../api/http';
+import { VersionDetails } from '../components/VersionInfo';
 import {
   changeIdentityPassword,
   confirmIdentityEnrollment,
@@ -230,6 +231,7 @@ export function AccountPage() {
           </Stack>
         </Card>
         <PasswordSection />
+        <AboutVersion />
       </Stack>
     );
   return (
@@ -248,7 +250,20 @@ export function AccountPage() {
           </div>
         </Stack>
       </Card>
+      <AboutVersion />
     </Stack>
+  );
+}
+
+/** O diagnóstico técnico que saiu do rodapé do menu: fica aqui, para informar num relato de problema. */
+function AboutVersion() {
+  return (
+    <Card variant="outlined" padding="lg">
+      <Stack gap={3}>
+        <SectionHeader as="h2" title="Sobre esta versão" description="Informe estes dados ao relatar um problema." />
+        <VersionDetails />
+      </Stack>
+    </Card>
   );
 }
 

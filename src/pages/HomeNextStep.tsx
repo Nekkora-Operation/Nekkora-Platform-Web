@@ -2,15 +2,14 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Alert, Badge, Button, Card, Stack, StateView, Text } from 'nekkora-lib';
 import { isApiError } from '../api/http';
-import { listAutomations, listExecutions } from '../api/product';
-import type { Automation, Execution, Workspace } from '../api/v1';
+import { listAutomations } from '../api/product';
+import type { Automation, Workspace } from '../api/v1';
 import { useInternalArea } from '../area/InternalShell';
 import { useSession } from '../area/session';
 import { useWorkspacePermissions } from '../area/useWorkspacePermissions';
 import { orgPath } from '../auth/organization';
 import { activationLabel } from '../identity/labels';
-import { STATUS_LABEL, STATUS_TONE } from './executions/format';
-import { DateTimeText, ResourceStatusBadge, RouteLink } from './product/shared';
+import { RouteLink } from './product/shared';
 
 /** Quantos workspaces a página inicial consulta para saber se já há automações (os primeiros da lista visível). */
 export const HOME_WORKSPACES = 5;
@@ -19,15 +18,12 @@ const HOME_ITEMS = 5;
 type Load<T> = { status: 'loading' } | { status: 'ready'; items: T[] } | { status: 'error' };
 
 /**
- * Automações dos primeiros workspaces ATIVOS visíveis (até {@link HOME_WORKSPACES}, {@link HOME_ITEMS} de cada) e as
- * execuções recentes. Só leitura, pelos endpoints da lista (L03 e L04). Qualquer consulta que falhar marca `error`: a
- * tela diz que não carregou, nunca mostra zero.
+ * Há automações nos primeiros workspaces ATIVOS visíveis (até {@link HOME_WORKSPACES})? Só para decidir o próximo passo
+ * ("criar a primeira automação"); a lista de automações da página é a do painel. Falha marca `error`, nunca zero.
  */
 function useActivity(workspaces: Workspace[] | null) {
   const { org, expired } = useSession();
   const [automations, setAutomations] = useState<Load<Automation>>({ status: 'loading' });
-  const [executions, setExecutions] = useState<Load<Execution>>({ status: 'loading' });
-  const [attempt, setAttempt] = useState(0);
   const key = workspaces?.map((w) => w.workspaceId).join(',') ?? null;
 
   useEffect(() => {
@@ -35,7 +31,6 @@ function useActivity(workspaces: Workspace[] | null) {
     let alive = true;
     const ids = key ? key.split(',') : [];
     setAutomations({ status: 'loading' });
-    setExecutions({ status: 'loading' });
     const fail = (e: unknown, set: (v: Load<never>) => void) => {
       if (!alive) return;
       if (isApiError(e, 'unauthenticated')) return expired();
@@ -44,15 +39,12 @@ function useActivity(workspaces: Workspace[] | null) {
     Promise.all(ids.map((id) => listAutomations(org, id, { limit: HOME_ITEMS })))
       .then((pages) => alive && setAutomations({ status: 'ready', items: pages.flatMap((p) => p.items) }))
       .catch((e) => fail(e, setAutomations));
-    listExecutions(org, { limit: HOME_ITEMS })
-      .then((p) => alive && setExecutions({ status: 'ready', items: p.items }))
-      .catch((e) => fail(e, setExecutions));
     return () => {
       alive = false;
     };
-  }, [org, key, attempt, expired]);
+  }, [org, key, expired]);
 
-  return { automations, executions, retry: () => setAttempt((n) => n + 1) };
+  return { automations };
 }
 
 /** Estado de ativação (022): o que significa, o que impede e quem ativa. Ausente (API anterior ao campo): nada. */
@@ -140,63 +132,10 @@ function FirstAutomationStep({ workspace }: { workspace: Workspace }) {
   );
 }
 
-function Activity({ automations, executions }: { automations: Automation[]; executions: Load<Execution> }) {
-  const { org } = useSession();
-  return (
-    <div className="pw-start__activity">
-      <Card variant="surface" padding="lg">
-        <Stack gap={3}>
-          <Text as="h2" variant="h4">
-            Automações
-          </Text>
-          <ul className="pw-start__list" aria-label="Automações">
-            {automations.slice(0, HOME_ITEMS).map((a) => (
-              <li key={a.automationId}>
-                <RouteLink to={orgPath.automation(org, a.automationId)}>{a.name}</RouteLink>
-                <span className="pw-start__meta">
-                  <ResourceStatusBadge status={a.status} />
-                  {a.latestPublishedVersion ? `versão ${a.latestPublishedVersion.versionNumber} publicada` : 'nenhuma versão publicada'}
-                </span>
-              </li>
-            ))}
-          </ul>
-          <RouteLink to={orgPath.workspaces(org)}>Ver workspaces</RouteLink>
-        </Stack>
-      </Card>
-      <Card variant="surface" padding="lg">
-        <Stack gap={3}>
-          <Text as="h2" variant="h4">
-            Execuções recentes
-          </Text>
-          {executions.status === 'loading' && <Text color="secondary">Carregando execuções…</Text>}
-          {executions.status === 'error' && <Text color="secondary">Não foi possível carregar as execuções recentes.</Text>}
-          {executions.status === 'ready' && executions.items.length === 0 && <Text color="secondary">Nenhuma execução ainda.</Text>}
-          {executions.status === 'ready' && executions.items.length > 0 && (
-            <ul className="pw-start__list" aria-label="Execuções recentes">
-              {executions.items.map((e) => (
-                <li key={e.executionId}>
-                  <RouteLink to={orgPath.execution(org, e.executionId)}>{e.automation.name}</RouteLink>
-                  <span className="pw-start__meta">
-                    <Badge tone={STATUS_TONE[e.status]} size="sm">
-                      {STATUS_LABEL[e.status]}
-                    </Badge>
-                    <DateTimeText iso={e.createdAt} />
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <RouteLink to={orgPath.executions(org)}>Ver execuções</RouteLink>
-        </Stack>
-      </Card>
-    </div>
-  );
-}
-
 /**
  * Próximo passo da organização (PLATFORM-LOCAL-002), na ordem: sem workspace → "Criar primeiro workspace" (com
  * `workspace.lifecycle`); workspace sem automações → "Criar primeira automação" (com `automation.manage` efetivo); com
- * automações → automações e execuções recentes como a API informou. Só apresenta: cada ação é decidida pela API.
+ * automações → nada (o painel do Início é o conteúdo). Só apresenta: cada ação é decidida pela API.
  */
 export function NextStep() {
   const { org } = useSession();
@@ -253,23 +192,10 @@ export function NextStep() {
     );
   }
 
-  const { automations, executions, retry } = activity;
-  if (automations.status === 'loading') return <StateView status="loading" title="Carregando automações…" />;
-  if (automations.status === 'error') {
-    return (
-      <Alert
-        tone="warning"
-        title="Não foi possível carregar as automações."
-        action={
-          <Button size="sm" variant="secondary" onClick={retry}>
-            Tentar novamente
-          </Button>
-        }
-      >
-        A lista de workspaces carregou, mas a de automações não.
-      </Alert>
-    );
-  }
+  // carregando ou com falha: quem informa é a seção de automações do painel (uma mensagem só, não duas)
+  const { automations } = activity;
+  if (automations.status !== 'ready') return null;
   if (automations.items.length === 0) return <FirstAutomationStep workspace={active[0]} />;
-  return <Activity automations={automations.items} executions={executions} />;
+  // já há automações: o painel (métricas e cards) é o conteúdo da página
+  return null;
 }

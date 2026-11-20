@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "5d1286bd0d625e1bd90289ec0bc3eeb2369bf91aefbd759e8c6781bb1080d167",
+  "openapiSha256": "5076a4b98e4382d8575ca4d07f373b05e5e609cd8c777bf761dffac077ae4521",
   "schemas": {
     "Error": {
       "type": "object",
@@ -727,6 +727,269 @@
         "updatedAt": {
           "type": "string",
           "format": "date-time"
+        }
+      }
+    },
+    "ExecutionCounts": {
+      "type": "object",
+      "required": [
+        "total",
+        "succeeded",
+        "failed",
+        "inProgress",
+        "cancelled",
+        "notStarted",
+        "unconfirmed"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "succeeded": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "inProgress": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "cancelled": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "notStarted": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "unconfirmed": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        }
+      }
+    },
+    "ExecutionSummary": {
+      "type": "object",
+      "required": [
+        "from",
+        "to",
+        "total",
+        "succeeded",
+        "failed",
+        "inProgress",
+        "cancelled",
+        "notStarted",
+        "unconfirmed",
+        "sources"
+      ],
+      "properties": {
+        "from": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "to": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "total": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "succeeded": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "inProgress": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "cancelled": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "notStarted": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "unconfirmed": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        },
+        "sources": {
+          "type": "object",
+          "required": [
+            "platform",
+            "localAgent",
+            "remote"
+          ],
+          "properties": {
+            "platform": {
+              "$ref": "#/components/schemas/ExecutionCounts"
+            },
+            "localAgent": {
+              "$ref": "#/components/schemas/ExecutionCounts"
+            },
+            "remote": {
+              "$ref": "#/components/schemas/ExecutionCounts"
+            }
+          }
+        }
+      }
+    },
+    "OrganizationAutomation": {
+      "type": "object",
+      "required": [
+        "automationId",
+        "workspaceId",
+        "workspaceName",
+        "name",
+        "description",
+        "status",
+        "latestPublishedVersion",
+        "lastExecution"
+      ],
+      "properties": {
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workspaceName": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "$ref": "#/components/schemas/ResourceStatus"
+        },
+        "latestPublishedVersion": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": [
+                "automationVersionId",
+                "versionNumber",
+                "publishedAt"
+              ],
+              "properties": {
+                "automationVersionId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "versionNumber": {
+                  "type": "integer"
+                },
+                "publishedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lastExecution": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": [
+                "source",
+                "id",
+                "outcome",
+                "requestedAt"
+              ],
+              "properties": {
+                "source": {
+                  "type": "string",
+                  "enum": [
+                    "platform",
+                    "localAgent",
+                    "remote"
+                  ]
+                },
+                "id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "outcome": {
+                  "type": "string",
+                  "enum": [
+                    "succeeded",
+                    "failed",
+                    "inProgress",
+                    "cancelled",
+                    "notStarted",
+                    "unconfirmed"
+                  ]
+                },
+                "requestedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "OrganizationAutomationPage": {
+      "type": "object",
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/OrganizationAutomation"
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     },
@@ -9361,6 +9624,90 @@
           }
         },
         "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "getExecutionSummary": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/execution-summary",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ExecutionSummary"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "500": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "listOrganizationAutomations": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/automations",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/OrganizationAutomationPage"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "500": {
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/Error"

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link as RouterLink, useLocation, useNavigate } from 'react-router';
-import { Alert, Badge, Button, Card, Link, SectionHeader, Stack, StateView, Text } from 'nekkora-lib';
+import { useLocation, useNavigate } from 'react-router';
+import { Alert, Badge, Button, Card, SectionHeader, Stack, StateView, Text } from 'nekkora-lib';
 import { ApiError, isApiError } from '../api/http';
 import { enterOrganization, myOrganizations, type IdentityOrganization, type IdentityOrganizationList } from '../api/identity';
 import { identityPath } from '../auth/flow';
@@ -135,9 +135,6 @@ export function OrganizationsPage() {
                   Criar minha primeira organização
                 </Button>
               )}
-              <Link as={RouterLink} to={identityPath.linkAccount}>
-                Tenho uma conta antiga numa organização
-              </Link>
             </>
           }
         />

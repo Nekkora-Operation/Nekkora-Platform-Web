@@ -2,9 +2,10 @@ import { Link as RouterLink, useLocation } from 'react-router';
 import { Alert, Badge, Button, Card, Container, DescriptionList, Heading, Link, Logo, Stack, Text } from 'nekkora-lib';
 import { readNavState } from '../app/notices';
 import { identityPath } from '../auth/flow';
-import { orgPath, shortOrganizationId } from '../auth/organization';
+import { shortOrganizationId } from '../auth/organization';
 import { VersionDetails } from '../components/VersionInfo';
 import { ActivationNotice, NextStep } from './HomeNextStep';
+import { Dashboard } from './home/Dashboard';
 import { useInternalArea } from '../area/InternalShell';
 import { useSession } from '../area/session';
 import './HomePage.css';
@@ -102,14 +103,26 @@ export function InternalHome() {
   return (
     <Stack gap={6}>
       <RecoveryCodeNotice />
-      <div className="pw-start__head">
-        <Text variant="overline" color="secondary" className="pw-start__org">
-          {organizationName === undefined ? 'Organização' : organizationName === null ? 'Organização (nome indisponível)' : organizationName}
-        </Text>
-        <Heading level={1}>Olá, {me.displayName}</Heading>
-      </div>
-      <ActivationNotice />
-      <NextStep />
+      {/* trocar de organização remonta o painel: nenhum dado da organização anterior fica na tela */}
+      <Dashboard
+        key={org}
+        header={(period) => (
+          <Stack gap={4}>
+            <div className="pw-dash__head">
+              <div className="pw-dash__titles">
+                <Text variant="overline" color="secondary" className="pw-dash__org">
+                  {organizationName === undefined ? 'Organização' : organizationName === null ? 'Organização (nome indisponível)' : organizationName}
+                </Text>
+                <Heading level={1}>Olá, {me.displayName}</Heading>
+                <Text color="secondary">Visão geral das execuções e das automações desta organização.</Text>
+              </div>
+              {period}
+            </div>
+            <ActivationNotice />
+            <NextStep />
+          </Stack>
+        )}
+      />
       <Card variant="surface" padding="lg">
         <Stack gap={4}>
           <Text as="h2" variant="h4">
@@ -123,9 +136,6 @@ export function InternalHome() {
           />
         </Stack>
       </Card>
-      <Link as={RouterLink} to={orgPath.executions(org)} arrow>
-        Ver execuções
-      </Link>
     </Stack>
   );
 }

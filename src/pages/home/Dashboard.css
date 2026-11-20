@@ -1,0 +1,29 @@
+/* Início da organização como painel (PLATFORM-INICIO-001) */
+.pw-dash__head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--nk-space-4) var(--nk-space-6); }
+.pw-dash__titles { display: flex; flex-direction: column; gap: var(--nk-space-1); min-width: 0; }
+.pw-dash__org { overflow-wrap: anywhere; }
+.pw-dash__period { min-width: min(100%, 15rem); }
+
+.pw-dash__section { display: flex; flex-direction: column; gap: var(--nk-space-4); min-width: 0; }
+.pw-dash__section-head { display: flex; flex-direction: column; gap: var(--nk-space-1); }
+
+/* métricas: o número é o destaque; o rótulo fica legível (não é legenda miúda) */
+.pw-dash__metric { min-width: 0; }
+.pw-dash__metric-label { margin: 0; font-size: var(--nk-font-size-md); font-weight: var(--nk-font-weight-medium); }
+.pw-dash__metric-value { margin: 0; font-size: clamp(2rem, 1.5rem + 2vw, 2.75rem); line-height: 1.1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.pw-dash__others { margin: 0; overflow-wrap: anywhere; }
+
+/* automações em cards: de uma a três colunas, sem cortar nada no zoom ou em tela estreita */
+.pw-dash__automations { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr)); gap: var(--nk-space-4); }
+.pw-dash__automation { min-width: 0; display: flex; flex-direction: column; }
+.pw-dash__automation > * { flex: 1; }
+.pw-dash__automation-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--nk-space-2) var(--nk-space-3); }
+.pw-dash__automation-name { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.pw-dash__automation-description { margin: 0; overflow-wrap: anywhere; }
+.pw-dash__facts { margin: 0; display: flex; flex-direction: column; gap: var(--nk-space-2); }
+.pw-dash__facts > div { display: flex; flex-wrap: wrap; align-items: center; gap: var(--nk-space-1) var(--nk-space-3); }
+.pw-dash__facts dt { color: var(--nk-color-text-secondary); font-size: var(--nk-font-size-sm); }
+.pw-dash__facts dt::after { content: ':'; }
+.pw-dash__facts dd { margin: 0; }
+.pw-dash__last { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--nk-space-2); }
+.pw-dash__automation-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--nk-space-3) var(--nk-space-4); margin-top: auto; padding-top: var(--nk-space-2); }

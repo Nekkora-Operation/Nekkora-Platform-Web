@@ -9,7 +9,7 @@ import { identityPath } from '../auth/flow';
 import { OperationScopeProvider, type OperationScopeValue } from '../components/operationScope';
 import { setPersistentScope } from '../admin/writeStore';
 import { orgPath, shortOrganizationId } from '../auth/organization';
-import { VersionCompact, VersionFooter } from '../components/VersionInfo';
+import { ProductFooter, ProductFooterCompact } from '../components/VersionInfo';
 import { useSession } from './session';
 import { useVisibleWorkspaces, type VisibleWorkspaces } from './useVisibleWorkspaces';
 import './InternalShell.css';
@@ -259,17 +259,8 @@ export function InternalShell() {
             </UserMenu>
           </div>
         }
-        sidebarFooterCompact={<VersionCompact />}
-        sidebarFooter={
-          <div className="pw-shell__footer">
-            <span className="pw-shell__footer-name">{me.displayName}</span>
-            <span className="pw-shell__footer-org" title={org}>
-              Organização {orgLabel}
-            </span>
-            {access && <span className="pw-shell__footer-access">{access}</span>}
-            <VersionFooter />
-          </div>
-        }
+        sidebarFooterCompact={<ProductFooterCompact />}
+        sidebarFooter={<ProductFooter />}
       >
         {permissions.status === 'error' && (
           <Alert

@@ -3,6 +3,8 @@
  * o fetch ligado direto ao MockApi e relógio fixo. Cobertura contra o mock; a API real continua pendente (F1.5/F8).
  */
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import product from '../../product.json';
+import { productLine } from '../app/product';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEV_ORG, MockApi, OTHER_ORG } from '../../mock/contract';
@@ -133,7 +135,7 @@ describe('área interna', () => {
     expect(links.slice(4).every((l) => ['Workers', 'Minha conta', 'Membros', 'Convites', 'Clientes', 'Concessões', 'Auditoria de acessos'].includes(l ?? ''))).toBe(true);
     expect(links).not.toContain('Agents');
     expect(within(nav).getByRole('link', { name: 'Execuções' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getAllByText('Ana Souza').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Menu da conta: Ana Souza' })).toBeInTheDocument();
     // PLATFORM-LOCAL-002: o e-mail saiu do menu e da página inicial; fica em Minha conta
     expect(screen.queryByText('ana@nekkora.dev')).toBeNull();
     expect(within(nav).getByRole('link', { name: 'Minha conta' })).toHaveAttribute('href', '/o/' + DEV_ORG + '/conta');
@@ -147,6 +149,13 @@ describe('área interna', () => {
     expect(within(conta).getByRole('button', { name: 'Sair' })).toBeInTheDocument();
     // layout com topo de largura total (AppShell layout="header" da lib)
     expect(document.querySelector('.nk-shell--header')).not.toBeNull();
+    // rodapé do menu (PLATFORM-INICIO-001): versão oficial do produto e direitos; nada técnico nem da conta
+    const menu = screen.getByRole('complementary', { name: 'Menu' });
+    const footer = menu.querySelector('.nk-shell__sidebar-footer')!;
+    expect(footer.textContent).toBe(`Versão${productLine()}© ${new Date().getFullYear()} Nekkora. Todos os direitos reservados.`);
+    expect(productLine()).toBe(`Nekkora Platform ${product.version}`);
+    expect(footer.textContent).not.toMatch(/Web |API |candidata|branch|alterações locais|Ana Souza|Organização/);
+    expect(menu.querySelector('.nk-shell__sidebar-compact')!.textContent).toBe(`v${product.version}© ${new Date().getFullYear()}`);
     expect(screen.queryByRole('button', { name: /executar|cancelar|reagendar/i })).toBeNull();
   });
 
@@ -453,8 +462,8 @@ describe('F4-R1: workspaces além da primeira página', () => {
     sessionFor('ana@nekkora.dev');
     renderAt(`/o/${DEV_ORG}`);
     expect(await screen.findByText('Pelo menos 100 workspaces visíveis (lista parcial)')).toBeInTheDocument();
-    // o total (139) não aparece antes da continuação; o rodapé de versão fica de fora (o commit pode conter "139")
-    expect(screen.queryAllByText(/139/).filter((el) => !el.closest('.pw-shell__footer-version'))).toHaveLength(0);
+    // o total (139) não aparece antes da continuação
+    expect(screen.queryAllByText(/139/)).toHaveLength(0);
     const wsRequests = () => requests.filter((r) => r.includes('/workspaces?'));
     expect(wsRequests()).toHaveLength(1); // nada de carregar tudo automaticamente
     fireEvent.click(screen.getByRole('link', { name: 'Ver execuções' }));

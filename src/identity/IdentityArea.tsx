@@ -7,7 +7,7 @@ import { identityLogout, identitySession } from '../api/identity';
 import { sessionMemory, type NavState } from '../app/notices';
 import { identityPath } from '../auth/flow';
 import { commonMessage, UNAVAILABLE, type UserMessage } from '../auth/messages';
-import { VersionCompact, VersionFooter } from '../components/VersionInfo';
+import { ProductFooter, ProductFooterCompact } from '../components/VersionInfo';
 import '../area/InternalShell.css';
 import '../pages/HomePage.css';
 
@@ -157,7 +157,6 @@ export function IdentityArea() {
           label: 'Conta',
           items: [
             { id: 'seguranca', label: 'Segurança da conta', href: identityPath.account, icon: 'shield', active: pathname.startsWith(identityPath.account) },
-            { id: 'vincular', label: 'Vincular conta antiga', href: identityPath.linkAccount, icon: 'key', active: pathname === identityPath.linkAccount },
           ],
         },
       ];
@@ -193,14 +192,8 @@ export function IdentityArea() {
             </Button>
           </div>
         }
-        sidebarFooterCompact={<VersionCompact />}
-        sidebarFooter={
-          <div className="pw-shell__footer">
-            <span className="pw-shell__footer-name">Identidade Nekkora</span>
-            <span className="pw-shell__footer-access">{state.restricted ? 'Sessão restrita à troca do autenticador' : 'Sessão de identidade'}</span>
-            <VersionFooter />
-          </div>
-        }
+        sidebarFooterCompact={<ProductFooterCompact />}
+        sidebarFooter={<ProductFooter />}
       >
         {state.restricted && (
           <Alert tone="warning" title="Você entrou com um código de recuperação." className="pw-shell__alert">
