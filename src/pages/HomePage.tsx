@@ -4,6 +4,7 @@ import { readNavState } from '../app/notices';
 import { identityPath } from '../auth/flow';
 import { shortOrganizationId } from '../auth/organization';
 import { VersionDetails } from '../components/VersionInfo';
+import { AppearanceSection } from '../components/AppearanceSection';
 import { ActivationNotice, NextStep } from './HomeNextStep';
 import { Dashboard } from './home/Dashboard';
 import { useInternalArea } from '../area/InternalShell';
@@ -169,6 +170,7 @@ export function OrgAccountPage() {
           </Link>
         </Stack>
       </Card>
+      <AppearanceSection />
       <Card variant="surface" padding="lg">
         <Stack gap={4}>
           <Text as="h2" variant="h4">

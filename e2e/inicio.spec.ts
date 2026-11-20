@@ -11,8 +11,8 @@ import { leaveMenu, signIn } from './support/app';
  * painel. Confere a ordem das áreas, que os números fecham, o período, os cards e a navegação; audita acessibilidade
  * (axe, com contraste) e rolagem horizontal nos temas escuro e claro, em tela larga, estreita e com zoom de 200%.
  *
- * O produto abre no tema escuro e ainda não oferece troca de tema: o claro é aplicado aqui pelo atributo do documento, só
- * para validar a tela nos dois. Com INICIO_CAPTURAS=<pasta>, as capturas também são gravadas nessa pasta.
+ * O produto abre no tema claro (PLATFORM-FLUXO-002; a troca de tema pela conta tem o seu próprio roteiro, temas.spec.ts):
+ * aqui o escuro é aplicado pelo atributo do documento, só para validar a tela nos dois. Com INICIO_CAPTURAS=<pasta>, as capturas também são gravadas nessa pasta.
  */
 const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:4173';
 const axeSource = readFileSync(createRequire(import.meta.url).resolve('axe-core/axe.min.js'), 'utf8');
@@ -109,19 +109,19 @@ test('Início: áreas na ordem, números que fecham, período, cards e navegaç�
   await expect(first.getByRole('button', { name: /^Ver automação / })).toBeVisible();
   await expect(page.getByRole('main').getByRole('button', { name: /executar|solicitar/i })).toHaveCount(0);
 
-  await audit(page, 'inicio-escuro-desktop');
-  await theme(page, 'light');
   await audit(page, 'inicio-claro-desktop');
+  await theme(page, 'dark');
+  await audit(page, 'inicio-escuro-desktop');
 
   // tela estreita (celular) e zoom de 200% numa janela de 1280 px (640 px úteis): nada cortado, sem rolagem horizontal
   await page.setViewportSize({ width: 360, height: 780 });
   await ready(page);
-  await audit(page, 'inicio-claro-estreita');
-  await theme(page, 'dark');
   await audit(page, 'inicio-escuro-estreita');
+  await theme(page, 'light');
+  await audit(page, 'inicio-claro-estreita');
   await page.setViewportSize({ width: 640, height: 400 });
   await ready(page);
-  await audit(page, 'inicio-escuro-zoom-200');
+  await audit(page, 'inicio-claro-zoom-200');
   await page.setViewportSize({ width: 1280, height: 720 });
 
   // mudar o período consulta de novo (o intervalo mostrado acompanha)

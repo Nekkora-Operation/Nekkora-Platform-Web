@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { Alert, Button, Card, Checkbox, CodeInput, Input, QrCode, SectionHeader, Stack, Text } from 'nekkora-lib';
 import { isApiError } from '../api/http';
 import { VersionDetails } from '../components/VersionInfo';
+import { AppearanceSection } from '../components/AppearanceSection';
 import {
   changeIdentityPassword,
   confirmIdentityEnrollment,
@@ -231,7 +232,9 @@ export function AccountPage() {
           </Stack>
         </Card>
         <PasswordSection />
-        <AboutVersion />
+        <AppearanceSection />
+        <AppearanceSection />
+      <AboutVersion />
       </Stack>
     );
   return (
