@@ -280,10 +280,17 @@ describe('Licenças e automações', () => {
     fireEvent.click(w1);
     expect(review).toHaveTextContent('Workers: Estação 1');
     await waitFor(() => expect(confirm).toBeEnabled());
+    const readsBefore = api.sent('GET', `${base}/licenses/summary`).length;
     fireEvent.click(confirm);
     expect(await screen.findByText('Uma licença foi vinculada a esta automação.')).toBeInTheDocument();
     expect(screen.getByText('2 autorização(ões) emitida(s).')).toBeInTheDocument();
     expect(api.sent('POST', `${base}/automation-activations`)[0]).toMatchObject({ body: { automationId: AUT2, workerIds: [WK1] } });
+    // a página se atualiza depois do ato SEM voltar ao "carregando": o resumo do resultado continua à vista
+    await waitFor(() => expect(api.sent('GET', `${base}/licenses/summary`).length).toBeGreaterThan(readsBefore));
+    await screen.findByRole('group', { name: 'Conta das licenças' });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByText('Carregando licenças e automações…')).toBeNull();
+    expect(screen.getByText('Uma licença foi vinculada a esta automação.')).toBeInTheDocument();
   });
 
   it('sem saldo: o impedimento aparece antes da confirmação e nada é enviado', async () => {

@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 // @ts-expect-error módulo .mjs da ferramenta do laboratório (sem tipos)
 import { compose } from '../tools/lab/lab.mjs';
-import { activateAutomation, confirmStepUp, LAB, newVersionWithPackage, signInWithTotp, signUpAndEnroll, waitToken, type Person } from './support/lab';
+import { activateAutomation, confirmStepUp, LAB, signInWithTotp, signUpAndEnroll, waitToken, type Person } from './support/lab';
 
 /**
  * PLATFORM-FLUXO-002 — ATIVAÇÃO UNIFICADA E TEMAS, pela Web de produção contra a API real do laboratório descartável, com a
@@ -48,6 +48,7 @@ const shot = async (page: Page, name: string) => {
 };
 
 let retried = 0;
+let waitedForRate = 0;
 async function settle(page: Page) {
   for (let i = 0; i < 4; i++) {
     await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => undefined);
@@ -174,7 +175,22 @@ test('PLATFORM-FLUXO-002: ativação unificada (um passo, sem saldo, sem consumo
   }
   const publish = async (name: string, zip: string): Promise<string> => {
     await go(anaPage, automations[name].url);
-    const url = await newVersionWithPackage(anaPage, zip);
+    // o limite de atos em rajada (429) não é zerado: diante do aviso, espera-se um minuto e envia-se de novo pelo mesmo botão
+    await anaPage.getByRole('button', { name: 'Nova versão' }).click();
+    await expect(anaPage).toHaveURL(/\/automacoes\/[0-9a-f-]{36}\/nova-versao$/);
+    await anaPage.getByLabel('Arquivo .zip do pacote').setInputFiles(zip);
+    for (let i = 0; i < 4; i++) {
+      await anaPage.getByRole('button', { name: 'Enviar o pacote e criar o rascunho' }).click();
+      const sent = await Promise.race([
+        anaPage.waitForURL(/\/versoes\/[0-9a-f-]{36}$/, { timeout: 30_000 }).then(() => true),
+        anaPage.getByText('Muitas tentativas em pouco tempo. Aguarde antes de enviar de novo.').waitFor({ timeout: 30_000 }).then(() => false),
+      ]);
+      if (sent) break;
+      waitedForRate++;
+      await anaPage.waitForTimeout(65_000);
+    }
+    await expect(anaPage.getByText('Rascunho criado com o pacote conferido pela Platform.')).toBeVisible();
+    const url = anaPage.url();
     await anaPage.getByRole('button', { name: 'Publicar versão' }).click();
     await confirmStepUp(anaPage, ana, 'Publicar');
     await settle(anaPage);
@@ -396,6 +412,6 @@ test('PLATFORM-FLUXO-002: ativação unificada (um passo, sem saldo, sem consumo
   await expect.poll(() => anaPage.evaluate(() => document.documentElement.getAttribute('data-nk-theme'))).toBe('sakura-dark');
   log('9_temas', { escolha: 'Minha conta', persistencia: 'Sakura Dark depois de sair e entrar', axe_com_contraste: 'Licencas e automacoes nos tres temas, sem violacoes' });
 
-  log('limites_de_frequencia', `nenhum limite foi zerado. "Tentar novamente" usado ${retried} vez(es)`);
+  log('limites_de_frequencia', `nenhum limite foi zerado. "Tentar novamente" usado ${retried} vez(es); espera de 1 min por envio em rajada: ${waitedForRate} vez(es)`);
   log('fim', 'roteiro FLUXO-002 concluido');
 });

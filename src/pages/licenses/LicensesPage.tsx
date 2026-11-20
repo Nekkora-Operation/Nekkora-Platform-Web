@@ -100,9 +100,10 @@ export function LicensesPage() {
   const [activations, setActivations] = useState<AutomationActivationList | null>(null);
   const generation = useRef(0);
 
-  const load = useCallback(async () => {
+  // silent: atualização depois de um ato; a tela continua como está (o resumo do resultado não some) até os dados novos chegarem
+  const load = useCallback(async (silent = false) => {
     const gen = ++generation.current;
-    setState({ status: 'loading' });
+    if (!silent) setState({ status: 'loading' });
     try {
       const [summary, licenses, capacity] = await Promise.all([getLicenseSummary(org), listAllLicenses(org), getCapacity(org)]);
       if (gen === generation.current) setState({ status: 'ready', data: { summary, licenses, capacity } });
@@ -124,6 +125,10 @@ export function LicensesPage() {
 
   const reloadAll = useCallback(() => {
     void load();
+    void loadActivations();
+  }, [load, loadActivations]);
+  const refreshAfterAct = useCallback(() => {
+    void load(true);
     void loadActivations();
   }, [load, loadActivations]);
 
@@ -257,7 +262,7 @@ export function LicensesPage() {
         </Stack>
       </section>
 
-      <ActivationSection data={activations} onChanged={reloadAll} canActivate />
+      <ActivationSection data={activations} onChanged={refreshAfterAct} canActivate />
 
       <section aria-labelledby="pw-lic-lista">
         <Stack gap={3}>
