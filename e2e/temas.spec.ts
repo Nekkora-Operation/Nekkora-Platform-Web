@@ -156,6 +156,22 @@ test('Temas: escolha pela conta com o teclado, aplicação inteira, persistênci
     await page.setViewportSize({ width: 1280, height: 720 });
   }
 
+  // ---- cabeçalho da área da organização: o mesmo ícone, pelo teclado; tela larga e estreita sem rolagem lateral
+  await page.goto(`/o/${acc.org}`);
+  const headerIcon = page.getByRole('button', { name: /^Tema: Sakura Dark\. Mudar para Nekkora Light/ });
+  await headerIcon.focus();
+  await focusVisible(page, 'ícone de tema no cabeçalho');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => current(page)).toEqual(['light', 'light']);
+  await audit(page, 'cabecalho-nekkora-light');
+  await page.getByRole('button', { name: /^Tema: Nekkora Light\. Mudar para Nekkora Dark/ }).click();
+  await page.getByRole('button', { name: /^Tema: Nekkora Dark\. Mudar para Sakura Dark/ }).click();
+  await expect.poll(() => current(page)).toEqual(['sakura-dark', 'sakura-dark']);
+  await page.setViewportSize({ width: 360, height: 780 });
+  await expect(page.getByRole('button', { name: /^Tema: Sakura Dark/ })).toBeVisible();
+  await audit(page, 'cabecalho-sakura-dark-estreita');
+  await page.setViewportSize({ width: 1280, height: 720 });
+
   // ---- sair e entrar de novo: a escolha continua (Sakura Dark, a última)
   await page.context().clearCookies();
   await enter(page, acc, 'Lia Prado');

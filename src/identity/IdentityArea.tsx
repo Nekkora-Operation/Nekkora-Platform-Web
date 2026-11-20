@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { ThemeCycleButton } from '../components/AppearanceSection';
 import { Link as RouterLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router';
 import { Alert, AppShell, Button, Logo, StateView, Text, type AppNavGroup } from 'nekkora-lib';
 import { csrfStore } from '../api/csrf';
@@ -188,6 +189,7 @@ export function IdentityArea() {
         }
         actions={
           <div className="pw-shell__account">
+            <ThemeCycleButton />
             <Button variant="ghost" size="sm" leftIcon="arrow-right" loading={signingOut} onClick={() => void signOut()}>
               Sair
             </Button>
