@@ -362,7 +362,7 @@ test('PLATFORM-LICENCIAMENTO-001 com o Agent anterior em cópia isolada: recusa 
     expect(l.botaoEnviosParados).toBe(true);
     expect(String(l.dialogo)).toContain('Neste computador: a automação executou.');
     // o motivo INTEIRO, em parágrafo (na primeira passada ele aparecia cortado com reticências na janela)
-    expect(String(l.dialogo)).toMatch(/Na Platform: não registrada e não monitorada, porque a licença da automação venceu \(AGT-PLT-036\)\./);
+    expect(String(l.dialogo)).toMatch(/Na Platform: não registrada e não monitorada, porque a licença da automação estava vencida quando esta execução começou \(AGT-PLT-036\)\./);
     expect(String(l.dialogo)).toContain('nada foi apagado nem descartado');
     expect(l.botaoTentarDeNovo).toBe(true);
     const dialogo = String(l.dialogo);
@@ -415,6 +415,12 @@ test('PLATFORM-LICENCIAMENTO-001 com o Agent anterior em cópia isolada: recusa 
     // ================================================================ 7. TENTAR DE NOVO depois da renovação: continua recusada, nada registrado
     l = await comando('envios');
     expect(String(l.dialogo)).toContain('renovar a licença depois vale para as próximas execuções, não para esta');
+    // com a licença JÁ RENOVADA, a mensagem da execução antiga fala do início DELA (motivo e código do servidor mantidos), e
+    // não diz que a licença está vencida hoje
+    expect(String(l.dialogo)).toMatch(/porque a licença da automação estava vencida quando esta execução começou \(AGT-PLT-036\)\./);
+    expect(String(l.dialogo)).toContain('não à situação da licença hoje');
+    expect(String(l.dialogo)).not.toMatch(/a licença da automação venceu/);
+    const dialogoDepois = String(l.dialogo);
     guardarJanelas('A7');
     l = await comando('tentar');
     expect(String(l.enviosParados), 'renovar hoje não autoriza o que começou sem licença').toMatch(new RegExp(`${execucao}=AGT-PLT-03[567]`));
@@ -422,7 +428,8 @@ test('PLATFORM-LICENCIAMENTO-001 com o Agent anterior em cópia isolada: recusa 
     expect(basis(execucao), 'a execução recusada continua sem registro').toBe('');
     expect(l.arquivoDeEntregaNoDisco, 'e continua guardada neste computador').toBe(true);
     await comando('fechar');
-    log('7_tentar_de_novo_depois_da_renovacao', { periodos, envio: l.envioNaTela, envios_parados: l.enviosParados, na_platform: 'a execucao que comecou sem licenca continua sem registro' });
+    expect(String(l.envioNaTela)).toBe('Executou neste computador · não registrada na Platform: a licença da automação estava vencida quando esta execução começou');
+    log('7_tentar_de_novo_depois_da_renovacao', { dialogo_com_a_licenca_renovada: dialogoDepois.slice(0, 900), periodos, envio: l.envioNaTela, envios_parados: l.enviosParados, na_platform: 'a execucao que comecou sem licenca continua sem registro' });
 
     // ================================================================ 8. trabalho NOVO depois da renovação: registrado, com a licença vigente (base 1)
     l = await comando('executar');
