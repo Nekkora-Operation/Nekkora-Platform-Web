@@ -21,3 +21,4 @@
 .pw-center { display: flex; flex-direction: column; align-items: center; gap: var(--nk-space-3); text-align: center; }
 .pw-step { font-size: var(--nk-font-size-xs); color: var(--nk-color-text-muted); letter-spacing: 0.04em; text-transform: uppercase; }
 .pw-muted { color: var(--nk-color-text-secondary); font-size: var(--nk-font-size-sm); margin: 0; }
+.pw-auth-footer { display: inline-flex; align-items: center; gap: var(--nk-space-2); flex-wrap: wrap; justify-content: center; }

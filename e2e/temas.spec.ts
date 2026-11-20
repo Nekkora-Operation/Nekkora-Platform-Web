@@ -82,10 +82,24 @@ const current = (page: Page) => page.evaluate(() => [document.documentElement.ge
 test('Temas: escolha pela conta com o teclado, aplicação inteira, persistência e acessibilidade nos três temas', async ({ page }) => {
   test.setTimeout(240_000);
   const acc = await control<RoleAccount>('accounts', { org: DEV_ORG, mfa: true, displayName: 'Lia Prado', orgRoles: ['ORG_ADMIN'] });
+  // ---- tela de entrada: o ícone de tema, antes de entrar, pelo teclado; a escolha vale depois de entrar
+  await page.goto('/entrar');
+  const icon = page.getByRole('button', { name: /^Tema: Nekkora Light/ });
+  await icon.focus();
+  await focusVisible(page, 'ícone de tema na entrada');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => current(page)).toEqual(['dark', 'dark']);
+  await audit(page, 'entrada-nekkora-dark');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => current(page)).toEqual(['sakura-dark', 'sakura-dark']);
+  await audit(page, 'entrada-sakura-dark');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => current(page)).toEqual(['light', 'light']);
+  await audit(page, 'entrada-nekkora-light');
   await enter(page, acc, 'Lia Prado');
 
-  // padrão: Nekkora Light, sem nada guardado
-  expect(await current(page)).toEqual(['light', null]);
+  // a escolha feita na entrada (de volta ao Light) continua depois de entrar
+  expect(await current(page)).toEqual(['light', 'light']);
 
   for (const t of THEMES) {
     // ---- escolha em Minha conta, pelo teclado (as setas trocam a opção do grupo)

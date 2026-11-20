@@ -1,4 +1,4 @@
-import { Card, RadioGroup, SectionHeader, Stack } from 'nekkora-lib';
+import { Button, Card, RadioGroup, SectionHeader, Stack } from 'nekkora-lib';
 import { PLATFORM_THEMES, THEME_TEXT, usePlatformTheme, type PlatformTheme } from '../app/theme';
 
 /**
@@ -25,4 +25,18 @@ export function AppearanceSection({ headingLevel = 'h2' }: { headingLevel?: 'h2'
       </Stack>
     </Card>
   );
+}
+
+const NEXT: Record<PlatformTheme, PlatformTheme> = { light: 'dark', dark: 'sakura-dark', 'sakura-dark': 'light' };
+
+/**
+ * Ícone de tema nas telas de entrada (antes de entrar na conta): cada clique passa ao próximo dos três temas, na ordem
+ * Nekkora Light → Nekkora Dark → Sakura Dark. A escolha é a mesma da conta, guardada neste navegador. O rótulo acessível
+ * diz o tema atual e o próximo.
+ */
+export function ThemeCycleButton() {
+  const { theme, setTheme } = usePlatformTheme();
+  const next = NEXT[theme];
+  const label = `Tema: ${THEME_TEXT[theme].label}. Mudar para ${THEME_TEXT[next].label}`;
+  return <Button variant="ghost" size="sm" icon={theme === 'light' ? 'sun' : 'moon'} aria-label={label} title={label} onClick={() => setTheme(next)} />;
 }

@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { AppearanceSection } from '../components/AppearanceSection';
+import { AppearanceSection, ThemeCycleButton } from '../components/AppearanceSection';
 import { DEFAULT_THEME, PLATFORM_THEMES, PlatformThemeProvider, THEME_STORAGE_KEY } from './theme';
 
 /** PLATFORM-FLUXO-002 — temas: padrão Nekkora Light, só três opções, aplicação no documento e persistência neste navegador. */
@@ -57,5 +57,23 @@ describe('Temas da Platform', () => {
       window.dispatchEvent(new StorageEvent('storage', { key: THEME_STORAGE_KEY, newValue: 'dark' }));
     });
     expect(html().getAttribute('data-nk-theme')).toBe('dark');
+  });
+
+  it('tela de entrada: o ícone passa pelos três temas, diz o atual e o próximo, e a escolha fica guardada', () => {
+    render(
+      <PlatformThemeProvider>
+        <ThemeCycleButton />
+      </PlatformThemeProvider>,
+    );
+    const button = () => screen.getByRole('button', { name: /^Tema: / });
+    expect(button()).toHaveAccessibleName('Tema: Nekkora Light. Mudar para Nekkora Dark');
+    fireEvent.click(button());
+    expect(html().getAttribute('data-nk-theme')).toBe('dark');
+    expect(button()).toHaveAccessibleName('Tema: Nekkora Dark. Mudar para Sakura Dark');
+    fireEvent.click(button());
+    expect(html().getAttribute('data-nk-theme')).toBe('sakura-dark');
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('sakura-dark');
+    fireEvent.click(button());
+    expect(html().getAttribute('data-nk-theme')).toBe('light');
   });
 });
