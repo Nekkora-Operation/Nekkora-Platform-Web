@@ -8,7 +8,7 @@ import { fakeLocks } from '../test/fakeLocks';
 import { lbl, user } from '../test/helpers';
 import { renderApp } from '../test/render';
 import { RouteApi } from '../test/routeApi';
-import { CANNOT_CREATE, DEACTIVATE_TEXT } from './OrganizationCreationPanel';
+import { CANNOT_CREATE, creationRateLimitText, DEACTIVATE_TEXT } from './OrganizationCreationPanel';
 
 /**
  * PLATFORM-LICENCIAMENTO-001 — criação por perfil na área da conta: o membro solicita, o Cliente não cria nem solicita, o
@@ -205,5 +205,20 @@ describe('desativar e reativar', () => {
     await waitFor(() => expect(confirm).toBeEnabled());
     await user().click(confirm);
     expect(await within(dialog).findByText(/Há trabalho em andamento nesta organização.*Nada foi alterado\./)).toBeInTheDocument();
+  });
+  it('limite de frequência da criação: diz a regra, quando será possível tentar de novo e que não é o limite de vazias', () => {
+    const now = new Date(2026, 10, 19, 20, 0, 0);
+    const amanha = creationRateLimitText(22 * 3600 + 30 * 60, now);
+    expect(amanha).toContain('Cada pessoa pode criar até três organizações por dia.');
+    expect(amanha).toContain('poderá criar outra amanhã, a partir das 18:30.');
+    expect(amanha).toContain('não tem relação com o limite de organizações vazias');
+    expect(amanha).toContain('Nada foi criado.');
+    expect(creationRateLimitText(2 * 3600, now)).toContain('poderá criar outra hoje, a partir das 22:00.');
+    expect(creationRateLimitText(50 * 3600, now)).toContain('poderá criar outra em 21/11, a partir das 22:00.');
+    expect(creationRateLimitText(20 * 60, now)).toContain('poderá criar outra em cerca de 20 minutos.');
+    expect(creationRateLimitText(30, now)).toContain('em cerca de um minuto');
+    // sem o tempo informado pelo servidor, não inventa um horário
+    expect(creationRateLimitText(undefined, now)).toContain('tente de novo mais tarde');
+    expect(creationRateLimitText(undefined, now)).not.toMatch(/a partir das/);
   });
 });

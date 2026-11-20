@@ -36,6 +36,29 @@ export const CANNOT_CREATE: Record<string, { title: string; body: string }> = {
   },
 };
 
+/**
+ * Limite de FREQUÊNCIA da criação (até três por dia por pessoa): proteção contra abuso, diferente do limite de organizações
+ * vazias. O servidor informa em quanto tempo a próxima criação é possível (Retry-After); a tela diz quando.
+ */
+export function creationRateLimitText(retryAfterSeconds: number | undefined, now: Date = new Date()): string {
+  const rule = 'Cada pessoa pode criar até três organizações por dia.';
+  const other = 'Este limite é de frequência e não tem relação com o limite de organizações vazias.';
+  if (!retryAfterSeconds || retryAfterSeconds <= 0) return `${rule} Você atingiu esse limite; tente de novo mais tarde. ${other} Nada foi criado.`;
+  let when: string;
+  if (retryAfterSeconds < 90) {
+    when = 'em cerca de um minuto';
+  } else if (retryAfterSeconds < 3600) {
+    when = `em cerca de ${Math.ceil(retryAfterSeconds / 60)} minutos`;
+  } else {
+    const at = new Date(now.getTime() + retryAfterSeconds * 1000);
+    const hour = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+    const days = Math.round((new Date(at.getFullYear(), at.getMonth(), at.getDate()).getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) / 86_400_000);
+    const day = days === 0 ? 'hoje' : days === 1 ? 'amanhã' : `em ${String(at.getDate()).padStart(2, '0')}/${String(at.getMonth() + 1).padStart(2, '0')}`;
+    when = `${day}, a partir das ${hour}`;
+  }
+  return `${rule} Você atingiu esse limite e poderá criar outra ${when}. ${other} Nada foi criado.`;
+}
+
 export const DEACTIVATE_TEXT = {
   consequences:
     'Ninguém consegue entrar na organização enquanto ela estiver desativada, e nenhum trabalho novo é iniciado pela Platform. Nada é apagado: histórico, automações, máquinas, licenças e entregas ficam como estão.',

@@ -11,6 +11,9 @@ SEG="$HOME/.nekkora/front-lab/$ID"
 SAIDA="$AQUI/saidas/$ID"
 [ -f "$SEG/segredos.env" ] || { echo "laboratório $ID não existe" >&2; exit 1; }
 set -a; . "$SEG/segredos.env"; set +a
+# As chaves sao base64 e podem comecar com "/": sem isto o Git Bash as converte em caminho (C:/Program Files/Git/...) ao
+# entrega-las ao docker, e a Platform nao sobe (visto com E2E_HMAC_CHAVE num laboratorio novo, 1 chance em 64 por chave).
+export MSYS2_ENV_CONV_EXCL='E2E_HMAC_CHAVE;E2E_MFA_CHAVES'
 case "${FRONT_AMBIENTE:-}" in ensaio-frontlab-*) ;; *) echo "recusado: só laboratório descartável" >&2; exit 1 ;; esac
 export E2E_TLS="$(cygpath -m "$SEG/tls" 2>/dev/null || echo "$SEG/tls")"
 COMPOSE=(docker compose -f "$LAB_API_REPO/api/e2e/compose.e2e.yml" -f "$AQUI/compose.front.yml")

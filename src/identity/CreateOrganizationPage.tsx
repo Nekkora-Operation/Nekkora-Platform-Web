@@ -7,7 +7,7 @@ import { identityPath } from '../auth/flow';
 import { StepUpDialog } from '../components/StepUpDialog';
 import { useIdentityArea } from './IdentityArea';
 import { activationLabel } from './labels';
-import { CANNOT_CREATE } from './OrganizationCreationPanel';
+import { CANNOT_CREATE, creationRateLimitText } from './OrganizationCreationPanel';
 import type { OrganizationsNavState } from './OrganizationsPage';
 import './identity.css';
 
@@ -30,8 +30,7 @@ function refusalText(e: unknown): string {
   // PLATFORM-LICENCIAMENTO-001: o perfil e os limites decidem no servidor, com o motivo
   const reason = e instanceof ApiError && (e.code === 'conflict' || e.code === 'forbidden') ? e.reason : undefined;
   if (reason && CANNOT_CREATE[reason]) return `${CANNOT_CREATE[reason].title} ${CANNOT_CREATE[reason].body} Nada foi criado.`;
-  if (isApiError(e, 'rate_limited'))
-    return 'Você atingiu o limite de criações de organização por enquanto. Tente de novo mais tarde. Nada foi criado.';
+  if (isApiError(e, 'rate_limited')) return creationRateLimitText(e instanceof ApiError ? e.retryAfterSeconds : undefined);
   if (isApiError(e, 'invalid_request')) return 'O nome não foi aceito. Confira os campos. Nada foi criado.';
   if (e instanceof ApiError && e.status === 404) return 'A criação de organizações não está disponível no momento. Nada foi criado.';
   if (isApiError(e, 'service_unavailable')) return 'Serviço temporariamente indisponível. Nada foi criado; tente de novo em instantes.';
