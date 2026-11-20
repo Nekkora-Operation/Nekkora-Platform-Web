@@ -36,9 +36,13 @@ async function control<T>(route: string, body: unknown): Promise<T> {
   return (await res.json()) as T;
 }
 
+// um gerador por conta: entrar de novo nunca reaproveita o código já aceito (o simulador recusa o mesmo código na mesma
+// janela de 30 s, como a API real); next() espera a janela seguinte quando precisa
+const authenticators = new Map<string, Authenticator>();
 async function enter(page: Page, acc: RoleAccount, name: string) {
+  if (!authenticators.has(acc.userId)) authenticators.set(acc.userId, new Authenticator(acc.totpSecret));
   await signIn(page, { org: acc.org, userId: acc.userId, email: acc.email });
-  await page.getByLabel(/Código de autenticação/).fill(await new Authenticator(acc.totpSecret).next());
+  await page.getByLabel(/Código de autenticação/).fill(await authenticators.get(acc.userId)!.next());
   await expect(page.getByRole('heading', { level: 1, name: `Olá, ${name}` })).toBeVisible();
   await leaveMenu(page);
 }
