@@ -58,7 +58,7 @@ test('J17/J18: telas reais com teclado, zoom 200%, viewports, recarga, links dir
   const versionUrl = await newVersionWithPackage(page, PKG);
 
   // código de pareamento (T07: Workers → Criar Worker → Vincular Agent): aparece só na tela (J18 confere que não vaza)
-  const pairing = await pairNewWorker(page, org, ana, 'Worker J17', 'LAB-J17');
+  const pairing = await pairNewWorker(page, org, ana, 'Máquina J17', 'LAB-J17');
   await page.getByRole('button', { name: 'Concluir' }).click();
 
   // ---------------- J17: teclado e foco — o primeiro Tab é o atalho para o conteúdo, e ele leva o foco ao conteúdo
@@ -93,7 +93,7 @@ test('J17/J18: telas reais com teclado, zoom 200%, viewports, recarga, links dir
     ['início da organização', `/o/${org}`, /^Olá, /],
     ['workspace', workspaceUrl.replace(/^https?:\/\/[^/]+/, ''), 'Operações'],
     ['versão', versionUrl.replace(/^https?:\/\/[^/]+/, ''), /Biografias da Wikipédia — versão 1/],
-    ['workers', `/o/${org}/workers`, 'Workers'],
+    ['workers', `/o/${org}/workers`, 'Máquinas'],
     ['supervisão', `/o/${org}/supervisao`, 'Supervisão'],
     ['convites', `/o/${org}/administracao/convites`, 'Convites'],
     ['concessões', `/o/${org}/administracao/concessoes`, 'Concessões'],

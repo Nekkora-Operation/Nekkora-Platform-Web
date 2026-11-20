@@ -37,7 +37,7 @@ async function prepareOrganization(page: Page, person: Person) {
   return org;
 }
 
-test('J12: código emitido na tela, pareamento do Agent real, presença, Worker no ambiente de trabalho e autorização de execução local', async ({ page }) => {
+test('J12: código emitido na tela, pareamento do Agent real, presença, máquina no ambiente de trabalho e autorização de execução local', async ({ page }) => {
   test.setTimeout(900_000);
   // Agent do laboratório sem pareamento anterior (dados locais da cópia descartável)
   agent('parar');
@@ -65,8 +65,8 @@ test('J12: código emitido na tela, pareamento do Agent real, presença, Worker 
 
   // T07: Workers → Criar Worker (sem Agent) → Vincular Agent (código para esse Worker, step-up); aparece só agora
   await page.goto(`/o/${org}/workers`);
-  await expect(page.getByText('Nenhum Worker criado.')).toBeVisible();
-  const code = await pairNewWorker(page, org, ana, 'Worker do laboratório', 'LAB-FRONT-01');
+  await expect(page.getByText('Nenhuma máquina cadastrada.')).toBeVisible();
+  const code = await pairNewWorker(page, org, ana, 'Máquina do laboratório', 'LAB-FRONT-01');
   expect(code).toMatch(/^nkp1\./);
 
   // a pessoa abre o Agent real e cola o código (teclado enviado à janela do Agent)
@@ -77,8 +77,8 @@ test('J12: código emitido na tela, pareamento do Agent real, presença, Worker 
   // a máquina aparece na linha do Worker depois do resgate; a comunicação depende do heartbeat (CONNECTED até 180 s do último sinal)
   const agentsText = async () => {
     await page.getByRole('button', { name: 'Atualizar' }).click();
-    await page.getByRole('region', { name: 'Lista de Workers' }).waitFor({ timeout: 15_000 });
-    return page.getByRole('region', { name: 'Lista de Workers' }).innerText().catch(() => '');
+    await page.getByRole('region', { name: 'Lista de máquinas' }).waitFor({ timeout: 15_000 });
+    return page.getByRole('region', { name: 'Lista de máquinas' }).innerText().catch(() => '');
   };
   let seen = '';
   await page.waitForTimeout(5_000);
@@ -94,14 +94,14 @@ test('J12: código emitido na tela, pareamento do Agent real, presença, Worker 
 
   // Worker no workspace (step-up)
   await page.goto(`/o/${org}/workers`);
-  await page.getByRole('button', { name: 'Autorizar Worker do laboratório num ambiente de trabalho' }).click();
+  await page.getByRole('button', { name: 'Autorizar Máquina do laboratório num ambiente de trabalho' }).click();
   await page.getByRole('alertdialog').getByLabel('Ambiente de trabalho').selectOption(workspaceId);
   await confirmStepUp(page, ana, 'Autorizar');
-  await expect(page.getByText('Worker autorizado no ambiente de trabalho.')).toBeVisible();
+  await expect(page.getByText('Máquina autorizada no ambiente de trabalho.')).toBeVisible();
 
   // autorização de execução local (step-up) — não inicia nada
   await page.goto(versionUrl);
-  await page.getByLabel(/^Worker autorizado neste ambiente de trabalho/).selectOption({ label: 'Worker do laboratório' });
+  await page.getByLabel(/^Máquina autorizada neste ambiente de trabalho/).selectOption({ label: 'Máquina do laboratório' });
   await page.getByRole('button', { name: 'Autorizar execução local' }).click();
   await confirmStepUp(page, ana, 'Autorizar execução local');
   await expect(page.getByText(/Execução local autorizada\. Nada foi iniciado/)).toBeVisible();

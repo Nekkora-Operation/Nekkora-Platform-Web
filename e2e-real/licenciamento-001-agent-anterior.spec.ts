@@ -39,7 +39,7 @@ const EVID = resolve(`tools/lab/saidas/${LAB}/evidencias-licenciamento-001-agent
 const PESSOAS = join(homedir(), '.nekkora', 'front-lab', LAB, 'pessoas-roteiro-maquina.json');
 const SEG = join(homedir(), '.nekkora', 'front-lab', LAB, 'segredos.env');
 const TAG = Date.now().toString(36);
-const WORKER = 'Worker da oficina';
+const WORKER = 'Máquina da oficina';
 const MAQUINA = 'PC sintetico da oficina';
 const AUTOMACAO = 'Robo da oficina';
 
@@ -270,10 +270,10 @@ test('PLATFORM-LICENCIAMENTO-001 com o Agent anterior em cópia isolada: recusa 
     await expect(anaPage.getByText(`Licença nº 1 vinculada a ${AUTOMACAO}.`, { exact: false })).toBeVisible();
 
     await go(anaPage, `/o/${oficina}/workers`);
-    await anaPage.getByRole('heading', { name: 'Workers', level: 1 }).waitFor();
-    await anaPage.getByRole('button', { name: 'Criar Worker' }).click();
-    await anaPage.getByRole('alertdialog').getByLabel(/^Nome do Worker/).fill(WORKER);
-    await anaPage.getByRole('alertdialog').getByRole('button', { name: 'Criar Worker' }).click();
+    await anaPage.getByRole('heading', { name: 'Máquinas', level: 1 }).waitFor();
+    await anaPage.getByRole('button', { name: 'Cadastrar máquina' }).click();
+    await anaPage.getByRole('alertdialog').getByLabel(/^Nome da máquina/).fill(WORKER);
+    await anaPage.getByRole('alertdialog').getByRole('button', { name: 'Cadastrar máquina' }).click();
     await settle(anaPage);
     await go(anaPage, `/o/${oficina}/workers`);
     await anaPage.getByRole('button', { name: `Vincular Agent a ${WORKER}` }).click();
@@ -295,14 +295,14 @@ test('PLATFORM-LICENCIAMENTO-001 com o Agent anterior em cópia isolada: recusa 
     // a autorização de execução local desta versão para o Worker (com a licença vigente)
     await go(anaPage, versao);
     const cartao = anaPage.locator('section').filter({ has: anaPage.getByRole('heading', { name: /Autorizações de execução local/ }) });
-    await cartao.getByLabel('Worker autorizado neste ambiente de trabalho').selectOption(worker);
+    await cartao.getByLabel('Máquina autorizada neste ambiente de trabalho').selectOption(worker);
     await cartao.getByLabel('Vale até').fill(day(10));
     await cartao.getByRole('button', { name: 'Autorizar execução local' }).click();
     await confirmStepUp(anaPage, ana, 'Autorizar execução local');
     await settle(anaPage);
     await expect.poll(() => sql(`SELECT count(*) FROM local_run_authorizations WHERE automation_version_id = '${versaoId}' AND worker_id = '${worker}' AND revoked_at IS NULL`), { timeout: 60_000 }).toBe('1');
     await comando('autorizacoes');
-    log('2_preparo', { organizacao: 'modelo por licenca, criada por excecao para a cliente', automacao: AUTOMACAO, licenca: 'nº 1 vinculada', maquina: 'pareada pelo dialogo real do aplicativo', autorizacao: 'da versao para o Worker, vigente' });
+    log('2_preparo', { organizacao: 'modelo por licenca, criada por excecao para a cliente', automacao: AUTOMACAO, licenca: 'nº 1 vinculada', maquina: 'pareada pelo dialogo real do aplicativo', autorizacao: 'da versao para a máquina, vigente' });
 
     const runs = () => sql(`SELECT count(*) FROM agent_runs WHERE organization_id = '${oficina}'`);
     const basis = (e: string) => sql(`SELECT coalesce(license_basis::text, '-') FROM agent_runs WHERE organization_id = '${oficina}' AND agent_execution_id = '${e}'`);

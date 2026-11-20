@@ -75,7 +75,7 @@ function titleFor(pathname: string, org: string): string {
   if (rest === '/administracao/membros') return 'Membros';
   if (rest.startsWith('/administracao/membros/')) return 'Acessos do membro';
   if (rest === '/administracao/convites') return 'Convites';
-  if (rest === '/workers') return 'Workers';
+  if (rest === '/workers') return 'Máquinas';
   if (rest === '/supervisao') return 'Supervisão';
   if (rest.startsWith('/supervisao/')) return 'Execução local';
   if (rest === '/administracao/auditoria') return 'Auditoria de acessos';
@@ -203,7 +203,7 @@ export function InternalShell() {
         // R1: quem administra só Agents (agent.manage) também entra, para as ações que tinha na antiga tela de Agents.
         ...(permissions.status === 'ready' &&
         (permissions.data.organization.permissions.includes('worker.manage') || permissions.data.organization.permissions.includes('agent.manage'))
-          ? [{ id: 'workers', label: 'Workers', href: orgPath.workers(org), icon: 'server' as const, active: section === 'workers' }]
+          ? [{ id: 'workers', label: 'Máquinas', href: orgPath.workers(org), icon: 'server' as const, active: section === 'workers' }]
           : []),
       ],
     },

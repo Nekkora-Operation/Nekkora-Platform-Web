@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "2cccefbdf86912916932698af12eaa252709d262a74b1081dcf388d726501742",
+  "openapiSha256": "3605da0aa713c05692ca285728ea1df9507e35aa67a93d984fb25afe0caf1c37",
   "schemas": {
     "Error": {
       "type": "object",
@@ -1219,6 +1219,7 @@
             "required": [
               "workerId",
               "name",
+              "machineState",
               "execution",
               "monitoring"
             ],
@@ -1229,6 +1230,30 @@
               },
               "name": {
                 "type": "string"
+              },
+              "computerName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "lastContactAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "machineState": {
+                "type": "string",
+                "enum": [
+                  "REGISTERED",
+                  "AWAITING_CONNECTION",
+                  "CONNECTED",
+                  "NO_CONTACT",
+                  "LINK_SUSPENDED",
+                  "INACTIVE"
+                ]
               },
               "execution": {
                 "$ref": "#/components/schemas/AutomationActivationAuthorization"
@@ -1379,7 +1404,8 @@
             "type": "object",
             "required": [
               "workerId",
-              "name"
+              "name",
+              "machineState"
             ],
             "properties": {
               "workerId": {
@@ -1388,6 +1414,30 @@
               },
               "name": {
                 "type": "string"
+              },
+              "computerName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "lastContactAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "machineState": {
+                "type": "string",
+                "enum": [
+                  "REGISTERED",
+                  "AWAITING_CONNECTION",
+                  "CONNECTED",
+                  "NO_CONTACT",
+                  "LINK_SUSPENDED",
+                  "INACTIVE"
+                ]
               }
             }
           }
@@ -5978,6 +6028,17 @@
               "createdAt": {
                 "type": "string",
                 "format": "date-time"
+              },
+              "machineState": {
+                "type": "string",
+                "enum": [
+                  "REGISTERED",
+                  "AWAITING_CONNECTION",
+                  "CONNECTED",
+                  "NO_CONTACT",
+                  "LINK_SUSPENDED",
+                  "INACTIVE"
+                ]
               }
             }
           }

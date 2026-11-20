@@ -93,7 +93,7 @@ async function grantOne(page: Page, nara: Person, why: string) {
 
 test.use({ actionTimeout: 20_000, navigationTimeout: 45_000 });
 
-test('PLATFORM-LICENCIAMENTO-001: transição auditada da organização do aceite, Worker sem licença, concessão e "Vincular à automação"', async ({ browser }) => {
+test('PLATFORM-LICENCIAMENTO-001: transição auditada da organização do aceite, máquina sem licença, concessão e "Vincular à automação"', async ({ browser }) => {
   test.setTimeout(1_200_000);
   expect(ALVO, 'informe ALVO_ORG: a organização do aceite').toMatch(/^[0-9a-f-]{36}$/);
   rmSync(EVID, { recursive: true, force: true });
@@ -157,17 +157,17 @@ test('PLATFORM-LICENCIAMENTO-001: transição auditada da organização do aceit
   await settle(doraPage);
   expect(modelo(org)).toMatch(/^modelo=2 /);
   await go(doraPage, `/o/${org}/workers`);
-  await doraPage.getByRole('heading', { name: 'Workers', level: 1 }).waitFor();
-  await doraPage.getByRole('button', { name: 'Criar Worker' }).click();
+  await doraPage.getByRole('heading', { name: 'Máquinas', level: 1 }).waitFor();
+  await doraPage.getByRole('button', { name: 'Cadastrar máquina' }).click();
   const wd = doraPage.getByRole('alertdialog');
-  await wd.getByLabel(/^Nome do Worker/).fill('Worker de teste');
-  await wd.getByRole('button', { name: 'Criar Worker' }).click();
+  await wd.getByLabel(/^Nome da máquina/).fill('Máquina de teste');
+  await wd.getByRole('button', { name: 'Cadastrar máquina' }).click();
   await settle(doraPage);
-  await expect(doraPage.getByText('Worker Worker de teste criado, sem Agent.', { exact: false })).toBeVisible();
+  await expect(doraPage.getByText('Máquina Máquina de teste cadastrada, sem computador vinculado.', { exact: false })).toBeVisible();
   await shot(doraPage, '2-gemea-worker-sem-licenca');
   await go(doraPage, `/o/${org}/administracao/licencas`);
   await expect(doraPage.getByText('Esta organização ainda não tem licenças.')).toBeVisible();
-  await expect(doraPage.getByRole('group', { name: 'Capacidade técnica' })).toContainText(/Workers cadastrados\s*1 de \d+/);
+  await expect(doraPage.getByRole('group', { name: 'Capacidade técnica' })).toContainText(/Máquinas cadastradas\s*1 de \d+/);
   await shot(doraPage, '2-gemea-sem-licencas-capacidade');
   log('2_worker_sem_licenca', { organizacao: org, modelo: modelo(org), licencas: sql(`SELECT count(*) FROM organization_licenses WHERE organization_id = '${org}'`), worker: 'cadastrado pela tela', capacidade: (await doraPage.getByRole('group', { name: 'Capacidade técnica' }).innerText()).replace(/\s+/g, ' ').slice(0, 60) });
 

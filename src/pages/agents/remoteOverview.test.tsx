@@ -237,7 +237,7 @@ describe('Execuções: a execução remota aparece pela solicitação', () => {
 });
 
 describe('Supervisão: a execução remota aparece pelas tentativas', () => {
-  it('uma linha por tentativa, cada uma com a sua máquina, o seu Worker e o seu desfecho', async () => {
+  it('uma linha por tentativa, cada uma com a sua máquina, o sua máquina e o seu desfecho', async () => {
     api.on('GET', ALL, 'listVisibleRemoteExecutions', { status: 200, body: { items: [twoAttempts()] } });
     renderApp(`/o/${ORG}/supervisao`);
     const r = within(await region('Tentativas de execução remota'));

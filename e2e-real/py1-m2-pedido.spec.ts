@@ -152,18 +152,18 @@ test('M2: pacote externo publicado, aprovado na máquina e disparado pela Platfo
 
   // ---------- pareamento, Worker no workspace e autorização da versão
   // T07: Workers → Criar Worker → Vincular Agent
-  const code = await pairNewWorker(page, org, ana, 'Worker pedidos', 'ESTACAO-PY1-M2');
+  const code = await pairNewWorker(page, org, ana, 'Máquina pedidos', 'ESTACAO-PY1-M2');
   agent('iniciar');
   agent('parear', `${code}\n`);
   await page.getByRole('button', { name: 'Concluir' }).click();
   await expect.poll(() => workersText(page, org), { timeout: 240_000, intervals: [10_000] }).toMatch(/ESTACAO-PY1-M2[\s\S]*Conectada/);
   await page.goto(`/o/${org}/workers`);
-  await page.getByRole('button', { name: 'Autorizar Worker pedidos num ambiente de trabalho' }).click();
+  await page.getByRole('button', { name: 'Autorizar Máquina pedidos num ambiente de trabalho' }).click();
   await page.getByRole('alertdialog').getByLabel('Ambiente de trabalho').selectOption(workspaceId);
   await confirmStepUp(page, ana, 'Autorizar');
-  await expect(page.getByText('Worker autorizado no ambiente de trabalho.')).toBeVisible();
+  await expect(page.getByText('Máquina autorizada no ambiente de trabalho.')).toBeVisible();
   await page.goto(versionUrl);
-  await page.getByLabel(/^Worker autorizado neste ambiente de trabalho/).selectOption({ label: 'Worker pedidos' }, { timeout: 30_000 });
+  await page.getByLabel(/^Máquina autorizada neste ambiente de trabalho/).selectOption({ label: 'Máquina pedidos' }, { timeout: 30_000 });
   await page.getByRole('button', { name: 'Autorizar execução local' }).click();
   await confirmStepUp(page, ana, 'Autorizar execução local');
   await expect(page.getByText(/Execução local autorizada\. Nada foi iniciado/)).toBeVisible();
@@ -266,7 +266,7 @@ test('M2: pacote externo publicado, aprovado na máquina e disparado pela Platfo
   const s6 = await execute(page, ana, versionUrl, 3);
   // T07: revogar o vínculo na linha do Worker (o Worker fica livre; a máquina não é contatada)
   await page.goto(`/o/${org}/workers`);
-  await page.getByRole('button', { name: 'Revogar vínculo de ESTACAO-PY1-M2 com Worker pedidos' }).click();
+  await page.getByRole('button', { name: 'Revogar vínculo de ESTACAO-PY1-M2 com Máquina pedidos' }).click();
   await confirmStepUp(page, ana, 'Revogar vínculo');
   await page.waitForTimeout(2_000);
   agent('iniciar');

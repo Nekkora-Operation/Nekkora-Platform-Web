@@ -113,7 +113,7 @@ describe('página inicial da organização: próximo passo', () => {
     area({ activation: 'AGUARDANDO_ATIVACAO', perms: ['workspace.lifecycle'] });
     renderApp(`/o/${ORG}`);
     expect(await screen.findByText('Organização aguardando ativação')).toBeInTheDocument();
-    expect(screen.getByText(/nenhum Worker pode ser registrado e nenhuma automação executa/)).toBeInTheDocument();
+    expect(screen.getByText(/nenhuma máquina pode ser registrada e nenhuma automação executa/)).toBeInTheDocument();
     expect(screen.getByText(/A ativação é feita pela operação da Nekkora/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /ativar/i })).toBeNull();
     const main = screen.getByRole('main');

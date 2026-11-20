@@ -132,7 +132,7 @@ describe('área interna', () => {
     const links = within(nav).getAllByRole('link').map((l) => l.textContent);
     expect(links.slice(0, 4)).toEqual(['Início', 'Ambientes de trabalho', 'Execuções', 'Supervisão']);
     // M4: Workers aparece só com a P01 (worker.manage); T07: sem item separado de Agents (Workers é a entrada única)
-    expect(links.slice(4).every((l) => ['Workers', 'Minha conta', 'Membros', 'Convites', 'Clientes', 'Concessões', 'Auditoria de acessos'].includes(l ?? ''))).toBe(true);
+    expect(links.slice(4).every((l) => ['Máquinas', 'Minha conta', 'Membros', 'Convites', 'Clientes', 'Concessões', 'Auditoria de acessos'].includes(l ?? ''))).toBe(true);
     expect(links).not.toContain('Agents');
     expect(within(nav).getByRole('link', { name: 'Execuções' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('button', { name: 'Menu da conta: Ana Souza' })).toBeInTheDocument();

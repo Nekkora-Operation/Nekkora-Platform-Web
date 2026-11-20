@@ -125,11 +125,11 @@ async function openExecutar() {
   renderApp(`/o/${ORG}/workspaces/${WS}`);
   await screen.findByRole('heading', { name: 'Financeiro', level: 1 });
   await waitFor(() => expect(api.sent('GET', AGENTS).length).toBeGreaterThan(0));
-  fireEvent.click(await screen.findByRole('button', { name: 'Executar na máquina do Worker Worker financeiro' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Executar na máquina Worker financeiro' }));
   await screen.findByRole('alertdialog');
 }
 
-describe('"Executar" com a máquina do Worker sendo um Nekkora Agent Client', () => {
+describe('"Executar" com a máquina da máquina sendo um Nekkora Agent Client', () => {
   it('a lista com as capacidades do Client é aceita e o diálogo diz o impedimento real, apontando a execução remota', async () => {
     api.on('GET', AGENTS, 'listAgents', { status: 200, body: { items: [agent()] } });
     await openExecutar();
@@ -137,7 +137,7 @@ describe('"Executar" com a máquina do Worker sendo um Nekkora Agent Client', ()
     expect(d.getByText(/ESTACAO-01\) está ativa, mas usa o Nekkora Agent Client, que não recebe este tipo de pedido/)).toBeInTheDocument();
     expect(d.getByText(/o vínculo e as autorizações continuam valendo/)).toBeInTheDocument();
     expect(d.getByRole('link', { name: 'na página da versão' })).toHaveAttribute('href', expect.stringContaining(VER));
-    expect(d.queryByText('Nenhum Agent ativo neste Worker')).toBeNull();
+    expect(d.queryByText('Nenhum Agent ativo nesta máquina')).toBeNull();
     expect(d.getByRole('button', { name: 'Pedir execução' })).toBeDisabled();
     expect(api.sent('POST', /run-requests/)).toEqual([]);
   });
@@ -153,11 +153,11 @@ describe('"Executar" com a máquina do Worker sendo um Nekkora Agent Client', ()
     expect(d.getByRole('option', { name: 'ESTACAO-01 (conectado)' })).toBeInTheDocument();
   });
 
-  it('sem máquina ativa no Worker, o texto continua sendo o de sempre', async () => {
+  it('sem máquina ativa na máquina, o texto continua sendo o de sempre', async () => {
     api.on('GET', AGENTS, 'listAgents', { status: 200, body: { items: [agent({ status: 'REVOKED', workerId: null, endedBy: 'ADMINISTRATION' })] } });
     await openExecutar();
     const d = within(dialog());
-    expect(d.getByText('Nenhum Agent ativo neste Worker')).toBeInTheDocument();
+    expect(d.getByText('Nenhum Agent ativo nesta máquina')).toBeInTheDocument();
     expect(d.queryByText(/não recebe este tipo de pedido/)).toBeNull();
   });
 
@@ -166,7 +166,7 @@ describe('"Executar" com a máquina do Worker sendo um Nekkora Agent Client', ()
     await openExecutar();
     const d = within(dialog());
     expect(d.getByText(/Não foi possível ler as máquinas da organização agora/)).toBeInTheDocument();
-    expect(d.queryByText('Nenhum Agent ativo neste Worker')).toBeNull();
+    expect(d.queryByText('Nenhum Agent ativo nesta máquina')).toBeNull();
     expect(d.getByRole('button', { name: 'Pedir execução' })).toBeDisabled();
   });
 });

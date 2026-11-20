@@ -103,11 +103,11 @@ async function openWorkspace(page: Page, url: string, seen: string[]) {
 /** Workers > Criar Worker (sem Agent), com a navegação tolerante ao limite de rajada do laboratório. */
 async function newWorker(page: Page, org: string, workerName: string) {
   await go(page, `/o/${org}/workers`);
-  await page.getByRole('heading', { name: 'Workers', level: 1 }).waitFor();
-  await page.getByRole('button', { name: 'Criar Worker' }).click();
+  await page.getByRole('heading', { name: 'Máquinas', level: 1 }).waitFor();
+  await page.getByRole('button', { name: 'Cadastrar máquina' }).click();
   const dialog = page.getByRole('alertdialog');
-  await dialog.getByLabel(/^Nome do Worker/).fill(workerName);
-  await dialog.getByRole('button', { name: 'Criar Worker' }).click();
+  await dialog.getByLabel(/^Nome da máquina/).fill(workerName);
+  await dialog.getByRole('button', { name: 'Cadastrar máquina' }).click();
 }
 
 async function createOrganization(page: Page, person: Person, name: string) {
@@ -430,19 +430,19 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
     await anaPage.getByRole('alertdialog').getByLabel('Ambiente de trabalho').selectOption(workspaceId);
     await confirmStepUp(anaPage, ana, 'Autorizar');
     await settle(anaPage);
-    await expect(anaPage.getByText('Worker autorizado no ambiente de trabalho.')).toBeVisible();
+    await expect(anaPage.getByText('Máquina autorizada no ambiente de trabalho.')).toBeVisible();
   };
   // B0. USO NO MODELO ANTERIOR, antes de qualquer licença: a organização já monitora a automação "Folha".
   // FIXTURE DECLARADA do laboratório (`lab.mjs limites`): limites de recursos como os de uma organização ativada pela operação
   // (a ativação real é pela CLI dos operadores e tem o próprio roteiro); sem ela a organização não cadastra Worker.
   execFileSync('node', ['tools/lab/lab.mjs', LAB, 'limites', matriz, ana.email]);
-  await newWorker(anaPage, matriz, 'Worker fiscal');
+  await newWorker(anaPage, matriz, 'Máquina fiscal');
   await settle(anaPage);
-  await expect(anaPage.getByText('Worker Worker fiscal criado, sem Agent.', { exact: false })).toBeVisible();
-  await authorizeWorkerInWorkspace('Worker fiscal');
+  await expect(anaPage.getByText('Máquina Máquina fiscal cadastrada, sem computador vinculado.', { exact: false })).toBeVisible();
+  await authorizeWorkerInWorkspace('Máquina fiscal');
   await go(anaPage, automationUrls['Folha']);
   await expect(anaPage.getByRole('heading', { name: 'Monitoramento de Python externo' })).toBeVisible();
-  await anaPage.getByLabel(/^Worker autorizado neste ambiente de trabalho/).selectOption({ label: 'Worker fiscal' });
+  await anaPage.getByLabel(/^Máquina autorizada neste ambiente de trabalho/).selectOption({ label: 'Máquina fiscal' });
   await anaPage.getByLabel(/^Vale até/).fill(day(20));
   await anaPage.getByRole('button', { name: 'Autorizar monitoramento' }).click();
   await confirmStepUp(anaPage, ana, 'Autorizar monitoramento');
@@ -525,13 +525,13 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   // B4b. os textos acompanham o modelo: nada de "aguardando ativação" para quem já pode registrar Workers
   await go(anaPage, `/o/${matriz}`);
   await expect(anaPage.getByText('Organização aguardando ativação')).toHaveCount(0);
-  await expect(anaPage.getByText(/Esta organização usa o modelo por licença: Workers podem ser registrados dentro do limite técnico/)).toBeVisible();
+  await expect(anaPage.getByText(/Esta organização usa o modelo por licença: Máquinas podem ser registrados dentro do limite técnico/)).toBeVisible();
   await shot(anaPage, 'B4b-inicio-modelo-por-licenca');
   await go(anaPage, '/organizacoes');
   const matrizItem = anaPage.getByRole('list', { name: 'Organizações' }).getByRole('listitem').filter({ hasText: matrizName });
   await expect(matrizItem.getByText('Execução: por licença', { exact: true })).toBeVisible();
   await expect(matrizItem.getByText('Aguardando ativação')).toHaveCount(0);
-  await expect(matrizItem.getByText(/nenhum Worker pode ser registrado/)).toHaveCount(0);
+  await expect(matrizItem.getByText(/nenhuma máquina pode ser registrada/)).toHaveCount(0);
   await shot(anaPage, 'B4b-organizacoes-modelo-por-licenca');
   await anaPage.getByRole('button', { name: `Entrar em ${matrizName}` }).click();
   await expect(anaPage).toHaveURL(new RegExp(`/o/${matriz}$`));
@@ -541,25 +541,25 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   await go(anaPage, `/o/${matriz}/administracao/licencas`);
   await expect(anaPage.getByText('Esta organização exige licença.')).toBeVisible();
   const capacity = anaPage.getByRole('group', { name: 'Capacidade técnica' });
-  await expect(capacity).toContainText(/Workers cadastrados\s*1 de 50/);
+  await expect(capacity).toContainText(/Máquinas cadastradas\s*1 de 50/);
   await expect(capacity).toContainText(/Execuções simultâneas\s*0 de 5/);
   await expect(capacity).toContainText(/Execuções pendentes \(na fila\)\s*0 de 50/);
   await expect(anaPage.getByText(/Não são contratados e não têm relação com a quantidade de licenças/)).toBeVisible();
 
   // B6. capacidade no lugar da ativação: a organização (nunca ativada) cadastra um Worker
-  await newWorker(anaPage, matriz, 'Worker dois');
+  await newWorker(anaPage, matriz, 'Máquina dois');
   await settle(anaPage);
-  await expect(anaPage.getByText('Worker Worker dois criado, sem Agent.', { exact: false })).toBeVisible();
-  await authorizeWorkerInWorkspace('Worker dois');
+  await expect(anaPage.getByText('Máquina Máquina dois cadastrada, sem computador vinculado.', { exact: false })).toBeVisible();
+  await authorizeWorkerInWorkspace('Máquina dois');
   await go(anaPage, `/o/${matriz}/administracao/licencas`);
-  await expect(anaPage.getByRole('group', { name: 'Capacidade técnica' })).toContainText(/Workers cadastrados\s*2 de 50/);
+  await expect(anaPage.getByRole('group', { name: 'Capacidade técnica' })).toContainText(/Máquinas cadastradas\s*2 de 50/);
   await shot(anaPage, 'B6-licencas-e-capacidade');
   log('B6_capacidade', { workers: '2 de 50 (limite tecnico)', transicao: sql(`SELECT 'autorizacao da Folha anterior ao modelo continua valida ate ' || to_char(valid_until AT TIME ZONE 'UTC', 'YYYY-MM-DD') FROM local_run_authorizations WHERE organization_id = '${matriz}' AND automation_id = '${automationId('Folha')}' AND revoked_at IS NULL`) });
 
   // B7. VALIDADE REDUZIDA: a autorização pedida para 90 dias sai até o fim da licença (30), e a tela diz a data e o motivo
   await go(anaPage, automationUrls['Notas de entrada']);
   await expect(anaPage.getByRole('heading', { name: 'Monitoramento de Python externo' })).toBeVisible();
-  await anaPage.getByLabel(/^Worker autorizado neste ambiente de trabalho/).selectOption({ label: 'Worker fiscal' });
+  await anaPage.getByLabel(/^Máquina autorizada neste ambiente de trabalho/).selectOption({ label: 'Máquina fiscal' });
   await anaPage.getByLabel(/^Vale até/).fill(day(90));
   await anaPage.getByRole('button', { name: 'Autorizar monitoramento' }).click();
   await confirmStepUp(anaPage, ana, 'Autorizar monitoramento');
@@ -573,7 +573,7 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
 
   // B8. automação SEM licença: a autorização é recusada com o motivo de licença (não de capacidade)
   await go(anaPage, automationUrls['Conciliação']);
-  await anaPage.getByLabel(/^Worker autorizado neste ambiente de trabalho/).selectOption({ label: 'Worker fiscal' });
+  await anaPage.getByLabel(/^Máquina autorizada neste ambiente de trabalho/).selectOption({ label: 'Máquina fiscal' });
   await anaPage.getByLabel(/^Vale até/).fill(day(10));
   await anaPage.getByRole('button', { name: 'Autorizar monitoramento' }).click();
   await confirmStepUp(anaPage, ana, 'Autorizar monitoramento');
@@ -666,7 +666,7 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   await expect(anaPage.getByRole('row').filter({ hasText: 'nº 1' })).toContainText('Vencida');
   await shot(anaPage, 'B10-licenca-vencida');
   await go(anaPage, automationUrls['Folha']);
-  await anaPage.getByLabel(/^Worker autorizado neste ambiente de trabalho/).selectOption({ label: 'Worker dois' });
+  await anaPage.getByLabel(/^Máquina autorizada neste ambiente de trabalho/).selectOption({ label: 'Máquina dois' });
   await anaPage.getByLabel(/^Vale até/).fill(day(10));
   await anaPage.getByRole('button', { name: 'Autorizar monitoramento' }).click();
   await confirmStepUp(anaPage, ana, 'Autorizar monitoramento');
@@ -675,7 +675,7 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   await anaPage.getByRole('alertdialog').getByRole('button', { name: /Cancelar|Fechar/ }).first().click();
   // o histórico continua legível: a autorização emitida antes continua na lista da outra automação
   await go(anaPage, automationUrls['Notas de entrada']);
-  await expect(anaPage.getByRole('region', { name: 'Autorizações de execução local' })).toContainText('Worker fiscal');
+  await expect(anaPage.getByRole('region', { name: 'Autorizações de execução local' })).toContainText('Máquina fiscal');
   log('B10_vencimento', { tela: 'licenca vencida avisada', trabalho_novo: 'recusado: licenca vencida', historico: 'legivel' });
 
   // B11. a operadora renova, pela TELA: a mesma automação continua vinculada (não precisa vincular de novo)
@@ -702,17 +702,17 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
     await go(brunoPage, '/organizacoes');
     const bornItem = brunoPage.getByRole('list', { name: 'Organizações' }).getByRole('listitem').filter({ hasText: born });
     await expect(bornItem.getByText('Execução: por licença', { exact: true })).toBeVisible();
-    await expect(bornItem.getByText(/nenhum Worker pode ser registrado/)).toHaveCount(0);
+    await expect(bornItem.getByText(/nenhuma máquina pode ser registrada/)).toHaveCount(0);
     const bornId = await enter(brunoPage, born);
     await go(brunoPage, `/o/${bornId}/administracao/licencas`);
     await expect(brunoPage.getByText('Esta organização exige licença.')).toBeVisible();
     await expect(brunoPage.getByText('Esta organização ainda não tem licenças.')).toBeVisible();
-    await expect(brunoPage.getByRole('group', { name: 'Capacidade técnica' })).toContainText(/Workers cadastrados\s*0 de 50/);
+    await expect(brunoPage.getByRole('group', { name: 'Capacidade técnica' })).toContainText(/Máquinas cadastradas\s*0 de 50/);
     await shot(brunoPage, 'C-organizacao-nascida-no-modelo-por-licenca');
     // capacidade no lugar da ativação: nunca ativada, sem fixture nenhuma, ela cadastra um Worker (limite técnico)
-    await newWorker(brunoPage, bornId, 'Worker novo');
+    await newWorker(brunoPage, bornId, 'Máquina nova');
     await settle(brunoPage);
-    await expect(brunoPage.getByText('Worker Worker novo criado, sem Agent.', { exact: false })).toBeVisible();
+    await expect(brunoPage.getByText('Máquina Máquina nova cadastrada, sem computador vinculado.', { exact: false })).toBeVisible();
     expect(sql(`SELECT state FROM ops_activation.organization_states WHERE organization_id = '${bornId}'`), 'continua aguardando ativação: nada foi ativado').toBe('1');
     log('C_D7', {
       chave: 'ligada por procedimento',

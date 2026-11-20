@@ -36,7 +36,7 @@ export const CAPACITY_TEXT = {
   legacy: 'Nesta organização a capacidade ainda é a definida na ativação pela Nekkora. Os limites abaixo passam a valer quando a organização exigir licença.',
   concurrentFull: 'No limite, nada é recusado: a execução seguinte fica pendente até uma vaga ser liberada.',
   pendingFull: 'Com a fila cheia, uma solicitação nova é recusada até uma execução pendente começar ou terminar.',
-  workersFull: 'No limite, um Worker novo não é cadastrado até outro ser arquivado.',
+  workersFull: 'No limite, uma máquina nova não é cadastrada até outra ser arquivada.',
   previousAgentUnconfirmed:
     'O Agent anterior informou que não sabe como essas execuções terminaram. Isso não comprova que deixaram de ocupar a máquina, então a vaga continua reservada. Ela volta quando o suporte da Nekkora registrar a reconciliação, depois de verificar que o processo terminou ou que a máquina está fora de operação. O tempo, sozinho, não libera a vaga.',
 } as const;
@@ -248,7 +248,7 @@ export function LicensesPage() {
           </div>
           {free.length > 0 && (
             <Alert tone="info" title={free.length === 1 ? 'Você tem 1 licença disponível.' : `Você tem ${free.length} licenças disponíveis.`}>
-              Para usar uma licença, use “Ativar automação” logo abaixo: escolha o ambiente de trabalho, a automação e os Workers. Enquanto não for usada, a
+              Para usar uma licença, use “Ativar automação” logo abaixo: escolha o ambiente de trabalho, a automação e as máquinas. Enquanto não for usada, a
               licença não libera a execução de nenhuma automação.
             </Alert>
           )}
@@ -281,7 +281,7 @@ export function LicensesPage() {
             </div>
           )}
           <Text variant="body-sm" color="secondary">
-            Uma licença atende uma automação durante o ciclo, em qualquer número de Workers, e não é desfeita por aqui: trocar a automação atendida é uma
+            Uma licença atende uma automação durante o ciclo, em qualquer número de máquinas, e não é desfeita por aqui: trocar a automação atendida é uma
             transferência, feita pelo suporte da Nekkora a pedido de quem administra a organização. Conceder, renovar e encerrar licenças também são atos
             do suporte.
           </Text>
@@ -297,7 +297,7 @@ export function LicensesPage() {
           {legacyCapacity && <Alert tone="info">{CAPACITY_TEXT.legacy}</Alert>}
           <div className="pw-lic__tiles" role="group" aria-label="Capacidade técnica">
             <Card variant="outlined" padding="md">
-              <Usage label="Workers cadastrados" used={c.workers.used} limit={c.workers.limit} note={CAPACITY_TEXT.workersFull} />
+              <Usage label="Máquinas cadastradas" used={c.workers.used} limit={c.workers.limit} note={CAPACITY_TEXT.workersFull} />
             </Card>
             <Card variant="outlined" padding="md">
               <Usage label="Execuções simultâneas" used={c.concurrentExecutions.used} limit={c.concurrentExecutions.limit} note={CAPACITY_TEXT.concurrentFull}>

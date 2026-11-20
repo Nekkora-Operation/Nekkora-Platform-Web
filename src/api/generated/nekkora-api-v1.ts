@@ -3389,6 +3389,15 @@ export interface components {
                 /** Format: uuid */
                 workerId: string;
                 name: string;
+                /** @description Nome do computador vinculado, informado na vinculacao (a Platform nao coleta o nome real do computador); nulo sem computador */
+                computerName?: string | null;
+                /** Format: date-time */
+                lastContactAt?: string | null;
+                /**
+                 * @description PLATFORM-FLUXO-002: estado da maquina para a tela. REGISTERED cadastrada sem computador vinculado; AWAITING_CONNECTION codigo de vinculacao ainda valido ou computador vinculado ainda sem contato; CONNECTED contato nos ultimos 180 s; NO_CONTACT vinculada sem contato recente; LINK_SUSPENDED vinculo do computador suspenso; INACTIVE maquina desativada. Cadastrar ou conectar nao consome licenca
+                 * @enum {string}
+                 */
+                machineState: "REGISTERED" | "AWAITING_CONNECTION" | "CONNECTED" | "NO_CONTACT" | "LINK_SUSPENDED" | "INACTIVE";
                 execution: components["schemas"]["AutomationActivationAuthorization"];
                 monitoring: components["schemas"]["AutomationActivationAuthorization"];
             }[];
@@ -3430,6 +3439,15 @@ export interface components {
                 /** Format: uuid */
                 workerId: string;
                 name: string;
+                /** @description Nome do computador vinculado, informado na vinculacao (a Platform nao coleta o nome real do computador); nulo sem computador */
+                computerName?: string | null;
+                /** Format: date-time */
+                lastContactAt?: string | null;
+                /**
+                 * @description PLATFORM-FLUXO-002: estado da maquina para a tela. REGISTERED cadastrada sem computador vinculado; AWAITING_CONNECTION codigo de vinculacao ainda valido ou computador vinculado ainda sem contato; CONNECTED contato nos ultimos 180 s; NO_CONTACT vinculada sem contato recente; LINK_SUSPENDED vinculo do computador suspenso; INACTIVE maquina desativada. Cadastrar ou conectar nao consome licenca
+                 * @enum {string}
+                 */
+                machineState: "REGISTERED" | "AWAITING_CONNECTION" | "CONNECTED" | "NO_CONTACT" | "LINK_SUSPENDED" | "INACTIVE";
             }[];
         };
         AutomationActivationRequest: {
@@ -4869,6 +4887,11 @@ export interface components {
                 credentialExpiresAt?: string | null;
                 /** Format: date-time */
                 createdAt?: string;
+                /**
+                 * @description PLATFORM-FLUXO-002: estado da maquina para a tela. REGISTERED cadastrada sem computador vinculado; AWAITING_CONNECTION codigo de vinculacao ainda valido ou computador vinculado ainda sem contato; CONNECTED contato nos ultimos 180 s; NO_CONTACT vinculada sem contato recente; LINK_SUSPENDED vinculo do computador suspenso; INACTIVE maquina desativada. Cadastrar ou conectar nao consome licenca
+                 * @enum {string}
+                 */
+                machineState?: "REGISTERED" | "AWAITING_CONNECTION" | "CONNECTED" | "NO_CONTACT" | "LINK_SUSPENDED" | "INACTIVE";
             }[];
         };
         WorkerCreateRequest: {
