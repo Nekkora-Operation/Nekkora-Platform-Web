@@ -16,6 +16,7 @@ import {
 import { identityPath } from '../auth/flow';
 import { StepUpDialog } from '../components/StepUpDialog';
 import { useIdentityArea } from './IdentityArea';
+import { SITUATION_LABEL } from './labels';
 import './identity.css';
 
 type Loaded = { creation: OrganizationCreationState; requests: MyOrganizationRequest[] };
@@ -228,17 +229,17 @@ export function OrganizationCreationPanel({ organizations, onChanged }: { organi
                         <div className="pw-identity__badges">
                           {o.state === 'ACTIVE' && (
                             <Badge tone="success" dot>
-                              Ativa
+                              {SITUATION_LABEL.ACTIVE}
                             </Badge>
                           )}
                           {o.state === 'DEACTIVATED' && (
                             <Badge tone="neutral" dot>
-                              Desativada por você{o.deactivatedAt ? ` em ${dateText(o.deactivatedAt)}` : ''}
+                              {SITUATION_LABEL.DEACTIVATED}{o.deactivatedAt ? ` em ${dateText(o.deactivatedAt)}` : ''}
                             </Badge>
                           )}
                           {o.state === 'BLOCKED' && (
                             <Badge tone="warning" dot>
-                              Bloqueada pela Nekkora
+                              {SITUATION_LABEL.BLOCKED}
                             </Badge>
                           )}
                           {o.empty && <Badge tone="info">Vazia (sem automações)</Badge>}

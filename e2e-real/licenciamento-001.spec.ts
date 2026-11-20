@@ -529,7 +529,7 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   await shot(anaPage, 'B4b-inicio-modelo-por-licenca');
   await go(anaPage, '/organizacoes');
   const matrizItem = anaPage.getByRole('list', { name: 'Organizações' }).getByRole('listitem').filter({ hasText: matrizName });
-  await expect(matrizItem.getByText('Modelo por licença', { exact: true })).toBeVisible();
+  await expect(matrizItem.getByText('Execução: por licença', { exact: true })).toBeVisible();
   await expect(matrizItem.getByText('Aguardando ativação')).toHaveCount(0);
   await expect(matrizItem.getByText(/nenhum Worker pode ser registrado/)).toHaveCount(0);
   await shot(anaPage, 'B4b-organizacoes-modelo-por-licenca');
@@ -701,7 +701,7 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
     await createOrganization(brunoPage, bruno, born);
     await go(brunoPage, '/organizacoes');
     const bornItem = brunoPage.getByRole('list', { name: 'Organizações' }).getByRole('listitem').filter({ hasText: born });
-    await expect(bornItem.getByText('Modelo por licença', { exact: true })).toBeVisible();
+    await expect(bornItem.getByText('Execução: por licença', { exact: true })).toBeVisible();
     await expect(bornItem.getByText(/nenhum Worker pode ser registrado/)).toHaveCount(0);
     const bornId = await enter(brunoPage, born);
     await go(brunoPage, `/o/${bornId}/administracao/licencas`);

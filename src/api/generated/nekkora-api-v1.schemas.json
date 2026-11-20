@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "24ca08bc06390efae224dc348bcc632e6964bf2905675331a76d93b75d3e65ad",
+  "openapiSha256": "b95e22b906a948d7955ebe2017e7bdbf1f76831d0c2e3e54978ade1a01aeb462",
   "schemas": {
     "Error": {
       "type": "object",
@@ -2680,6 +2680,7 @@
         "canRequest",
         "emptyOrganizations",
         "pendingRequests",
+        "newOrganizationLicenseModel",
         "responsibleFor"
       ],
       "properties": {
@@ -2733,6 +2734,13 @@
         },
         "pendingRequests": {
           "$ref": "#/components/schemas/UsedOfLimit"
+        },
+        "newOrganizationLicenseModel": {
+          "allOf": [
+            {
+              "$ref": "#/components/schemas/OrganizationLicenseModel"
+            }
+          ]
         },
         "responsibleFor": {
           "type": "array",

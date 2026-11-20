@@ -60,7 +60,7 @@ test('ativação pela CLI real dos operadores: Aguardando ativação → Ativada
   // 4. de volta ao navegador: o estado novo vem da API
   await page.goto('/organizacoes');
   const depois = page.getByRole('listitem').filter({ hasText: nome });
-  await expect(depois.getByText('Ativada')).toBeVisible();
+  await expect(depois.getByText('Execução: liberada')).toBeVisible();
   await expect(depois.getByText('Aguardando ativação')).toHaveCount(0);
 
   // 5. consequência prática: agora o Worker é criado e o código de pareamento para ele é emitido (sem Agent desktop; não é usado)

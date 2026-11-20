@@ -282,11 +282,11 @@ describe('Operador de licenças', () => {
 describe('Textos que dependem do modelo da organização', () => {
   it('modelo por licença: não diz "aguardando ativação" nem que nenhum Worker pode ser registrado', () => {
     const licensed = activationLabel('AGUARDANDO_ATIVACAO', 'licensed');
-    expect(licensed.label).toBe('Modelo por licença');
+    expect(licensed.label).toBe('Execução: por licença');
     expect(licensed.description).toBe(LICENSED_MODEL_TEXT);
     expect(licensed.description).not.toMatch(/nenhum Worker pode/);
     // modelo anterior (ou API sem o campo): o texto de ativação continua valendo
-    expect(activationLabel('AGUARDANDO_ATIVACAO', 'legacy').label).toBe('Aguardando ativação');
+    expect(activationLabel('AGUARDANDO_ATIVACAO', 'legacy').label).toBe('Execução: aguardando ativação');
     expect(activationLabel('AGUARDANDO_ATIVACAO').description).toMatch(/nenhum Worker pode ser registrado/);
   });
 

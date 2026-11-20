@@ -8,6 +8,7 @@ import { fakeLocks } from '../test/fakeLocks';
 import { lbl, user } from '../test/helpers';
 import { renderApp } from '../test/render';
 import { RouteApi } from '../test/routeApi';
+import { BORN_LICENSED } from './labels';
 import { CANNOT_CREATE, creationRateLimitText, DEACTIVATE_TEXT } from './OrganizationCreationPanel';
 
 /**
@@ -30,6 +31,7 @@ const creation = (over: Record<string, unknown> = {}) => ({
   canRequest: false,
   emptyOrganizations: { used: 0, limit: 3, organizationIds: [] },
   pendingRequests: { used: 0, limit: 3 },
+  newOrganizationLicenseModel: 'legacy',
   responsibleFor: [],
   ...over,
 });
@@ -53,6 +55,48 @@ beforeEach(() => {
   api.on('GET', '/api/v1/me/session', 'identitySessionState', { status: 200, body: { restricted: false, csrfToken: 'id-csrf', mfaEnabled: true, stepUpMethod: 'totp' } });
   api.on('GET', '/api/v1/me/organization-requests', 'identityOrganizationRequests', { status: 200, body: { items: [] } });
   api.on('POST', '/api/v1/auth/step-up', 'identityStepUp', { status: 204 });
+});
+
+describe('o que a tela de criação diz antes de criar, pelo modelo em que a organização nasce', () => {
+  it('modelo por licença: nasce pronta para configurar, sem "aguardando ativação" e sem depender de aprovação da Nekkora', async () => {
+    api.on('GET', '/api/v1/me/organization-creation', 'identityOrganizationCreation', { status: 200, body: creation({ newOrganizationLicenseModel: 'licensed' }) });
+    renderApp('/organizacoes/nova');
+    expect(await screen.findByText(BORN_LICENSED.title)).toBeInTheDocument();
+    expect(screen.getByText(BORN_LICENSED.body)).toBeInTheDocument();
+    expect(BORN_LICENSED.body).toMatch(/sem depender de aprovação da Nekkora/);
+    expect(BORN_LICENSED.body).toMatch(/Para executar e monitorar uma automação, vincule a ela uma licença vigente\./);
+    expect(screen.queryByText(/aguardando ativação/i)).toBeNull();
+    expect(screen.queryByText(/nenhum Worker pode ser registrado/)).toBeNull();
+  });
+
+  it('modelo anterior (chave desligada): continua dizendo que nasce aguardando ativação', async () => {
+    api.on('GET', '/api/v1/me/organization-creation', 'identityOrganizationCreation', { status: 200, body: creation() });
+    renderApp('/organizacoes/nova');
+    expect(await screen.findByText('A organização nasce aguardando ativação.')).toBeInTheDocument();
+    expect(screen.queryByText(BORN_LICENSED.title)).toBeNull();
+  });
+
+  it('sem a informação do modelo: a tela não afirma nenhum dos dois', async () => {
+    api.on('GET', '/api/v1/me/organization-creation', 'identityOrganizationCreation', { status: 404, body: { error: 'not_found' } });
+    renderApp('/organizacoes/nova');
+    expect(await screen.findByRole('heading', { name: 'Criar organização' })).toBeInTheDocument();
+    await waitFor(() => expect(api.sent('GET', '/api/v1/me/organization-creation').length).toBeGreaterThanOrEqual(1));
+    expect(screen.queryByText(BORN_LICENSED.title)).toBeNull();
+    expect(screen.queryByText(/aguardando ativação/i)).toBeNull();
+  });
+
+  it('situação e disponibilidade de execução têm rótulos que dizem a dimensão', async () => {
+    listing([{ ...org(ORG_A, 'Casa', ['ORG_ADMIN']), activationState: 'AGUARDANDO_ATIVACAO', licenseModel: 'licensed' }], true);
+    api.on('GET', '/api/v1/me/organization-creation', 'identityOrganizationCreation', {
+      status: 200,
+      body: creation({ responsibleFor: [{ organizationId: ORG_A, name: 'Casa', state: 'ACTIVE', empty: true, deactivatedAt: null, canReactivate: false }] }),
+    });
+    renderApp('/organizacoes');
+    expect(await screen.findByText('Situação: ativa')).toBeInTheDocument();
+    expect(screen.getByText('Execução: por licença')).toBeInTheDocument();
+    expect(screen.queryByText('Ativa')).toBeNull();
+    expect(screen.queryByText(/aguardando ativação/i)).toBeNull();
+  });
 });
 
 describe('criação por perfil', () => {
@@ -149,7 +193,7 @@ describe('desativar e reativar', () => {
     expect(within(list).getByRole('button', { name: 'Desativar a organização Ativa' })).toBeInTheDocument();
     expect(within(list).getByRole('button', { name: 'Reativar a organização Parada por mim' })).toBeInTheDocument();
     const blocked = within(list).getByRole('heading', { name: 'Parada pela Nekkora' }).closest('li')!;
-    expect(within(blocked).getByText('Bloqueada pela Nekkora')).toBeInTheDocument();
+    expect(within(blocked).getByText('Situação: bloqueada pela Nekkora')).toBeInTheDocument();
     expect(within(blocked).getByText(DEACTIVATE_TEXT.blocked)).toBeInTheDocument();
     expect(within(blocked).queryByRole('button')).toBeNull();
   });

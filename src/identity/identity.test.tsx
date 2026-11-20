@@ -156,7 +156,7 @@ describe('organizações', () => {
     joined = true;
     await user().click(screen.getByRole('button', { name: 'Atualizar lista' }));
     const card = (await screen.findByRole('heading', { name: 'Acme' })).closest('li')!;
-    expect(within(card).getByText('Aguardando ativação')).toBeInTheDocument();
+    expect(within(card).getByText('Execução: aguardando ativação')).toBeInTheDocument();
     expect(within(card).getByText(/nenhuma automação executa até a ativação/)).toBeInTheDocument();
     await user().click(within(card).getByRole('button', { name: 'Entrar em Acme (acme)' }));
     expect(await within(card).findByText(/Não foi possível entrar nesta organização/)).toBeInTheDocument();

@@ -926,7 +926,7 @@ export interface paths {
         };
         /**
          * Perfil de quem cria organizacao, limites e as organizacoes de que a pessoa e responsavel
-         * @description SO indicacao para a interface; o servidor decide em cada ato. profile: FIRST (sem conta ativa: cria a primeira), ADMIN (administra alguma organizacao: cria direto), MEMBER (conta interna ativa, nao administra nenhuma: solicita) ou CLIENT (so conta do tipo Cliente, reconhecida pelo mesmo e-mail verificado: nao cria nem solicita). O perfil e reavaliado a cada chamada; ser Cliente numa organizacao nao tira a administracao de outra. canCreate e cannotCreateReason (o reason que a criacao responderia). canRequest: MEMBER com menos de tres pedidos pendentes. emptyOrganizations: as organizacoes ATIVAS e sem nenhuma automacao de que a pessoa e responsavel, contra o limite (tres, configuravel); desativadas nao contam. responsibleFor: as organizacoes de que a pessoa e responsavel, inclusive as desativadas, que nao aparecem em /api/v1/me/organizations - state ACTIVE, DEACTIVATED (desativada por esta acao; canReactivate) ou BLOCKED (parada por decisao da Nekkora, ou com bloqueio registrado: a reativacao nao a remove). Mesmas chaves da criacao: qualquer uma desligada, 404.
+         * @description SO indicacao para a interface; o servidor decide em cada ato. profile: FIRST (sem conta ativa: cria a primeira), ADMIN (administra alguma organizacao: cria direto), MEMBER (conta interna ativa, nao administra nenhuma: solicita) ou CLIENT (so conta do tipo Cliente, reconhecida pelo mesmo e-mail verificado: nao cria nem solicita). O perfil e reavaliado a cada chamada; ser Cliente numa organizacao nao tira a administracao de outra. canCreate e cannotCreateReason (o reason que a criacao responderia). canRequest: MEMBER com menos de tres pedidos pendentes. emptyOrganizations: as organizacoes ATIVAS e sem nenhuma automacao de que a pessoa e responsavel, contra o limite (tres, configuravel); desativadas nao contam. responsibleFor: as organizacoes de que a pessoa e responsavel, inclusive as desativadas, que nao aparecem em /api/v1/me/organizations - state ACTIVE, DEACTIVATED (desativada por esta acao; canReactivate) ou BLOCKED (parada por decisao da Nekkora, ou com bloqueio registrado: a reativacao nao a remove). newOrganizationLicenseModel: o modelo em que a organizacao criada agora nasce (D7). Mesmas chaves da criacao: qualquer uma desligada, 404.
          */
         get: operations["identityOrganizationCreation"];
         put?: never;
@@ -3731,6 +3731,8 @@ export interface components {
                 organizationIds: string[];
             };
             pendingRequests: components["schemas"]["UsedOfLimit"];
+            /** @description D7: o modelo em que uma organizacao criada AGORA nasce (a chave license_rollout). licensed: nasce pronta para configurar, sem ativacao a esperar; executar e monitorar uma automacao depende de licenca vinculada a ela. legacy: nasce aguardando a ativacao pela operacao. So indicacao para a tela; quem decide e a criacao. */
+            newOrganizationLicenseModel: components["schemas"]["OrganizationLicenseModel"];
             responsibleFor: {
                 /** Format: uuid */
                 organizationId: string;
