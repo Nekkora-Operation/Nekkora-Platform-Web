@@ -254,3 +254,28 @@ export async function workersText(page: Page, org: string): Promise<string> {
   await region.waitFor({ timeout: 15_000 });
   return region.innerText().catch(() => '');
 }
+
+/**
+ * PLATFORM-FLUXO-002 — "Ativar automação" pela TELA (Administração › Licenças e automações): ambiente de trabalho →
+ * automação → Workers (só os informados; nenhum vem marcado) → conferência → "Ativar execução e monitoramento". Espera o
+ * resumo do resultado. {@code validUntil} (AAAA-MM-DD): só no modelo anterior, quando há Worker.
+ */
+export async function activateAutomation(
+  page: Page,
+  person: Person,
+  org: string,
+  opts: { workspace: string; automation: string; workers?: string[]; validUntil?: string },
+) {
+  await page.goto(`/o/${org}/administracao/licencas`);
+  await page.getByRole('button', { name: 'Ativar automação' }).click();
+  const d = page.getByRole('alertdialog');
+  await d.getByLabel('1. Ambiente de trabalho').selectOption({ label: opts.workspace });
+  const select = d.getByLabel('2. Automação');
+  await expect(select.locator('option', { hasText: opts.automation })).toHaveCount(1);
+  const value = await select.locator('option', { hasText: opts.automation }).getAttribute('value');
+  await select.selectOption(value!);
+  for (const w of opts.workers ?? []) await d.getByRole('checkbox', { name: w }).check();
+  if (opts.validUntil) await d.getByLabel('Validade das autorizações').fill(opts.validUntil);
+  await confirmStepUp(page, person, 'Ativar execução e monitoramento');
+  await expect(page.getByRole('alert').filter({ hasText: `${opts.automation}:` }).first()).toBeVisible({ timeout: 30_000 });
+}
