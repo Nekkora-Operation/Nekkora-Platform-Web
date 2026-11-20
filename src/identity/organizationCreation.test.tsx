@@ -66,7 +66,7 @@ describe('o que a tela de criação diz antes de criar, pelo modelo em que a org
     expect(BORN_LICENSED.body).toMatch(/sem depender de aprovação da Nekkora/);
     expect(BORN_LICENSED.body).toMatch(/Para executar e monitorar uma automação, vincule a ela uma licença vigente\./);
     expect(screen.queryByText(/aguardando ativação/i)).toBeNull();
-    expect(screen.queryByText(/nenhum Worker pode ser registrado/)).toBeNull();
+    expect(screen.queryByText(/nenhuma máquina pode ser registrada/)).toBeNull();
   });
 
   it('modelo anterior (chave desligada): continua dizendo que nasce aguardando ativação', async () => {

@@ -119,7 +119,7 @@ export function RemoteMachines({ workspaceId }: { workspaceId: string }) {
         </Stack>
       ),
     },
-    { key: 'worker', header: 'Worker', render: (m) => m.workerName },
+    { key: 'worker', header: 'Máquina', render: (m) => m.workerName },
     {
       key: 'maquina',
       header: 'Máquina',

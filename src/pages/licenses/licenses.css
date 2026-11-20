@@ -12,3 +12,4 @@
 .pw-lic__review { border: 1px solid var(--nk-color-border); border-radius: var(--nk-radius-md, 8px); padding: var(--nk-space-3); }
 .pw-lic__review h3 { margin: 0 0 var(--nk-space-2); }
 .pw-lic__review ul { margin: 0; padding-left: var(--nk-space-5, 1.25rem); display: flex; flex-direction: column; gap: var(--nk-space-2); }
+.pw-lic__machine { display: flex; flex-wrap: wrap; align-items: center; gap: var(--nk-space-2); }

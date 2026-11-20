@@ -122,7 +122,7 @@ export function LocalRunAuthorizations({
           },
         ]),
     { key: 'origem', header: 'Origem', render: (a) => (a.sourceKind ? SOURCE_KIND[a.sourceKind] : '—') },
-    { key: 'worker', header: 'Worker', render: (a) => workerName(a.workerId) },
+    { key: 'worker', header: 'Máquina', render: (a) => workerName(a.workerId) },
     {
       key: 'impressao',
       header: 'Impressão do pacote',
@@ -136,7 +136,7 @@ export function LocalRunAuthorizations({
         canExecute && stateOf(a).label === 'Vigente' ? (
           <span className="pw-form__row">
             {a.sourceKind !== 'EXTERNAL_MONITORED' && (
-              <Button size="sm" onClick={() => setExecuting(a)} aria-label={`Executar na máquina do Worker ${workerName(a.workerId)}`}>
+              <Button size="sm" onClick={() => setExecuting(a)} aria-label={`Executar na máquina ${workerName(a.workerId)}`}>
                 Executar
               </Button>
             )}
@@ -156,7 +156,7 @@ export function LocalRunAuthorizations({
       {notice && <Alert tone={notice.tone}>{notice.text}</Alert>}
 
       <Alert tone="info" title={automation ? 'O monitoramento é liberado pela ativação da automação.' : 'A execução desta versão é liberada pela ativação da automação.'}>
-        Quem administra a organização ativa a automação em Administração › Licenças e automações: escolhe os Workers e, em um passo, libera a
+        Quem administra a organização ativa a automação em Administração › Licenças e automações: escolhe as máquinas e, em um passo, libera a
         execução e o monitoramento, com a licença. Uma versão nova é aceita em “Gerenciar ativação”.{' '}
         {canManage && <RouteLink to={orgPath.licenses(org)}>Abrir Licenças e automações</RouteLink>}
         {automation && (

@@ -49,7 +49,7 @@ type Guardada = { email: string; password: string; name: string; secret: string 
 const guardar = (x: Person): Guardada => ({ email: x.email, password: x.password, name: x.name, secret: (x.auth as unknown as { secret: string }).secret });
 const reviver = (g: Guardada): Person => ({ email: g.email, password: g.password, name: g.name, auth: new Authenticator(g.secret), recoveryCodes: [] });
 const TAG = Date.now().toString(36);
-const WORKER = 'Worker da fabrica';
+const WORKER = 'Máquina da fabrica';
 const MAQUINA = 'PC sintetico da fabrica';
 const AUTOMACAO = 'Robo de notas';
 
@@ -346,12 +346,12 @@ test('PLATFORM-LICENCIAMENTO-001 com o Client empacotado: licença → execuçã
 
     // ================================================================ 3. o Worker e a máquina (habilitação no executável)
     await go(anaPage, `/o/${fabrica}/workers`);
-    await anaPage.getByRole('heading', { name: 'Workers', level: 1 }).waitFor();
-    await anaPage.getByRole('button', { name: 'Criar Worker' }).click();
-    await anaPage.getByRole('alertdialog').getByLabel(/^Nome do Worker/).fill(WORKER);
-    await anaPage.getByRole('alertdialog').getByRole('button', { name: 'Criar Worker' }).click();
+    await anaPage.getByRole('heading', { name: 'Máquinas', level: 1 }).waitFor();
+    await anaPage.getByRole('button', { name: 'Cadastrar máquina' }).click();
+    await anaPage.getByRole('alertdialog').getByLabel(/^Nome da máquina/).fill(WORKER);
+    await anaPage.getByRole('alertdialog').getByRole('button', { name: 'Cadastrar máquina' }).click();
     await settle(anaPage);
-    await expect(anaPage.getByText(`Worker ${WORKER} criado, sem Agent.`, { exact: false })).toBeVisible();
+    await expect(anaPage.getByText(`Máquina ${WORKER} cadastrada, sem computador vinculado.`, { exact: false })).toBeVisible();
     await go(anaPage, `/o/${fabrica}/workers`);
     await anaPage.getByRole('button', { name: `Vincular Agent a ${WORKER}` }).click();
     await anaPage.getByRole('alertdialog').getByLabel(/^Nome da máquina/).fill(MAQUINA);
@@ -431,7 +431,7 @@ test('PLATFORM-LICENCIAMENTO-001 com o Client empacotado: licença → execuçã
     expect(escolhido, 'um dos ambientes virtuais tem a dependência do pacote').toBeGreaterThanOrEqual(0);
     log('4_python_e_dependencias', { ambiente_escolhido: `o ${escolhido + 1}o ambiente virtual informado pela maquina`, esperas_pelo_intervalo_de_um_minuto_entre_verificacoes: esperasDoIntervalo });
     // falta SÓ a autorização da versão: a tela oferece autorizar e solicitar no mesmo passo
-    await expect(linha().getByRole('list', { name: `O que falta em ${MAQUINA}` })).toHaveText(/Falta a autorização de execução desta versão para o Worker desta máquina\./);
+    await expect(linha().getByRole('list', { name: `O que falta em ${MAQUINA}` })).toHaveText(/Falta a autorização de execução desta versão para esta máquina\./);
     await expect(linha().getByRole('button', { name: `Solicitar execução em ${MAQUINA}` })).toHaveCount(0);
     await shot(anaPage, 'M4-falta-so-a-autorizacao');
 
@@ -465,7 +465,7 @@ test('PLATFORM-LICENCIAMENTO-001 com o Client empacotado: licença → execuçã
       await settle(anaPage);
     };
     await autorizarESolicitar();
-    await expect(anaPage.getByText(/Versão aceita para este Worker e solicitação registrada\./)).toBeVisible({ timeout: 30_000 });
+    await expect(anaPage.getByText(/Versão aceita para esta máquina e solicitação registrada\./)).toBeVisible({ timeout: 30_000 });
     await expect(anaPage.getByText(/O aceite vale até /)).toBeVisible({ timeout: 30_000 });
     await shot(anaPage, 'M5-autorizada-e-solicitada-no-mesmo-passo');
     const autorizacao = sql(`SELECT to_char(valid_until AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD') || ' por ' || (SELECT email FROM users u JOIN organization_memberships m ON m.user_id = u.user_id WHERE m.membership_id = z.granted_by_membership_id) FROM local_run_authorizations z WHERE z.automation_version_id = '${versaoRapidaId}' AND z.worker_id = '${worker}' AND z.revoked_at IS NULL`);
@@ -562,9 +562,9 @@ test('PLATFORM-LICENCIAMENTO-001 com o Client empacotado: licença → execuçã
     await expect(secao).toBeVisible({ timeout: 60_000 });
     await maquinaLivre();
     // versão nova: a autorização da anterior NÃO vale para ela
-    await expect(linha().getByRole('list', { name: `O que falta em ${MAQUINA}` })).toContainText('Falta a autorização de execução desta versão para o Worker desta máquina.', { timeout: 60_000 });
+    await expect(linha().getByRole('list', { name: `O que falta em ${MAQUINA}` })).toContainText('Falta a autorização de execução desta versão para esta máquina.', { timeout: 60_000 });
     await autorizarESolicitar();
-    await expect(anaPage.getByText(/Versão autorizada para este Worker e solicitação registrada\./)).toBeVisible({ timeout: 30_000 });
+    await expect(anaPage.getByText(/Versão autorizada para esta máquina e solicitação registrada\./)).toBeVisible({ timeout: 30_000 });
     [estado, , , tentativa] = await ateEstado(versaoLongaId, (e) => e >= 6);
     expect(estado, `em execução (${ultima(versaoLongaId).join('|')})`).toBe('6');
     for (let vez = 1; Number(sql(`SELECT count(*) FROM remote_attempt_log_lines WHERE attempt_id = '${tentativa}'`)) < 2; vez++) {
@@ -639,22 +639,22 @@ test('PLATFORM-LICENCIAMENTO-001 com o Client empacotado: licença → execuçã
     // ================================================================ 10. LIMITE DE WORKERS: a recusa é dita à PESSOA, na Platform
     // PROCEDIMENTO ADMINISTRATIVO: limite técnico de Workers = 1 (a organização já tem um). O limite é conferido quando a
     // pessoa cria o Worker; a máquina não participa e o aplicativo não recebe esse motivo.
-    sql(`UPDATE technical_capacity_limits SET limit_value = 1, updated_by = 'roteiro da maquina: limite 1 de Workers' WHERE resource_code = 1`);
+    sql(`UPDATE technical_capacity_limits SET limit_value = 1, updated_by = 'roteiro da maquina: limite 1 de máquinas' WHERE resource_code = 1`);
     await go(anaPage, `/o/${fabrica}/workers`);
-    await anaPage.getByRole('button', { name: 'Criar Worker' }).click();
+    await anaPage.getByRole('button', { name: 'Cadastrar máquina' }).click();
     const novo = anaPage.getByRole('alertdialog');
-    await novo.getByLabel(/^Nome do Worker/).fill('Worker dois');
-    await novo.getByRole('button', { name: 'Criar Worker' }).click();
+    await novo.getByLabel(/^Nome da máquina/).fill('Máquina dois');
+    await novo.getByRole('button', { name: 'Cadastrar máquina' }).click();
     await settle(anaPage);
     await expect(novo.getByRole('alert').first()).toBeVisible({ timeout: 30_000 });
     const recusaDoLimite = (await novo.getByRole('alert').first().innerText()).replace(/\s+/g, ' ').trim();
-    expect(recusaDoLimite, 'no modelo por licença a recusa fala do limite técnico, sem ativação').toMatch(/limite técnico de Workers cadastrados/);
+    expect(recusaDoLimite, 'no modelo por licença a recusa fala do limite técnico, sem ativação').toMatch(/limite técnico de máquinas cadastradas/);
     expect(recusaDoLimite).not.toMatch(/aguarda ativação|depois da ativação/);
     expect(recusaDoLimite, 'capacidade, não licença').toMatch(/sem relação com a ativação nem com a quantidade de licenças/);
     await shot(anaPage, 'M10-limite-de-workers-na-platform');
     expect(sql(`SELECT count(*) FROM workers WHERE organization_id = '${fabrica}'`), 'nada foi criado').toBe('1');
     log('10_limite_de_workers', {
-      procedimento: 'limite tecnico de Workers = 1, com um Worker cadastrado',
+      procedimento: 'limite tecnico de máquinas = 1, com uma máquina cadastrada',
       na_web: recusaDoLimite,
       nada_criado: true,
       aplicativo: 'nao participa: a Platform nao envia esse motivo a maquina (o texto que o aplicativo tinha para isso foi retirado)',

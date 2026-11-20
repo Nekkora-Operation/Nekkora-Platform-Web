@@ -71,7 +71,7 @@ test('PLATFORM-LICENCIAMENTO-001: a organização criada pelo administrador nasc
   await expect(page.getByText('A organização nasce pronta para configurar.')).toBeVisible();
   await expect(page.getByText(/sem depender de aprovação da Nekkora\. Para executar e monitorar uma automação, vincule a ela uma licença vigente\./).first()).toBeVisible();
   await expect(page.getByText(/aguardando ativação/i)).toHaveCount(0);
-  await expect(page.getByText(/nenhum Worker pode ser registrado/)).toHaveCount(0);
+  await expect(page.getByText(/nenhuma máquina pode ser registrada/)).toHaveCount(0);
   await shot(page, '1-antes-de-criar');
   log('1_antes_de_criar', { pela_tela: true, diz: 'nasce pronta para configurar; executar e monitorar depende de licenca', aguardando_ativacao_na_tela: 0 });
 
@@ -112,13 +112,13 @@ test('PLATFORM-LICENCIAMENTO-001: a organização criada pelo administrador nasc
 
   // ================================================================ 4. a preparação não é bloqueada: Worker sem ativação e sem licença
   await go(page, `/o/${org}/workers`);
-  await page.getByRole('heading', { name: 'Workers', level: 1 }).waitFor();
-  await page.getByRole('button', { name: 'Criar Worker' }).click();
+  await page.getByRole('heading', { name: 'Máquinas', level: 1 }).waitFor();
+  await page.getByRole('button', { name: 'Cadastrar máquina' }).click();
   const dialog = page.getByRole('alertdialog');
-  await dialog.getByLabel(/^Nome do Worker/).fill('Worker da nascente');
-  await dialog.getByRole('button', { name: 'Criar Worker' }).click();
+  await dialog.getByLabel(/^Nome da máquina/).fill('Máquina da nascente');
+  await dialog.getByRole('button', { name: 'Cadastrar máquina' }).click();
   await settle(page);
-  await expect(page.getByText('Worker Worker da nascente criado, sem Agent.', { exact: false })).toBeVisible();
+  await expect(page.getByText('Máquina Máquina da nascente cadastrada, sem computador vinculado.', { exact: false })).toBeVisible();
   await shot(page, '4-worker-criado');
   const ativacao = sql(`SELECT state FROM ops_activation.organization_states WHERE organization_id = '${org}'`);
   expect(ativacao, 'nada foi ativado: o ciclo de ativação do modelo anterior não foi tocado').toBe('1');

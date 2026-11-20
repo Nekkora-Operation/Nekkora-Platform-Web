@@ -79,7 +79,7 @@ export function OneTimeCode({ code, onCancel, onDone }: { code: AgentCode; onCan
                   () => setCancelState('done'),
                   (e) =>
                     setCancelState(
-                      isApiError(e, 'conflict') ? 'O código já foi usado ou cancelado.' : 'Não foi possível confirmar o cancelamento. Confira a lista de Workers.',
+                      isApiError(e, 'conflict') ? 'O código já foi usado ou cancelado.' : 'Não foi possível confirmar o cancelamento. Confira a lista de máquinas.',
                     ),
                 );
               }}
@@ -175,23 +175,23 @@ export function PairAgentDialog({ worker, onDone, onClose }: { worker: FreeWorke
         hasReason(e, 'conflict', REMOTE_UNAVAILABLE_REASON)
           ? REMOTE_UNAVAILABLE_TEXT
           : accessRefusal(e, {
-          conflict: 'Este Worker já tem um Agent vinculado. Atualize a lista.',
+          conflict: 'Esta máquina já tem um Agent vinculado. Atualize a lista.',
           // no modelo por licença a ativação não se aplica: a recusa é só de permissão
           forbidden:
             me.organizationLicenseModel === 'licensed'
-              ? 'O código não foi gerado: faltam permissões (Agents, credenciais, vínculo de Workers).'
-              : 'O código não foi gerado: faltam permissões (Agents, credenciais, vínculo de Workers) ou a organização ainda não foi ativada.',
+              ? 'O código não foi gerado: faltam permissões (Agents, credenciais, vínculo de máquinas).'
+              : 'O código não foi gerado: faltam permissões (Agents, credenciais, vínculo de máquinas) ou a organização ainda não foi ativada.',
         })
       }
       uncertainText="Não foi possível confirmar se o código foi gerado. Feche: se foi, ele não pode ser exibido de novo e vence sozinho; gere outro."
       onUnauthenticated={expired}
     >
       <Text>
-        O código vincula a máquina a este Worker, sem cadastrar outro. A máquina só aparece na lista depois que o Agent usar o
+        O código vincula o computador a esta máquina, sem cadastrar outra. A máquina só aparece na lista depois que o Agent usar o
         código; cancelar o código ou deixá-lo vencer não registra máquina nenhuma.
       </Text>
       <Input
-        label="Nome da máquina"
+        label="Nome do computador"
         required
         fullWidth
         maxLength={80}
@@ -241,11 +241,11 @@ export function RotateCredentialDialog({ agent, onDone, onClose }: { agent: Link
       action={() => (agent ? createRotationCode(org, agent.agentId) : Promise.reject())}
       onDone={onDone}
       onClose={onClose}
-      refusalText={(e) => accessRefusal(e, { notFound: 'A máquina não está mais vinculada a este Worker.' })}
+      refusalText={(e) => accessRefusal(e, { notFound: 'O computador não está mais vinculado a esta máquina.' })}
       uncertainText="Não foi possível confirmar se o código foi gerado. Feche e gere outro se precisar."
       onUnauthenticated={expired}
     >
-      <Text>O Agent resgata o código apresentando a credencial atual; nesse momento a credencial anterior deixa de valer. O vínculo com o Worker continua.</Text>
+      <Text>O Agent resgata o código apresentando a credencial atual; nesse momento a credencial anterior deixa de valer. O vínculo com a máquina continua.</Text>
     </StepUpDialog>
   );
 }
@@ -279,12 +279,12 @@ export function RevokeLinkDialog({
       onDone={onDone}
       onClose={onClose}
       refusalText={(e) => accessRefusal(e, { conflict: 'O vínculo já foi revogado.' })}
-      uncertainText="Não foi possível confirmar a revogação. Feche e confira a lista de Workers."
+      uncertainText="Não foi possível confirmar a revogação. Feche e confira a lista de máquinas."
       onUnauthenticated={expired}
       onOutcome={(k) => k === 'uncertain' && onUncertain?.()}
     >
       <Text>
-        A credencial da máquina é revogada e os códigos abertos são cancelados. O Worker fica livre na Platform e continua
+        A credencial da máquina é revogada e os códigos abertos são cancelados. A máquina fica livre na Platform e continua
         existindo, com as autorizações de ambiente de trabalho e o histórico. Para usar uma máquina de novo, será preciso vincular um
         Agent (novo pareamento).
       </Text>

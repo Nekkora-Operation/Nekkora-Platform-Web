@@ -92,21 +92,21 @@ test('M1: Python externo do agendador monitorado pela Platform (0, erro com efei
   log('ids', { org, workspaceId, automationId });
 
   // ---------- pareamento do Agent real (T07: Workers → Criar Worker → Vincular Agent; código na tela, digitado no Agent)
-  const code = await pairNewWorker(page, org, ana, 'Worker relatórios', 'ESTACAO-PY1');
+  const code = await pairNewWorker(page, org, ana, 'Máquina relatórios', 'ESTACAO-PY1');
   agent('iniciar');
   agent('parear', `${code}\n`);
   await page.getByRole('button', { name: 'Concluir' }).click();
   await expect.poll(() => workersText(page, org), { timeout: 240_000, intervals: [10_000] }).toMatch(/ESTACAO-PY1[\s\S]*Conectada/);
   await page.goto(`/o/${org}/workers`);
-  await page.getByRole('button', { name: 'Autorizar Worker relatórios num ambiente de trabalho' }).click();
+  await page.getByRole('button', { name: 'Autorizar Máquina relatórios num ambiente de trabalho' }).click();
   await page.getByRole('alertdialog').getByLabel('Ambiente de trabalho').selectOption(workspaceId);
   await confirmStepUp(page, ana, 'Autorizar');
-  await expect(page.getByText('Worker autorizado no ambiente de trabalho.')).toBeVisible();
+  await expect(page.getByText('Máquina autorizada no ambiente de trabalho.')).toBeVisible();
 
   // ---------- autorização de MONITORAMENTO na automação (sem versão nem impressão)
   await page.goto(automationUrl);
   await expect(page.getByRole('heading', { name: 'Monitoramento de Python externo' })).toBeVisible();
-  await page.getByLabel(/^Worker autorizado neste ambiente de trabalho/).selectOption({ label: 'Worker relatórios' });
+  await page.getByLabel(/^Máquina autorizada neste ambiente de trabalho/).selectOption({ label: 'Máquina relatórios' });
   await page.getByRole('button', { name: 'Autorizar monitoramento' }).click();
   await confirmStepUp(page, ana, 'Autorizar monitoramento');
   await expect(page.getByText(/Monitoramento autorizado\. Nada foi iniciado/)).toBeVisible();

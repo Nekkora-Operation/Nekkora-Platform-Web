@@ -1,6 +1,6 @@
 {
   "repository": "Nekkora-Operation/Nekkora-Platform-API",
-  "commit": "7c202d7ccdeff4661ad3c314aab541eef47dd1af",
+  "commit": "dcc0885ebc0fdffe88439e611272f3685e07582b",
   "path": "api/openapi/nekkora-api-v1.yaml",
-  "sha256": "2cccefbdf86912916932698af12eaa252709d262a74b1081dcf388d726501742"
+  "sha256": "3605da0aa713c05692ca285728ea1df9507e35aa67a93d984fb25afe0caf1c37"
 }

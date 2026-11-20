@@ -60,9 +60,9 @@ export const onlyAuthorizationMissing = (missing: readonly string[]) =>
  * execução"), quando a versão ainda não foi aceita para o Worker desta máquina. Com uma autorização válida, nada a aceitar.
  */
 export const ACCEPT_VERSION = {
-  ACK: (version: string, worker: string) => `Aceito executar a ${version} no Worker ${worker}.`,
+  ACK: (version: string, worker: string) => `Aceito executar a ${version} na máquina ${worker}.`,
   SCOPE:
-    'Esta versão ainda não foi aceita para o Worker desta máquina. Ao confirmar, você a aceita aqui e a solicitação segue no mesmo passo. O aceite vale só para esta versão, neste Worker: versões futuras não ficam aceitas. Fica registrado com o seu nome.',
+    'Esta versão ainda não foi aceita para esta máquina. Ao confirmar, você a aceita aqui e a solicitação segue no mesmo passo. O aceite vale só para esta versão, neste Worker: versões futuras não ficam aceitas. Fica registrado com o seu nome.',
   UNTIL_LICENSED: 'O aceite vale até o fim da licença desta automação.',
   UNTIL_LEGACY: 'Esta organização ainda não exige licença: escolha até quando o aceite vale (data futura, até 366 dias).',
 };
@@ -195,11 +195,11 @@ const REFUSAL: Record<string, string> = {
   DISK_PRESSURE: 'a máquina estava sem espaço em disco',
   CLIENT_INCOMPATIBLE: 'o aplicativo da máquina não executa esta solicitação (tipo de pacote não suportado, ou aplicativo desatualizado)',
   SESSION_UNAVAILABLE: 'a tela do Windows estava bloqueada, ou não havia sessão aberta no computador',
-  AUTHORIZATION_MISSING: 'não há autorização desta versão para o Worker da máquina',
-  AUTHORIZATION_REVOKED: 'a autorização desta versão para o Worker foi revogada antes do início',
-  AUTHORIZATION_EXPIRED: 'a autorização desta versão para o Worker venceu antes do início',
-  WORKER_NOT_AUTHORIZED: 'o Worker deixou de estar autorizado neste ambiente de trabalho antes do início',
-  MACHINE_NOT_LINKED: 'a máquina deixou de estar vinculada ao Worker antes do início',
+  AUTHORIZATION_MISSING: 'não há autorização desta versão para esta máquina',
+  AUTHORIZATION_REVOKED: 'a autorização desta versão para a máquina foi revogada antes do início',
+  AUTHORIZATION_EXPIRED: 'a autorização desta versão para a máquina venceu antes do início',
+  WORKER_NOT_AUTHORIZED: 'a máquina deixou de estar autorizada neste ambiente de trabalho antes do início',
+  MACHINE_NOT_LINKED: 'o computador deixou de estar vinculado à máquina antes do início',
   MACHINE_NOT_ENABLED: 'a máquina deixou de estar habilitada para execução remota antes do início',
   MACHINE_INCOMPATIBLE: 'o aplicativo da máquina deixou de ser compatível antes do início',
   COMMUNICATION_LOST: 'a máquina deixou de se comunicar antes do início',
@@ -215,9 +215,9 @@ export const MISSING: Record<RemoteMissing, string> = {
   PACKAGE_NOT_REGISTERED: 'A Platform não tem o pacote desta versão registrado. Sem ele, não há o que entregar à máquina.',
   REQUIREMENTS_NOT_DECLARED: 'As dependências desta automação ainda não foram declaradas.',
   REQUIREMENTS_CONFLICT: 'As dependências declaradas estão em conflito com o pacote publicado.',
-  AUTHORIZATION_MISSING: 'Falta a autorização de execução desta versão para o Worker desta máquina.',
-  AUTHORIZATION_REVOKED: 'A autorização de execução desta versão para o Worker desta máquina foi revogada.',
-  AUTHORIZATION_EXPIRED: 'A autorização de execução desta versão para o Worker desta máquina venceu.',
+  AUTHORIZATION_MISSING: 'Falta a autorização de execução desta versão para esta máquina.',
+  AUTHORIZATION_REVOKED: 'A autorização de execução desta versão para esta máquina foi revogada.',
+  AUTHORIZATION_EXPIRED: 'A autorização de execução desta versão para esta máquina venceu.',
   MACHINE_PAUSED: 'Os novos trabalhos estão pausados nesta máquina.',
   MACHINE_INCOMPATIBLE: 'O aplicativo desta máquina não executa solicitações da Platform.',
   MACHINE_BUSY: 'Esta máquina já tem uma execução remota em andamento.',
@@ -412,7 +412,7 @@ export function RemoteExecutions({
       return canManage ? <RouteLink to={orgPath.automation(org, automationId)}>Declarar as dependências na automação</RouteLink> : 'Peça a quem gerencia esta automação.';
     if (m === 'AUTHORIZATION_MISSING' || m === 'AUTHORIZATION_REVOKED' || m === 'AUTHORIZATION_EXPIRED')
       return canExecute
-        ? `Autorize a execução local desta versão para o Worker ${c.workerName}, em "Autorizações de execução local", nesta página.`
+        ? `Autorize a execução local desta versão para a máquina ${c.workerName}, em "Autorizações de execução local", nesta página.`
         : 'Peça a autorização a quem pode executar neste ambiente de trabalho.';
     if (m === 'PACKAGE_NOT_SUPPORTED') return 'Não há ação nesta máquina: esta versão não pode ser executada remotamente.';
     if (m === 'PACKAGE_NOT_REGISTERED') return 'Não há ação nesta máquina: publique uma nova versão da automação com o pacote.';
@@ -617,7 +617,7 @@ export function RemoteExecutions({
       </Heading>
       <Text variant="body-sm" color="secondary">
         Solicita que a {versionLabel} rode numa máquina habilitada. Solicitar não é iniciar: a máquina recebe na próxima consulta e a Platform confere de
-        novo, antes de iniciar, que a autorização da versão para o Worker dela continua valendo.
+        novo, antes de iniciar, que a autorização da versão para a máquina dela continua valendo.
       </Text>
       <Text variant="body-sm" color="secondary">
         A execução remota aceita apenas pacotes Python externos compatíveis. Pacotes no formato Studio não são executados remotamente nesta versão.
@@ -729,7 +729,7 @@ export function RemoteExecutions({
         onUnauthenticated={expired}
       >
         <Text>
-          A máquina recebe a solicitação na próxima consulta. Antes de iniciar, a Platform confere de novo a autorização desta versão para o Worker dela: se
+          A máquina recebe a solicitação na próxima consulta. Antes de iniciar, a Platform confere de novo a autorização desta versão para a máquina dela: se
           tiver sido revogada ou vencido, a execução não inicia e o motivo aparece aqui.
         </Text>
       </StepUpDialog>
@@ -756,7 +756,7 @@ export function RemoteExecutions({
           const asked = acceptUntilDate?.toISOString() ?? null;
           const worker = accepting?.workerId;
           setAccepting(null);
-          setNotice({ tone: 'success', text: 'Versão aceita para este Worker e solicitação registrada. A máquina recebe na próxima consulta.' });
+          setNotice({ tone: 'success', text: 'Versão aceita para esta máquina e solicitação registrada. A máquina recebe na próxima consulta.' });
           poll.refresh();
           // a validade EFETIVA da autorização criada: se saiu menor que a pedida, a tela diz (a redução nunca fica em silêncio)
           void listLocalRunAuthorizations(org, workspaceId)
@@ -768,7 +768,7 @@ export function RemoteExecutions({
               const reduced = asked ? reducedValidityText(asked, made.validUntil) : null;
               setNotice({
                 tone: reduced ? 'warning' : 'success',
-                text: `Versão aceita para este Worker e solicitação registrada. ${reduced ?? `O aceite vale até ${new Date(made.validUntil).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}.`}`,
+                text: `Versão aceita para esta máquina e solicitação registrada. ${reduced ?? `O aceite vale até ${new Date(made.validUntil).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}.`}`,
               });
             })
             .catch(() => undefined);
@@ -780,7 +780,7 @@ export function RemoteExecutions({
       >
         <Stack gap={3}>
           <Text>
-            A máquina recebe a solicitação na próxima consulta. Antes de iniciar, a Platform confere a licença e o aceite desta versão para o Worker dela.
+            A máquina recebe a solicitação na próxima consulta. Antes de iniciar, a Platform confere a licença e o aceite desta versão para a máquina dela.
           </Text>
           <Text>{ACCEPT_VERSION.SCOPE}</Text>
           {licensed ? (
@@ -907,7 +907,7 @@ export function RemoteExecutions({
       >
         <Stack gap={3}>
           <Text>
-            É uma nova tentativa da mesma solicitação. A autorização conferida é a desta versão para o Worker da máquina escolhida: a da máquina anterior não é
+            É uma nova tentativa da mesma solicitação. A autorização conferida é a desta versão para a máquina escolhida: a da máquina anterior não é
             aproveitada.
           </Text>
           {retrying?.state === 'ENDED_UNKNOWN' && (
@@ -922,7 +922,7 @@ export function RemoteExecutions({
             value={retryAgent}
             placeholder={requestable.length ? 'Escolha a máquina' : 'Nenhuma máquina pode receber agora'}
             onChange={(e) => setRetryAgent(e.target.value)}
-            options={requestable.map((c) => ({ value: c.agentId, label: `${c.agentName} (Worker ${c.workerName})` }))}
+            options={requestable.map((c) => ({ value: c.agentId, label: `${c.agentName} (máquina ${c.workerName})` }))}
           />
           {requestable.length === 0 && <Text variant="body-sm">Veja, na lista de máquinas, o que falta em cada uma.</Text>}
         </Stack>

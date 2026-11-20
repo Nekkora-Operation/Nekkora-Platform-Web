@@ -180,7 +180,7 @@ export function RemoteRequestsSection({
     { key: 'workspace', header: 'Ambiente de trabalho', render: (x) => <RouteLink to={orgPath.workspace(org, x.workspaceId)} variant="default">{x.workspaceName ?? `Ambiente de trabalho ${x.workspaceId.slice(0, 8)}`}</RouteLink> },
     { key: 'estado', header: 'Estado', render: (x) => <StateBadge state={x.state} exitCode={last(x)?.exitCode} waitingForSlot={x.waitingForSlot} /> },
     { key: 'origem', header: 'Origem', render: () => REMOTE_ORIGIN },
-    { key: 'maquina', header: 'Máquina · Worker', render: (x) => (last(x) ? `${last(x)!.agentName} · ${last(x)!.workerName}` : '—') },
+    { key: 'maquina', header: 'Computador · máquina', render: (x) => (last(x) ? `${last(x)!.agentName} · ${last(x)!.workerName}` : '—') },
     { key: 'solicitada', header: 'Solicitada em', render: (x) => <DateTimeText iso={x.requestedAt} /> },
     { key: 'inicio', header: 'Início', render: (x) => <DateTimeText iso={last(x)?.startedAt} /> },
     { key: 'termino', header: 'Término', render: (x) => <DateTimeText iso={last(x)?.endedAt} /> },
@@ -214,7 +214,7 @@ export function RemoteAttemptsSection({ workspaceId, hostEmpty = false, onSource
     { key: 'criada', header: 'Tentativa criada em', render: (a) => <RouteLink to={orgPath.remoteExecution(org, a.execution.remoteExecutionId)} state={{ back: orgPath.agentRuns(org) }}><DateTimeText iso={a.createdAt} /></RouteLink> },
     { key: 'automacao', header: 'Automação', render: (a) => `${a.execution.automationName ?? a.execution.automationId.slice(0, 8)} · versão ${a.execution.versionNumber}` },
     { key: 'maquina', header: 'Máquina', render: (a) => a.agentName },
-    { key: 'worker', header: 'Worker', render: (a) => a.workerName },
+    { key: 'worker', header: 'Máquina', render: (a) => a.workerName },
     { key: 'origem', header: 'Origem', render: () => REMOTE_ORIGIN },
     { key: 'inicio', header: 'Início', render: (a) => <DateTimeText iso={a.startedAt} /> },
     { key: 'fim', header: 'Fim / duração', render: (a) => (a.endedAt ? <><DateTimeText iso={a.endedAt} />{a.startedAt ? ` · ${durationText(a.startedAt, a.endedAt)}` : ''}</> : '—') },
@@ -317,7 +317,7 @@ export function RemoteExecutionPage() {
             <DescriptionList
               items={[
                 { key: 'maquina', term: 'Máquina', description: a.agentName },
-                { key: 'worker', term: 'Worker', description: a.workerName },
+                { key: 'worker', term: 'Máquina', description: a.workerName },
                 { key: 'criada', term: 'Criada em', description: <DateTimeText iso={a.createdAt} /> },
                 { key: 'entregue', term: 'Entregue à máquina', description: <DateTimeText iso={a.offeredAt} empty="ainda não" /> },
                 { key: 'recebida', term: 'Recebida pela máquina', description: <DateTimeText iso={a.receivedAt} empty="ainda não" /> },

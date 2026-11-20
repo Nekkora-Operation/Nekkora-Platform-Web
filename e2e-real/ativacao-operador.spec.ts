@@ -19,7 +19,7 @@ import { confirmStepUp, createWorker, LAB, pairNewWorker, signUpAndEnroll } from
 const local = (...args: string[]) =>
   execFileSync('bash', ['tools/lab/local.sh', ...args], { env: { ...process.env, LOCAL_ID: LAB }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 
-test('ativação pela CLI real dos operadores: Aguardando ativação → Ativada, auditoria e capacidade para Workers', async ({ page }) => {
+test('ativação pela CLI real dos operadores: Aguardando ativação → Ativada, auditoria e capacidade para máquinas', async ({ page }) => {
   test.setTimeout(600_000);
   const tag = Date.now().toString(36);
   const ana = await signUpAndEnroll(page, 'atv', `atv-${tag}@frontlab.test`);
@@ -40,9 +40,9 @@ test('ativação pela CLI real dos operadores: Aguardando ativação → Ativada
 
   // 2. antes da ativação: capacidade zero — criar Worker é recusado pela API (409 worker_limit_reached)
   await page.goto(`/o/${org}/workers`);
-  await expect(page.getByText('Nenhum Worker criado.')).toBeVisible();
-  await createWorker(page, org, 'Worker antes');
-  await expect(page.getByRole('alertdialog').getByText(/A organização atingiu o limite de Workers. Enquanto ela aguarda ativação, o limite é zero/)).toBeVisible();
+  await expect(page.getByText('Nenhuma máquina cadastrada.')).toBeVisible();
+  await createWorker(page, org, 'Máquina antes');
+  await expect(page.getByRole('alertdialog').getByText(/A organização atingiu o limite de máquinas. Enquanto ela aguarda ativação, o limite é zero/)).toBeVisible();
   await page.keyboard.press('Escape');
 
   // 3. a operação ativa pela CLI real, com limites explícitos de laboratório (2 Workers, 1 simultânea, 10 pendentes)
@@ -66,8 +66,8 @@ test('ativação pela CLI real dos operadores: Aguardando ativação → Ativada
   // 5. consequência prática: agora o Worker é criado e o código de pareamento para ele é emitido (sem Agent desktop; não é usado)
   await depois.getByRole('button', { name: `Entrar em ${nome}` }).click();
   await expect(page).toHaveURL(/\/o\/[0-9a-f-]{36}$/);
-  const codigo = await pairNewWorker(page, org, ana, 'Worker depois', 'LAB-DEPOIS');
+  const codigo = await pairNewWorker(page, org, ana, 'Máquina depois', 'LAB-DEPOIS');
   expect(codigo).toMatch(/^nkp1\./);
   // nenhuma máquina fictícia: sem o resgate pelo Agent, o Worker continua sem Agent
-  await expect(page.getByRole('region', { name: 'Lista de Workers' }).getByText('Sem Agent')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Lista de máquinas' }).getByText('Sem Agent')).toBeVisible();
 });

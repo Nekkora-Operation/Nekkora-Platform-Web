@@ -239,7 +239,7 @@ describe('Versão: execução remota (T02)', () => {
     }
     // a ação correspondente, para quem tem a permissão dela
     expect(within(missing).getByRole('link', { name: 'Declarar as dependências na automação' })).toHaveAttribute('href', `/o/${ORG}/automacoes/${AUT}`);
-    expect(within(missing).getByText(/Autorize a execução local desta versão para o Worker Worker fiscal/)).toBeInTheDocument();
+    expect(within(missing).getByText(/Autorize a execução local desta versão para a máquina Worker fiscal/)).toBeInTheDocument();
     expect(within(missing).getByText(/voltam a ser recebidos no próprio computador/)).toBeInTheDocument();
     expect(within(rows[2]).queryByRole('button', { name: /Solicitar execução/ })).toBeNull();
     expect(within(s).getByText(/Solicitar não é iniciar/)).toBeInTheDocument();
@@ -343,7 +343,7 @@ describe('Versão: execução remota (T02)', () => {
     fireEvent.click(within(dialog()).getByRole('checkbox', { name: ACCEPT_VERSION.ACK('versão 3', 'Worker financeiro') }));
     await waitFor(() => expect(confirm).toBeEnabled());
     fireEvent.click(confirm);
-    expect(await screen.findByText(/Versão aceita para este Worker e solicitação registrada/)).toBeInTheDocument();
+    expect(await screen.findByText(/Versão aceita para esta máquina e solicitação registrada/)).toBeInTheDocument();
     const body = api.sent('POST', LIST)[0].body as { authorizeVersion: boolean; authorizationValidUntil: string; agentId: string; requestKey: string };
     // defeito visto no laboratório: a chave ia vazia neste diálogo e a API recusava o pedido (400)
     expect(body.requestKey).toMatch(/^[0-9a-f-]{36}$/);
@@ -412,7 +412,7 @@ describe('Versão: execução remota (T02)', () => {
     ];
     await open();
     const s = await waitFor(section);
-    expect(within(s).getByText(/a autorização desta versão para o Worker foi revogada antes do início/)).toBeInTheDocument();
+    expect(within(s).getByText(/a autorização desta versão para a máquina foi revogada antes do início/)).toBeInTheDocument();
     // a comunicação perdida ainda não encerrou nada, e a tela diz o que vai acontecer se a máquina não voltar
     expect(within(s).getByText(/Sem comunicação com a máquina no momento\. O estado é o último que ela informou\. Se ela não voltar dentro do prazo/)).toBeInTheDocument();
     expect(within(s).getAllByText('Em execução').length).toBeGreaterThan(0);

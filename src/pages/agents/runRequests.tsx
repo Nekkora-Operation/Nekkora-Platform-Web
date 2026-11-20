@@ -212,7 +212,7 @@ export function RunRequestDialog({
       onDone={onCreated}
       onClose={onClose}
       refusalText={(e) =>
-        accessRefusal(e, { conflict: 'A autorização não está vigente, é de monitoramento, ou a máquina não está ativa e associada ao Worker da autorização.' })
+        accessRefusal(e, { conflict: 'A autorização não está vigente, é de monitoramento, ou a máquina não está ativa e associada à máquina da autorização.' })
       }
       uncertainText="Não foi possível confirmar o pedido. Confira a lista de pedidos antes de repetir (repetir pelo mesmo diálogo devolve o mesmo pedido)."
       onUnauthenticated={expired}
@@ -225,7 +225,7 @@ export function RunRequestDialog({
         {agents === null && <Alert tone="warning">Não foi possível ler as máquinas da organização agora. Feche e abra de novo para tentar outra vez.</Alert>}
         {otherFlow && (
           <Alert tone="warning">
-            A máquina vinculada a este Worker ({onWorker[0].name ?? 'sem nome'}) está ativa, mas usa o Nekkora Agent Client, que não recebe este tipo de pedido.
+            O computador vinculado a esta máquina ({onWorker[0].name ?? 'sem nome'}) está ativa, mas usa o Nekkora Agent Client, que não recebe este tipo de pedido.
             Nada foi pedido e nada precisa ser refeito: o vínculo e as autorizações continuam valendo. Para executar nela, use a seção “Execução remota”{' '}
             {authorization?.automationVersionId ? <RouteLink to={orgPath.version(org, authorization.automationVersionId)}>na página da versão</RouteLink> : 'na página da versão'}.
           </Alert>
@@ -234,7 +234,7 @@ export function RunRequestDialog({
           label="Máquina"
           fullWidth
           value={chosen}
-          placeholder={eligible.length ? 'Escolha a máquina' : agents === null ? 'Máquinas não lidas' : otherFlow ? 'A máquina deste Worker não recebe este pedido' : 'Nenhum Agent ativo neste Worker'}
+          placeholder={eligible.length ? 'Escolha a máquina' : agents === null ? 'Máquinas não lidas' : otherFlow ? 'O computador desta máquina não recebe este pedido' : 'Nenhum Agent ativo nesta máquina'}
           onChange={(e) => setAgentId(e.target.value)}
           options={eligible.map((a) => ({ value: a.agentId!, label: `${a.name ?? a.agentId}${a.connectivity === 'CONNECTED' ? ' (conectado)' : ' (sem sinal recente)'}` }))}
         />

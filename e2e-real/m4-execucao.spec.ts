@@ -111,7 +111,7 @@ async function setup(page: Page, person: Person) {
   await expect(page.getByText('Publicada (imutável)')).toBeVisible();
 
   // T07: Workers → Criar Worker → Vincular Agent (código só na tela, entregue ao Agent pela entrada padrão do script)
-  const code = await pairNewWorker(page, org, person, 'Worker do laboratório', 'LAB-FRONT-02');
+  const code = await pairNewWorker(page, org, person, 'Máquina do laboratório', 'LAB-FRONT-02');
   agent('iniciar');
   agent('parear', [], `${code}\n`);
   await page.getByRole('button', { name: 'Concluir' }).click();
@@ -129,17 +129,17 @@ async function setup(page: Page, person: Person) {
       )
       .toMatch(/LAB-FRONT-02[\s\S]*Conectada/);
   } finally {
-    step(`Workers na tela: ${seen.slice(0, 600)}`);
+    step(`máquinas na tela: ${seen.slice(0, 600)}`);
   }
 
   await page.goto(`/o/${org}/workers`);
-  await page.getByRole('button', { name: 'Autorizar Worker do laboratório num ambiente de trabalho' }).click();
+  await page.getByRole('button', { name: 'Autorizar Máquina do laboratório num ambiente de trabalho' }).click();
   await page.getByRole('alertdialog').getByLabel('Ambiente de trabalho').selectOption(workspaceId);
   await confirmStepUp(page, person, 'Autorizar');
-  await expect(page.getByText('Worker autorizado no ambiente de trabalho.')).toBeVisible();
+  await expect(page.getByText('Máquina autorizada no ambiente de trabalho.')).toBeVisible();
 
   await page.goto(versionUrl);
-  await page.getByLabel(/^Worker autorizado neste ambiente de trabalho/).selectOption({ label: 'Worker do laboratório' });
+  await page.getByLabel(/^Máquina autorizada neste ambiente de trabalho/).selectOption({ label: 'Máquina do laboratório' });
   await page.getByRole('button', { name: 'Autorizar execução local' }).click();
   await confirmStepUp(page, person, 'Autorizar execução local');
   await expect(page.getByText(/Execução local autorizada\. Nada foi iniciado/)).toBeVisible();

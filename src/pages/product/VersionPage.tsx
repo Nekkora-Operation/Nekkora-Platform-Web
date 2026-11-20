@@ -256,7 +256,7 @@ export function VersionPage() {
       {!draft && (
         <Alert tone="info" title="Versão publicada: não muda mais.">
           Para alterar comando ou pacote, crie uma nova versão na automação. Publicar não executa nada nem autoriza
-          execução: a execução local depende de uma autorização para um Worker, no ambiente de trabalho (
+          execução: a execução local depende de uma autorização para uma máquina, no ambiente de trabalho (
           <Link as={RouterLink} to={orgPath.workspace(org, data.workspaceId!)}>
             abrir o ambiente de trabalho
           </Link>

@@ -20,10 +20,11 @@ import { useSession } from '../../area/session';
 import { StepUpDialog } from '../../components/StepUpDialog';
 import { accessRefusal, orgStepUp } from '../access/shared';
 import { DateTimeText } from '../product/shared';
+import { LICENSE_NOT_CONSUMED, MachineStateBadge, machineName } from '../agents/machine';
 
 /**
  * PLATFORM-FLUXO-002 — "Licenças e automações": a ativação unificada. Um passo (Ativar automação) escolhe o ambiente de
- * trabalho, a automação e os Workers (nenhum vem marcado), mostra a licença que será usada, a versão publicada atual e os
+ * trabalho, a automação e os Workers (nenhuma vem marcada), mostra a licença que será usada, a versão publicada atual e os
  * Workers escolhidos, e confirma "Ativar execução e monitoramento". "Gerenciar ativação" acrescenta Workers, aceita uma
  * versão nova e renova as autorizações depois da renovação da licença, sem consumir outra licença. A API decide tudo.
  */
@@ -39,13 +40,13 @@ export const STATE_TEXT: Record<ActivationState, { label: string; tone: 'success
 export function pendingText(p: ActivationPending, a: AutomationActivation): string {
   switch (p) {
     case 'NO_WORKER':
-      return 'Nenhum Worker escolhido: escolha onde a automação vai executar e ser monitorada.';
+      return 'Nenhuma máquina escolhida: escolha onde a automação vai executar e ser monitorada.';
     case 'NO_PUBLISHED_VERSION':
       return 'A automação ainda não tem versão publicada: a execução fica pendente até a publicação. O monitoramento já vale.';
     case 'WORKER_WITHOUT_EXECUTION':
-      return 'Algum Worker ainda não tem a execução da versão aceita.';
+      return 'Alguma máquina ainda não tem a execução da versão aceita.';
     case 'WORKER_WITHOUT_MONITORING':
-      return 'Algum Worker ainda não tem o monitoramento.';
+      return 'Alguma máquina ainda não tem o monitoramento.';
     case 'NEW_VERSION_AVAILABLE':
       return `Há uma versão publicada mais nova (versão ${a.currentVersion?.number ?? '?'}). Ela só executa depois de aceita.`;
     case 'RENEWAL_AVAILABLE':
@@ -65,16 +66,16 @@ const FAILURE_TEXT: Record<string, string> = {
   license_expired: 'a licença está vencida',
   local_run_authorization_exists: 'já existe uma autorização vigente',
   activation_automation_inactive: 'a automação ou o ambiente de trabalho não está ativo',
-  conflict: 'o Worker, a versão ou o ambiente de trabalho mudou',
+  conflict: 'a máquina, a versão ou o ambiente de trabalho mudou',
   permission: 'sem permissão',
   step_up: 'a confirmação reforçada expirou',
 };
 
 const ACT_REFUSAL: Record<string, string> = {
   license_unavailable: 'Não há licença disponível para esta automação. Nada foi vinculado nem autorizado.',
-  activation_worker_not_in_workspace: 'Um dos Workers escolhidos não está mais autorizado neste ambiente de trabalho. Nada foi vinculado nem autorizado.',
+  activation_worker_not_in_workspace: 'Uma das máquinas escolhidas não está mais autorizada neste ambiente de trabalho. Nada foi vinculado nem autorizado.',
   activation_automation_inactive: 'A automação ou o ambiente de trabalho não está ativo. Nada foi feito.',
-  activation_without_workers: 'Esta ativação ainda não tem Worker. Acrescente um Worker antes de aceitar uma versão.',
+  activation_without_workers: 'Esta ativação ainda não tem máquina. Acrescente uma máquina antes de aceitar uma versão.',
   activation_renewal_not_applicable: 'Esta organização ainda não exige licença: as autorizações valem pela data escolhida.',
   license_expired: 'A licença desta automação está vencida. A renovação é feita pelo suporte da Nekkora. Nada foi feito.',
 };
@@ -105,7 +106,7 @@ export function OutcomeSummary({ outcome, workers }: { outcome: AutomationActiva
           <ul aria-label="O que ficou pendente">
             {failed.map((r) => (
               <li key={`${r.workerId}-${r.kind}`}>
-                {kindText(r)} em {workers.get(r.workerId) ?? 'um Worker'}: {FAILURE_TEXT[r.reason ?? ''] ?? `motivo ${r.reason ?? 'desconhecido'}`}
+                {kindText(r)} em {workers.get(r.workerId) ?? 'uma máquina'}: {FAILURE_TEXT[r.reason ?? ''] ?? `motivo ${r.reason ?? 'desconhecido'}`}
               </li>
             ))}
           </ul>
@@ -126,10 +127,12 @@ const validLegacyDate = (d: string) => {
   return t > Date.now() && t <= Date.now() + 366 * 86_400_000;
 };
 
-/** Os Workers como caixas de marcar: nenhum vem marcado. */
-function WorkerChoice({ workers, chosen, onToggle, legend, already }: { workers: { workerId: string; name: string }[]; chosen: Set<string>; onToggle: (id: string) => void; legend: string; already?: Set<string> }) {
+/** As máquinas (Workers) como caixas de marcar: nenhuma vem marcada. */
+type MachineOption = AutomationActivationOptions['workers'][number];
+
+function WorkerChoice({ workers, chosen, onToggle, legend, already }: { workers: MachineOption[]; chosen: Set<string>; onToggle: (id: string) => void; legend: string; already?: Set<string> }) {
   if (workers.length === 0)
-    return <Alert tone="info">Nenhum Worker autorizado neste ambiente de trabalho. A ativação pode ser feita agora e os Workers escolhidos depois.</Alert>;
+    return <Alert tone="info">Nenhuma máquina autorizada neste ambiente de trabalho. A ativação pode ser feita agora e as máquinas escolhidas depois.</Alert>;
   return (
     <fieldset className="pw-lic__choice">
       <legend>
@@ -137,15 +140,21 @@ function WorkerChoice({ workers, chosen, onToggle, legend, already }: { workers:
           {legend}
         </Text>
       </legend>
-      {workers.map((w) =>
-        already?.has(w.workerId) ? (
-          <Text key={w.workerId} variant="body-sm" color="secondary">
-            {w.name} (já faz parte da ativação)
-          </Text>
-        ) : (
-          <Checkbox key={w.workerId} label={w.name} checked={chosen.has(w.workerId)} onChange={() => onToggle(w.workerId)} />
-        ),
-      )}
+      {workers.map((w) => (
+        <div key={w.workerId} className="pw-lic__machine">
+          {already?.has(w.workerId) ? (
+            <Text variant="body-sm" color="secondary">
+              {machineName(w.name, w.computerName)} (já faz parte da ativação)
+            </Text>
+          ) : (
+            <Checkbox label={machineName(w.name, w.computerName)} checked={chosen.has(w.workerId)} onChange={() => onToggle(w.workerId)} />
+          )}
+          <MachineStateBadge state={w.machineState} lastContactAt={w.lastContactAt} />
+        </div>
+      ))}
+      <Text variant="body-sm" color="secondary">
+        {LICENSE_NOT_CONSUMED} Uma máquina sem contato agora recebe as autorizações quando voltar a se conectar.
+      </Text>
     </fieldset>
   );
 }
@@ -187,7 +196,7 @@ function ActivateDialog({ open, onClose, onDone }: { open: boolean; onClose: () 
   const opt = options?.status === 'ready' ? options.data : null;
   const automation = opt?.automations.find((a) => a.automationId === automationId);
   const already = new Set(automation?.workerIds ?? []);
-  const names = useMemo(() => new Map((opt?.workers ?? []).map((w) => [w.workerId, w.name])), [opt]);
+  const names = useMemo(() => new Map((opt?.workers ?? []).map((w) => [w.workerId, machineName(w.name, w.computerName)])), [opt]);
   const legacy = opt?.model === 'legacy';
   const needsLicense = !!automation && !automation.licensed;
   const blockedNoLicense = !!opt && needsLicense && !legacy && !opt.nextLicense;
@@ -228,7 +237,7 @@ function ActivateDialog({ open, onClose, onDone }: { open: boolean; onClose: () 
             options={[{ value: '', label: 'Escolha o ambiente de trabalho' }, ...workspaces.data.map((w) => ({ value: w.workspaceId, label: w.name }))]}
           />
         )}
-        {options?.status === 'loading' && <Text color="secondary">Carregando as automações e os Workers…</Text>}
+        {options?.status === 'loading' && <Text color="secondary">Carregando as automações e as máquinas…</Text>}
         {options?.status === 'error' && <Alert tone="warning">Não foi possível carregar as automações deste ambiente de trabalho.</Alert>}
         {opt &&
           (opt.automations.length === 0 ? (
@@ -250,7 +259,7 @@ function ActivateDialog({ open, onClose, onDone }: { open: boolean; onClose: () 
           ))}
         {opt && automation && (
           <>
-            <WorkerChoice workers={opt.workers} chosen={chosen} onToggle={toggle} legend="3. Workers que vão executar e monitorar (nenhum vem marcado)" already={already} />
+            <WorkerChoice workers={opt.workers} chosen={chosen} onToggle={toggle} legend="3. Máquinas que vão executar e monitorar (nenhuma vem marcada)" already={already} />
             {legacy && chosen.size > 0 && (
               <Input
                 label="Validade das autorizações"
@@ -279,7 +288,7 @@ function ActivateDialog({ open, onClose, onDone }: { open: boolean; onClose: () 
                           , válida até <DateTimeText iso={opt.nextLicense.validUntil} />
                         </>
                       ) : null}
-                      . Uma licença cobre execução e monitoramento desta automação em todos os Workers.
+                      . Uma licença cobre execução e monitoramento desta automação em todas as máquinas.
                     </>
                   ) : legacy ? (
                     'esta organização ainda não exige licença; não há licença disponível para vincular agora.'
@@ -294,9 +303,9 @@ function ActivateDialog({ open, onClose, onDone }: { open: boolean; onClose: () 
                     : 'nenhuma. A execução fica pendente até a publicação; o monitoramento já vale.'}
                 </li>
                 <li>
-                  <strong>Workers: </strong>
+                  <strong>Máquinas: </strong>
                   {chosen.size === 0
-                    ? 'nenhum escolhido. A ativação fica com “Configuração pendente” até você escolher.'
+                    ? 'nenhuma escolhida. A ativação fica com “Configuração pendente” até você escolher.'
                     : [...chosen].map((w) => names.get(w) ?? w).join(', ')}
                 </li>
               </ul>
@@ -329,7 +338,7 @@ function ManageDialog({ activation, act, onClose, onDone }: { activation: Automa
   }, [org, activation.workspaceId, expired]);
   const opt = options.status === 'ready' ? options.data : null;
   const legacy = opt?.model === 'legacy';
-  const names = useMemo(() => new Map([...(opt?.workers ?? []), ...activation.workers].map((w) => [w.workerId, w.name])), [opt, activation.workers]);
+  const names = useMemo(() => new Map([...(opt?.workers ?? []), ...activation.workers].map((w) => [w.workerId, machineName(w.name, w.computerName)])), [opt, activation.workers]);
   const inActivation = new Set(activation.workers.map((w) => w.workerId));
   const toggle = (id: string) =>
     setChosen((s) => {
@@ -341,11 +350,11 @@ function ManageDialog({ activation, act, onClose, onDone }: { activation: Automa
   const legacyNeedsDate = legacy && (act.kind === 'version' || (act.kind === 'workers' && chosen.size > 0));
   const dateOk = !legacyNeedsDate || validLegacyDate(until);
   const titles: Record<ManageAct['kind'], string> = {
-    workers: `Acrescentar Workers a ${activation.name}`,
+    workers: `Acrescentar máquinas a ${activation.name}`,
     version: `Aceitar a versão ${activation.currentVersion?.number ?? ''} de ${activation.name}`,
     renew: `Renovar autorizações de ${activation.name}`,
   };
-  const labels: Record<ManageAct['kind'], string> = { workers: 'Acrescentar Workers', version: 'Aceitar versão', renew: 'Renovar autorizações' };
+  const labels: Record<ManageAct['kind'], string> = { workers: 'Acrescentar máquinas', version: 'Aceitar versão', renew: 'Renovar autorizações' };
   const ready = !!opt && dateOk && (act.kind !== 'workers' || chosen.size > 0) && (act.kind !== 'version' || !!activation.currentVersion);
   return (
     <StepUpDialog
@@ -370,19 +379,19 @@ function ManageDialog({ activation, act, onClose, onDone }: { activation: Automa
     >
       <Stack gap={3}>
         {options.status === 'loading' && <Text color="secondary">Carregando…</Text>}
-        {options.status === 'error' && <Alert tone="warning">Não foi possível carregar os Workers deste ambiente de trabalho.</Alert>}
+        {options.status === 'error' && <Alert tone="warning">Não foi possível carregar as máquinas deste ambiente de trabalho.</Alert>}
         {opt && act.kind === 'workers' && (
           <>
-            <WorkerChoice workers={opt.workers} chosen={chosen} onToggle={toggle} legend="Workers a acrescentar (nenhum vem marcado)" already={inActivation} />
+            <WorkerChoice workers={opt.workers} chosen={chosen} onToggle={toggle} legend="Máquinas a acrescentar (nenhuma vem marcada)" already={inActivation} />
             <Text>
-              Os Workers escolhidos recebem a execução da versão {activation.acceptedVersion ? activation.acceptedVersion.number : 'publicada atual'} e o monitoramento.
+              As máquinas escolhidas recebem a execução da versão {activation.acceptedVersion ? activation.acceptedVersion.number : 'publicada atual'} e o monitoramento.
               Nenhuma outra licença é consumida.
             </Text>
           </>
         )}
         {opt && act.kind === 'version' && (
           <Text>
-            A versão {activation.currentVersion?.number} passa a poder executar nos Workers desta ativação:{' '}
+            A versão {activation.currentVersion?.number} passa a poder executar nas máquinas desta ativação:{' '}
             {activation.workers.map((w) => w.name).join(', ') || 'nenhum'}. O monitoramento já autorizado continua valendo. Nenhuma outra licença é
             consumida.
           </Text>
@@ -470,17 +479,18 @@ export function ActivationSection({ data, onChanged, canActivate }: { data: Auto
     },
     {
       key: 'workers',
-      header: 'Workers',
+      header: 'Máquinas',
       render: (a) =>
         a.workers.length === 0 ? (
           <Text color="secondary">nenhum</Text>
         ) : (
-          <ul className="pw-lic__names" aria-label={`Workers de ${a.name}`}>
+          <ul className="pw-lic__names" aria-label={`máquinas de ${a.name}`}>
             {a.workers.map((w) => (
               <li key={w.workerId}>
                 <Text variant="body-sm">
-                  {w.name}: execução {authText(w.execution)}; monitoramento {authText(w.monitoring)}
+                  {machineName(w.name, w.computerName)}: execução {authText(w.execution)}; monitoramento {authText(w.monitoring)}
                 </Text>
+                <MachineStateBadge state={w.machineState} lastContactAt={w.lastContactAt} />
               </li>
             ))}
           </ul>
@@ -520,8 +530,8 @@ export function ActivationSection({ data, onChanged, canActivate }: { data: Auto
               </Button>
             )}
             {a.license?.state !== 'LICENSE_EXPIRED' && (
-              <Button size="sm" variant="secondary" onClick={() => setManaging({ a, act: { kind: 'workers' } })} aria-label={`Acrescentar Workers a ${a.name}`}>
-                {a.workers.length === 0 ? 'Escolher Workers' : 'Acrescentar Workers'}
+              <Button size="sm" variant="secondary" onClick={() => setManaging({ a, act: { kind: 'workers' } })} aria-label={`Acrescentar máquinas a ${a.name}`}>
+                {a.workers.length === 0 ? 'Escolher máquinas' : 'Acrescentar máquinas'}
               </Button>
             )}
           </Stack>
@@ -542,8 +552,8 @@ export function ActivationSection({ data, onChanged, canActivate }: { data: Auto
           )}
         </div>
         <Text color="secondary">
-          Ativar uma automação libera, em um passo, a execução e o monitoramento nos Workers escolhidos. Uma licença atende a automação inteira, em
-          qualquer número de Workers; Workers não consomem licença. Versões novas só executam depois de aceitas aqui.
+          Ativar uma automação libera, em um passo, a execução e o monitoramento nas máquinas escolhidas. Uma licença atende a automação inteira, em
+          qualquer número de máquinas; máquinas não consomem licença. Versões novas só executam depois de aceitas aqui.
         </Text>
         {outcome && (
           <Alert tone={outcome.o.results.some((r) => r.outcome === 'failed') ? 'warning' : 'success'} title={`${outcome.o.activation.name}: ${STATE_TEXT[outcome.o.activation.state].label}.`}>
@@ -553,7 +563,7 @@ export function ActivationSection({ data, onChanged, canActivate }: { data: Auto
         {data === null ? (
           <StateView status="loading" title="Carregando as automações atendidas…" />
         ) : items.length === 0 ? (
-          <StateView status="neutral" title="Nenhuma automação ativada ainda." description="Use “Ativar automação” para escolher o ambiente de trabalho, a automação e os Workers." />
+          <StateView status="neutral" title="Nenhuma automação ativada ainda." description="Use “Ativar automação” para escolher o ambiente de trabalho, a automação e as máquinas." />
         ) : (
           <div className="pw-prod__scroll" role="region" aria-label="Lista de automações atendidas" tabIndex={0}>
             <Table columns={columns} data={items} rowKey="automationId" size="sm" caption="Automações com licença ou ativação, pelo nome." />

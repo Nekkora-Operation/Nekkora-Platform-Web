@@ -202,9 +202,9 @@ test('PLATFORM-FLUXO-002: ativação unificada (um passo, sem saldo, sem consumo
   await publish('Conciliação', RAPIDO);
   for (const w of ['Estação 1', 'Estação 2']) {
     await go(anaPage, `/o/${org}/workers`);
-    await anaPage.getByRole('button', { name: 'Criar Worker' }).click();
-    await anaPage.getByRole('alertdialog').getByLabel(/^Nome do Worker/).fill(w);
-    await anaPage.getByRole('alertdialog').getByRole('button', { name: 'Criar Worker' }).click();
+    await anaPage.getByRole('button', { name: 'Cadastrar máquina' }).click();
+    await anaPage.getByRole('alertdialog').getByLabel(/^Nome da máquina/).fill(w);
+    await anaPage.getByRole('alertdialog').getByRole('button', { name: 'Cadastrar máquina' }).click();
     await settle(anaPage);
     await anaPage.getByRole('button', { name: `Autorizar ${w} num ambiente de trabalho` }).click();
     await anaPage.getByRole('alertdialog').getByLabel('Ambiente de trabalho').selectOption({ label: 'Fiscal' });
@@ -253,7 +253,7 @@ test('PLATFORM-FLUXO-002: ativação unificada (um passo, sem saldo, sem consumo
   const auths = (aut: string) => sql(`SELECT count(*) FROM local_run_authorizations WHERE automation_id = '${aut}' AND revoked_at IS NULL AND valid_until > clock_timestamp()`);
   const consumed = () => sql(`SELECT count(*) FROM organization_license_assignments WHERE organization_id = '${org}' AND released_at IS NULL`);
   expect([auths(robo), consumed()]).toEqual(['2', '1']);
-  expect(sql(`SELECT count(*) FROM local_run_authorizations WHERE worker_id = '${worker('Estação 2')}'`), 'Worker não escolhido não recebe nada').toBe('0');
+  expect(sql(`SELECT count(*) FROM local_run_authorizations WHERE worker_id = '${worker('Estação 2')}'`), 'Máquina não escolhida não recebe nada').toBe('0');
   expect(sql(`SELECT count(*) FROM local_run_authorizations WHERE automation_id = '${robo}' AND valid_until > license_coverage_end('${org}', '${robo}', clock_timestamp())`)).toBe('0');
   log('2_ativacao', { pela_tela: true, licenca: 'nº 1 vinculada', worker_1: 'execucao da versao 1 + monitoramento', worker_2: 'nada', validade: 'ate o fim da cobertura da licenca' });
 
@@ -266,9 +266,9 @@ test('PLATFORM-FLUXO-002: ativação unificada (um passo, sem saldo, sem consumo
   await settle(anaPage);
   await expect(anaPage.getByText('A automação já tinha licença: nenhuma outra foi consumida.')).toBeVisible();
   expect([auths(robo), consumed()]).toEqual(['2', '1']);
-  await lista.getByRole('button', { name: 'Acrescentar Workers a Robô de notas' }).click();
+  await lista.getByRole('button', { name: 'Acrescentar máquinas a Robô de notas' }).click();
   await anaPage.getByRole('alertdialog').getByRole('checkbox', { name: 'Estação 2' }).check();
-  await confirmStepUp(anaPage, ana, 'Acrescentar Workers');
+  await confirmStepUp(anaPage, ana, 'Acrescentar máquinas');
   await settle(anaPage);
   await expect(anaPage.getByText('A automação já tinha licença: nenhuma outra foi consumida.')).toBeVisible();
   expect([auths(robo), consumed()]).toEqual(['4', '1']);
@@ -302,7 +302,7 @@ test('PLATFORM-FLUXO-002: ativação unificada (um passo, sem saldo, sem consumo
   expect(sql(`SELECT count(*) FROM local_run_authorizations WHERE automation_id = '${robo}' AND source_kind = 3 AND revoked_at IS NULL`), 'monitoramento continua, sem reemitir').toBe('2');
   expect(consumed()).toBe('1');
   await shot(anaPage, '5-versao-2-aceita');
-  log('5_versao_nova', { antes_do_aceite: 'sem autorizacao da versao 2', aceite: 'execucao da versao 2 nos 2 Workers', monitoramento: 'o mesmo', licencas: 1 });
+  log('5_versao_nova', { antes_do_aceite: 'sem autorizacao da versao 2', aceite: 'execucao da versao 2 nas 2 máquinas', monitoramento: 'o mesmo', licencas: 1 });
 
   // ================================================================ 6. vencimento e renovação
   // PASSAGEM DO TEMPO (declarada): o período da licença termina agora
@@ -335,13 +335,13 @@ test('PLATFORM-FLUXO-002: ativação unificada (um passo, sem saldo, sem consumo
   await settle(anaPage);
   await expect(linhaRobo).toContainText('Ativa');
   const renovadas = Number(sql(`SELECT count(*) FROM local_run_authorizations WHERE automation_id = '${robo}'`)) - Number(historico);
-  expect(renovadas, 'execução da versão aceita + monitoramento, nos 2 Workers').toBe(4);
+  expect(renovadas, 'execução da versão aceita + monitoramento, nas 2 máquinas').toBe(4);
   expect(sql(`SELECT count(*) FROM local_run_authorizations WHERE automation_id = '${robo}' AND renewal_of_authorization_id IS NOT NULL`)).toBe('4');
   expect(sql(`SELECT count(*) FROM local_run_authorizations WHERE automation_version_id = '${v1}' AND renewal_of_authorization_id IS NOT NULL`), 'a versão antiga não é renovada').toBe('0');
   const again = await api(anaPage, org, 'POST', `/api/v1/o/${org}/automation-activations/${robo}/renewal`, {});
   expect([again.status, again.body?.results?.length]).toEqual([200, 0]);
   expect(consumed()).toBe('1');
-  log('6_vencimento_e_renovacao', { vencida: 'Licenca vencida; sem acao de renovar; servidor 409 license_expired', renovada_pela_operadora: '30 dias', renovar_autorizacoes: `${renovadas} novas (versao 2 + monitoramento, 2 Workers)`, repetir: 'nada', historico: 'anteriores preservadas' });
+  log('6_vencimento_e_renovacao', { vencida: 'Licenca vencida; sem acao de renovar; servidor 409 license_expired', renovada_pela_operadora: '30 dias', renovar_autorizacoes: `${renovadas} novas (versao 2 + monitoramento, 2 máquinas)`, repetir: 'nada', historico: 'anteriores preservadas' });
 
   // ================================================================ 7. preservação: autorização feita antes, pela rota antiga, é reaproveitada
   await go(anaPage, `/o/${org}/administracao/licencas`);

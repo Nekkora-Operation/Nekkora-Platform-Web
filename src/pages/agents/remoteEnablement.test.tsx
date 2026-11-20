@@ -106,7 +106,7 @@ const pairingPosts = () => api.sent('POST', PAIRING);
 
 async function openPairing() {
   renderApp(`/o/${ORG}/workers`);
-  await screen.findByRole('heading', { name: 'Workers', level: 1 });
+  await screen.findByRole('heading', { name: 'Máquinas', level: 1 });
   fireEvent.click(await screen.findByRole('button', { name: 'Vincular Agent a Worker financeiro' }));
 }
 
@@ -175,7 +175,7 @@ describe('Workers: código para habilitar execução remota (T01a)', () => {
     expect(screen.queryByText(/Parear com a Platform/)).toBeNull();
   });
 
-  it('a opção não fica marcada para o próximo Worker', async () => {
+  it('a opção não fica marcada para o próximo máquina', async () => {
     api.on('POST', PAIRING, 'createAgentPairingCode', issued({ remoteExecution: true }));
     await openPairing();
     fireEvent.click(within(dialog()).getByLabelText('Habilitar esta máquina para execução remota'));

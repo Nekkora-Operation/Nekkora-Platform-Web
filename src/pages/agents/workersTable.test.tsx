@@ -68,9 +68,9 @@ beforeEach(() => {
   });
 });
 
-const table = async () => within(await screen.findByRole('region', { name: 'Lista de Workers' })).getByRole('table');
+const table = async () => within(await screen.findByRole('region', { name: 'Lista de máquinas' })).getByRole('table');
 
-describe('tabela de Workers (T08)', () => {
+describe('tabela de máquinas (T08)', () => {
   it('texto de abertura, cabeçalhos e células centralizados só nesta tabela', async () => {
     renderApp(`/o/${ORG}/workers`);
     expect(await screen.findByText(WORKERS_INTRO)).toBeInTheDocument();
@@ -129,7 +129,7 @@ describe('tabela de Workers (T08)', () => {
  * R1 — cartões no modo estreito. O jsdom não mede: a largura da região e a de que a tabela precisa são simuladas, e o
  * ResizeObserver é um dublê que avisa quando a "janela" muda.
  */
-describe('Workers em cartões quando a tabela não cabe (T08 R1)', () => {
+describe('Máquinas em cartões quando a tabela não cabe (T08 R1)', () => {
   let width = 600;
   let NEEDED = 1100;
   let observers: (() => void)[] = [];
@@ -170,9 +170,9 @@ describe('Workers em cartões quando a tabela não cabe (T08 R1)', () => {
     width = w;
     for (const o of [...observers]) o();
   };
-  const region = () => screen.findByRole('region', { name: 'Lista de Workers' });
+  const region = () => screen.findByRole('region', { name: 'Lista de máquinas' });
 
-  it('estreito: um cartão por Worker, sem tabela no DOM; cada ambiente de trabalho com o seu "Retirar"; uma consulta só', async () => {
+  it('estreito: um cartão por máquina, sem tabela no DOM; cada ambiente de trabalho com o seu "Retirar"; uma consulta só', async () => {
     renderApp(`/o/${ORG}/workers`);
     const r = await region();
     await vi.waitFor(() => expect(r).toHaveAttribute('data-format', 'cartoes'));

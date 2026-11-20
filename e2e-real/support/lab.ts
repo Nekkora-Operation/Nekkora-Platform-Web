@@ -225,11 +225,11 @@ export async function confirmStepUp(page: Page, person: Person, confirmLabel: st
  */
 export async function createWorker(page: Page, org: string, workerName: string) {
   await page.goto(`/o/${org}/workers`);
-  await page.getByRole('heading', { name: 'Workers', level: 1 }).waitFor();
-  await page.getByRole('button', { name: 'Criar Worker' }).click();
+  await page.getByRole('heading', { name: 'Máquinas', level: 1 }).waitFor();
+  await page.getByRole('button', { name: 'Cadastrar máquina' }).click();
   const dialog = page.getByRole('alertdialog');
-  await dialog.getByLabel(/^Nome do Worker/).fill(workerName);
-  await dialog.getByRole('button', { name: 'Criar Worker' }).click();
+  await dialog.getByLabel(/^Nome da máquina/).fill(workerName);
+  await dialog.getByRole('button', { name: 'Cadastrar máquina' }).click();
 }
 
 /** T07: "Vincular Agent" na linha do Worker (código para ESSE Worker, com step-up); devolve o código de uso único. */
@@ -243,14 +243,14 @@ export async function linkAgent(page: Page, person: Person, workerName: string, 
 /** T07: Workers → Criar Worker → Vincular Agent. Devolve o código de pareamento (aparece só na tela). */
 export async function pairNewWorker(page: Page, org: string, person: Person, workerName: string, machineName: string): Promise<string> {
   await createWorker(page, org, workerName);
-  await expect(page.getByText(`Worker ${workerName} criado, sem Agent.`, { exact: false })).toBeVisible();
+  await expect(page.getByText(`Máquina ${workerName} cadastrada, sem computador vinculado.`, { exact: false })).toBeVisible();
   return linkAgent(page, person, workerName, machineName);
 }
 
 /** T07: texto da lista de Workers (máquina vinculada e comunicação aparecem na linha do Worker). */
 export async function workersText(page: Page, org: string): Promise<string> {
   await page.goto(`/o/${org}/workers`);
-  const region = page.getByRole('region', { name: 'Lista de Workers' });
+  const region = page.getByRole('region', { name: 'Lista de máquinas' });
   await region.waitFor({ timeout: 15_000 });
   return region.innerText().catch(() => '');
 }

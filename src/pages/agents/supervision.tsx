@@ -348,7 +348,7 @@ export function AgentRunPage() {
             { key: 'origem', term: 'Origem', description: [r.sourceKind ? SOURCE_KIND[r.sourceKind] : null, r.origin ? ORIGIN[r.origin] : null].filter(Boolean).join(' · ') || '—' },
             { key: 'agent', term: 'Máquina (Agent)', description: r.agentName ?? short(c?.agentId) },
             { key: 'duracao', term: 'Duração (relógio do Agent)', description: durationText(s?.agentStartedAt, s?.agentEndedAt) },
-            { key: 'worker', term: 'Worker', description: short(c?.workerId) },
+            { key: 'worker', term: 'Máquina', description: short(c?.workerId) },
             { key: 'autorizacao', term: 'Autorização', description: short(c?.authorizationId) },
             { key: 'execucao', term: 'Execução no Agent', description: <code className="pw-hash">{c?.agentExecutionId ?? '—'}</code> },
             { key: 'framework', term: 'Execução no Framework', description: <code className="pw-hash">{c?.frameworkExecutionId ?? '—'}</code> },

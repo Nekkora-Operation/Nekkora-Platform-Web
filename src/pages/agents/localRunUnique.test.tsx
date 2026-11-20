@@ -112,7 +112,7 @@ describe('FLUXO-002: sem criação manual de autorizações', () => {
     await openAutomation();
     expect(await screen.findByText('O monitoramento é liberado pela ativação da automação.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Autorizar monitoramento' })).toBeNull();
-    expect(screen.queryByLabelText(/Worker autorizado neste ambiente de trabalho/)).toBeNull();
+    expect(screen.queryByLabelText(/Máquina autorizada neste ambiente de trabalho/)).toBeNull();
     expect(screen.getByRole('link', { name: 'Abrir Licenças e automações' })).toHaveAttribute('href', `/o/${ORG}/administracao/licencas`);
     // a lista continua: a vigente aparece com a validade e pode ser revogada
     const list = await screen.findByRole('region', { name: 'Autorizações de execução local' });

@@ -70,7 +70,7 @@ export function ActivationNotice() {
         <Badge tone={a.tone} dot>
           {a.label}
         </Badge>{' '}
-        A organização já pode registrar Workers e executar automações, dentro da capacidade definida pela operação da Nekkora.
+        A organização já pode registrar máquinas e executar automações, dentro da capacidade definida pela operação da Nekkora.
       </Text>
     );
   }
@@ -78,7 +78,7 @@ export function ActivationNotice() {
     <Alert tone="warning" title="Organização aguardando ativação">
       <Stack gap={2}>
         <span>
-          Enquanto isso, nenhum Worker pode ser registrado e nenhuma automação executa: a capacidade de execução desta
+          Enquanto isso, nenhuma máquina pode ser registrada e nenhuma automação executa: a capacidade de execução desta
           organização ainda é zero.
         </span>
         <span>
