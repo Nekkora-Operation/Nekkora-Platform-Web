@@ -1,15 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Badge, Button, Card, Select, Stack, StateView, Table, Text, type TableColumn } from 'nekkora-lib';
+import { Alert, Badge, Card, Stack, StateView, Table, Text, type TableColumn } from 'nekkora-lib';
 import { isApiError } from '../../api/http';
-import { assignLicense, getCapacity, getLicenseSummary, listAllLicenses, type LicenseSummary, type OrganizationCapacity, type OrganizationLicense } from '../../api/licenses';
-import { listOrganizationAutomations } from '../../api/product';
-import type { OrganizationAutomation } from '../../api/v1';
+import { listActivations, type AutomationActivationList } from '../../api/activations';
+import { getCapacity, getLicenseSummary, listAllLicenses, type LicenseSummary, type OrganizationCapacity, type OrganizationLicense } from '../../api/licenses';
 import { useSession } from '../../area/session';
-import { StepUpDialog } from '../../components/StepUpDialog';
-import { accessRefusal, orgStepUp } from '../access/shared';
 import { ForbiddenState } from '../admin/shared';
-import { DateTimeText, LoadErrorState, PageHeader, RouteLink } from '../product/shared';
-import { orgPath } from '../../auth/organization';
+import { DateTimeText, LoadErrorState, PageHeader } from '../product/shared';
+import { ActivationSection } from './ActivationSection';
 import './licenses.css';
 
 type Loaded = { summary: LicenseSummary; licenses: OrganizationLicense[]; capacity: OrganizationCapacity };
@@ -25,7 +22,7 @@ export const LICENSE_STATUS: Record<OrganizationLicense['status'], { label: stri
 export const MODEL_TEXT = {
   legacy: {
     title: 'Esta organização ainda não exige licença.',
-    body: 'Executar e monitorar seguem as regras anteriores. As licenças abaixo já podem ser vinculadas às automações; a exigência é ligada pelo suporte da Nekkora, que antes mostra quais automações ficariam sem licença.',
+    body: 'Executar e monitorar seguem as regras anteriores. Ativar uma automação já usa uma licença disponível, se houver; a exigência é ligada pelo suporte da Nekkora, que antes mostra quais automações ficariam sem licença.',
   },
   licensed: {
     title: 'Esta organização exige licença.',
@@ -43,13 +40,6 @@ export const CAPACITY_TEXT = {
   previousAgentUnconfirmed:
     'O Agent anterior informou que não sabe como essas execuções terminaram. Isso não comprova que deixaram de ocupar a máquina, então a vaga continua reservada. Ela volta quando o suporte da Nekkora registrar a reconciliação, depois de verificar que o processo terminou ou que a máquina está fora de operação. O tempo, sozinho, não libera a vaga.',
 } as const;
-
-const ASSIGN_REFUSAL: Record<string, string> = {
-  license_already_assigned: 'Esta licença já foi vinculada a uma automação. Atualize a lista.',
-  automation_already_licensed: 'Esta automação já tem uma licença.',
-  license_not_valid: 'Esta licença não está vigente.',
-  license_automation_archived: 'A automação está arquivada e não recebe licença.',
-};
 
 function Usage({ label, used, limit, note, children }: { label: string; used: number; limit: number | null; note?: string; children?: React.ReactNode }) {
   const full = limit !== null && used >= limit;
@@ -99,17 +89,15 @@ export function reservedText(b: Breakdown): string {
 }
 
 /**
- * /o/{org}/administracao/licencas — licenças de execução e monitoração da organização e, SEPARADA, a capacidade técnica
- * (PLATFORM-LICENCIAMENTO-001). Só para quem administra a organização (org.manage). Daqui só se VINCULA uma licença
- * disponível a uma automação; conceder, renovar, encerrar e transferir são atos do suporte da Nekkora. A API decide tudo.
+ * /o/{org}/administracao/licencas — "Licenças e automações" (PLATFORM-FLUXO-002): a conta das licenças, as automações
+ * atendidas com a ativação unificada ("Ativar automação" e "Gerenciar ativação") e, SEPARADA, a capacidade técnica. Só para
+ * quem administra a organização (org.manage). Conceder, renovar, encerrar e transferir licenças são atos do suporte da
+ * Nekkora. A API decide tudo.
  */
 export function LicensesPage() {
   const { org, expired } = useSession();
   const [state, setState] = useState<State>({ status: 'loading' });
-  const [automations, setAutomations] = useState<OrganizationAutomation[] | null>(null);
-  const [assigning, setAssigning] = useState<OrganizationLicense | null>(null);
-  const [automationId, setAutomationId] = useState('');
-  const [notice, setNotice] = useState<{ tone: 'success' | 'warning'; text: string } | null>(null);
+  const [activations, setActivations] = useState<AutomationActivationList | null>(null);
   const generation = useRef(0);
 
   const load = useCallback(async () => {
@@ -125,43 +113,37 @@ export function LicensesPage() {
     }
   }, [org, expired]);
 
-  useEffect(() => {
+  const loadActivations = useCallback(async () => {
+    try {
+      setActivations(await listActivations(org));
+    } catch (e) {
+      if (isApiError(e, 'unauthenticated')) return expired();
+      setActivations({ model: 'legacy', licenses: { contracted: 0, used: 0, available: 0 }, items: [], asOf: new Date().toISOString() });
+    }
+  }, [org, expired]);
+
+  const reloadAll = useCallback(() => {
     void load();
+    void loadActivations();
+  }, [load, loadActivations]);
+
+  useEffect(() => {
+    reloadAll();
     return () => {
       generation.current++;
     };
-  }, [load]);
+  }, [reloadAll]);
 
-  const openAssign = async (license: OrganizationLicense) => {
-    setNotice(null);
-    setAutomationId('');
-    setAssigning(license);
-    try {
-      const page = await listOrganizationAutomations(org, { limit: 100 });
-      setAutomations(page.items);
-    } catch (e) {
-      if (isApiError(e, 'unauthenticated')) return expired();
-      setAutomations([]);
-    }
-  };
-
-  if (state.status === 'loading') return <StateView status="loading" title="Carregando licenças e capacidade…" />;
+  if (state.status === 'loading') return <StateView status="loading" title="Carregando licenças e automações…" />;
   if (state.status === 'error')
     return isApiError(state.error, 'forbidden') ? (
-      <ForbiddenState area="as licenças e a capacidade" onRetry={() => void load()} />
+      <ForbiddenState area="as licenças e as automações atendidas" onRetry={reloadAll} />
     ) : (
-      <LoadErrorState error={state.error} onRetry={() => void load()} />
+      <LoadErrorState error={state.error} onRetry={reloadAll} />
     );
 
   const { summary, licenses, capacity } = state.data;
   const model = MODEL_TEXT[summary.model];
-  const licensed = new Set(licenses.filter((l) => l.automation && (l.status === 'active' || l.status === 'scheduled' || l.status === 'expired')).map((l) => l.automation!.automationId));
-  const choices = (automations ?? [])
-    .filter((a) => a.status !== 'archived' && !licensed.has(a.automationId))
-    .map((a) => ({ value: a.automationId, label: `${a.name} · ${a.workspaceName}` }));
-  const chosen = automations?.find((a) => a.automationId === automationId);
-  // nenhuma automação que possa receber licença: ou a organização ainda não tem automação, ou todas já têm a sua
-  const noneAtAll = (automations ?? []).every((a) => a.status === 'archived');
   // as automações que estão usando licença vigente, pelo número da licença: é o que "Utilizadas" conta
   const inUse = licenses.filter((l) => l.status === 'active' && l.automation).sort((a, b) => a.number - b.number);
   const free = licenses.filter((l) => l.status === 'active' && !l.automation).sort((a, b) => a.number - b.number);
@@ -209,16 +191,6 @@ export function LicensesPage() {
           <Text color="secondary">Disponível (sem automação)</Text>
         ),
     },
-    {
-      key: 'acoes',
-      header: 'Ações',
-      render: (l) =>
-        l.status === 'active' && !l.automation ? (
-          <Button size="sm" variant="secondary" onClick={() => void openAssign(l)} aria-label={`Vincular à automação a licença nº ${l.number}`}>
-            Vincular à automação
-          </Button>
-        ) : null,
-    },
   ];
 
   const c = capacity;
@@ -227,11 +199,10 @@ export function LicensesPage() {
   return (
     <Stack gap={6}>
       <PageHeader
-        title="Licenças e capacidade"
-        subtitle="As licenças de execução e monitoração desta organização e, separadamente, os limites técnicos de capacidade."
-        onRefresh={() => void load()}
+        title="Licenças e automações"
+        subtitle="As licenças desta organização, as automações que elas atendem e, separadamente, os limites técnicos de capacidade."
+        onRefresh={reloadAll}
       />
-      {notice && <Alert tone={notice.tone}>{notice.text}</Alert>}
 
       <section aria-labelledby="pw-lic-licencas">
         <Stack gap={4}>
@@ -272,8 +243,8 @@ export function LicensesPage() {
           </div>
           {free.length > 0 && (
             <Alert tone="info" title={free.length === 1 ? 'Você tem 1 licença disponível.' : `Você tem ${free.length} licenças disponíveis.`}>
-              Para usar uma licença, escolha a automação que ela vai atender: na lista abaixo, na linha da licença, use “Vincular à automação”. Enquanto não
-              for vinculada, a licença não libera a execução de nenhuma automação.
+              Para usar uma licença, use “Ativar automação” logo abaixo: escolha o ambiente de trabalho, a automação e os Workers. Enquanto não for usada, a
+              licença não libera a execução de nenhuma automação.
             </Alert>
           )}
           {summary.expiredWithAutomation > 0 && (
@@ -283,6 +254,16 @@ export function LicensesPage() {
                 : 'A renovação é feita pelo suporte da Nekkora e mantém a mesma automação.'}
             </Alert>
           )}
+        </Stack>
+      </section>
+
+      <ActivationSection data={activations} onChanged={reloadAll} canActivate />
+
+      <section aria-labelledby="pw-lic-lista">
+        <Stack gap={3}>
+          <Text as="h2" variant="h3" id="pw-lic-lista">
+            Licenças, pelo número
+          </Text>
           {licenses.length === 0 ? (
             <StateView
               status="neutral"
@@ -295,9 +276,9 @@ export function LicensesPage() {
             </div>
           )}
           <Text variant="body-sm" color="secondary">
-            Uma licença atende uma automação durante o ciclo. O vínculo é escolhido por você e não é desfeito por aqui: trocar a automação atendida é uma
-            transferência, feita pelo suporte da Nekkora a pedido de quem administra a organização. Conceder, renovar e encerrar licenças também são atos do
-            suporte.
+            Uma licença atende uma automação durante o ciclo, em qualquer número de Workers, e não é desfeita por aqui: trocar a automação atendida é uma
+            transferência, feita pelo suporte da Nekkora a pedido de quem administra a organização. Conceder, renovar e encerrar licenças também são atos
+            do suporte.
           </Text>
         </Stack>
       </section>
@@ -342,67 +323,6 @@ export function LicensesPage() {
           )}
         </Stack>
       </section>
-
-      <StepUpDialog
-        open={assigning !== null}
-        title={assigning ? `Vincular a licença nº ${assigning.number} a uma automação?` : ''}
-        guard={{ operation: 'license.assign', target: assigning?.licenseId }}
-        confirmLabel="Vincular licença"
-        stepUp={orgStepUp(org)}
-        ready={!!chosen}
-        action={() => (assigning && chosen ? assignLicense(org, assigning.licenseId, chosen.automationId) : Promise.reject())}
-        onDone={() => {
-          const name = chosen?.name ?? 'a automação';
-          setNotice({ tone: 'success', text: `Licença nº ${assigning?.number} vinculada a ${name}. A conta e a lista abaixo já mostram o vínculo.` });
-          setAssigning(null);
-          void load();
-        }}
-        onClose={() => setAssigning(null)}
-        refusalText={(e) => {
-          const reason = isApiError(e, 'conflict') ? (e as { reason?: string }).reason : undefined;
-          return reason && ASSIGN_REFUSAL[reason] ? `${ASSIGN_REFUSAL[reason]} Nada foi alterado.` : accessRefusal(e);
-        }}
-        uncertainText="Não foi possível confirmar o vínculo. Feche e confira a lista de licenças antes de tentar de novo."
-        onUnauthenticated={expired}
-        onOutcome={(k) => k === 'uncertain' && setNotice({ tone: 'warning', text: 'O resultado do último vínculo não foi confirmado. Confira a lista.' })}
-      >
-        <Stack gap={3}>
-          {automations === null ? (
-            <Text color="secondary">Carregando as automações…</Text>
-          ) : choices.length === 0 ? (
-            noneAtAll ? (
-              <Alert tone="info" title="Esta organização ainda não tem automação para receber a licença.">
-                Crie a automação em um ambiente de trabalho e volte aqui para vincular: <RouteLink to={orgPath.workspaces(org)}>abrir os ambientes de trabalho</RouteLink>. A licença
-                continua disponível enquanto isso.
-              </Alert>
-            ) : (
-              <Alert tone="info">Todas as automações desta organização já têm licença. Automações arquivadas não recebem licença.</Alert>
-            )
-          ) : (
-            <Select
-              label="Automação que vai usar esta licença"
-              fullWidth
-              value={automationId}
-              onChange={(e) => setAutomationId(e.target.value)}
-              options={[{ value: '', label: 'Escolha a automação' }, ...choices]}
-            />
-          )}
-          <Text>
-            A licença passa a atender a automação escolhida até o fim do ciclo
-            {assigning?.validUntil ? (
-              <>
-                {' '}
-                (<DateTimeText iso={assigning.validUntil} />)
-              </>
-            ) : null}
-            . Renovar a licença mantém a mesma automação.
-          </Text>
-          <Text>
-            <strong>Você não desfaz este vínculo por aqui.</strong> Suspender ou arquivar a automação depois não libera a licença; trocar a automação é uma
-            transferência, feita pelo suporte da Nekkora.
-          </Text>
-        </Stack>
-      </StepUpDialog>
     </Stack>
   );
 }

@@ -1808,6 +1808,107 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/automation-activations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Licencas e automacoes: a conta das licencas e cada automacao ativada, com ambiente, licenca, validade, versao e Workers (org.manage)
+         * @description So leitura, para quem administra a organizacao (conta interna). Itens: automacoes com licenca vinculada ou com autorizacoes da ativacao (as de execucao e de monitoramento por Worker). state: ACTIVE (pronta), CONFIGURATION_PENDING (falta Worker, versao publicada ou alguma autorizacao), RENEWAL_AVAILABLE (a licenca foi renovada e ha autorizacoes a renovar), LICENSE_REQUIRED, LICENSE_EXPIRED. pending lista o que falta, um codigo por item: LICENSE_REQUIRED, LICENSE_EXPIRED, NO_PUBLISHED_VERSION, NO_WORKER, WORKER_WITHOUT_EXECUTION, WORKER_WITHOUT_MONITORING, NEW_VERSION_AVAILABLE (ha versao publicada mais nova que a aceita; ela NAO e autorizada sozinha), RENEWAL_AVAILABLE. Uma autorizacao revogada por uma pessoa tira aquele escopo da ativacao.
+         */
+        get: operations["listAutomationActivations"];
+        put?: never;
+        /**
+         * Ativar execucao e monitoramento da automacao nos Workers escolhidos, com uma licenca (org.manage + confirmacao reforcada)
+         * @description Um passo: (1) se a automacao ainda nao tem licenca, vincula a licenca vigente e disponivel de menor numero (ato 4 da trilha); sem nenhuma, 409 license_unavailable e nada e gravado (no modelo anterior a licenca nao e exigida). (2) Para cada Worker informado - nenhum e marcado implicitamente -, emite a autorizacao de EXECUCAO da versao publicada atual (se houver) e a de MONITORAMENTO da automacao, validas ate o fim da cobertura sem lacuna da licenca (D3) e no maximo 366 dias; no modelo anterior, ate validUntil (obrigatorio quando ha Worker). Uma licenca cobre a automacao qualquer que seja o numero de Workers; o Worker nao consome licenca. Cada autorizacao e um ato proprio: o que falhar volta em results com outcome failed e o reason, sem desfazer o resto; repetir conclui sem consumir outra licenca e sem duplicar (a vigente do escopo e reaproveitada: outcome already). Tambem e o "Gerenciar ativacao > acrescentar Worker". Os Workers sao conferidos ANTES de consumir a licenca: um Worker fora do ambiente da automacao da 409 activation_worker_not_in_workspace. Automacao ou ambiente inativo: 409 activation_automation_inactive.
+         */
+        post: operations["activateAutomation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/automation-activations/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preparacao de "Ativar automacao" num ambiente de trabalho: automacoes, Workers do ambiente e a licenca que seria usada (org.manage)
+         * @description Nada e reservado: a licenca (nextLicense, nula se nao ha disponivel) e os Workers sao conferidos de novo na confirmacao. Ambiente inexistente, inativo ou de outra organizacao: 404.
+         */
+        get: operations["getAutomationActivationOptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/automation-activations/{automationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Uma ativacao (a mesma forma de cada item da lista) (org.manage) */
+        get: operations["getAutomationActivation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/automation-activations/{automationId}/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Aceitar uma versao publicada nos Workers da ativacao (org.manage + confirmacao reforcada); nao consome licenca
+         * @description Emite a autorizacao de EXECUCAO daquele pacote para cada Worker da ativacao. O monitoramento ja autorizado continua valendo e nao e reemitido. A licenca nunca autoriza versoes futuras sozinha: cada versao nova passa por aqui. Sem Worker na ativacao: 409 activation_without_workers. Versao nao publicada: 409.
+         */
+        post: operations["acceptAutomationActivationVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/automation-activations/{automationId}/renewal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Renovar autorizacoes depois da renovacao da licenca (org.manage + confirmacao reforcada); nao consome licenca
+         * @description Para cada Worker da ativacao, emite autorizacoes NOVAS da versao ja aceita e do monitoramento, validas a partir de agora ate o fim da cobertura atual, quando as correntes terminam antes dela. A anterior ainda vigente e revogada na mesma transacao como SUBSTITUIDA (069); o historico fica. Nunca renova autorizacao revogada por uma pessoa, nunca inclui maquina nova, nunca troca para a versao mais nova (aceitar versao continua explicito). Nao cobre intervalos anteriores nem regulariza execucoes iniciadas sem licenca. Repetir nao duplica (results vazio). So no modelo por licenca: no anterior, 409 activation_renewal_not_applicable. Licenca vencida: 409 license_expired.
+         */
+        post: operations["renewAutomationActivation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/license-operations": {
         parameters: {
             query?: never;
@@ -2979,7 +3080,7 @@ export interface components {
              * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached, draft_exists, draft_changed, local_run_authorization_exists, organization_name_taken; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
              * @enum {string}
              */
-            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "license_already_assigned" | "automation_already_licensed" | "license_not_valid" | "license_automation_archived" | "license_ended" | "license_period_overlaps" | "license_period_already_ended" | "license_model_unchanged" | "license_preview_changed" | "license_required" | "license_expired" | "run_not_covered" | "capacity_pending_limit_reached" | "license_not_assigned" | "license_transfer_same_automation" | "license_transfer_work_in_progress" | "organization_responsible_not_found" | "organization_responsible_is_client" | "previous_agent_session_has_outcome" | "previous_agent_session_already_reconciled" | "license_transfer_requester_not_admin" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_machine_unconfirmed" | "remote_machine_finishing" | "remote_previous_processes_pending" | "remote_previous_result_unconfirmed" | "remote_attempt_not_unconfirmed" | "remote_attempt_already_reconciled" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_package_not_supported" | "remote_package_not_registered" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_dependency_check_too_soon" | "remote_dependency_check_closed" | "remote_result_unavailable" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken" | "organization_creation_client_profile" | "organization_creation_requires_request" | "empty_organization_limit_reached" | "organization_request_not_available" | "organization_request_not_pending" | "organization_request_own" | "organization_request_approver_without_identity" | "organization_request_responsible_not_eligible" | "organization_not_responsible" | "organization_work_in_progress" | "organization_blocked_by_nekkora" | "organization_state_conflict";
+            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "license_already_assigned" | "automation_already_licensed" | "license_not_valid" | "license_automation_archived" | "license_ended" | "license_period_overlaps" | "license_period_already_ended" | "license_model_unchanged" | "license_preview_changed" | "license_required" | "license_expired" | "run_not_covered" | "capacity_pending_limit_reached" | "license_not_assigned" | "license_transfer_same_automation" | "license_transfer_work_in_progress" | "organization_responsible_not_found" | "organization_responsible_is_client" | "previous_agent_session_has_outcome" | "previous_agent_session_already_reconciled" | "license_transfer_requester_not_admin" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_machine_unconfirmed" | "remote_machine_finishing" | "remote_previous_processes_pending" | "remote_previous_result_unconfirmed" | "remote_attempt_not_unconfirmed" | "remote_attempt_already_reconciled" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_package_not_supported" | "remote_package_not_registered" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_dependency_check_too_soon" | "remote_dependency_check_closed" | "remote_result_unavailable" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken" | "organization_creation_client_profile" | "organization_creation_requires_request" | "empty_organization_limit_reached" | "organization_request_not_available" | "organization_request_not_pending" | "organization_request_own" | "organization_request_approver_without_identity" | "organization_request_responsible_not_eligible" | "organization_not_responsible" | "organization_work_in_progress" | "organization_blocked_by_nekkora" | "organization_state_conflict" | "license_unavailable" | "activation_worker_not_in_workspace" | "activation_automation_inactive" | "activation_without_workers" | "activation_renewal_not_applicable";
         };
         /**
          * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
@@ -3222,6 +3323,146 @@ export interface components {
                 /** Format: date-time */
                 requestedAt: string;
             } | null;
+        };
+        LicenseCount: {
+            /** @description Vigentes */
+            contracted: number;
+            /** @description Vigentes com automacao */
+            used: number;
+            /** @description Vigentes sem automacao */
+            available: number;
+        };
+        AutomationActivationVersion: {
+            /** Format: uuid */
+            versionId: string;
+            number: number;
+            /** Format: date-time */
+            publishedAt?: string | null;
+        } | null;
+        AutomationActivationAuthorization: {
+            /** Format: uuid */
+            authorizationId: string;
+            /**
+             * Format: uuid
+             * @description Nulo no monitoramento
+             */
+            automationVersionId?: string | null;
+            /** Format: date-time */
+            validUntil: string;
+            /** @enum {string} */
+            status: "active" | "expired" | "replaced";
+        } | null;
+        AutomationActivation: {
+            /** Format: uuid */
+            automationId: string;
+            name: string;
+            /** @enum {string} */
+            automationStatus: "active" | "suspended" | "archived";
+            /** Format: uuid */
+            workspaceId: string;
+            workspaceName: string;
+            /** @enum {string} */
+            state: "ACTIVE" | "CONFIGURATION_PENDING" | "RENEWAL_AVAILABLE" | "LICENSE_REQUIRED" | "LICENSE_EXPIRED";
+            pending: ("LICENSE_REQUIRED" | "LICENSE_EXPIRED" | "NO_PUBLISHED_VERSION" | "NO_WORKER" | "WORKER_WITHOUT_EXECUTION" | "WORKER_WITHOUT_MONITORING" | "NEW_VERSION_AVAILABLE" | "RENEWAL_AVAILABLE")[];
+            license: {
+                /** Format: uuid */
+                licenseId: string;
+                number: number;
+                /** Format: date-time */
+                assignedAt: string;
+                /**
+                 * Format: date-time
+                 * @description Fim do ultimo periodo da licenca
+                 */
+                lastPeriodEndsAt?: string | null;
+                /** @enum {string} */
+                state: "LEGACY" | "OK" | "LICENSE_EXPIRED" | "LICENSE_REQUIRED";
+                /**
+                 * Format: date-time
+                 * @description Ate quando a cobertura de agora segue sem lacuna (nulo: sem cobertura)
+                 */
+                coverageUntil?: string | null;
+            } | null;
+            currentVersion: components["schemas"]["AutomationActivationVersion"];
+            acceptedVersion: components["schemas"]["AutomationActivationVersion"];
+            workers: {
+                /** Format: uuid */
+                workerId: string;
+                name: string;
+                execution: components["schemas"]["AutomationActivationAuthorization"];
+                monitoring: components["schemas"]["AutomationActivationAuthorization"];
+            }[];
+        };
+        AutomationActivationList: {
+            /** @enum {string} */
+            model: "legacy" | "licensed";
+            licenses: components["schemas"]["LicenseCount"];
+            items: components["schemas"]["AutomationActivation"][];
+            /** Format: date-time */
+            asOf: string;
+        };
+        AutomationActivationOptions: {
+            /** Format: uuid */
+            workspaceId: string;
+            workspaceName: string;
+            /** @enum {string} */
+            model: "legacy" | "licensed";
+            licenses: components["schemas"]["LicenseCount"];
+            nextLicense: {
+                /** Format: uuid */
+                licenseId: string;
+                number: number;
+                /** Format: date-time */
+                validUntil?: string | null;
+            } | null;
+            automations: {
+                /** Format: uuid */
+                automationId: string;
+                name: string;
+                licensed: boolean;
+                /** @enum {string} */
+                state: "ACTIVE" | "CONFIGURATION_PENDING" | "RENEWAL_AVAILABLE" | "LICENSE_REQUIRED" | "LICENSE_EXPIRED";
+                currentVersion: components["schemas"]["AutomationActivationVersion"];
+                /** @description Workers que ja fazem parte da ativacao */
+                workerIds: string[];
+            }[];
+            workers: {
+                /** Format: uuid */
+                workerId: string;
+                name: string;
+            }[];
+        };
+        AutomationActivationRequest: {
+            /** Format: uuid */
+            automationId: string;
+            /** @description So estes Workers; vazio: so a licenca (configuracao pendente) */
+            workerIds?: string[];
+            /**
+             * Format: date-time
+             * @description So no modelo anterior (obrigatorio nele quando ha Worker)
+             */
+            validUntil?: string;
+        };
+        AutomationActivationOutcome: {
+            /** @description true: este pedido vinculou uma licenca; false: ja estava vinculada. Ausente no modelo anterior sem licenca */
+            licenseConsumedNow?: boolean;
+            results: {
+                /** Format: uuid */
+                workerId: string;
+                /** @enum {string} */
+                kind: "execution" | "monitoring";
+                /** Format: uuid */
+                automationVersionId?: string | null;
+                /** @enum {string} */
+                outcome: "issued" | "already" | "failed";
+                /** Format: uuid */
+                authorizationId?: string;
+                /** Format: date-time */
+                validUntil?: string;
+                /** @description Com failed: o motivo (reason do contrato ou a classe da recusa) */
+                reason?: string;
+            }[];
+            activation: components["schemas"]["AutomationActivation"];
         };
         LicenseSummary: {
             /**
@@ -8523,6 +8764,201 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             429: components["responses"]["RateLimited"];
+        };
+    };
+    listAutomationActivations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ativacoes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationActivationList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    activateAutomation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationActivationRequest"];
+            };
+        };
+        responses: {
+            /** @description Resultado de cada ato e a ativacao atualizada */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationActivationOutcome"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getAutomationActivationOptions: {
+        parameters: {
+            query: {
+                workspaceId: string;
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Preparacao */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationActivationOptions"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getAutomationActivation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                automationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ativacao */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationActivation"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    acceptAutomationActivationVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                automationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    automationVersionId: string;
+                    /**
+                     * Format: date-time
+                     * @description So no modelo anterior (obrigatorio nele)
+                     */
+                    validUntil?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Resultado de cada ato e a ativacao atualizada */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationActivationOutcome"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    renewAutomationActivation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                automationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resultado de cada ato e a ativacao atualizada */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationActivationOutcome"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     getLicenseOperatorStatus: {

@@ -79,7 +79,7 @@ function titleFor(pathname: string, org: string): string {
   if (rest === '/supervisao') return 'Supervisão';
   if (rest.startsWith('/supervisao/')) return 'Execução local';
   if (rest === '/administracao/auditoria') return 'Auditoria de acessos';
-  if (rest === '/administracao/licencas') return 'Licenças e capacidade';
+  if (rest === '/administracao/licencas') return 'Licenças e automações';
   if (rest === '/administracao/pedidos-de-organizacao') return 'Pedidos de organização';
   if (rest === '/operador-de-licencas') return 'Operador de licenças';
   if (rest === '/administracao/clientes') return 'Clientes';
@@ -229,7 +229,7 @@ export function InternalShell() {
       admin.push({ id: 'auditoria', label: 'Auditoria de acessos', href: orgPath.accessEvents(org), icon: 'file', active: section === 'auditoria' });
     // PLATFORM-LICENCIAMENTO-001: licenças e capacidade, e os pedidos de criação de organização feitos a esta
     if (has('org.manage'))
-      admin.push({ id: 'licencas', label: 'Licenças e capacidade', href: orgPath.licenses(org), icon: 'key', active: section === 'licencas' });
+      admin.push({ id: 'licencas', label: 'Licenças e automações', href: orgPath.licenses(org), icon: 'key', active: section === 'licencas' });
     if (has('org.manage'))
       admin.push({ id: 'pedidos', label: 'Pedidos de organização', href: orgPath.organizationRequests(org), icon: 'building', active: section === 'pedidos' });
     if (admin.length) nav.push({ id: 'administracao', label: 'Administração', items: admin });
