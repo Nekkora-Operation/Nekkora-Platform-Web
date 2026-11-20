@@ -188,8 +188,11 @@ test('PLATFORM-LICENCIAMENTO-001: transição auditada da organização do aceit
   await assign.getByRole('link', { name: 'abrir Workspaces' }).click();
   await expect(doraPage).toHaveURL(new RegExp(`/o/${org}/workspaces$`));
   await settle(doraPage);
-  const ws = sql(`SELECT workspace_id FROM workspaces WHERE organization_id = '${org}' ORDER BY created_at LIMIT 1`);
-  await go(doraPage, `/o/${org}/workspaces/${ws}`);
+  await doraPage.getByRole('button', { name: 'Criar workspace' }).click();
+  await doraPage.getByRole('alertdialog').getByLabel(/^Nome/).fill('Testes');
+  await doraPage.getByRole('alertdialog').getByRole('button', { name: 'Criar workspace' }).click();
+  await expect(doraPage).toHaveURL(new RegExp(`/o/${org}/workspaces/[0-9a-f-]{36}$`));
+  await settle(doraPage);
   await doraPage.getByRole('button', { name: 'Criar automação' }).click();
   await settle(doraPage);
   await doraPage.getByLabel(/^Nome da automação/).fill('Robô de teste');
