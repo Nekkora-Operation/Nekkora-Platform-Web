@@ -436,7 +436,7 @@ test('PLATFORM-LICENCIAMENTO-001 com o Agent anterior em cópia isolada: recusa 
     guardarJanelas('A8');
     expect(String(l.enviosParados), 'a nova não fica parada').not.toContain(nova);
     expect(String(l.enviosParados), 'a recusada continua parada, à vista').toContain(execucao);
-    const registradas = sql(`SELECT string_agg('execucao=' || agent_execution_id || ' base_da_licenca=' || coalesce(license_basis::text, '-') || ' eventos=' || events_stored, ' ; ' ORDER BY created_at) FROM agent_runs WHERE organization_id = '${oficina}'`);
+    const registradas = sql(`SELECT string_agg('execucao=' || agent_execution_id || ' base_da_licenca=' || coalesce(license_basis::text, '-') || ' eventos=' || events_stored, ' ; ' ORDER BY registered_at) FROM agent_runs WHERE organization_id = '${oficina}'`);
     await go(anaPage, `/o/${oficina}/execucoes`);
     await shot(anaPage, 'A8-execucoes-na-platform');
     log('8_execucao_nova_depois_da_renovacao', { execucao: nova, base_da_licenca: basis(nova), na_platform: registradas, sessoes: runs() });

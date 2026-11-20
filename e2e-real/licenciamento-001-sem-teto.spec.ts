@@ -86,7 +86,7 @@ test('PLATFORM-LICENCIAMENTO-001: criação sem o teto de dez; limite de frequê
 
   // ================================================================ 1. a primeira organização, pela tela (1ª criação do dia)
   await criarPelaTela(page, carla, `Primeira ${TAG}`);
-  const primeira = sql(`SELECT o.organization_id FROM organizations o JOIN identity_users iu ON iu.organization_id = o.organization_id WHERE iu.identity_id = '${identity}' AND o.name = 'Primeira ${TAG}'`);
+  const primeira = sql(`SELECT o.organization_id FROM organizations o JOIN organization_responsibility r ON r.organization_id = o.organization_id WHERE r.responsible_identity_id = '${identity}' AND o.name = 'Primeira ${TAG}'`);
   tornarNaoVazia(primeira);
   log('1_primeira', { pela_tela: true, criadas: criadas() });
 
@@ -133,12 +133,13 @@ test('PLATFORM-LICENCIAMENTO-001: criação sem o teto de dez; limite de frequê
   expect(vazias()).toBe('3');
   expect(sql(`SELECT coalesce(public.identity_create_organization('${token}', 'Catorze ${TAG}', NULL)::text, 'recusada')`), 'o banco recusa a quarta vazia').toBe('recusada');
   expect(sql(`SELECT public.identity_org_limit_reason('${identity}')`)).toBe('EMPTY_LIMIT');
-  await go(page, '/organizacoes/nova');
+  // a lista de organizações é onde a tela oferece (ou não) a criação
+  await go(page, '/organizacoes');
   await expect(page.getByText('Você atingiu o limite de organizações vazias.')).toBeVisible();
-  await expect(page.getByLabel(/^Nome da organização/)).toHaveCount(0);
+  const acaoDeCriar = (await page.getByRole('link', { name: /^Criar organização/ }).count()) + (await page.getByRole('button', { name: /^Criar organização/ }).count());
   await shot(page, '5-limite-de-vazias');
   expect(criadas()).toBe('13');
-  log('5_limite_de_vazias', { tela: 'sem formulario de criacao; "Voce atingiu o limite de organizacoes vazias."', banco: 'quarta vazia recusada (EMPTY_LIMIT)', criadas: criadas(), vazias: vazias() });
+  log('5_limite_de_vazias', { tela: '"Voce atingiu o limite de organizacoes vazias." na lista de organizacoes', acao_de_criar_na_tela: acaoDeCriar, banco: 'quarta vazia recusada (EMPTY_LIMIT)', criadas: criadas(), vazias: vazias() });
 
   log('limites_de_frequencia', `nenhum limite foi zerado. "Tentar novamente" usado ${retried} vez(es)`);
   log('fim', 'roteiro da criacao sem teto concluido');
