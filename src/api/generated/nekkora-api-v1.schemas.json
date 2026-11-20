@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "b95e22b906a948d7955ebe2017e7bdbf1f76831d0c2e3e54978ade1a01aeb462",
+  "openapiSha256": "eb2462cdd39af1d0810216cdb9b00fe6f7fd1fe168971d180923158b8fff4a59",
   "schemas": {
     "Error": {
       "type": "object",
@@ -2736,10 +2736,10 @@
           "$ref": "#/components/schemas/UsedOfLimit"
         },
         "newOrganizationLicenseModel": {
-          "allOf": [
-            {
-              "$ref": "#/components/schemas/OrganizationLicenseModel"
-            }
+          "type": "string",
+          "enum": [
+            "legacy",
+            "licensed"
           ]
         },
         "responsibleFor": {

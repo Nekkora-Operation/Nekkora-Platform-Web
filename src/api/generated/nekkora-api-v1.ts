@@ -3731,8 +3731,11 @@ export interface components {
                 organizationIds: string[];
             };
             pendingRequests: components["schemas"]["UsedOfLimit"];
-            /** @description D7: o modelo em que uma organizacao criada AGORA nasce (a chave license_rollout). licensed: nasce pronta para configurar, sem ativacao a esperar; executar e monitorar uma automacao depende de licenca vinculada a ela. legacy: nasce aguardando a ativacao pela operacao. So indicacao para a tela; quem decide e a criacao. */
-            newOrganizationLicenseModel: components["schemas"]["OrganizationLicenseModel"];
+            /**
+             * @description D7: o modelo em que uma organizacao criada AGORA nasce (a chave license_rollout). licensed: nasce pronta para configurar, sem ativacao a esperar; executar e monitorar uma automacao depende de licenca vinculada a ela. legacy: nasce aguardando a ativacao pela operacao. So indicacao para a tela; quem decide e a criacao.
+             * @enum {string}
+             */
+            newOrganizationLicenseModel: "legacy" | "licensed";
             responsibleFor: {
                 /** Format: uuid */
                 organizationId: string;
