@@ -37,9 +37,9 @@ function renderAt(path: string) {
   );
 }
 
-const exec = (org = DEV_ORG) => `/o/${org}/execucoes`;
+const exec = (org = DEV_ORG) => `/o/${org}/execucoes?aba=historico`;
 const rows = () => within(screen.getByRole('table')).getAllByRole('row').slice(1);
-const execRequests = () => requests.filter((r) => r.includes('/executions'));
+const execRequests = () => requests.filter((r) => r.includes('/activity'));
 const param = (url: string, name: string) => new URL(url, 'http://x').searchParams.getAll(name);
 
 beforeEach(() => {
@@ -130,7 +130,9 @@ describe('área interna', () => {
     renderAt(exec());
     const nav = await screen.findByRole('navigation', { name: 'Navegação principal' });
     const links = within(nav).getAllByRole('link').map((l) => l.textContent);
-    expect(links.slice(0, 4)).toEqual(['Início', 'Ambientes de trabalho', 'Execuções', 'Supervisão']);
+    expect(links.slice(0, 3)).toEqual(['Início', 'Ambientes de trabalho', 'Execuções']);
+    // PLATFORM-FLUXO-002: Supervisão saiu do menu (o acompanhamento ficou em Execuções)
+    expect(links).not.toContain('Supervisão');
     // M4: Workers aparece só com a P01 (worker.manage); T07: sem item separado de Agents (Workers é a entrada única)
     expect(links.slice(4).every((l) => ['Máquinas', 'Minha conta', 'Membros', 'Convites', 'Clientes', 'Concessões', 'Auditoria de acessos'].includes(l ?? ''))).toBe(true);
     expect(links).not.toContain('Agents');
@@ -193,7 +195,7 @@ describe('execuções por perfil', () => {
     expect(param(first, 'to')).toEqual([]);
     expect(param(first, 'limit')).toEqual(['25']);
     const header = within(screen.getByRole('table')).getAllByRole('columnheader').map((h) => h.textContent);
-    expect(header).toEqual(['Automação', 'Ambiente de trabalho', 'Estado', 'Origem', 'Criada em', 'Início', 'Término', 'Duração']);
+    expect(header).toEqual(['Automação', 'Ambiente de trabalho', 'Máquina', 'Situação', 'Pedida em', 'Início', 'Término']);
     expect(screen.getByRole('table')).toHaveTextContent(/Horários no fuso deste navegador/);
     const select = screen.getByLabelText('Ambiente de trabalho') as HTMLSelectElement;
     await waitFor(() => expect(select.options).toHaveLength(10));
@@ -216,13 +218,13 @@ describe('execuções por perfil', () => {
 });
 
 describe('filtros e paginação', () => {
-  it('estado e ambiente de trabalho viram parâmetros da API; período personalizado inválido não envia nada', async () => {
+  it('aba e ambiente de trabalho viram parâmetros da API; período personalizado inválido não envia nada', async () => {
     sessionFor('ana@nekkora.dev');
     renderAt(exec());
     await ready();
-    fireEvent.click(screen.getByLabelText('Falhou'));
-    await waitFor(() => expect(param(execRequests().at(-1)!, 'status')).toEqual(['failed']));
-    await waitFor(() => expect(rows().every((r) => r.textContent!.includes('Falhou'))).toBe(true));
+    expect(param(execRequests().at(-1)!, 'tab')).toEqual(['history']);
+    // o histórico só traz o que já tem desfecho
+    expect(rows().some((r) => r.textContent!.includes('Em andamento'))).toBe(false);
     fireEvent.change(screen.getByLabelText('Ambiente de trabalho'), { target: { value: ws('logistica') } }); // valor do workspace
     await waitFor(() => expect(param(execRequests().at(-1)!, 'workspaceId')).toEqual([ws('logistica')]));
     const before = execRequests().length;
@@ -260,12 +262,12 @@ describe('filtros e paginação', () => {
     sessionFor('ana@nekkora.dev');
     let release!: () => void;
     const slow = new Promise<void>((r) => (release = r));
-    intercept = (path) => (path.includes('/executions') && param(path, 'status').includes('cancelled') ? { delay: slow } : undefined);
+    intercept = (path) => (path.includes('/activity') && param(path, 'workspaceId').includes(ws('logistica')) ? { delay: slow } : undefined);
     renderAt(exec());
     await ready();
-    fireEvent.click(screen.getByLabelText('Cancelada')); // fica pendente
+    fireEvent.change(screen.getByLabelText('Ambiente de trabalho'), { target: { value: ws('logistica') } }); // fica pendente
     await waitFor(() => expect(screen.queryByRole('table')).toBeNull()); // lista limpa na hora
-    fireEvent.click(screen.getByLabelText('Cancelada')); // desmarca: volta a todos
+    fireEvent.change(screen.getByLabelText('Ambiente de trabalho'), { target: { value: 'todos' } }); // volta a todos
     await ready();
     const shown = rows().map((r) => r.textContent);
     await act(async () => release());
@@ -333,7 +335,7 @@ describe('falhas e sessão', () => {
   it('resposta fora do contrato ao carregar mais: nada é acrescentado, erro exposto, sem repetição automática', async () => {
     sessionFor('ana@nekkora.dev');
     intercept = (path) =>
-      path.includes('/executions') && path.includes('cursor=') ? { tamper: (b) => ({ ...b, items: b.items.map((e: any, i: number) => (i === 3 ? { ...e, status: 'finished' } : e)) }) } : undefined;
+      path.includes('/activity') && path.includes('cursor=') ? { tamper: (b) => ({ ...b, items: b.items.map((e: any, i: number) => (i === 3 ? { ...e, outcome: 'finished' } : e)) }) } : undefined;
     renderAt(exec());
     await ready();
     fireEvent.click(screen.getByRole('button', { name: 'Carregar mais' }));
@@ -347,7 +349,7 @@ describe('falhas e sessão', () => {
   it('falha de rede ao carregar mais: mantém a lista e só tenta de novo por ação', async () => {
     sessionFor('ana@nekkora.dev');
     let fail = true;
-    intercept = (path) => (path.includes('/executions') && path.includes('cursor=') && fail ? { network: true } : undefined);
+    intercept = (path) => (path.includes('/activity') && path.includes('cursor=') && fail ? { network: true } : undefined);
     renderAt(exec());
     await ready();
     fireEvent.click(screen.getByRole('button', { name: 'Carregar mais' }));
@@ -363,7 +365,7 @@ describe('falhas e sessão', () => {
 
   it('primeira página fora do contrato: estado de erro, não lista vazia', async () => {
     sessionFor('ana@nekkora.dev');
-    intercept = (path) => (path.includes('/executions') ? { tamper: (b) => ({ items: b.items }) } : undefined);
+    intercept = (path) => (path.includes('/activity') ? { tamper: (b) => ({ items: b.items }) } : undefined);
     renderAt(exec());
     expect(await screen.findByText('A resposta do servidor veio fora do formato esperado.')).toBeInTheDocument();
     expect(screen.queryByRole('table')).toBeNull();
@@ -422,7 +424,7 @@ describe('F4-R1: Atualizar', () => {
     sessionFor('ana@nekkora.dev');
     let release!: () => void;
     const hold = new Promise<void>((r) => (release = r));
-    intercept = (path) => (path.includes('/executions') && path.includes('cursor=') ? { delay: hold } : undefined);
+    intercept = (path) => (path.includes('/activity') && path.includes('cursor=') ? { delay: hold } : undefined);
     renderAt(exec());
     await ready();
     fireEvent.change(screen.getByLabelText('Período'), { target: { value: 'all' } });
@@ -441,8 +443,8 @@ describe('F4-R1: data aceita pelo contrato que o Date não representa', () => {
   it('segundo bissexto (23:59:60Z) passa pela validação e a tela continua utilizável, mostrando o valor como recebido', async () => {
     sessionFor('ana@nekkora.dev');
     intercept = (path) =>
-      path.includes('/executions') && !path.includes('cursor=')
-        ? { tamper: (b) => ({ ...b, items: b.items.map((e: any, i: number) => (i === 0 ? { ...e, status: 'succeeded', statusReason: 'process_completed', startedAt: '2016-12-31T23:59:00Z', finishedAt: '2016-12-31T23:59:60Z', durationMs: 60000 } : e)) }) }
+      path.includes('/activity') && !path.includes('cursor=')
+        ? { tamper: (b) => ({ ...b, items: b.items.map((e: any, i: number) => (i === 0 ? { ...e, outcome: 'succeeded', startedAt: '2016-12-31T23:59:00Z', endedAt: '2016-12-31T23:59:60Z' } : e)) }) }
         : undefined;
     renderAt(exec());
     await ready();

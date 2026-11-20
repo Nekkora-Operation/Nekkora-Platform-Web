@@ -76,13 +76,14 @@ test('lista → detalhe pelo teclado → eventos → voltar com os filtros; reca
   const acc = await account({ orgRoles: ['ORG_ADMIN'] });
   await enter(page, acc);
   await nav(page).getByRole('link', { name: 'Execuções' }).click();
+  await leaveMenu(page);
   await expect(page.getByRole('table').locator('tbody tr').first()).toBeVisible();
+  await page.getByRole('tab', { name: 'Histórico' }).click();
+  await expect(page).toHaveURL(/aba=historico/);
   await page.getByLabel('Período').selectOption('7d');
-  await page.getByLabel('Concluída').check();
-  await expect(page).toHaveURL(/estado=succeeded/);
   await expect(page).toHaveURL(/periodo=7d&desde=/);
   const listUrl = page.url();
-  const from = () => new URL(urls.filter((u) => u.includes('/executions?')).at(-1)!, BASE).searchParams.get('from');
+  const from = () => new URL(urls.filter((u) => u.includes('/activity?')).at(-1)!, BASE).searchParams.get('from');
   await expect(page.getByRole('table').locator('tbody tr').first()).toBeVisible();
   const from1 = from();
 
@@ -91,10 +92,10 @@ test('lista → detalhe pelo teclado → eventos → voltar com os filtros; reca
     await expect(page.getByRole('table').locator('tbody tr').first()).toBeVisible();
     expect(page.url()).toBe(listUrl);
     expect(from()).toBe(from1);
-    await expect(page.getByLabel('Concluída')).toBeChecked();
+    await expect(page.getByRole('tab', { name: 'Histórico' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  const link = page.getByRole('link', { name: /^Execução de .*, criada em / }).first();
+  const link = page.getByRole('link', { name: /^Execução de .*, pedida em / }).first();
   const href = (await link.getAttribute('href'))!;
   expect(href).toMatch(new RegExp(`^${org('/execucoes/')}[0-9a-f-]{36}$`));
 
@@ -121,7 +122,7 @@ test('lista → detalhe pelo teclado → eventos → voltar com os filtros; reca
     await expect(page.getByRole('table').locator('tbody tr').first()).toBeVisible();
     expect(page.url()).toBe(listUrl);
     expect(from()).toBe(from1);
-    await expect(page.getByLabel('Concluída')).toBeChecked();
+    await expect(page.getByRole('tab', { name: 'Histórico' })).toHaveAttribute('aria-selected', 'true');
   });
 });
 
@@ -150,7 +151,7 @@ test('ambiente de trabalho → automações → automação → versões → exe
 
   await page.getByRole('link', { name: 'Ver execuções desta automação' }).click();
   await expect(page.getByText('Somente a automação Backup dos arquivos de operação.')).toBeVisible();
-  await expect.poll(() => urls.some((u) => u.includes('/executions?') && u.includes(`automationId=${auto('backup')}`))).toBe(true);
+  await expect.poll(() => urls.some((u) => u.includes('/activity?') && u.includes(`automationId=${auto('backup')}`))).toBe(true);
   await expect(page.getByRole('table').locator('tbody tr').first()).toBeVisible();
   for (const t of await page.getByRole('table').locator('tbody tr').allInnerTexts()) expect(t).toContain('Backup dos arquivos de operação');
 

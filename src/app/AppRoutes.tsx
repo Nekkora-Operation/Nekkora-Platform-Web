@@ -40,7 +40,7 @@ import { WorkspacesPage } from "../pages/product/WorkspacesPage";
 import { VersionPage } from "../pages/product/VersionPage";
 import { NewAutomationPage } from "../pages/product/NewAutomationPage";
 import { WorkersPage } from "../pages/agents/WorkersPage";
-import { AgentRunPage, AgentRunsPage } from "../pages/agents/supervision";
+import { AgentRunPage } from "../pages/agents/supervision";
 import { RemoteExecutionPage } from "../pages/agents/remoteOverview";
 import { InternalHome, OrgAccountPage } from "../pages/HomePage";
 import { DesktopAuthorizePage } from "../pages/DesktopAuthorizePage";
@@ -66,6 +66,18 @@ function AgentsToWorkers() {
 }
 
 /** Telas de entrada da identidade (mesmas páginas da entrada por organização, com o fluxo da identidade). */
+/** PLATFORM-FLUXO-002: /supervisao (endereço antigo) leva a Execuções. */
+function LegacyExecutionsRedirect() {
+  const { orgId } = useParams();
+  return <Navigate to={orgPath.executions(orgId!)} replace />;
+}
+
+/** PLATFORM-FLUXO-002: /supervisao/:id (endereço antigo) leva ao detalhe da execução do Agent anterior em Execuções. */
+function LegacyAgentRunRedirect() {
+  const { orgId, runId } = useParams();
+  return <Navigate to={orgPath.agentRun(orgId!, runId!)} replace />;
+}
+
 function IdentityFlowOutlet() {
   return (
     <IdentityFlowProvider>
@@ -155,8 +167,10 @@ export function AppRoutes() {
             {/* PLATFORM-AGENT-V2-002, T07: Workers é a entrada única; o endereço antigo de Agents continua levando até lá */}
             <Route path="agents" element={<AgentsToWorkers />} />
             <Route path="workers" element={<WorkersPage />} />
-            <Route path="supervisao" element={<AgentRunsPage />} />
-            <Route path="supervisao/:runId" element={<AgentRunPage />} />
+            <Route path="execucoes-locais/:runId" element={<AgentRunPage />} />
+            {/* PLATFORM-FLUXO-002: endereços antigos de Supervisão, mantidos por redirecionamento (as permissões continuam as da tela de destino) */}
+            <Route path="supervisao" element={<LegacyExecutionsRedirect />} />
+            <Route path="supervisao/:runId" element={<LegacyAgentRunRedirect />} />
             {/* F6a-1: administração, só leitura; o acesso de cada tela é decidido pela API (403 → estado próprio) */}
             <Route path="administracao/membros" element={<MembersPage />} />
             <Route path="administracao/clientes" element={<ClientsPage />} />

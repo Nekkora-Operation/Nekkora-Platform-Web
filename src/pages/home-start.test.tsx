@@ -242,7 +242,7 @@ describe('Início da organização como painel (PLATFORM-INICIO-001)', () => {
       expect(icon.querySelector('.nk-icon--outline'), 'ícone só de traço').not.toBeNull();
     }
     expect(icons.map((i) => [...i.classList].find((c) => /--(accent|success|danger)$/.test(c)))).toEqual(['nk-iconbox--accent', 'nk-iconbox--success', 'nk-iconbox--danger']);
-    for (const [name, path] of [['Ver execuções', `/o/${ORG}/execucoes`], ['Ver ambientes de trabalho', `/o/${ORG}/workspaces`]] as const) {
+    for (const [name, path] of [['Ver execuções', `/o/${ORG}/execucoes?aba=historico`], ['Ver ambientes de trabalho', `/o/${ORG}/workspaces`]] as const) {
       const link = screen.getByRole('link', { name });
       expect(link).toHaveAttribute('href', path);
       expect(link.classList.contains('nk-button--secondary')).toBe(true);
@@ -361,7 +361,7 @@ describe('Início da organização como painel (PLATFORM-INICIO-001)', () => {
     expect(within(cards[0]).getByRole('link', { name: /última execução/ })).toHaveAttribute('href', `/o/${ORG}/execucoes/${EXE}`);
     expect(within(cards[1]).getByText('Resultado não confirmado')).toBeInTheDocument();
     expect(within(cards[1]).queryByText('Erro')).toBeNull();
-    expect(within(cards[1]).getByRole('link', { name: /última execução/ })).toHaveAttribute('href', `/o/${ORG}/supervisao/${EXE}`);
+    expect(within(cards[1]).getByRole('link', { name: /última execução/ })).toHaveAttribute('href', `/o/${ORG}/execucoes-locais/${EXE}`);
     expect(within(cards[2]).getByText('Não iniciada')).toBeInTheDocument();
     expect(within(cards[2]).queryByRole('link', { name: /última execução/ })).toBeNull();
   });

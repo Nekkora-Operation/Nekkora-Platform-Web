@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "3605da0aa713c05692ca285728ea1df9507e35aa67a93d984fb25afe0caf1c37",
+  "openapiSha256": "93dffe86e101e7da0fa12d638be2c9f920fb1ca08817ac0b3339259279598b23",
   "schemas": {
     "Error": {
       "type": "object",
@@ -1531,6 +1531,181 @@
         },
         "activation": {
           "$ref": "#/components/schemas/AutomationActivation"
+        }
+      }
+    },
+    "ActivityRef": {
+      "type": "object",
+      "required": [
+        "id",
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "ActivityItem": {
+      "type": "object",
+      "required": [
+        "kind",
+        "id",
+        "workspace",
+        "automation",
+        "machine",
+        "outcome",
+        "attention",
+        "requestedAt",
+        "startedAt",
+        "endedAt"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "platform",
+            "local_agent",
+            "local_request",
+            "remote"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workspace": {
+          "$ref": "#/components/schemas/ActivityRef"
+        },
+        "automation": {
+          "$ref": "#/components/schemas/ActivityRef"
+        },
+        "machine": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "workerId",
+            "name",
+            "computerName"
+          ],
+          "properties": {
+            "workerId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "computerName": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "succeeded",
+            "failed",
+            "in_progress",
+            "cancelled",
+            "not_started",
+            "unconfirmed"
+          ]
+        },
+        "attention": {
+          "type": "boolean"
+        },
+        "requestedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "startedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "endedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    },
+    "ActivityPage": {
+      "type": "object",
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/ActivityItem"
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "MachineActivityList": {
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "workerId",
+              "inProgress",
+              "attention",
+              "lastActivityAt"
+            ],
+            "properties": {
+              "workerId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "inProgress": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "attention": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "lastActivityAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            }
+          }
         }
       }
     },
@@ -11901,6 +12076,84 @@
           }
         },
         "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "listActivity": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/activity",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ActivityPage"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "listMachineActivity": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/activity/machines",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/MachineActivityList"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/Error"
