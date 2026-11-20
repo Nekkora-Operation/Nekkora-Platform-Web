@@ -29,6 +29,7 @@ import { DateTimeText, RouteLink } from '../product/shared';
 import { RemoteLogs } from './RemoteLogs';
 import { RemoteResults } from './RemoteResults';
 import './agents.css';
+import { CAPACITY_PENDING_TEXT, LICENSE_EXPIRED_TEXT, LICENSE_REQUIRED_TEXT } from '../licenses/texts';
 
 /**
  * PLATFORM-CLIENT-EXECUCAO-REMOTA-001, T02 — execução remota de uma versão publicada. A tela mostra, por máquina, o que
@@ -178,6 +179,9 @@ const REFUSAL: Record<string, string> = {
   MACHINE_NOT_ENABLED: 'a máquina deixou de estar habilitada para execução remota antes do início',
   MACHINE_INCOMPATIBLE: 'o aplicativo da máquina deixou de ser compatível antes do início',
   COMMUNICATION_LOST: 'a máquina deixou de se comunicar antes do início',
+  // PLATFORM-LICENCIAMENTO-001: a licença é conferida de novo antes de entregar e antes de iniciar
+  LICENSE_REQUIRED: 'a automação estava sem licença no momento do início',
+  LICENSE_EXPIRED: 'a licença da automação venceu antes do início',
 };
 export const refusalText = (r: string | null | undefined) => (r ? (REFUSAL[r] ?? r) : '');
 
@@ -200,6 +204,8 @@ export const MISSING: Record<RemoteMissing, string> = {
   MACHINE_DISK_PRESSURE: 'Esta máquina informou pouco espaço livre em disco: ela não aceita trabalho novo até haver espaço.',
   PYTHON_NOT_SELECTED: 'Ainda não foi escolhido o Python desta automação nesta máquina.',
   PYTHON_NOT_IN_INVENTORY: 'O Python escolhido para esta automação não está mais entre os que esta máquina informou.',
+  LICENSE_REQUIRED: LICENSE_REQUIRED_TEXT,
+  LICENSE_EXPIRED: LICENSE_EXPIRED_TEXT,
 };
 
 /**
@@ -252,6 +258,9 @@ export const REQUEST_REFUSAL: Record<string, string> = {
   remote_attempt_not_unconfirmed: 'Só uma tentativa com resultado não confirmado, ou com processos ainda não confirmados como encerrados, pode ser reconciliada.',
   remote_attempt_already_reconciled: 'Esta tentativa já tem uma declaração de reconciliação.',
   remote_python_not_selected: MISSING.PYTHON_NOT_SELECTED,
+  license_required: LICENSE_REQUIRED_TEXT,
+  license_expired: LICENSE_EXPIRED_TEXT,
+  capacity_pending_limit_reached: CAPACITY_PENDING_TEXT,
   remote_python_not_in_inventory: 'Esse Python não está mais entre os que a máquina informou. Atualize a lista e escolha outro.',
   remote_machine_not_enabled: 'Esta máquina não está habilitada para execução remota.',
   remote_execution_unavailable: 'A execução remota não está disponível nesta Platform.',

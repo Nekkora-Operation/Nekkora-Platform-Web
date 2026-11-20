@@ -18,6 +18,7 @@ import { useSession } from '../../area/session';
 import { orgPath } from '../../auth/organization';
 import { StepUpDialog } from '../../components/StepUpDialog';
 import { accessRefusal, orgStepUp } from '../access/shared';
+import { licenseRefusalText, reducedValidityText } from '../licenses/texts';
 import { DateTimeText, LoadErrorState, RouteLink } from '../product/shared';
 
 const MAX_DAYS = 366;
@@ -295,19 +296,19 @@ export function LocalRunAuthorizations({
           confirmLabel="Autorizar execução local"
           stepUp={orgStepUp(org)}
           action={() => createLocalRunAuthorization(org, workspaceId, { workerId, automationVersionId: version.automationVersionId, validUntil: untilDate!.toISOString() })}
-          onDone={() => {
+          onDone={(created) => {
             setCreating(false);
-            setNotice({
-              tone: 'success',
-              text: 'Execução local autorizada. Nada foi iniciado: o Agent recebe a autorização na próxima conexão, o pacote precisa estar na máquina e o início é confirmado pela pessoa no Agent. Acompanhe em Supervisão.',
-            });
+            const done = 'Execução local autorizada. Nada foi iniciado: o Agent recebe a autorização na próxima conexão, o pacote precisa estar na máquina e o início é confirmado pela pessoa no Agent. Acompanhe em Supervisão.';
+            // PLATFORM-LICENCIAMENTO-001: a validade não passa do fim da licença; a redução é dita, com a data efetiva
+            const reduced = untilDate ? reducedValidityText(untilDate.toISOString(), created.validUntil) : null;
+            setNotice(reduced ? { tone: 'warning', text: `${reduced} ${done}` } : { tone: 'success', text: done });
             void load();
           }}
           onClose={() => setCreating(false)}
           refusalText={(e) =>
             hasReason(e, 'conflict', EXISTS_REASON)
               ? existsText
-              : accessRefusal(e, {
+              : licenseRefusalText(e) ?? accessRefusal(e, {
                   conflict: 'A versão não está publicada com pacote, o Worker não está autorizado neste workspace, ou a automação/workspace não está ativo.',
                 })
           }
@@ -332,19 +333,18 @@ export function LocalRunAuthorizations({
           confirmLabel="Autorizar monitoramento"
           stepUp={orgStepUp(org)}
           action={() => createMonitoringAuthorization(org, workspaceId, { workerId, automationId: automation.automationId, validUntil: untilDate!.toISOString() })}
-          onDone={() => {
+          onDone={(created) => {
             setCreating(false);
-            setNotice({
-              tone: 'success',
-              text: 'Monitoramento autorizado. Nada foi iniciado: o Agent recebe a autorização na próxima conexão; na máquina, aprove o vínculo (vincular) e troque o programa da tarefa agendada pelo nekkora-lancar. Acompanhe em Supervisão.',
-            });
+            const done = 'Monitoramento autorizado. Nada foi iniciado: o Agent recebe a autorização na próxima conexão; na máquina, aprove o vínculo (vincular) e troque o programa da tarefa agendada pelo nekkora-lancar. Acompanhe em Supervisão.';
+            const reduced = untilDate ? reducedValidityText(untilDate.toISOString(), created.validUntil) : null;
+            setNotice(reduced ? { tone: 'warning', text: `${reduced} ${done}` } : { tone: 'success', text: done });
             void load();
           }}
           onClose={() => setCreating(false)}
           refusalText={(e) =>
             hasReason(e, 'conflict', EXISTS_REASON)
               ? existsText
-              : accessRefusal(e, { conflict: 'O Worker não está autorizado neste workspace, ou a automação/workspace não está ativo.' })
+              : licenseRefusalText(e) ?? accessRefusal(e, { conflict: 'O Worker não está autorizado neste workspace, ou a automação/workspace não está ativo.' })
           }
           uncertainText="Não foi possível confirmar a autorização. Feche e confira a lista antes de repetir."
           onUnauthenticated={expired}

@@ -8,6 +8,7 @@ import { commonMessage, UNAVAILABLE, type UserMessage } from '../auth/messages';
 import { orgPath } from '../auth/organization';
 import { ErrorAlert } from '../pages/ErrorAlert';
 import { pendingInvitation } from './AcceptInvitationPage';
+import { OrganizationCreationPanel } from './OrganizationCreationPanel';
 import { useIdentityArea } from './IdentityArea';
 import { activationLabel, ROLE_LABEL } from './labels';
 import './identity.css';
@@ -39,7 +40,9 @@ export function OrganizationsPage() {
 
   const load = useCallback(async () => {
     const gen = ++generation.current;
-    setState({ kind: 'loading' });
+    // recarga com a lista já na tela (depois de desativar ou reativar): a lista fica onde está até a nova chegar, para a
+    // confirmação do ato não sumir junto com a página
+    setState((s) => (s.kind === 'ready' ? s : { kind: 'loading' }));
     try {
       const data = await myOrganizations();
       if (gen === generation.current) setState({ kind: 'ready', data });
@@ -194,6 +197,9 @@ export function OrganizationsPage() {
           })}
         </ul>
       )}
+
+      {/* PLATFORM-LICENCIAMENTO-001: por que a pessoa cria, solicita ou não cria; pedidos; desativar e reativar */}
+      <OrganizationCreationPanel organizations={organizations} onChanged={() => void load()} />
 
       <Text variant="body-sm" color="secondary">
         Entrar numa organização encerra a sessão aberta em outra organização neste navegador, inclusive em outras abas.

@@ -140,6 +140,46 @@ describe('T12: uma autorização vigente por escopo (monitoramento)', () => {
     expect(posts()).toHaveLength(0);
   });
 
+  // PLATFORM-LICENCIAMENTO-001: a validade não passa do fim da licença, e a redução nunca fica em silêncio
+  it('validade reduzida pelo servidor: a tela mostra a data efetiva e o motivo', async () => {
+    const effective = future(10);
+    api.on('POST', LIST, 'createLocalRunAuthorization', () => {
+      authorizations = [monitor({ validUntil: effective })];
+      return { status: 201, body: monitor({ validUntil: effective }) };
+    });
+    await openAutomation();
+    await chooseWorker(W1);
+    await waitFor(() => expect(button()).toBeEnabled());
+    fireEvent.click(button());
+    const dialog = await screen.findByRole('alertdialog');
+    const confirm = within(dialog).getByRole('button', { name: 'Autorizar monitoramento' });
+    await waitFor(() => expect(confirm).toBeEnabled());
+    fireEvent.click(confirm);
+    const day = new Date(effective).toLocaleDateString('pt-BR');
+    const notice = await screen.findByText(/A validade foi reduzida porque a licença desta automação termina nessa data/);
+    expect(notice.textContent).toContain(`A autorização vale até ${day}`);
+    expect(notice.textContent).toMatch(/e não até \d{2}\/\d{2}\/\d{4}.*como você pediu/);
+    expect(notice.textContent).toContain('Monitoramento autorizado.');
+  });
+
+  it('validade igual à pedida: sem aviso de redução', async () => {
+    api.on('POST', LIST, 'createLocalRunAuthorization', (call) => {
+      const asked = (call.body as { validUntil: string }).validUntil;
+      authorizations = [monitor({ validUntil: asked })];
+      return { status: 201, body: monitor({ validUntil: asked }) };
+    });
+    await openAutomation();
+    await chooseWorker(W1);
+    await waitFor(() => expect(button()).toBeEnabled());
+    fireEvent.click(button());
+    const dialog = await screen.findByRole('alertdialog');
+    const confirm = within(dialog).getByRole('button', { name: 'Autorizar monitoramento' });
+    await waitFor(() => expect(confirm).toBeEnabled());
+    fireEvent.click(confirm);
+    expect(await screen.findByText(/^Monitoramento autorizado\./)).toBeInTheDocument();
+    expect(screen.queryByText(/A validade foi reduzida/)).toBeNull();
+  });
+
   it('revogada ou vencida não impede uma nova', async () => {
     authorizations = [monitor({ revokedAt: T }), monitor({ authorizationId: V1, validUntil: '2026-01-01T00:00:00Z', grantedAt: '2025-12-01T00:00:00Z' })];
     await openAutomation();

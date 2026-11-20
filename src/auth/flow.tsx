@@ -52,6 +52,8 @@ export const identityPath = {
   signupConfirm: '/cadastro/confirmar',
   organizations: '/organizacoes',
   newOrganization: '/organizacoes/nova',
+  /** PLATFORM-LICENCIAMENTO-001: o membro pede a criação a quem administra a organização dele. */
+  requestOrganization: '/organizacoes/solicitar',
   account: '/conta',
   /** Troca do fator: obrigatória na sessão restrita. */
   replaceFactor: '/conta/fator',
