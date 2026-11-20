@@ -14,6 +14,7 @@ const list = (n: number, hasMore: boolean): CursorList<number> => ({
   cursorRejected: false,
   loadMore: vi.fn(),
   reload: vi.fn(),
+  refreshFirst: vi.fn(),
 });
 
 describe('AdminLoadMore: contagem exibida', () => {

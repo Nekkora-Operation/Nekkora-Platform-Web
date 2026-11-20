@@ -129,14 +129,16 @@ export function RemoteExecutionPage() {
             {a.state === 'ENDED_UNKNOWN' && <Text color="secondary">{endedUnknownText(a.closureCause)}</Text>}
             <DescriptionList
               items={[
-                { key: 'maquina', term: 'Computador', description: a.agentName },
+                { key: 'maquina', term: 'Nome da máquina', description: a.agentName },
                 {
                   key: 'worker',
                   term: 'Máquina',
                   description: (
                     <span>
                       {a.workerName} · <RouteLink to={orgPath.machine(org, a.workerId)}>Abrir a máquina</RouteLink> ·{' '}
-                      <RouteLink to={orgPath.machineActivity(org, a.workerId)}>Ver atividade</RouteLink>
+                      <RouteLink to={orgPath.machineActivity(org, a.workerId)} state={{ machine: { workerId: a.workerId, name: a.workerName, computerName: a.agentName } }}>
+                        Ver atividade
+                      </RouteLink>
                     </span>
                   ),
                 },

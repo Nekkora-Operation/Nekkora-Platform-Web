@@ -6,7 +6,7 @@ import { sessionMemory } from '../app/notices';
 import { fakeLocks } from '../test/fakeLocks';
 import { renderApp } from '../test/render';
 import { RouteApi } from '../test/routeApi';
-import { ATTENTION_LABEL } from './ExecutionsPage';
+import { ATTENTION_LABEL, IN_PROGRESS_INTERVAL_MS } from './ExecutionsPage';
 
 /**
  * PLATFORM-FLUXO-002 — acompanhamento unificado em Execuções: abas "Em andamento" (padrão, sem período) e "Histórico" (com
@@ -109,8 +109,34 @@ describe('Execuções: acompanhamento unificado', () => {
     expect(within(rows[1]).queryByText('Em andamento')).toBeNull();
     // da execução para o seu detalhe (Agent anterior) e para a sua máquina
     expect(within(rows[1]).getByRole('link', { name: /^Execução de Conciliação/ })).toHaveAttribute('href', `/o/${ORG}/execucoes-locais/${RUN}`);
-    expect(within(rows[1]).getByRole('link', { name: 'Máquina Estação fiscal (computador NOTE-01)' })).toHaveAttribute('href', `/o/${ORG}/workers?maquina=${W1}`);
+    expect(within(rows[1]).getByRole('link', { name: 'Máquina Estação fiscal (nome da máquina: NOTE-01)' })).toHaveAttribute('href', `/o/${ORG}/workers?maquina=${W1}`);
     expect(within(rows[0]).getByRole('link', { name: /^Execução de Conciliação/ })).toHaveAttribute('href', `/o/${ORG}/execucoes/${EXE}`);
+  });
+
+  it('"Em andamento" se atualiza sozinha: a execução iniciada depois aparece sem "Atualizar"; o Histórico não relê sozinho', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let extra = false;
+      api.on('GET', new RegExp(`/api/v1/o/${ORG}/activity$`), 'listActivity', (call) => {
+        const tab = new URL(call.url, 'http://x').searchParams.get('tab');
+        const items = tab === 'history' ? [] : extra ? [item({ id: ID(44), automation: { id: ID(22), name: 'Nova execução' } })] : [];
+        return { status: 200, body: { items, nextCursor: null } };
+      });
+      renderApp(`/o/${ORG}/execucoes`);
+      expect(await screen.findByText('Nada em andamento agora.')).toBeInTheDocument();
+      const before = sentActivity().length;
+      extra = true;
+      await vi.advanceTimersByTimeAsync(IN_PROGRESS_INTERVAL_MS + 100);
+      expect(await screen.findByRole('link', { name: /^Execução de Nova execução/ })).toBeInTheDocument();
+      expect(sentActivity().length).toBe(before + 1);
+      fireEvent.click(screen.getByRole('tab', { name: 'Histórico' }));
+      await waitFor(() => expect(sentActivity().at(-1)!.get('tab')).toBe('history'));
+      const inHistory = sentActivity().length;
+      await vi.advanceTimersByTimeAsync(IN_PROGRESS_INTERVAL_MS * 2);
+      expect(sentActivity().length).toBe(inHistory);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('"Histórico" consulta com o período padrão de 30 dias; voltar à primeira aba não envia período', async () => {
@@ -126,11 +152,22 @@ describe('Execuções: acompanhamento unificado', () => {
     expect(sentActivity().at(-1)!.get('from')).toBeNull();
   });
 
+  it('Python externo com código 0 sem sinal: "Terminou sem erro sinalizado", nunca "Concluída com sucesso"', async () => {
+    api.on('GET', new RegExp(`/api/v1/o/${ORG}/activity$`), 'listActivity', {
+      status: 200,
+      body: { items: [item({ kind: 'local_agent', id: RUN, outcome: 'no_error_signaled', endedAt: '2026-11-20T10:01:00Z' })], nextCursor: null },
+    });
+    renderApp(`/o/${ORG}/execucoes?aba=historico`);
+    const region = await screen.findByRole('region', { name: 'Lista de execuções' });
+    expect(within(region).getByText('Terminou sem erro sinalizado')).toBeInTheDocument();
+    expect(within(region).queryByText('Concluída com sucesso')).toBeNull();
+  });
+
   it('"Ver atividade" de uma máquina: o filtro vem do endereço e pode ser removido', async () => {
     renderApp(`/o/${ORG}/execucoes?maquina=${W1}`);
     await screen.findByRole('region', { name: 'Lista de execuções' });
     expect(sentActivity().at(-1)!.get('workerId')).toBe(W1);
-    expect(await screen.findByText('Somente a máquina Estação fiscal (computador NOTE-01).')).toBeInTheDocument();
+    expect(await screen.findByText('Somente a máquina Estação fiscal (nome da máquina: NOTE-01).')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Abrir a máquina' })).toHaveAttribute('href', `/o/${ORG}/workers?maquina=${W1}`);
     fireEvent.click(screen.getByRole('button', { name: 'Remover filtro de máquina' }));
     await waitFor(() => expect(sentActivity().at(-1)!.get('workerId')).toBeNull());
@@ -180,6 +217,15 @@ describe('Máquinas: atividade e foco numa máquina', () => {
     expect(within(row).getByRole('link', { name: 'Ver atividade de Estação fiscal' })).toHaveAttribute('href', `/o/${ORG}/execucoes?maquina=${W1}`);
     const other = screen.getByRole('row', { name: /Estação dois/ });
     expect(within(other).getByText('Nenhuma execução visível para você.')).toBeInTheDocument();
+  });
+
+  it('"Ver atividade" leva o nome: o filtro identifica a máquina mesmo sem nenhuma linha dela na aba', async () => {
+    renderApp(`/o/${ORG}/workers`);
+    const row = await screen.findByRole('row', { name: /Estação dois/ });
+    fireEvent.click(within(row).getByRole('link', { name: 'Ver atividade de Estação dois' }));
+    await waitFor(() => expect(location()).toBe(`/o/${ORG}/execucoes`));
+    await waitFor(() => expect(sentActivity().at(-1)!.get('workerId')).toBe(ID(32)));
+    expect(await screen.findByText('Somente a máquina Estação dois.')).toBeInTheDocument();
   });
 
   it('da execução para a máquina: ?maquina= mostra só ela, com o caminho de volta para todas', async () => {

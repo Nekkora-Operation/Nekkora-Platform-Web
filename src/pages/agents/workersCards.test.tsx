@@ -105,7 +105,7 @@ describe('Máquinas em cartões, por perfil (T07 + T08 R1)', () => {
     await waitFor(() => expect(r).toHaveAttribute('data-format', 'cartoes'));
     expect(within(r).queryByRole('table')).toBeNull();
     const linked = cardOf(r, 'Worker financeiro');
-    expect(linked).toHaveTextContent('Computador vinculado');
+    expect(linked).toHaveTextContent('Nome da máquina');
     expect(linked).toHaveTextContent('ESTACAO-01');
     expect(linked).toHaveTextContent('Online');
     expect(within(linked).getByRole('button', { name: 'Retirar autorização de Financeiro da máquina Worker financeiro' })).toBeInTheDocument();

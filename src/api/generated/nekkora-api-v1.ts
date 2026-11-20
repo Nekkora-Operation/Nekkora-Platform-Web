@@ -3547,8 +3547,11 @@ export interface components {
                 /** @description Computador vinculado hoje a maquina (informado na vinculacao) */
                 computerName: string | null;
             } | null;
-            /** @enum {string} */
-            outcome: "succeeded" | "failed" | "in_progress" | "cancelled" | "not_started" | "unconfirmed";
+            /**
+             * @description no_error_signaled: Python externo monitorado que terminou com codigo 0 SEM sinal de sucesso (AGT-EXT-001); nunca e sucesso de negocio
+             * @enum {string}
+             */
+            outcome: "succeeded" | "failed" | "in_progress" | "cancelled" | "not_started" | "unconfirmed" | "no_error_signaled";
             /** @description Resultado desconhecido ainda nao reconciliado */
             attention: boolean;
             /** Format: date-time */

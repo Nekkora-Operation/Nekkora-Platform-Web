@@ -257,7 +257,7 @@ export function AgentRunPage() {
               ),
             },
             { key: 'origem', term: 'Origem', description: [r.sourceKind ? SOURCE_KIND[r.sourceKind] : null, r.origin ? ORIGIN[r.origin] : null].filter(Boolean).join(' · ') || '—' },
-            { key: 'agent', term: 'Computador (Agent)', description: r.agentName ?? short(c?.agentId) },
+            { key: 'agent', term: 'Nome da máquina', description: r.agentName ?? short(c?.agentId) },
             { key: 'duracao', term: 'Duração (relógio do Agent)', description: durationText(s?.agentStartedAt, s?.agentEndedAt) },
             {
               key: 'worker',

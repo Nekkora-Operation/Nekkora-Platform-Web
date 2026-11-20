@@ -255,7 +255,7 @@ describe('Licenças e automações', () => {
     expect(row).toHaveTextContent('Notas de entrada');
     expect(row).toHaveTextContent('Fiscal');
     expect(row).toHaveTextContent('nº 1');
-    expect(row).toHaveTextContent(/Estação 1 \(computador NOTE-FISCAL-01\): execução até .*; monitoramento até/);
+    expect(row).toHaveTextContent(/Estação 1 \(nome da máquina: NOTE-FISCAL-01\): execução até .*; monitoramento até/);
     expect(within(row).getByText('Conectada')).toBeInTheDocument();
     expect(row).toHaveTextContent('versão 1');
     expect(within(row).getByText(STATE_TEXT.ACTIVE.label)).toBeInTheDocument();
@@ -275,7 +275,7 @@ describe('Licenças e automações', () => {
     fireEvent.change(await within(dialog).findByLabelText('2. Automação'), { target: { value: AUT2 } });
     // nenhum Worker vem marcado
     // a máquina pelo nome amigável e o computador vinculado, com o estado; cadastrar ou conectar não consome licença
-    const w1 = await within(dialog).findByRole('checkbox', { name: 'Estação 1 (computador NOTE-FISCAL-01)' });
+    const w1 = await within(dialog).findByRole('checkbox', { name: 'Estação 1 (nome da máquina: NOTE-FISCAL-01)' });
     expect(within(dialog).getByText('Conectada')).toBeInTheDocument();
     expect(within(dialog).getByText('Cadastrada')).toBeInTheDocument();
     expect(within(dialog).getByText(/Cadastrar ou conectar uma máquina não consome licença/)).toBeInTheDocument();
@@ -286,7 +286,7 @@ describe('Licenças e automações', () => {
     expect(review).toHaveTextContent(/será usada a licença nº 2, válida até/);
     expect(review).toHaveTextContent(/Versão publicada atual: versão 2. Versões futuras não são autorizadas sozinhas/);
     fireEvent.click(w1);
-    expect(review).toHaveTextContent('Máquinas: Estação 1 (computador NOTE-FISCAL-01)');
+    expect(review).toHaveTextContent('Máquinas: Estação 1 (nome da máquina: NOTE-FISCAL-01)');
     await waitFor(() => expect(confirm).toBeEnabled());
     const readsBefore = api.sent('GET', `${base}/licenses/summary`).length;
     fireEvent.click(confirm);
@@ -301,6 +301,41 @@ describe('Licenças e automações', () => {
     expect(screen.getByText('Uma licença foi vinculada a esta automação.')).toBeInTheDocument();
   });
 
+  it('a releitura depois do ato recebe "muitas tentativas": o resumo continua, nada some, e a tela oferece atualizar', async () => {
+    api.on('POST', `${base}/automation-activations`, 'activateAutomation', {
+      status: 200,
+      body: outcome([{ workerId: WK1, kind: 'execution', automationVersionId: V2, outcome: 'issued', authorizationId: L1, validUntil: END }], activation({ automationId: AUT2, name: 'Notas de saída' })),
+    });
+    renderApp(`/o/${ORG}/administracao/licencas`);
+    fireEvent.click(await screen.findByRole('button', { name: 'Ativar automação' }));
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.change(await within(dialog).findByLabelText('1. Ambiente de trabalho'), { target: { value: WS } });
+    fireEvent.change(await within(dialog).findByLabelText('2. Automação'), { target: { value: AUT2 } });
+    fireEvent.click(await within(dialog).findByRole('checkbox', { name: 'Estação 1 (nome da máquina: NOTE-FISCAL-01)' }));
+    const confirm = within(dialog).getByRole('button', { name: 'Ativar execução e monitoramento' });
+    await waitFor(() => expect(confirm).toBeEnabled());
+    // a partir daqui, as leituras da página recebem 429 (limite de frequência), como no laboratório
+    const tooMany = { status: 429, body: { error: 'rate_limited' }, headers: { 'Retry-After': '1' } };
+    api.on('GET', `${base}/licenses/summary`, 'getLicenseSummary', tooMany);
+    api.on('GET', new RegExp(`${base}/automation-activations$`), 'listAutomationActivations', tooMany);
+    fireEvent.click(confirm);
+    expect(await screen.findByText('Uma licença foi vinculada a esta automação.')).toBeInTheDocument();
+    expect(await screen.findByText('Não foi possível atualizar os números agora.')).toBeInTheDocument();
+    // nada some: nem o resumo, nem a conta das licenças, nem a lista de automações atendidas
+    expect(screen.getByText('Uma licença foi vinculada a esta automação.')).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Conta das licenças' })).toBeInTheDocument();
+    expect(screen.queryByText('Nenhuma automação ativada ainda.')).toBeNull();
+    expect(screen.queryByText('Muitas tentativas.')).toBeNull();
+  });
+
+  it('falha ao ler as automações atendidas: diz que não foi lida e oferece tentar de novo; nunca "nenhuma automação ativada"', async () => {
+    api.on('GET', new RegExp(`${base}/automation-activations$`), 'listAutomationActivations', { status: 503, body: { error: 'unavailable' } });
+    renderApp(`/o/${ORG}/administracao/licencas`);
+    expect(await screen.findByText('Não foi possível carregar as automações atendidas.')).toBeInTheDocument();
+    expect(screen.queryByText('Nenhuma automação ativada ainda.')).toBeNull();
+    expect(screen.getByRole('group', { name: 'Conta das licenças' })).toBeInTheDocument();
+  });
+
   it('sem saldo: o impedimento aparece antes da confirmação e nada é enviado', async () => {
     api.on('GET', new RegExp(`${base}/automation-activations/options`), 'getAutomationActivationOptions', { status: 200, body: options({ nextLicense: null }) });
     renderApp(`/o/${ORG}/administracao/licencas`);
@@ -308,7 +343,7 @@ describe('Licenças e automações', () => {
     const dialog = await screen.findByRole('alertdialog');
     fireEvent.change(await within(dialog).findByLabelText('1. Ambiente de trabalho'), { target: { value: WS } });
     fireEvent.change(await within(dialog).findByLabelText('2. Automação'), { target: { value: AUT2 } });
-    fireEvent.click(await within(dialog).findByRole('checkbox', { name: 'Estação 1 (computador NOTE-FISCAL-01)' }));
+    fireEvent.click(await within(dialog).findByRole('checkbox', { name: 'Estação 1 (nome da máquina: NOTE-FISCAL-01)' }));
     expect(within(dialog).getByText('Não há licença disponível para ativar esta automação.')).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Ativar execução e monitoramento' })).toBeDisabled();
     expect(api.sent('POST', `${base}/automation-activations`)).toHaveLength(0);
@@ -330,10 +365,10 @@ describe('Licenças e automações', () => {
     const dialog = await screen.findByRole('alertdialog');
     fireEvent.change(await within(dialog).findByLabelText('1. Ambiente de trabalho'), { target: { value: WS } });
     fireEvent.change(await within(dialog).findByLabelText('2. Automação'), { target: { value: AUT2 } });
-    fireEvent.click(await within(dialog).findByRole('checkbox', { name: 'Estação 1 (computador NOTE-FISCAL-01)' }));
+    fireEvent.click(await within(dialog).findByRole('checkbox', { name: 'Estação 1 (nome da máquina: NOTE-FISCAL-01)' }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Ativar execução e monitoramento' }));
     const pending = await screen.findByRole('list', { name: 'O que ficou pendente' });
-    expect(pending).toHaveTextContent('monitoramento em Estação 1 (computador NOTE-FISCAL-01): a máquina, a versão ou o ambiente de trabalho mudou');
+    expect(pending).toHaveTextContent('monitoramento em Estação 1 (nome da máquina: NOTE-FISCAL-01): a máquina, a versão ou o ambiente de trabalho mudou');
     expect(screen.getByText(/Concluir não consome outra licença/)).toBeInTheDocument();
   });
 

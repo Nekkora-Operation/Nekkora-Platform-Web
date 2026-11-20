@@ -191,13 +191,13 @@ export function PairAgentDialog({ worker, onDone, onClose }: { worker: FreeWorke
         código; cancelar o código ou deixá-lo vencer não registra máquina nenhuma.
       </Text>
       <Input
-        label="Nome do computador"
+        label="Nome da máquina"
         required
         fullWidth
         maxLength={80}
         value={agentName}
         onChange={(e) => setAgentName(e.target.value)}
-        hint="Nome lógico informado por você; nada é coletado da máquina."
+        hint="Informado por você aqui, no pareamento. A Platform não detecta o nome do computador."
       />
       <Input label="Validade do código (minutos)" type="number" min={5} max={60} value={minutes} onChange={(e) => setMinutes(e.target.value)} hint="De 5 a 60." />
       <RadioGroup

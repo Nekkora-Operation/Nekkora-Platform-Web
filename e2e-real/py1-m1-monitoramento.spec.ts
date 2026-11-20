@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { confirmStepUp, LAB, pairNewWorker, signUpAndEnroll, type Person, workersText } from './support/lab';
+import { activateAutomation, confirmStepUp, dayFromNow, executionsText, LAB, localRunLinks, pairNewWorker, signUpAndEnroll, type Person, workersText } from './support/lab';
 
 /**
  * AGENT-PYTHON-001 — Marco 1 com Web, API e Agent REAIS: um Python externo (sem nada da Nekkora) que o Agendador de Tarefas
@@ -103,13 +103,11 @@ test('M1: Python externo do agendador monitorado pela Platform (0, erro com efei
   await confirmStepUp(page, ana, 'Autorizar');
   await expect(page.getByText('Máquina autorizada no ambiente de trabalho.')).toBeVisible();
 
-  // ---------- autorização de MONITORAMENTO na automação (sem versão nem impressão)
+  // ---------- autorização de MONITORAMENTO na automação (sem versão nem impressão). PLATFORM-FLUXO-002: pela ativação em um
+  // passo, que dá execução e monitoramento à máquina escolhida (modelo anterior: com validade)
+  await activateAutomation(page, ana, org, { workspace: 'Operações', automation: 'Relatório CSV', workers: ['Máquina relatórios'], validUntil: dayFromNow(10) });
   await page.goto(automationUrl);
   await expect(page.getByRole('heading', { name: 'Monitoramento de Python externo' })).toBeVisible();
-  await page.getByLabel(/^Máquina autorizada neste ambiente de trabalho/).selectOption({ label: 'Máquina relatórios' });
-  await page.getByRole('button', { name: 'Autorizar monitoramento' }).click();
-  await confirmStepUp(page, ana, 'Autorizar monitoramento');
-  await expect(page.getByText(/Monitoramento autorizado\. Nada foi iniciado/)).toBeVisible();
   await expect(page.getByRole('table', { name: 'Autorizações de execução local.' })).toContainText('sem pacote');
   await shot(page, 'm1-01-autorizacao-monitoramento');
 
@@ -144,30 +142,31 @@ test('M1: Python externo do agendador monitorado pela Platform (0, erro com efei
   log('canal', execFileSync('node', ['tools/lab/lab.mjs', LAB, 'canal-agent', 'retomar'], { encoding: 'utf8' }).trim());
   expect(effects()).toBe(4);
 
-  // ---------- Platform: as três execuções do lançador, com automação, máquina, início, fim/duração e desfecho
-  const runsText = async () => {
-    await page.goto(`/o/${org}/supervisao`);
-    const table = page.getByRole('region', { name: 'Execuções locais' });
-    await table.waitFor({ timeout: 20_000 }).catch(() => undefined);
-    return table.innerText().catch(() => '');
-  };
+  // ---------- Platform: as três execuções do lançador, com automação, máquina e desfecho (PLATFORM-FLUXO-002: em Execuções ›
+  // Histórico, a antiga Supervisão). Código 0 sem sinal continua NÃO sendo sucesso: "Terminou sem erro sinalizado"
+  const runsText = () => executionsText(page, org);
   await expect
-    .poll(async () => ((await runsText()).match(/Python externo monitorado/g) ?? []).length, { timeout: 600_000, intervals: [15_000] })
+    .poll(async () => ((await runsText()).match(/Agent anterior/g) ?? []).length, { timeout: 600_000, intervals: [15_000] })
     .toBe(3);
   await expect
     .poll(async () => {
       const t = await runsText();
-      return /Terminou com erro \(código de saída 3\)/.test(t) && (t.match(/Terminou sem erro sinalizado/g) ?? []).length === 2;
+      return (t.match(/Falhou/g) ?? []).length === 1 && (t.match(/Terminou sem erro sinalizado/g) ?? []).length === 2;
     }, { timeout: 600_000, intervals: [15_000] })
     .toBe(true);
   const listText = await runsText();
   expect(listText).toContain('Relatório CSV');
   expect(listText).toContain('ESTACAO-PY1');
   expect(listText).not.toContain(SENTINEL);
-  await shot(page, 'm1-02-supervisao-lista');
-  // detalhe da execução longa (a primeira da lista: a mais recente... a lista é por registro crescente: a última linha)
-  const links = page.getByRole('region', { name: 'Execuções locais' }).getByRole('link');
-  await links.last().click();
+  expect(listText).not.toMatch(/Concluída/); // nenhuma das três é sucesso de negócio
+  await shot(page, 'm1-02-execucoes-lista');
+  // o código de saída do erro, no detalhe (a lista mostra a situação; o detalhe, o desfecho do supervisor)
+  await page.getByRole('region', { name: 'Lista de execuções' }).locator('tbody tr').filter({ hasText: 'Falhou' }).getByRole('link', { name: /^Execução de / }).click();
+  await expect(page.getByText(/Terminou com erro \(código de saída 3\)/)).toBeVisible();
+  await executionsText(page, org);
+  // detalhe da execução longa: a mais recente, a primeira linha (Execuções ordena do pedido mais recente para o mais antigo)
+  const links = localRunLinks(page);
+  await links.first().click();
   await expect(page.getByRole('heading', { name: 'Execução local' })).toBeVisible();
   await expect(page.getByText(/sem versão \(Python externo monitorado/)).toBeVisible();
   await expect(page.getByText(/Completo|Entrega pendente/)).toBeVisible();

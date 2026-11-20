@@ -1,5 +1,5 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useSearchParams } from 'react-router';
 import { Alert, Badge, Button, Card, Grid, Input, LoadMore, Select, Stack, StateView, Table, Text, type TableColumn } from 'nekkora-lib';
 import { isApiError } from '../api/http';
 import { listActivity, type ActivityItem, type ActivityOutcome } from '../api/activity';
@@ -30,6 +30,14 @@ import {
 import './ExecutionsPage.css';
 
 const PAGE_SIZE = 25;
+/** A máquina que um link "Ver atividade" leva no estado da navegação (nome amigável e nome informado no pareamento). */
+export interface MachineRef {
+  workerId: string;
+  name: string | null;
+  computerName?: string | null;
+}
+/** "Em andamento" se atualiza sozinha (como a lista da antiga Supervisão): a primeira página é relida neste intervalo. */
+export const IN_PROGRESS_INTERVAL_MS = 30_000;
 /** Valor explícito de "todos": o Select da lib pinta o valor vazio como placeholder (cor de baixo contraste). */
 const ALL_WORKSPACES = 'todos';
 
@@ -125,6 +133,8 @@ export const OUTCOME: Record<ActivityOutcome, { label: string; tone: 'neutral' |
   cancelled: { label: 'Cancelada', tone: 'neutral' },
   not_started: { label: 'Não iniciada', tone: 'neutral' },
   unconfirmed: { label: 'Resultado não confirmado', tone: 'warning' },
+  // Python externo monitorado que terminou com código 0 sem sinal de sucesso (AGT-EXT-001): nunca é sucesso de negócio
+  no_error_signaled: { label: 'Terminou sem erro sinalizado', tone: 'neutral' },
 };
 
 export const ATTENTION_LABEL = 'Requer atenção';
@@ -168,6 +178,9 @@ export function ExecutionsPage() {
   const { workspaces, loadMoreWorkspaces, restartWorkspaces } = useInternalArea();
   const [searchParams, setSearchParams] = useSearchParams();
   const [filters, setFilters] = useState<Filters>(() => filtersFromUrl(searchParams));
+  // "Ver atividade" (Máquinas e detalhes) leva o nome da máquina junto: o filtro a identifica mesmo sem nenhuma linha na aba
+  const location = useLocation();
+  const [linkedMachine] = useState(() => (location.state as { machine?: MachineRef } | null)?.machine);
   const written = useRef<string | null>(null);
   const seen = useRef(searchParams.toString());
   const range = queryRange(filters);
@@ -219,8 +232,20 @@ export function ExecutionsPage() {
 
   useExpiresOn(list.error, errorOf(automation));
 
+  // "Em andamento": a execução iniciada depois aparece sem "Atualizar" nem recarregar (só com a aba visível)
+  const { refreshFirst } = list;
+  useEffect(() => {
+    if (filters.tab !== 'in_progress' || range.error) return;
+    const id = window.setInterval(() => {
+      if (document.visibilityState === 'visible') refreshFirst();
+    }, IN_PROGRESS_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, [filters.tab, range.error, refreshFirst, queryKey]);
+
   const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
-  const machineLabel = list.items.find((e) => e.machine?.workerId === filters.workerId)?.machine;
+  const machineLabel =
+    list.items.find((e) => e.machine?.workerId === filters.workerId)?.machine ??
+    (linkedMachine && linkedMachine.workerId === filters.workerId ? linkedMachine : undefined);
   const attention = list.items.filter((e) => e.attention).length;
 
   const columns: TableColumn<ActivityItem>[] = [
@@ -375,7 +400,7 @@ export function ExecutionsPage() {
                   />
                 ) : (
                   <Text variant="body-sm" color="secondary" role="note">
-                    Sem filtro de período: tudo o que está em andamento e as pendências que requerem atenção aparecem sempre, qualquer que seja a data.
+                    Sem filtro de período: tudo o que está em andamento e as pendências que requerem atenção aparecem sempre, qualquer que seja a data. A lista se atualiza sozinha a cada 30 segundos.
                   </Text>
                 )}
                 <div className="pw-exec__actions">

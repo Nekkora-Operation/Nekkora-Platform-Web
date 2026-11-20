@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "93dffe86e101e7da0fa12d638be2c9f920fb1ca08817ac0b3339259279598b23",
+  "openapiSha256": "d795c70f85402ff7b7fc7af436e03bc1e9c047b2baf8269ad99c6279c0fc9977",
   "schemas": {
     "Error": {
       "type": "object",
@@ -1621,7 +1621,8 @@
             "in_progress",
             "cancelled",
             "not_started",
-            "unconfirmed"
+            "unconfirmed",
+            "no_error_signaled"
           ]
         },
         "attention": {

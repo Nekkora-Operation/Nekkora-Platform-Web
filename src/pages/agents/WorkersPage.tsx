@@ -109,7 +109,8 @@ function WorkersManagement() {
     },
     {
       key: 'maquina',
-      header: 'Computador vinculado',
+      // o nome informado no pareamento (a Platform não detecta o nome do computador)
+      header: 'Nome da máquina',
       align: 'center',
       render: (w) =>
         w.agentId ? (
@@ -170,7 +171,11 @@ function WorkersManagement() {
                 )}
               </>
             )}
-            <RouteLink to={orgPath.machineActivity(org, w.workerId!)} aria-label={`Ver atividade de ${w.name}`}>
+            <RouteLink
+              to={orgPath.machineActivity(org, w.workerId!)}
+              state={{ machine: { workerId: w.workerId!, name: w.name ?? null, computerName: w.agentName ?? null } }}
+              aria-label={`Ver atividade de ${w.name}`}
+            >
               Ver atividade
             </RouteLink>
           </Stack>
