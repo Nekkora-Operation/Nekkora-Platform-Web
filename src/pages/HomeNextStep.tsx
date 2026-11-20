@@ -82,7 +82,7 @@ export function ActivationNotice() {
           organização ainda é zero.
         </span>
         <span>
-          A ativação é feita pela operação da Nekkora, não por esta tela. Você já pode preparar pessoas, workspaces e
+          A ativação é feita pela operação da Nekkora, não por esta tela. Você já pode preparar pessoas, ambientes de trabalho e
           automações; elas ficam prontas para quando a organização for ativada.
         </span>
       </Stack>
@@ -127,18 +127,18 @@ function FirstAutomationStep({ workspace }: { workspace: Workspace }) {
             Tentar novamente
           </Button>
         ) : (
-          <RouteLink to={orgPath.workspace(org, workspace.workspaceId)}>Abrir o workspace {workspace.name}</RouteLink>
+          <RouteLink to={orgPath.workspace(org, workspace.workspaceId)}>Abrir o ambiente de trabalho {workspace.name}</RouteLink>
         )
       }
     >
       {canManage
-        ? `Os seus workspaces ainda não têm automações. Comece pelo workspace ${workspace.name}.`
+        ? `Os seus ambientes de trabalho ainda não têm automações. Comece pelo ambiente de trabalho ${workspace.name}.`
         : perms.status === 'loading'
-          ? 'Os seus workspaces ainda não têm automações.'
+          ? 'Os seus ambientes de trabalho ainda não têm automações.'
           : perms.status === 'unknown'
             ? // R1: falha ao conferir (429, rede) não é falta de permissão
-              `Os seus workspaces ainda não têm automações. Não foi possível verificar suas permissões no workspace ${workspace.name} agora; tente de novo.`
-            : 'Os seus workspaces ainda não têm automações. Quem administra o workspace pode cadastrar a primeira.'}
+              `Os seus ambientes de trabalho ainda não têm automações. Não foi possível verificar suas permissões no ambiente de trabalho ${workspace.name} agora; tente de novo.`
+            : 'Os seus ambientes de trabalho ainda não têm automações. Quem administra o ambiente de trabalho pode cadastrar a primeira.'}
     </StepCard>
   );
 }
@@ -156,12 +156,12 @@ export function NextStep() {
   const active = loaded ? loaded.filter((w) => w.status === 'active').slice(0, HOME_WORKSPACES) : null;
   const activity = useActivity(active && active.length > 0 ? active : null);
 
-  if (workspaces.status === 'loading') return <StateView status="loading" title="Carregando workspaces…" />;
+  if (workspaces.status === 'loading') return <StateView status="loading" title="Carregando ambientes de trabalho…" />;
   if (workspaces.status === 'error') {
     return (
       <Alert
         tone="warning"
-        title="Não foi possível carregar os seus workspaces."
+        title="Não foi possível carregar os seus ambientes de trabalho."
         action={
           <Button size="sm" variant="secondary" onClick={reloadWorkspaces}>
             Tentar novamente
@@ -177,28 +177,28 @@ export function NextStep() {
     const canCreate = permissions.status === 'ready' && permissions.data.organization.permissions.includes('workspace.lifecycle');
     return (
       <StepCard
-        title={canCreate ? 'Criar primeiro workspace' : 'Nenhum workspace ainda'}
+        title={canCreate ? 'Criar primeiro ambiente de trabalho' : 'Nenhum ambiente de trabalho ainda'}
         action={
           canCreate ? (
             <Button leftIcon="plus" onClick={() => navigate(orgPath.workspaces(org), { state: { openCreate: true } })}>
-              Criar primeiro workspace
+              Criar primeiro ambiente de trabalho
             </Button>
           ) : undefined
         }
       >
         {canCreate
-          ? 'Workspaces organizam as automações e quem tem acesso a elas. Crie o primeiro para começar.'
+          ? 'Ambientes de trabalho organizam as automações e quem tem acesso a elas. Crie o primeiro para começar.'
           : permissions.status === 'error'
-            ? 'Nenhum workspace visível para você. Não foi possível carregar as suas permissões para indicar se você pode criar um.'
-            : 'Nenhum workspace visível para você. Quem administra a organização pode criar um workspace ou dar acesso a um existente.'}
+            ? 'Nenhum ambiente de trabalho visível para você. Não foi possível carregar as suas permissões para indicar se você pode criar um.'
+            : 'Nenhum ambiente de trabalho visível para você. Quem administra a organização pode criar um ambiente de trabalho ou dar acesso a um existente.'}
       </StepCard>
     );
   }
 
   if (!active || active.length === 0) {
     return (
-      <StepCard title="Nenhum workspace ativo" action={<RouteLink to={orgPath.workspaces(org)}>Ver workspaces</RouteLink>}>
-        Os workspaces visíveis para você estão suspensos ou arquivados.
+      <StepCard title="Nenhum ambiente de trabalho ativo" action={<RouteLink to={orgPath.workspaces(org)}>Ver ambientes de trabalho</RouteLink>}>
+        Os ambientes de trabalho visíveis para você estão suspensos ou arquivados.
       </StepCard>
     );
   }

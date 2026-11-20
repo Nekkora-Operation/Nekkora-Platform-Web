@@ -11,7 +11,7 @@ import { CommunicationCell, FreshnessNotice, LinkBadge, PRESENCE_TEXT, useLiveLi
 
 /** Explicação para quem administra Agents sem administrar Workers. */
 export const AGENTS_ONLY_TEXT =
-  'Você administra os Agents desta organização, mas não os Workers. Aqui ficam as ações sobre as máquinas vinculadas: renovar a credencial e revogar o vínculo. Criar Workers, autorizá-los em workspaces e vincular um Agent a um Worker exigem a permissão de administrar Workers.';
+  'Você administra os Agents desta organização, mas não os Workers. Aqui ficam as ações sobre as máquinas vinculadas: renovar a credencial e revogar o vínculo. Criar Workers, autorizá-los em ambientes de trabalho e vincular um Agent a um Worker exigem a permissão de administrar Workers.';
 
 /**
  * PLATFORM-AGENT-V2-002 R1 — a tela de Workers para quem tem `agent.manage` SEM `worker.manage`. A lista de Workers exige
@@ -149,7 +149,7 @@ export function LinkedAgentsView({ has }: { has: (p: string) => boolean }) {
           setRevoking(null);
           setNotice({
             tone: 'success',
-            text: `Vínculo revogado: ${a?.workerName ?? 'o Worker'} está livre, com os workspaces e o histórico mantidos. A máquina precisa ser pareada de novo para voltar a executar. Isso não prova que um processo já em execução numa máquina desconectada parou.`,
+            text: `Vínculo revogado: ${a?.workerName ?? 'o Worker'} está livre, com os ambientes de trabalho e o histórico mantidos. A máquina precisa ser pareada de novo para voltar a executar. Isso não prova que um processo já em execução numa máquina desconectada parou.`,
           });
           void load();
         }}

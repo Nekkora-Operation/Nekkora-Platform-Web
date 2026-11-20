@@ -15,7 +15,7 @@ import { RouteLink, DateTimeText, errorText, LoadErrorState, PageHeader, Resourc
 
 const PAGE = 25;
 /** Texto do conflito de nome (T03, 409 conflict com reason workspace_name_taken). */
-export const NAME_TAKEN = 'Já existe um workspace com esse nome nesta organização.';
+export const NAME_TAKEN = 'Já existe um ambiente de trabalho com esse nome nesta organização.';
 
 /**
  * Workspaces visíveis (L01: `automation.read` efetivo; arquivados e suspensos incluídos), paginados por cursor na
@@ -50,7 +50,7 @@ export function WorkspacesPage() {
   const columns: TableColumn<Workspace>[] = [
     {
       key: 'nome',
-      header: 'Workspace',
+      header: 'Ambiente de trabalho',
       render: (w) => (
         <RouteLink to={orgPath.workspace(org, w.workspaceId)} state={backState}>
           {w.name}
@@ -65,28 +65,28 @@ export function WorkspacesPage() {
   return (
     <Stack gap={5}>
       <PageHeader
-        title="Workspaces"
-        subtitle="Os workspaces que você pode consultar nesta organização."
+        title="Ambientes de trabalho"
+        subtitle="Os ambientes de trabalho que você pode consultar nesta organização."
         onRefresh={() => setRefresh((n) => n + 1)}
         refreshing={list.status === 'loading' && refresh > 0}
         actions={
           canCreate ? (
             <Button size="sm" leftIcon="plus" disabled={uncertain} onClick={() => setCreating(true)}>
-              Criar workspace
+              Criar ambiente de trabalho
             </Button>
           ) : undefined
         }
       />
       {uncertain && (
-        <Alert tone="warning" title="Não foi possível confirmar se o workspace foi criado.">
+        <Alert tone="warning" title="Não foi possível confirmar se o ambiente de trabalho foi criado.">
           Atualize a lista e confira antes de criar de novo.
         </Alert>
       )}
       <StepUpDialog
         open={creating}
-        title="Criar workspace"
+        title="Criar ambiente de trabalho"
         guard={{ operation: 'workspace.create' }}
-        confirmLabel="Criar workspace"
+        confirmLabel="Criar ambiente de trabalho"
         ready={nameOk}
         action={() =>
           createWorkspace(org, name.trim(), description.trim() || undefined).catch((e: unknown) => {
@@ -107,9 +107,9 @@ export function WorkspacesPage() {
         refusalText={(e) =>
           hasReason(e, 'conflict', 'workspace_name_taken')
             ? `${NAME_TAKEN} Escolha outro nome. Nada foi criado.`
-            : accessRefusal(e, { forbidden: 'Você não tem permissão para criar workspaces nesta organização.' })
+            : accessRefusal(e, { forbidden: 'Você não tem permissão para criar ambientes de trabalho nesta organização.' })
         }
-        uncertainText="Não foi possível confirmar se o workspace foi criado. Feche e atualize a lista antes de tentar de novo."
+        uncertainText="Não foi possível confirmar se o ambiente de trabalho foi criado. Feche e atualize a lista antes de tentar de novo."
         onUnauthenticated={expired}
         onOutcome={(k) => k === 'uncertain' && setUncertain(true)}
       >
@@ -120,22 +120,22 @@ export function WorkspacesPage() {
           maxLength={80}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          hint="Até 80 caracteres. Precisa ser diferente dos outros workspaces da organização (maiúsculas e espaços nas pontas não contam)."
+          hint="Até 80 caracteres. Precisa ser diferente dos outros ambientes de trabalho da organização (maiúsculas e espaços nas pontas não contam)."
           error={nameTaken ? NAME_TAKEN : undefined}
           aria-invalid={nameTaken || undefined}
         />
         <Textarea label="Descrição (opcional)" fullWidth maxLength={500} value={description} onChange={(e) => setDescription(e.target.value)} />
       </StepUpDialog>
       {list.status === 'loading' ? (
-        <StateView status="loading" title="Carregando workspaces…" />
+        <StateView status="loading" title="Carregando ambientes de trabalho…" />
       ) : list.status === 'error' ? (
         <LoadErrorState error={list.error} onRetry={list.reload} />
       ) : list.items.length === 0 ? (
-        <StateView status="neutral" title="Você ainda não tem acesso a nenhum workspace." description="Quando um administrador der acesso, eles aparecem aqui." />
+        <StateView status="neutral" title="Você ainda não tem acesso a nenhum ambiente de trabalho." description="Quando um administrador der acesso, eles aparecem aqui." />
       ) : (
         <>
-          <div className="pw-prod__scroll" role="region" aria-label="Lista de workspaces" tabIndex={0}>
-            <Table columns={columns} data={list.items} rowKey="workspaceId" size="sm" caption="Workspaces em ordem alfabética." />
+          <div className="pw-prod__scroll" role="region" aria-label="Lista de ambientes de trabalho" tabIndex={0}>
+            <Table columns={columns} data={list.items} rowKey="workspaceId" size="sm" caption="Ambientes de trabalho em ordem alfabética." />
           </div>
           <LoadMore
             hasMore={list.hasMore}

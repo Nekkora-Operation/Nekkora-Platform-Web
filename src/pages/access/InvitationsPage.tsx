@@ -59,7 +59,7 @@ export function InvitationsPage() {
     e.preventDefault();
     const errors = {
       email: /^[^\s@]+@[^\s@]+$/.test(email.trim()) ? undefined : 'Informe um e-mail válido.',
-      workspace: isWorkspaceRole(role) && !workspaceId ? 'Escolha o workspace do papel.' : undefined,
+      workspace: isWorkspaceRole(role) && !workspaceId ? 'Escolha o ambiente de trabalho do papel.' : undefined,
     };
     setFormError(errors);
     if (errors.email || errors.workspace) return;
@@ -67,7 +67,7 @@ export function InvitationsPage() {
     setPending({ kind: 'issue', email: email.trim(), role, workspaceId });
   };
 
-  const workspaceName = (id: string | null) => (id ? (workspaces.items.find((w) => w.workspaceId === id)?.name ?? `workspace ${id.slice(0, 8)}…`) : null);
+  const workspaceName = (id: string | null) => (id ? (workspaces.items.find((w) => w.workspaceId === id)?.name ?? `ambiente de trabalho ${id.slice(0, 8)}…`) : null);
   const roleText = (i: Pick<Invitation, 'role' | 'workspaceId'>) =>
     i.role ? `${ROLE_LABEL[i.role] ?? i.role}${i.workspaceId ? ` · ${workspaceName(i.workspaceId)}` : ''}` : 'Sem papel (só o vínculo)';
 
@@ -140,15 +140,15 @@ export function InvitationsPage() {
           />
           {isWorkspaceRole(role) && (
             <Select
-              label="Workspace do papel"
+              label="Ambiente de trabalho do papel"
               fullWidth
               required
               value={workspaceId}
-              placeholder="Escolha um workspace"
+              placeholder="Escolha um ambiente de trabalho"
               onChange={(e) => setWorkspaceId(e.target.value)}
               options={workspaceOptions}
               error={formError.workspace}
-              hint={workspaces.status === 'ready' && !workspaces.complete ? 'A lista mostra os workspaces já carregados.' : undefined}
+              hint={workspaces.status === 'ready' && !workspaces.complete ? 'A lista mostra os ambientes de trabalho já carregados.' : undefined}
             />
           )}
           <Text variant="body-sm" color="secondary">

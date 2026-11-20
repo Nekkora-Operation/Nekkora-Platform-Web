@@ -27,9 +27,9 @@ test('503 de artefatos: armazenamento não configurado, nada gravado, nenhuma co
   const org = /\/o\/([0-9a-f-]{36})/.exec(page.url())![1];
 
   await page.goto(`/o/${org}/workspaces`);
-  await page.getByRole('button', { name: 'Criar workspace' }).click();
+  await page.getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await page.getByRole('alertdialog').getByLabel(/^Nome/).fill('Operações');
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar workspace' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await page.getByRole('button', { name: 'Criar automação' }).click();
   // T04: criação em página própria; aqui, o caminho só com o nome (rascunho)
   await page.getByLabel(/^Nome da automação/).fill('Biografias da Wikipédia');

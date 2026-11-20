@@ -43,7 +43,7 @@ export function draftRefusal(e: unknown, kept: 'previous' | 'empty' | 'nothing')
   if (e instanceof ApiError && e.status === 413) return `O arquivo passa do limite aceito (50 MiB). Nada foi gravado. ${stays}`;
   if (isApiError(e, 'service_unavailable'))
     return `O armazenamento de pacotes não está disponível neste ambiente (ou está temporariamente fora). Nada foi gravado. ${stays} Tente mais tarde ou procure a operação.`;
-  if (isApiError(e, 'conflict')) return `A automação ou o workspace não está ativo, ou o rascunho já foi publicado. Nada foi gravado. ${stays}`;
+  if (isApiError(e, 'conflict')) return `A automação ou o ambiente de trabalho não está ativo, ou o rascunho já foi publicado. Nada foi gravado. ${stays}`;
   if (isApiError(e, 'forbidden', 'not_found')) return 'Você não tem permissão para enviar pacotes nesta automação. Nada foi gravado.';
   if (isApiError(e, 'rate_limited')) return 'Muitas tentativas em pouco tempo. Aguarde antes de enviar de novo.';
   return `O envio não foi aceito. ${stays}`;

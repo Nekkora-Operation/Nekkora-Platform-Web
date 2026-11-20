@@ -4,13 +4,13 @@ import type { OrganizationActivationState } from '../api/identity';
 /** Papéis do contrato (RoleCode), em português. Código desconhecido aparece como veio (nunca omitido). */
 export const ROLE_LABEL: Record<string, string> = {
   ORG_ADMIN: 'Administração da organização',
-  WORKSPACE_ADMIN: 'Administração de workspace',
+  WORKSPACE_ADMIN: 'Administração de ambiente de trabalho',
   OPERATOR: 'Operação',
   VIEWER: 'Leitura',
 };
 
 export const LICENSED_MODEL_TEXT =
-  'Organização pronta para configurar: pessoas, workspaces, automações e Workers já podem ser preparados, dentro do limite técnico de capacidade, sem depender de aprovação da Nekkora. Para executar e monitorar uma automação, vincule a ela uma licença vigente.';
+  'Organização pronta para configurar: pessoas, ambientes de trabalho, automações e Workers já podem ser preparados, dentro do limite técnico de capacidade, sem depender de aprovação da Nekkora. Para executar e monitorar uma automação, vincule a ela uma licença vigente.';
 
 /**
  * O que dizer ANTES de criar, pelo modelo em que a organização nova nasce (D7, `newOrganizationLicenseModel`). No modelo por
@@ -19,7 +19,7 @@ export const LICENSED_MODEL_TEXT =
  */
 export const BORN_LICENSED = {
   title: 'A organização nasce pronta para configurar.',
-  body: 'Você já pode preparar pessoas, workspaces, automações e Workers, sem depender de aprovação da Nekkora. Para executar e monitorar uma automação, vincule a ela uma licença vigente.',
+  body: 'Você já pode preparar pessoas, ambientes de trabalho, automações e Workers, sem depender de aprovação da Nekkora. Para executar e monitorar uma automação, vincule a ela uma licença vigente.',
 };
 
 /**
@@ -49,7 +49,7 @@ export function activationLabel(
         label: 'Execução: aguardando ativação',
         tone: 'warning',
         description:
-          'Organização criada, ainda sem capacidade de execução: nenhum Worker pode ser registrado e nenhuma automação executa até a ativação pela operação da Nekkora. Pessoas, workspaces e automações já podem ser preparados.',
+          'Organização criada, ainda sem capacidade de execução: nenhum Worker pode ser registrado e nenhuma automação executa até a ativação pela operação da Nekkora. Pessoas, ambientes de trabalho e automações já podem ser preparados.',
       };
 }
 

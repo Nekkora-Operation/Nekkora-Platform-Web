@@ -208,9 +208,9 @@ export function GrantsPage() {
     ...(clientId && !clientItems.some((c) => c.clientId === clientId) ? [{ value: clientId, label: `Cliente ${clientId.slice(0, 8)}` }] : []),
   ];
   const wsOptions = [
-    { value: ALL, label: 'Todos os workspaces' },
+    { value: ALL, label: 'Todos os ambientes de trabalho' },
     ...workspaces.items.map((w) => ({ value: w.workspaceId, label: w.name })),
-    ...(workspaceId && !workspaces.items.some((w) => w.workspaceId === workspaceId) ? [{ value: workspaceId, label: `Workspace ${workspaceId.slice(0, 8)}` }] : []),
+    ...(workspaceId && !workspaces.items.some((w) => w.workspaceId === workspaceId) ? [{ value: workspaceId, label: `Ambiente de trabalho ${workspaceId.slice(0, 8)}` }] : []),
   ];
 
   const columns: TableColumn<ClientGrant>[] = [
@@ -228,7 +228,7 @@ export function GrantsPage() {
       ),
     },
     { key: 'cliente', header: 'Cliente', render: (g) => g.client.name },
-    { key: 'workspace', header: 'Workspace', render: (g) => <RouteLink to={orgPath.workspace(org, g.workspace.workspaceId)}>{g.workspace.name}</RouteLink> },
+    { key: 'workspace', header: 'Ambiente de trabalho', render: (g) => <RouteLink to={orgPath.workspace(org, g.workspace.workspaceId)}>{g.workspace.name}</RouteLink> },
     {
       key: 'estado',
       header: 'Estado',
@@ -259,8 +259,8 @@ export function GrantsPage() {
         title="Concessões"
         subtitle={
           canManage
-            ? 'Acessos de contas externas aos workspaces dos clientes.'
-            : 'Acessos de contas externas aos workspaces dos clientes. Somente consulta.'
+            ? 'Acessos de contas externas aos ambientes de trabalho dos clientes.'
+            : 'Acessos de contas externas aos ambientes de trabalho dos clientes. Somente consulta.'
         }
         onRefresh={
           forbidden
@@ -308,17 +308,17 @@ export function GrantsPage() {
                   fullWidth
                 />
                 <Select
-                  label="Workspace"
+                  label="Ambiente de trabalho"
                   value={workspaceId ?? ALL}
                   onChange={(e) => filters.setId('workspace', e.target.value === ALL ? null : e.target.value)}
                   disabled={workspaces.status === 'loading'}
                   hint={
                     workspaces.status === 'loading'
-                      ? 'Carregando workspaces…'
+                      ? 'Carregando ambientes de trabalho…'
                       : workspaces.status === 'error'
-                        ? 'Não foi possível carregar a lista de workspaces.'
+                        ? 'Não foi possível carregar a lista de ambientes de trabalho.'
                         : workspaces.status === 'ready' && !workspaces.complete
-                          ? 'Mostrando a parte já carregada dos workspaces.'
+                          ? 'Mostrando a parte já carregada dos ambientes de trabalho.'
                           : undefined
                   }
                   options={wsOptions}

@@ -71,7 +71,7 @@ export function MemberAccessPage() {
   }, [load]);
 
   const name = nav.displayName ?? 'este membro';
-  const wsName = (id: string | null) => (id ? (workspaces.items.find((w) => w.workspaceId === id)?.name ?? `workspace ${id.slice(0, 8)}…`) : '');
+  const wsName = (id: string | null) => (id ? (workspaces.items.find((w) => w.workspaceId === id)?.name ?? `ambiente de trabalho ${id.slice(0, 8)}…`) : '');
   const done = (text: string) => {
     setPending(null);
     setNotice({ tone: 'success', text });
@@ -92,7 +92,7 @@ export function MemberAccessPage() {
       <div className="pw-identity__org-main">
         <Text>{ROLE_LABEL[a.role] ?? a.role}</Text>
         <Text variant="body-sm" color="secondary">
-          {a.workspaceId ? `Workspace ${wsName(a.workspaceId)}` : 'Toda a organização'}
+          {a.workspaceId ? `Ambiente de trabalho ${wsName(a.workspaceId)}` : 'Toda a organização'}
         </Text>
       </div>
       {active && (
@@ -154,10 +154,10 @@ export function MemberAccessPage() {
             />
             {isWorkspaceRole(newRole) && (
               <Select
-                label="Workspace"
+                label="Ambiente de trabalho"
                 fullWidth
                 value={newWorkspace}
-                placeholder="Escolha um workspace"
+                placeholder="Escolha um ambiente de trabalho"
                 onChange={(e) => setNewWorkspace(e.target.value)}
                 options={workspaces.items.filter((w) => w.status === 'active').map((w) => ({ value: w.workspaceId, label: w.name }))}
               />
@@ -211,7 +211,7 @@ export function MemberAccessPage() {
         onUnauthenticated={expired}
         onOutcome={(k) => k === 'uncertain' && uncertain()}
       >
-        {pending?.kind === 'assign' && <Text>{pending.workspaceId ? `Escopo: workspace ${wsName(pending.workspaceId)}.` : 'Escopo: toda a organização.'}</Text>}
+        {pending?.kind === 'assign' && <Text>{pending.workspaceId ? `Escopo: ambiente de trabalho ${wsName(pending.workspaceId)}.` : 'Escopo: toda a organização.'}</Text>}
       </StepUpDialog>
 
       <StepUpDialog

@@ -195,7 +195,7 @@ const REFUSAL: Record<string, string> = {
   AUTHORIZATION_MISSING: 'não há autorização desta versão para o Worker da máquina',
   AUTHORIZATION_REVOKED: 'a autorização desta versão para o Worker foi revogada antes do início',
   AUTHORIZATION_EXPIRED: 'a autorização desta versão para o Worker venceu antes do início',
-  WORKER_NOT_AUTHORIZED: 'o Worker deixou de estar autorizado neste workspace antes do início',
+  WORKER_NOT_AUTHORIZED: 'o Worker deixou de estar autorizado neste ambiente de trabalho antes do início',
   MACHINE_NOT_LINKED: 'a máquina deixou de estar vinculada ao Worker antes do início',
   MACHINE_NOT_ENABLED: 'a máquina deixou de estar habilitada para execução remota antes do início',
   MACHINE_INCOMPATIBLE: 'o aplicativo da máquina deixou de ser compatível antes do início',
@@ -410,7 +410,7 @@ export function RemoteExecutions({
     if (m === 'AUTHORIZATION_MISSING' || m === 'AUTHORIZATION_REVOKED' || m === 'AUTHORIZATION_EXPIRED')
       return canExecute
         ? `Autorize a execução local desta versão para o Worker ${c.workerName}, em "Autorizações de execução local", nesta página.`
-        : 'Peça a autorização a quem pode executar neste workspace.';
+        : 'Peça a autorização a quem pode executar neste ambiente de trabalho.';
     if (m === 'PACKAGE_NOT_SUPPORTED') return 'Não há ação nesta máquina: esta versão não pode ser executada remotamente.';
     if (m === 'PACKAGE_NOT_REGISTERED') return 'Não há ação nesta máquina: publique uma nova versão da automação com o pacote.';
     if (m === 'MACHINE_PAUSED') return 'Os novos trabalhos voltam a ser recebidos no próprio computador, em "Execução remota".';
@@ -629,7 +629,7 @@ export function RemoteExecutions({
       {poll.error != null && <Alert tone="warning">Não foi possível atualizar agora. O que está na tela é da última leitura.</Alert>}
       {data.candidates.length > 0 && (
         <div className="pw-prod__scroll" role="region" aria-label="Máquinas para execução remota desta versão" tabIndex={0}>
-          <Table columns={columns} data={data.candidates} rowKey="agentId" size="sm" caption="Máquinas habilitadas do workspace e o que falta para solicitar em cada uma." />
+          <Table columns={columns} data={data.candidates} rowKey="agentId" size="sm" caption="Máquinas habilitadas do ambiente de trabalho e o que falta para solicitar em cada uma." />
         </div>
       )}
       {data.executions.map((x) => {

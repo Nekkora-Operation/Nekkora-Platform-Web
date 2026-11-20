@@ -114,12 +114,12 @@ async function ready() {
 }
 
 describe('área interna', () => {
-  it('ORG_ADMIN: P01 orienta o resumo, workspaces vêm de listWorkspaces (paginada) e a P02 nunca é chamada', async () => {
+  it('ORG_ADMIN: P01 orienta o resumo, ambientes de trabalho vêm de listWorkspaces (paginada) e a P02 nunca é chamada', async () => {
     sessionFor('ana@nekkora.dev');
     renderAt(`/o/${DEV_ORG}`);
     expect(await screen.findByRole('heading', { name: 'Olá, Ana Souza' })).toBeInTheDocument();
-    expect(await screen.findByText('Administração da organização (todos os workspaces)')).toBeInTheDocument();
-    expect(await screen.findByText('9 workspaces visíveis')).toBeInTheDocument();
+    expect(await screen.findByText('Administração da organização (todos os ambientes de trabalho)')).toBeInTheDocument();
+    expect(await screen.findByText('9 ambientes de trabalho visíveis')).toBeInTheDocument();
     expect(requests.filter((r) => r.startsWith(`/api/v1/o/${DEV_ORG}/me/permissions`) && !r.includes('/workspaces'))).toHaveLength(1);
     expect(requests.some((r) => r.includes('/me/permissions/workspaces'))).toBe(false);
     expect(requests.filter((r) => r.includes('/workspaces?') && r.includes('limit=100')).length).toBeGreaterThan(0);
@@ -130,7 +130,7 @@ describe('área interna', () => {
     renderAt(exec());
     const nav = await screen.findByRole('navigation', { name: 'Navegação principal' });
     const links = within(nav).getAllByRole('link').map((l) => l.textContent);
-    expect(links.slice(0, 4)).toEqual(['Início', 'Workspaces', 'Execuções', 'Supervisão']);
+    expect(links.slice(0, 4)).toEqual(['Início', 'Ambientes de trabalho', 'Execuções', 'Supervisão']);
     // M4: Workers aparece só com a P01 (worker.manage); T07: sem item separado de Agents (Workers é a entrada única)
     expect(links.slice(4).every((l) => ['Workers', 'Minha conta', 'Membros', 'Convites', 'Clientes', 'Concessões', 'Auditoria de acessos'].includes(l ?? ''))).toBe(true);
     expect(links).not.toContain('Agents');
@@ -169,15 +169,15 @@ describe('área interna', () => {
     expect(screen.queryByRole('navigation', { name: 'Navegação principal' })).toBeNull();
   });
 
-  it('isolamento: sessão de outra organização não abre a área (volta ao login); na própria, só os workspaces dela', async () => {
+  it('isolamento: sessão de outra organização não abre a área (volta ao login); na própria, só os ambientes de trabalho dela', async () => {
     sessionFor('vizinha@nekkora.dev', OTHER_ORG);
     const { unmount } = renderAt(exec(DEV_ORG));
     expect(await screen.findByRole('heading', { name: 'Bem-vinda de volta' })).toBeInTheDocument();
     unmount();
     renderAt(exec(OTHER_ORG));
     await ready();
-    const select = screen.getByLabelText('Workspace') as HTMLSelectElement;
-    await waitFor(() => expect([...select.options].map((o) => o.text)).toEqual(['Todos os workspaces visíveis', 'Workspace da organização vizinha']));
+    const select = screen.getByLabelText('Ambiente de trabalho') as HTMLSelectElement;
+    await waitFor(() => expect([...select.options].map((o) => o.text)).toEqual(['Todos os ambientes de trabalho visíveis', 'Workspace da organização vizinha']));
   });
 });
 
@@ -193,17 +193,17 @@ describe('execuções por perfil', () => {
     expect(param(first, 'to')).toEqual([]);
     expect(param(first, 'limit')).toEqual(['25']);
     const header = within(screen.getByRole('table')).getAllByRole('columnheader').map((h) => h.textContent);
-    expect(header).toEqual(['Automação', 'Workspace', 'Estado', 'Origem', 'Criada em', 'Início', 'Término', 'Duração']);
+    expect(header).toEqual(['Automação', 'Ambiente de trabalho', 'Estado', 'Origem', 'Criada em', 'Início', 'Término', 'Duração']);
     expect(screen.getByRole('table')).toHaveTextContent(/Horários no fuso deste navegador/);
-    const select = screen.getByLabelText('Workspace') as HTMLSelectElement;
+    const select = screen.getByLabelText('Ambiente de trabalho') as HTMLSelectElement;
     await waitFor(() => expect(select.options).toHaveLength(10));
   });
 
-  it('acesso limitado (operador): só os workspaces dele no filtro e nas linhas', async () => {
+  it('acesso limitado (operador): só os ambientes de trabalho dele no filtro e nas linhas', async () => {
     sessionFor('operador@nekkora.dev');
     renderAt(exec());
     await ready();
-    const select = screen.getByLabelText('Workspace') as HTMLSelectElement;
+    const select = screen.getByLabelText('Ambiente de trabalho') as HTMLSelectElement;
     await waitFor(() => expect([...select.options].map((o) => o.text).slice(1).sort()).toEqual(['Logística', 'Operações']));
     for (const r of rows()) expect(r.textContent).toMatch(/Logística|Operações/);
   });
@@ -211,19 +211,19 @@ describe('execuções por perfil', () => {
   it('sem workspaces: estado vazio próprio', async () => {
     sessionFor('sematribuicao@nekkora.dev');
     renderAt(exec());
-    expect(await screen.findByText('Você ainda não tem acesso a nenhum workspace.')).toBeInTheDocument();
+    expect(await screen.findByText('Você ainda não tem acesso a nenhum ambiente de trabalho.')).toBeInTheDocument();
   });
 });
 
 describe('filtros e paginação', () => {
-  it('estado e workspace viram parâmetros da API; período personalizado inválido não envia nada', async () => {
+  it('estado e ambiente de trabalho viram parâmetros da API; período personalizado inválido não envia nada', async () => {
     sessionFor('ana@nekkora.dev');
     renderAt(exec());
     await ready();
     fireEvent.click(screen.getByLabelText('Falhou'));
     await waitFor(() => expect(param(execRequests().at(-1)!, 'status')).toEqual(['failed']));
     await waitFor(() => expect(rows().every((r) => r.textContent!.includes('Falhou'))).toBe(true));
-    fireEvent.change(screen.getByLabelText('Workspace'), { target: { value: ws('logistica') } }); // valor do workspace
+    fireEvent.change(screen.getByLabelText('Ambiente de trabalho'), { target: { value: ws('logistica') } }); // valor do workspace
     await waitFor(() => expect(param(execRequests().at(-1)!, 'workspaceId')).toEqual([ws('logistica')]));
     const before = execRequests().length;
     fireEvent.change(screen.getByLabelText('Período'), { target: { value: 'custom' } });
@@ -275,7 +275,7 @@ describe('filtros e paginação', () => {
 });
 
 describe('falhas e sessão', () => {
-  it('revogação entre páginas: a página seguinte não traz o workspace perdido', async () => {
+  it('revogação entre páginas: a página seguinte não traz o ambiente de trabalho perdido', async () => {
     const op = sessionFor('operador@nekkora.dev');
     renderAt(exec());
     await ready();
@@ -289,7 +289,7 @@ describe('falhas e sessão', () => {
     expect(rows().slice(n).some((r) => r.textContent!.includes('Logística'))).toBe(false);
   });
 
-  it('vários 401 concorrentes (P01 e workspaces em andamento): o aviso de sessão expirada não é apagado', async () => {
+  it('vários 401 concorrentes (P01 e ambientes de trabalho em andamento): o aviso de sessão expirada não é apagado', async () => {
     const ana = sessionFor('ana@nekkora.dev');
     let release!: () => void;
     const hold = new Promise<void>((r) => (release = r));
@@ -456,32 +456,32 @@ describe('F4-R1: data aceita pelo contrato que o Date não representa', () => {
   });
 });
 
-describe('F4-R1: workspaces além da primeira página', () => {
-  it('carrega só a primeira página ao entrar, oferece continuação e permite filtrar por um workspace da página seguinte', async () => {
+describe('F4-R1: ambientes de trabalho além da primeira página', () => {
+  it('carrega só a primeira página ao entrar, oferece continuação e permite filtrar por um ambiente de trabalho da página seguinte', async () => {
     addWorkspaces(130);
     sessionFor('ana@nekkora.dev');
     renderAt(`/o/${DEV_ORG}`);
-    expect(await screen.findByText('Pelo menos 100 workspaces visíveis (lista parcial)')).toBeInTheDocument();
+    expect(await screen.findByText('Pelo menos 100 ambientes de trabalho visíveis (lista parcial)')).toBeInTheDocument();
     // o total (139) não aparece antes da continuação
     expect(screen.queryAllByText(/139/)).toHaveLength(0);
     const wsRequests = () => requests.filter((r) => r.includes('/workspaces?'));
     expect(wsRequests()).toHaveLength(1); // nada de carregar tudo automaticamente
     fireEvent.click(screen.getByRole('link', { name: 'Ver execuções' }));
     await ready();
-    const select = screen.getByLabelText('Workspace') as HTMLSelectElement;
+    const select = screen.getByLabelText('Ambiente de trabalho') as HTMLSelectElement;
     expect(select.options).toHaveLength(101);
-    expect(screen.getByText(/Lista parcial: 100 workspaces carregados/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais workspaces' }));
+    expect(screen.getByText(/Lista parcial: 100 ambientes de trabalho carregados/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais ambientes de trabalho' }));
     await waitFor(() => expect(select.options).toHaveLength(140));
     expect(wsRequests()).toHaveLength(2);
-    expect(screen.queryByRole('button', { name: 'Carregar mais workspaces' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Carregar mais ambientes de trabalho' })).toBeNull();
     const last = stableUuid('teste:ws-extra:130');
     fireEvent.change(select, { target: { value: last } });
     await waitFor(() => expect(param(execRequests().at(-1)!, 'workspaceId')).toEqual([last]));
   });
 });
 
-describe('F4-R2: continuação recusada da lista de workspaces', () => {
+describe('F4-R2: continuação recusada da lista de ambientes de trabalho', () => {
   const wsRequests = () => requests.filter((r) => r.includes('/workspaces?'));
 
   async function openWithExtras() {
@@ -489,7 +489,7 @@ describe('F4-R2: continuação recusada da lista de workspaces', () => {
     sessionFor('ana@nekkora.dev');
     renderAt(exec());
     await ready();
-    const select = screen.getByLabelText('Workspace') as HTMLSelectElement;
+    const select = screen.getByLabelText('Ambiente de trabalho') as HTMLSelectElement;
     expect(select.options).toHaveLength(101);
     return select;
   }
@@ -497,19 +497,19 @@ describe('F4-R2: continuação recusada da lista de workspaces', () => {
   it('cursor recusado: mantém o carregado, identifica a recusa, não repete nem reenvia o cursor; recomeço só por ação, sem cursor', async () => {
     const select = await openWithExtras();
     api.product.cursors.rotate(); // a continuação emitida deixa de valer (DC-15)
-    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais workspaces' }));
-    expect(await screen.findByText(/A continuação da lista de workspaces deixou de valer/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais ambientes de trabalho' }));
+    expect(await screen.findByText(/A continuação da lista de ambientes de trabalho deixou de valer/)).toBeInTheDocument();
     expect(select.options).toHaveLength(101); // o carregado continua
-    expect(screen.queryByRole('button', { name: 'Carregar mais workspaces' })).toBeNull(); // nada de reenviar o cursor recusado
+    expect(screen.queryByRole('button', { name: 'Carregar mais ambientes de trabalho' })).toBeNull(); // nada de reenviar o cursor recusado
     const afterRejection = wsRequests().length;
     await new Promise((r) => setTimeout(r, 40));
     expect(wsRequests()).toHaveLength(afterRejection); // sem repetição automática
-    fireEvent.click(screen.getByRole('button', { name: 'Recomeçar lista de workspaces' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Recomeçar lista de ambientes de trabalho' }));
     await waitFor(() => expect(wsRequests()).toHaveLength(afterRejection + 1));
     expect(param(wsRequests().at(-1)!, 'cursor')).toEqual([]); // nova primeira página, sem cursor
     await waitFor(() => expect(screen.queryByText(/deixou de valer/)).toBeNull());
     expect(select.options).toHaveLength(101);
-    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais workspaces' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais ambientes de trabalho' }));
     await waitFor(() => expect(select.options).toHaveLength(140)); // a continuação nova funciona
   });
 
@@ -517,15 +517,15 @@ describe('F4-R2: continuação recusada da lista de workspaces', () => {
     let fail = true;
     intercept = (path) => (path.includes('/workspaces?') && path.includes('cursor=') && fail ? { network: true } : undefined);
     const select = await openWithExtras();
-    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais workspaces' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais ambientes de trabalho' }));
     expect(await screen.findByText(/Não foi possível carregar a próxima parte/)).toBeInTheDocument();
     expect(select.options).toHaveLength(101);
-    expect(screen.queryByRole('button', { name: 'Recomeçar lista de workspaces' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Recomeçar lista de ambientes de trabalho' })).toBeNull();
     const failed = wsRequests().at(-1)!;
     await new Promise((r) => setTimeout(r, 40));
     expect(wsRequests().at(-1)).toBe(failed); // sem repetição automática
     fail = false;
-    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais workspaces' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais ambientes de trabalho' }));
     await waitFor(() => expect(select.options).toHaveLength(140));
     const retried = wsRequests().filter((r) => param(r, 'cursor').length > 0);
     expect(retried).toHaveLength(2);

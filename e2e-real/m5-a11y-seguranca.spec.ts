@@ -44,9 +44,9 @@ test('J17/J18: telas reais com teclado, zoom 200%, viewports, recarga, links dir
   execFileSync('node', ['tools/lab/lab.mjs', LAB, 'limites', org, ana.email]);
 
   await page.goto(`/o/${org}/workspaces`);
-  await page.getByRole('button', { name: 'Criar workspace' }).click();
+  await page.getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await page.getByRole('alertdialog').getByLabel(/^Nome/).fill('Operações');
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar workspace' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await expect(page.getByRole('heading', { name: 'Operações' })).toBeVisible();
   const workspaceUrl = page.url();
   await page.getByRole('button', { name: 'Criar automação' }).click();
@@ -63,7 +63,7 @@ test('J17/J18: telas reais com teclado, zoom 200%, viewports, recarga, links dir
 
   // ---------------- J17: teclado e foco — o primeiro Tab é o atalho para o conteúdo, e ele leva o foco ao conteúdo
   await page.goto(`/o/${org}/workspaces`);
-  await expect(page.getByRole('heading', { name: 'Workspaces', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Ambientes de trabalho', level: 1 })).toBeVisible();
   // a navegação leva o foco ao conteúdo; o teste parte do começo do documento, como quem chega pelo teclado
   await page.evaluate(() => {
     document.body.tabIndex = -1;

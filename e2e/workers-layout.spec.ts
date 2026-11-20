@@ -186,7 +186,7 @@ async function keyboardOpensRightDialog(page: Page) {
 
 for (const withRemoval of [true, false]) {
   const profile = withRemoval ? 'com permissão de retirada' : 'sem permissão de retirada';
-  test.describe(`T14 Workers: nome do workspace + Retirar (${profile})`, () => {
+  test.describe(`T14 Workers: nome do ambiente de trabalho + Retirar (${profile})`, () => {
     test('tabela no desktop (1280 px)', async ({ page }) => {
       await page.setViewportSize({ width: 1280, height: 900 });
       await open(page, withRemoval);

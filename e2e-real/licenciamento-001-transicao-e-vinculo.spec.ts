@@ -66,7 +66,7 @@ const day = (days: number) => {
 /** O que a pessoa criou na organização-alvo: tem de ser igual antes e depois de cada ato da operadora. */
 const dados = (org: string) =>
   sql(
-    `SELECT 'nome=' || o.name || ' workspaces=' || (SELECT count(*) FROM workspaces w WHERE w.organization_id = o.organization_id) || ' automacoes=' || (SELECT count(*) FROM automations a WHERE a.organization_id = o.organization_id) || ' workers=' || (SELECT count(*) FROM workers k WHERE k.organization_id = o.organization_id) || ' membros=' || (SELECT count(*) FROM organization_memberships m WHERE m.organization_id = o.organization_id) || ' responsavel=' || (SELECT count(*) FROM organization_responsibility r WHERE r.organization_id = o.organization_id) FROM organizations o WHERE o.organization_id = '${org}'`,
+    `SELECT 'nome=' || o.name || ' workspaces=' || (SELECT count(*) FROM ambientes de trabalho w WHERE w.organization_id = o.organization_id) || ' automacoes=' || (SELECT count(*) FROM automations a WHERE a.organization_id = o.organization_id) || ' workers=' || (SELECT count(*) FROM workers k WHERE k.organization_id = o.organization_id) || ' membros=' || (SELECT count(*) FROM organization_memberships m WHERE m.organization_id = o.organization_id) || ' responsavel=' || (SELECT count(*) FROM organization_responsibility r WHERE r.organization_id = o.organization_id) FROM organizations o WHERE o.organization_id = '${org}'`,
   );
 const modelo = (org: string) =>
   sql(`SELECT 'modelo=' || e.model || ' ato=' || a.act FROM organization_license_enforcement e JOIN organization_license_acts a ON a.act_id = e.act_id WHERE e.organization_id = '${org}'`) || 'modelo anterior (sem ato)';
@@ -185,12 +185,12 @@ test('PLATFORM-LICENCIAMENTO-001: transição auditada da organização do aceit
   let assign = doraPage.getByRole('alertdialog');
   await expect(assign.getByText('Esta organização ainda não tem automação para receber a licença.')).toBeVisible();
   await shot(doraPage, '3-gemea-sem-automacao');
-  await assign.getByRole('link', { name: 'abrir Workspaces' }).click();
+  await assign.getByRole('link', { name: 'abrir Ambientes de trabalho' }).click();
   await expect(doraPage).toHaveURL(new RegExp(`/o/${org}/workspaces$`));
   await settle(doraPage);
-  await doraPage.getByRole('button', { name: 'Criar workspace' }).click();
+  await doraPage.getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await doraPage.getByRole('alertdialog').getByLabel(/^Nome/).fill('Testes');
-  await doraPage.getByRole('alertdialog').getByRole('button', { name: 'Criar workspace' }).click();
+  await doraPage.getByRole('alertdialog').getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await expect(doraPage).toHaveURL(new RegExp(`/o/${org}/workspaces/[0-9a-f-]{36}$`));
   await settle(doraPage);
   await doraPage.getByRole('button', { name: 'Criar automação' }).click();

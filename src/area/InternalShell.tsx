@@ -68,8 +68,8 @@ function titleFor(pathname: string, org: string): string {
   if (rest.startsWith('/execucoes-remotas/')) return 'Execução remota';
   if (rest.startsWith('/execucoes/')) return 'Execução';
   if (rest === '/execucoes') return 'Execuções';
-  if (rest.startsWith('/workspaces/')) return 'Workspace';
-  if (rest === '/workspaces') return 'Workspaces';
+  if (rest.startsWith('/workspaces/')) return 'Ambiente de trabalho';
+  if (rest === '/workspaces') return 'Ambientes de trabalho';
   if (rest.startsWith('/automacoes/')) return 'Automação';
   if (rest.startsWith('/versoes/')) return 'Versão';
   if (rest === '/administracao/membros') return 'Membros';
@@ -190,7 +190,7 @@ export function InternalShell() {
       id: 'produto',
       label: 'Produto',
       items: [
-        { id: 'workspaces', label: 'Workspaces', href: orgPath.workspaces(org), icon: 'workspace', active: section === 'workspaces' },
+        { id: 'workspaces', label: 'Ambientes de trabalho', href: orgPath.workspaces(org), icon: 'workspace', active: section === 'workspaces' },
         { id: 'execucoes', label: 'Execuções', href: orgPath.executions(org), icon: 'executions', active: section === 'execucoes' },
       ],
     },
@@ -247,7 +247,7 @@ export function InternalShell() {
       ? permissions.data.organization.roles.includes('ORG_ADMIN')
         ? 'Administração da organização'
         : permissions.data.hasWorkspaceAssignments
-          ? 'Acesso por workspace'
+          ? 'Acesso por ambiente de trabalho'
           : 'Sem atribuições de acesso'
       : null;
 

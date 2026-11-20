@@ -21,9 +21,9 @@ const NOW = Date.UTC(2026, 9, 3, 12, 0, 0);
 const grants = `/o/${DEV_ORG}/administracao/concessoes`;
 const members = `/o/${DEV_ORG}/administracao/membros`;
 const G = (k: string) => stableUuid(`dev:grant:${k}`);
-const G1 = 'Pessoa do Portal (cliente ACME Logística, workspace Logística)';
-const G4 = 'Financeiro do Banco (cliente Banco Exemplo S.A., workspace Financeiro — Conciliação)';
-const G5 = 'Financeiro do Banco (cliente Banco Exemplo S.A., workspace Relatórios regulatórios consolidados do semestre — Sul)';
+const G1 = 'Pessoa do Portal (cliente ACME Logística, ambiente de trabalho Logística)';
+const G4 = 'Financeiro do Banco (cliente Banco Exemplo S.A., ambiente de trabalho Financeiro — Conciliação)';
+const G5 = 'Financeiro do Banco (cliente Banco Exemplo S.A., ambiente de trabalho Relatórios regulatórios consolidados do semestre — Sul)';
 
 type Transport =
   | { kind: 'delay'; until: Promise<void>; then?: Transport }
@@ -160,7 +160,7 @@ async function uncertainRevoke(t: Transport = { kind: 'network-before' }) {
 }
 
 describe('revogar: sucesso', () => {
-  it('a confirmação identifica cliente e workspace e explica o efeito; um POST; anúncio; linha revogada; foco na linha', async () => {
+  it('a confirmação identifica cliente e ambiente de trabalho e explica o efeito; um POST; anúncio; linha revogada; foco na linha', async () => {
     sessionFor('ana@nekkora.dev');
     await openGrants();
     const btn = screen.getByRole('button', { name: `Revogar a concessão de ${G1}` });
@@ -169,8 +169,8 @@ describe('revogar: sucesso', () => {
     const dialog = await screen.findByRole('alertdialog', { name: 'Revogar a concessão de Pessoa do Portal?' });
     expect(dialog).toHaveTextContent('portal@nekkora.dev');
     expect(dialog).toHaveTextContent('ClienteACME Logística');
-    expect(dialog).toHaveTextContent('WorkspaceLogística');
-    expect(dialog).toHaveTextContent('deixa de dar à conta Pessoa do Portal acesso ao workspace Logística do cliente ACME Logística');
+    expect(dialog).toHaveTextContent('Ambiente de trabalhoLogística');
+    expect(dialog).toHaveTextContent('deixa de dar à conta Pessoa do Portal acesso ao ambiente de trabalho Logística do cliente ACME Logística');
     expect(dialog).toHaveTextContent('Só esta concessão muda: outras concessões da mesma conta e a própria conta continuam como estão.');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Revogar' }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
@@ -355,7 +355,7 @@ describe('revogar: sucesso', () => {
     for (let i = 0; i < 25; i++) api.addGrant(DEV_ORG, 'dev', `old${i}`, portal, 'banco', 'financeiro', 'active', 400 + i);
     const ultima = api.createAccount({ org: DEV_ORG, displayName: 'Conta da Segunda Página', accountType: 'external' });
     api.addGrant(DEV_ORG, 'dev', 'segunda', ultima, 'acme', 'logistica', 'active', 999);
-    const SEGUNDA = 'Conta da Segunda Página (cliente ACME Logística, workspace Logística)';
+    const SEGUNDA = 'Conta da Segunda Página (cliente ACME Logística, ambiente de trabalho Logística)';
     renderAt(`${grants}?estado=active`);
     await screen.findByRole('button', { name: `Revogar a concessão de ${G1}` });
     expect(screen.getAllByRole('button', { name: /^Revogar a concessão de / })).toHaveLength(25);
@@ -407,7 +407,7 @@ describe('R2: continuação RECUSADA com zero linhas visíveis', () => {
     for (let i = 0; i < 25; i++) api.addGrant(DEV_ORG, 'dev', `old${i}`, portal, 'banco', 'financeiro', 'active', 400 + i);
     const ultima = api.createAccount({ org: DEV_ORG, displayName: 'Conta da Segunda Página', accountType: 'external' });
     api.addGrant(DEV_ORG, 'dev', 'segunda', ultima, 'acme', 'logistica', 'active', 999);
-    const SEGUNDA = 'Conta da Segunda Página (cliente ACME Logística, workspace Logística)';
+    const SEGUNDA = 'Conta da Segunda Página (cliente ACME Logística, ambiente de trabalho Logística)';
     renderAt(`${grants}?estado=active`);
     await screen.findByRole('button', { name: `Revogar a concessão de ${G1}` });
     const ids = [...document.querySelectorAll<HTMLElement>('[data-concessao-acao]')].map((b) => b.dataset.concessaoAcao!);

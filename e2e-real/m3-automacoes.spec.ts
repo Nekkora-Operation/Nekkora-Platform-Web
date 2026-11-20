@@ -30,9 +30,9 @@ test('J10/J11: automação, versão, ZIP inválido recusado, pacote real conferi
   const org = await setupOrganization(page, ana);
 
   await page.goto(`/o/${org}/workspaces`);
-  await page.getByRole('button', { name: 'Criar workspace' }).click();
+  await page.getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await page.getByRole('alertdialog').getByLabel(/^Nome/).fill('Operações');
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar workspace' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await expect(page.getByRole('heading', { name: 'Operações' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Criar automação' }).click();

@@ -125,9 +125,9 @@ test('FRONT-V1-004: 504 do gateway depois do envio (step-up e upload) mantém o 
 
     // ---------------- upload do pacote (PUT .../artifact)
     await page.goto(`/o/${org}/workspaces`);
-    await page.getByRole('button', { name: 'Criar workspace' }).click();
+    await page.getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
     await page.getByRole('alertdialog').getByLabel(/^Nome/).fill('Operações');
-    await page.getByRole('alertdialog').getByRole('button', { name: 'Criar workspace' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
     await expect(page.getByRole('heading', { name: 'Operações' })).toBeVisible();
     await page.getByRole('button', { name: 'Criar automação' }).click();
     // T04: criação em página própria; aqui, o caminho só com o nome (rascunho)

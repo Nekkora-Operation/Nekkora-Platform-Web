@@ -298,12 +298,12 @@ test('PLATFORM-LICENCIAMENTO-001 com o Client empacotado: licença → execuçã
 
     // ================================================================ 2. ambiente, automação com pacote publicado, licença vinculada
     await go(anaPage, `/o/${fabrica}/workspaces`);
-    await anaPage.getByRole('button', { name: 'Criar workspace' }).click();
+    await anaPage.getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
     await anaPage.getByRole('alertdialog').getByLabel(/^Nome/).fill('Fiscal');
-    await anaPage.getByRole('alertdialog').getByRole('button', { name: 'Criar workspace' }).click();
+    await anaPage.getByRole('alertdialog').getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
     await expect(anaPage).toHaveURL(new RegExp(`/o/${fabrica}/workspaces/[0-9a-f-]{36}$`));
     await settle(anaPage);
-    const workspaceId = /workspaces\/([0-9a-f-]{36})/.exec(anaPage.url())![1];
+    const workspaceId = /ambientes de trabalho\/([0-9a-f-]{36})/.exec(anaPage.url())![1];
     await anaPage.getByRole('button', { name: 'Criar automação' }).click();
     await settle(anaPage);
     await anaPage.getByLabel(/^Nome da automação/).fill(AUTOMACAO);
@@ -363,8 +363,8 @@ test('PLATFORM-LICENCIAMENTO-001 com o Client empacotado: licença → execuçã
     const worker = sql(`SELECT worker_id FROM workers WHERE organization_id = '${fabrica}' AND name = '${WORKER}'`);
     const agente = sql(`SELECT agent_id FROM agent_remote_enablements WHERE worker_id = '${worker}' ORDER BY enabled_at DESC LIMIT 1`);
     await go(anaPage, `/o/${fabrica}/workers`);
-    await anaPage.getByRole('button', { name: `Autorizar ${WORKER} num workspace` }).click();
-    await anaPage.getByRole('alertdialog').getByLabel('Workspace').selectOption(workspaceId);
+    await anaPage.getByRole('button', { name: `Autorizar ${WORKER} num ambiente de trabalho` }).click();
+    await anaPage.getByRole('alertdialog').getByLabel('Ambiente de trabalho').selectOption(workspaceId);
     await confirmStepUp(anaPage, ana, 'Autorizar');
     await settle(anaPage);
     await comando('presenca');

@@ -158,7 +158,7 @@ describe('detalhe da execução', () => {
     await screen.findByRole('region', { name: 'Eventos da execução' });
     expect(tableRows('Eventos da execução').map((r) => within(r).getAllByRole('cell')[1].textContent)).toEqual(['Processo iniciado', 'Processo concluído']);
     expect(screen.getAllByRole('term').map((t) => t.textContent)).toEqual([
-      'Estado', 'Origem', 'Automação', 'Versão', 'Workspace', 'Solicitante', 'Criada em', 'Início', 'Término', 'Duração',
+      'Estado', 'Origem', 'Automação', 'Versão', 'Ambiente de trabalho', 'Solicitante', 'Criada em', 'Início', 'Término', 'Duração',
       'Cancelamento solicitado em', 'Reexecução de',
     ]);
     // menu: Execuções ativo no detalhe
@@ -189,7 +189,7 @@ describe('detalhe da execução', () => {
     }
   });
 
-  it('acesso limitado: operador vê a execução do próprio workspace; a de outro dá o mesmo não encontrado', async () => {
+  it('acesso limitado: operador vê a execução do próprio ambiente de trabalho; a de outro dá o mesmo não encontrado', async () => {
     sessionFor('operador@nekkora.dev');
     const own = putExecution('do-operador', 'backup');
     const other = putExecution('do-financeiro', 'conciliacao');
@@ -382,29 +382,29 @@ describe('detalhe da execução', () => {
   });
 });
 
-describe('workspaces, automações e versões', () => {
-  it('workspace → automações → detail → versões → execuções filtradas por automação', async () => {
+describe('ambientes de trabalho, automações e versões', () => {
+  it('ambiente de trabalho → automações → detail → versões → execuções filtradas por automação', async () => {
     sessionFor('ana@nekkora.dev');
     renderAt(base);
     const nav = await screen.findByRole('navigation', { name: 'Navegação principal' });
-    fireEvent.click(within(nav).getByRole('link', { name: 'Workspaces' }));
-    expect(await screen.findByRole('heading', { level: 1, name: 'Workspaces' })).toBeInTheDocument();
-    await screen.findByRole('region', { name: 'Lista de workspaces' });
-    expect(within(nav).getByRole('link', { name: 'Workspaces' })).toHaveAttribute('aria-current', 'page');
-    expect(tableRows('Lista de workspaces')).toHaveLength(9);
+    fireEvent.click(within(nav).getByRole('link', { name: 'Ambientes de trabalho' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Ambientes de trabalho' })).toBeInTheDocument();
+    await screen.findByRole('region', { name: 'Lista de ambientes de trabalho' });
+    expect(within(nav).getByRole('link', { name: 'Ambientes de trabalho' })).toHaveAttribute('aria-current', 'page');
+    expect(tableRows('Lista de ambientes de trabalho')).toHaveLength(9);
     expect(screen.getByText('Arquivado')).toBeInTheDocument();
     expect(screen.getByText('Suspenso')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('link', { name: 'Operações' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Operações' })).toBeInTheDocument();
-    await screen.findByRole('region', { name: 'Automações do workspace' });
+    await screen.findByRole('region', { name: 'Automações do ambiente de trabalho' });
     expect(screen.getByText('Sem cliente')).toBeInTheDocument();
-    expect(tableRows('Automações do workspace').map((r) => within(r).getAllByRole('cell')[0].textContent)).toEqual([
+    expect(tableRows('Automações do ambiente de trabalho').map((r) => within(r).getAllByRole('cell')[0].textContent)).toEqual([
       'Backup dos arquivos de operação',
       'Limpeza de temporários',
       'Relatório de capacidade',
     ]);
-    expect(screen.getByRole('link', { name: 'Ver execuções deste workspace' })).toHaveAttribute('href', `${base}/execucoes?workspace=${ws('operacoes')}`);
+    expect(screen.getByRole('link', { name: 'Ver execuções deste ambiente de trabalho' })).toHaveAttribute('href', `${base}/execucoes?workspace=${ws('operacoes')}`);
 
     fireEvent.click(screen.getByRole('link', { name: 'Backup dos arquivos de operação' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Backup dos arquivos de operação' })).toBeInTheDocument();
@@ -450,10 +450,10 @@ describe('workspaces, automações e versões', () => {
       })),
     );
     const { unmount } = renderAt(`${base}/workspaces/${ws('vazio')}`);
-    await screen.findByRole('region', { name: 'Automações do workspace' });
-    expect(tableRows('Automações do workspace')).toHaveLength(25);
+    await screen.findByRole('region', { name: 'Automações do ambiente de trabalho' });
+    expect(tableRows('Automações do ambiente de trabalho')).toHaveLength(25);
     fireEvent.click(screen.getByRole('button', { name: 'Carregar mais' }));
-    await waitFor(() => expect(tableRows('Automações do workspace')).toHaveLength(30));
+    await waitFor(() => expect(tableRows('Automações do ambiente de trabalho')).toHaveLength(30));
     unmount();
 
     renderAt(`${base}/automacoes/${many}`);
@@ -470,43 +470,43 @@ describe('workspaces, automações e versões', () => {
     await waitFor(() => expect(tableRows('Versões da automação')).toHaveLength(30));
   });
 
-  it('acesso limitado: leitora vê só os workspaces atribuídos; outro workspace dá não encontrado', async () => {
+  it('acesso limitado: leitora vê só os ambientes de trabalho atribuídos; outro ambiente de trabalho dá não encontrado', async () => {
     sessionFor('leitora@nekkora.dev');
     const { unmount } = renderAt(`${base}/workspaces`);
-    await screen.findByRole('region', { name: 'Lista de workspaces' });
-    expect(tableRows('Lista de workspaces').map((r) => within(r).getAllByRole('cell')[0].textContent)).toEqual(['Atendimento', 'Integrações legadas']);
+    await screen.findByRole('region', { name: 'Lista de ambientes de trabalho' });
+    expect(tableRows('Lista de ambientes de trabalho').map((r) => within(r).getAllByRole('cell')[0].textContent)).toEqual(['Atendimento', 'Integrações legadas']);
     unmount();
     renderAt(`${base}/workspaces/${ws('financeiro')}`);
-    expect(await screen.findByRole('heading', { name: 'Workspace não encontrado.' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Ambiente de trabalho não encontrado.' })).toBeInTheDocument();
     expect(screen.queryByText('Financeiro — Conciliação')).toBeNull();
   });
 
-  it('sem atribuições: lista vazia explicada; automação de qualquer workspace dá não encontrado', async () => {
+  it('sem atribuições: lista vazia explicada; automação de qualquer ambiente de trabalho dá não encontrado', async () => {
     sessionFor('sematribuicao@nekkora.dev');
     const { unmount } = renderAt(`${base}/workspaces`);
-    expect(await screen.findByText('Você ainda não tem acesso a nenhum workspace.')).toBeInTheDocument();
+    expect(await screen.findByText('Você ainda não tem acesso a nenhum ambiente de trabalho.')).toBeInTheDocument();
     unmount();
     renderAt(`${base}/automacoes/${auto('backup')}`);
     expect(await screen.findByRole('heading', { name: 'Automação não encontrada.' })).toBeInTheDocument();
   });
 
-  it('isolamento: workspace de outra organização dá o mesmo não encontrado', async () => {
+  it('isolamento: ambiente de trabalho de outra organização dá o mesmo não encontrado', async () => {
     sessionFor('ana@nekkora.dev');
     renderAt(`${base}/workspaces/${stableUuid('vizinha:ws:vizinho')}`);
-    expect(await screen.findByRole('heading', { name: 'Workspace não encontrado.' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Ambiente de trabalho não encontrado.' })).toBeInTheDocument();
     expect(screen.queryByText('Workspace da organização vizinha')).toBeNull();
   });
 
-  it('troca rápida de workspace com respostas fora de ordem: só o atual aparece, inclusive nas automações', async () => {
+  it('troca rápida de ambiente de trabalho com respostas fora de ordem: só o atual aparece, inclusive nas automações', async () => {
     sessionFor('ana@nekkora.dev');
     let release!: () => void;
     const hold = new Promise<void>((r) => (release = r));
     intercept = (p) => (p.includes(`/workspaces/${ws('financeiro')}`) ? { delay: hold } : undefined);
     renderAt(`${base}/workspaces/${ws('financeiro')}`);
-    await screen.findByText('Carregando workspace…');
+    await screen.findByText('Carregando ambiente de trabalho…');
     act(() => navigate(`${base}/workspaces/${ws('logistica')}`));
     expect(await screen.findByRole('heading', { level: 1, name: 'Logística' })).toBeInTheDocument();
-    await screen.findByRole('region', { name: 'Automações do workspace' });
+    await screen.findByRole('region', { name: 'Automações do ambiente de trabalho' });
     await act(async () => release());
     await pause();
     expect(screen.queryByText('Conciliação bancária diária')).toBeNull();
@@ -519,7 +519,7 @@ describe('workspaces, automações e versões', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Financeiro — Conciliação' })).toBeInTheDocument();
     api.product.revokeWorkspaceRole(gestora.membershipId, ws('financeiro'));
     fireEvent.click(screen.getByRole('button', { name: 'Atualizar' }));
-    expect(await screen.findByRole('heading', { name: 'Workspace não encontrado.' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Ambiente de trabalho não encontrado.' })).toBeInTheDocument();
     expect(screen.queryByText(/Conciliação bancária/)).toBeNull();
   });
 });
@@ -558,7 +558,7 @@ describe('filtros da lista de execuções no endereço', () => {
     expect(location).toBe(url);
   });
 
-  it('período personalizado e workspace fora da parte carregada vêm do endereço', async () => {
+  it('período personalizado e ambiente de trabalho fora da parte carregada vêm do endereço', async () => {
     sessionFor('ana@nekkora.dev');
     renderAt(`${base}/execucoes?workspace=${ws('logistica')}&periodo=custom&de=2026-09-01T03:00:00.000Z&ate=2026-09-10T03:00:00.000Z`);
     await screen.findByRole('table');
@@ -577,7 +577,7 @@ describe('filtros da lista de execuções no endereço', () => {
     expect(q.get('from')).toBe(new Date(NOW - 30 * DAY).toISOString());
   });
 
-  it('link do workspace na linha da lista leva ao detalhe do workspace', async () => {
+  it('link do ambiente de trabalho na linha da lista leva ao detalhe do ambiente de trabalho', async () => {
     sessionFor('ana@nekkora.dev');
     renderAt(`${base}/execucoes?workspace=${ws('operacoes')}`);
     await screen.findByRole('table');
@@ -585,7 +585,7 @@ describe('filtros da lista de execuções no endereço', () => {
     expect(link).toHaveAttribute('href', `${base}/workspaces/${ws('operacoes')}`);
     fireEvent.click(link);
     expect(await screen.findByRole('heading', { level: 1, name: 'Operações' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Voltar para workspaces' })).toHaveAttribute('href', `${base}/execucoes?workspace=${ws('operacoes')}&periodo=30d&desde=${encodeURIComponent(new Date(NOW - 30 * DAY).toISOString())}`);
+    expect(screen.getByRole('link', { name: 'Voltar para ambientes de trabalho' })).toHaveAttribute('href', `${base}/execucoes?workspace=${ws('operacoes')}&periodo=30d&desde=${encodeURIComponent(new Date(NOW - 30 * DAY).toISOString())}`);
   });
 });
 
@@ -624,10 +624,10 @@ describe('F5-R1: perda de acesso na consulta subordinada invalida a página inte
     }
     renderAt(`${base}/workspaces/${ws('financeiro')}`);
     expect(await screen.findByRole('heading', { level: 1, name: 'Financeiro — Conciliação' })).toBeInTheDocument();
-    await screen.findByRole('region', { name: 'Automações do workspace' });
+    await screen.findByRole('region', { name: 'Automações do ambiente de trabalho' });
     api.product.revokeWorkspaceRole(gestora.membershipId, ws('financeiro'));
     fireEvent.click(screen.getByRole('button', { name: 'Carregar mais' }));
-    expect(await screen.findByRole('heading', { name: 'Workspace não encontrado.' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Ambiente de trabalho não encontrado.' })).toBeInTheDocument();
     expect(screen.queryByText(/Financeiro — Conciliação|Rotina R1|Conciliação bancária/)).toBeNull();
     expect(screen.queryByText(/continua válida/)).toBeNull();
   });

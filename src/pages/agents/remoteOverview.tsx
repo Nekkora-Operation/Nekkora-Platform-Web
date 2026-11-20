@@ -136,7 +136,7 @@ function ListFrame({
             {poll.error != null && <Text color="secondary">Não foi possível atualizar agora; a lista abaixo é a da última leitura.</Text>}
             {children(items)}
             {items.length >= REMOTE_LIST_LIMIT && (
-              <Text variant="body-sm" color="secondary">{`Mostrando as ${REMOTE_LIST_LIMIT} solicitações mais recentes. Use o workspace ou o período para ver as anteriores.`}</Text>
+              <Text variant="body-sm" color="secondary">{`Mostrando as ${REMOTE_LIST_LIMIT} solicitações mais recentes. Use o ambiente de trabalho ou o período para ver as anteriores.`}</Text>
             )}
           </>
         )}
@@ -177,7 +177,7 @@ export function RemoteRequestsSection({
         </span>
       ),
     },
-    { key: 'workspace', header: 'Workspace', render: (x) => <RouteLink to={orgPath.workspace(org, x.workspaceId)} variant="default">{x.workspaceName ?? `Workspace ${x.workspaceId.slice(0, 8)}`}</RouteLink> },
+    { key: 'workspace', header: 'Ambiente de trabalho', render: (x) => <RouteLink to={orgPath.workspace(org, x.workspaceId)} variant="default">{x.workspaceName ?? `Ambiente de trabalho ${x.workspaceId.slice(0, 8)}`}</RouteLink> },
     { key: 'estado', header: 'Estado', render: (x) => <StateBadge state={x.state} exitCode={last(x)?.exitCode} waitingForSlot={x.waitingForSlot} /> },
     { key: 'origem', header: 'Origem', render: () => REMOTE_ORIGIN },
     { key: 'maquina', header: 'Máquina · Worker', render: (x) => (last(x) ? `${last(x)!.agentName} · ${last(x)!.workerName}` : '—') },
@@ -189,7 +189,7 @@ export function RemoteRequestsSection({
   return (
     <ListFrame
       title="Execuções remotas"
-      note="Solicitadas pela Platform a uma máquina habilitada. Uma linha por solicitação; o estado, a máquina e os horários são os da tentativa mais recente. Valem os filtros de workspace, automação e período (pela data da solicitação); o filtro de estado acima é só das execuções da lista de cima."
+      note="Solicitadas pela Platform a uma máquina habilitada. Uma linha por solicitação; o estado, a máquina e os horários são os da tentativa mais recente. Valem os filtros de ambiente de trabalho, automação e período (pela data da solicitação); o filtro de estado acima é só das execuções da lista de cima."
       poll={poll}
       empty="Nenhuma execução remota com esses filtros."
       hostEmpty={hostEmpty}
@@ -220,12 +220,12 @@ export function RemoteAttemptsSection({ workspaceId, hostEmpty = false, onSource
     { key: 'fim', header: 'Fim / duração', render: (a) => (a.endedAt ? <><DateTimeText iso={a.endedAt} />{a.startedAt ? ` · ${durationText(a.startedAt, a.endedAt)}` : ''}</> : '—') },
     { key: 'desfecho', header: 'Desfecho', render: (a) => <StateBadge state={a.state} exitCode={a.exitCode} /> },
     { key: 'tentativa', header: 'Tentativa', render: (a) => `${a.attemptNumber} de ${a.execution.attempts.length}` },
-    { key: 'workspace', header: 'Workspace', render: (a) => a.execution.workspaceName ?? a.execution.workspaceId.slice(0, 8) },
+    { key: 'workspace', header: 'Ambiente de trabalho', render: (a) => a.execution.workspaceName ?? a.execution.workspaceId.slice(0, 8) },
   ];
   return (
     <ListFrame
       title="Execuções remotas (tentativas)"
-      note="O que cada máquina informou das execuções solicitadas pela Platform. Uma linha por tentativa: uma solicitação pode ter mais de uma (executar novamente em outra máquina). Vale o filtro de workspace; o de supervisor é só das execuções locais."
+      note="O que cada máquina informou das execuções solicitadas pela Platform. Uma linha por tentativa: uma solicitação pode ter mais de uma (executar novamente em outra máquina). Vale o filtro de ambiente de trabalho; o de supervisor é só das execuções locais."
       poll={poll}
       empty="Nenhuma tentativa de execução remota."
       hostEmpty={hostEmpty}
@@ -296,7 +296,7 @@ export function RemoteExecutionPage() {
             items={[
               { key: 'automacao', term: 'Automação', description: <RouteLink to={orgPath.automation(org, x.automationId)}>{x.automationName ?? x.automationId}</RouteLink> },
               { key: 'versao', term: 'Versão', description: <RouteLink to={orgPath.version(org, x.automationVersionId)}>{`versão ${x.versionNumber}`}</RouteLink> },
-              { key: 'workspace', term: 'Workspace', description: <RouteLink to={orgPath.workspace(org, x.workspaceId)}>{x.workspaceName ?? x.workspaceId}</RouteLink> },
+              { key: 'workspace', term: 'Ambiente de trabalho', description: <RouteLink to={orgPath.workspace(org, x.workspaceId)}>{x.workspaceName ?? x.workspaceId}</RouteLink> },
               { key: 'origem', term: 'Origem', description: REMOTE_ORIGIN },
               { key: 'solicitada', term: 'Solicitada em', description: <DateTimeText iso={x.requestedAt} /> },
               { key: 'cancelamento', term: 'Cancelamento pedido', description: x.cancelRequestedAt ? <DateTimeText iso={x.cancelRequestedAt} /> : 'não' },

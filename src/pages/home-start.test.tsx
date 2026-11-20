@@ -122,30 +122,30 @@ describe('página inicial da organização: próximo passo', () => {
     expect(await screen.findByText('Acme', { selector: '.pw-dash__org' })).toBeInTheDocument();
   });
 
-  it('ativa sem workspace, com permissão: "Criar primeiro workspace" abre o diálogo de criação', async () => {
+  it('ativa sem ambiente de trabalho, com permissão: "Criar primeiro ambiente de trabalho" abre o diálogo de criação', async () => {
     area({ perms: ['workspace.lifecycle'] });
     renderApp(`/o/${ORG}`);
-    await user().click(await screen.findByRole('button', { name: 'Criar primeiro workspace' }));
+    await user().click(await screen.findByRole('button', { name: 'Criar primeiro ambiente de trabalho' }));
     await waitFor(() => expect(location()).toBe(`/o/${ORG}/workspaces`));
-    expect(await screen.findByRole('alertdialog', { name: 'Criar workspace' })).toBeInTheDocument();
+    expect(await screen.findByRole('alertdialog', { name: 'Criar ambiente de trabalho' })).toBeInTheDocument();
   });
 
-  it('ativa sem workspace e sem permissão: diz que está vazio e quem pode criar, sem botão', async () => {
+  it('ativa sem ambiente de trabalho e sem permissão: diz que está vazio e quem pode criar, sem botão', async () => {
     area();
     renderApp(`/o/${ORG}`);
-    expect(await screen.findByRole('heading', { name: 'Nenhum workspace ainda' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Criar primeiro workspace' })).toBeNull();
+    expect(await screen.findByRole('heading', { name: 'Nenhum ambiente de trabalho ainda' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Criar primeiro ambiente de trabalho' })).toBeNull();
   });
 
-  it('lista de workspaces que falhou: "não foi possível carregar", nunca zero', async () => {
+  it('lista de ambientes de trabalho que falhou: "não foi possível carregar", nunca zero', async () => {
     area({ workspaces: 'error' });
     renderApp(`/o/${ORG}`);
-    expect(await screen.findByText('Não foi possível carregar os seus workspaces.')).toBeInTheDocument();
-    expect(screen.queryByText('Nenhum workspace ainda')).toBeNull();
+    expect(await screen.findByText('Não foi possível carregar os seus ambientes de trabalho.')).toBeInTheDocument();
+    expect(screen.queryByText('Nenhum ambiente de trabalho ainda')).toBeNull();
     expect(screen.queryByText(/^0 /)).toBeNull();
   });
 
-  it('workspace sem automações, com permissão: "Criar primeira automação" leva à criação no workspace (T04)', async () => {
+  it('ambiente de trabalho sem automações, com permissão: "Criar primeira automação" leva à criação no ambiente de trabalho (T04)', async () => {
     area({ perms: ['workspace.lifecycle', 'automation.manage', 'automation.read'], workspaces: [workspace()] });
     api.on('GET', `/api/v1/o/${ORG}/workspaces/${WS}/automations`, 'listAutomations', { status: 200, body: { items: [], nextCursor: null } });
     api.on('GET', `/api/v1/o/${ORG}/executions`, 'listExecutions', { status: 200, body: { items: [], nextCursor: null } });
@@ -228,7 +228,7 @@ describe('Início da organização como painel (PLATFORM-INICIO-001)', () => {
     expect(1203 + 6 + 2 + 4 + 8 + 1).toBe(1224);
   });
 
-  it('ícones das métricas planos (traço, fundo suave) e "Ver execuções"/"Ver workspaces" como links com aparência de botão secundário', async () => {
+  it('ícones das métricas planos (traço, fundo suave) e "Ver execuções"/"Ver ambientes de trabalho" como links com aparência de botão secundário', async () => {
     ready();
     withAutomations();
     api.on('GET', `/api/v1/o/${ORG}/execution-summary`, 'getExecutionSummary', { status: 200, body: summary({ succeeded: 2, failed: 1 }) });
@@ -242,14 +242,14 @@ describe('Início da organização como painel (PLATFORM-INICIO-001)', () => {
       expect(icon.querySelector('.nk-icon--outline'), 'ícone só de traço').not.toBeNull();
     }
     expect(icons.map((i) => [...i.classList].find((c) => /--(accent|success|danger)$/.test(c)))).toEqual(['nk-iconbox--accent', 'nk-iconbox--success', 'nk-iconbox--danger']);
-    for (const [name, path] of [['Ver execuções', `/o/${ORG}/execucoes`], ['Ver workspaces', `/o/${ORG}/workspaces`]] as const) {
+    for (const [name, path] of [['Ver execuções', `/o/${ORG}/execucoes`], ['Ver ambientes de trabalho', `/o/${ORG}/workspaces`]] as const) {
       const link = screen.getByRole('link', { name });
       expect(link).toHaveAttribute('href', path);
       expect(link.classList.contains('nk-button--secondary')).toBe(true);
       expect(link.classList.contains('nk-button--lg'), 'texto de 16 px e 48 px de altura').toBe(true);
     }
     // continua navegando como link, sem recarregar a página
-    await user().click(screen.getByRole('link', { name: 'Ver workspaces' }));
+    await user().click(screen.getByRole('link', { name: 'Ver ambientes de trabalho' }));
     await waitFor(() => expect(location()).toBe(`/o/${ORG}/workspaces`));
   });
 
@@ -304,7 +304,7 @@ describe('Início da organização como painel (PLATFORM-INICIO-001)', () => {
     expect(within(section).queryByText(/Nenhum agendamento/)).toBeNull();
   });
 
-  it('cards de automações: nome em destaque, workspace, versão, última execução e "Ver automação"', async () => {
+  it('cards de automações: nome em destaque, ambiente de trabalho, versão, última execução e "Ver automação"', async () => {
     ready();
     withAutomations();
     const OUTRA = 'b3c4d5e6-f708-4192-a3b4-c5d6e7f8091a';
@@ -325,8 +325,8 @@ describe('Início da organização como painel (PLATFORM-INICIO-001)', () => {
     expect(cards).toHaveLength(2);
     // mesmo nome: o workspace distingue
     expect(within(cards[0]).getByRole('heading', { level: 3, name: 'Conciliação diária' })).toBeInTheDocument();
-    expect(within(cards[0]).getByText('Workspace Financeiro')).toBeInTheDocument();
-    expect(within(cards[1]).getByText('Workspace Fiscal')).toBeInTheDocument();
+    expect(within(cards[0]).getByText('Ambiente de trabalho Financeiro')).toBeInTheDocument();
+    expect(within(cards[1]).getByText('Ambiente de trabalho Fiscal')).toBeInTheDocument();
     expect(within(cards[0]).getByText('Confere o extrato com o razão.')).toBeInTheDocument();
     expect(within(cards[0]).getByText('Versão 3')).toBeInTheDocument();
     expect(within(cards[0]).getByText('Sucesso')).toBeInTheDocument();
@@ -392,7 +392,7 @@ describe('Início da organização como painel (PLATFORM-INICIO-001)', () => {
   it('sem acesso a nenhum workspace: diz isso, sem métricas zeradas nem consulta de resumo', async () => {
     area({ perms: [], workspaces: [] });
     renderApp(`/o/${ORG}`);
-    expect(await screen.findByText('Você ainda não tem acesso a nenhum workspace')).toBeInTheDocument();
+    expect(await screen.findByText('Você ainda não tem acesso a nenhum ambiente de trabalho')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 3, name: 'Total de execuções' })).toBeNull();
     expect(screen.queryByRole('region', { name: 'Automações' })).toBeNull();
   });
@@ -414,7 +414,7 @@ describe('Início: troca de organização (PLATFORM-INICIO-001)', () => {
       body: { organizationId: org, membershipId: org, organization: { roles: ['ORG_ADMIN'], permissions: ['automation.read'] }, allWorkspaces: { permissions: ['automation.read'] }, hasWorkspaceAssignments: false },
     });
     api.on('GET', `/api/v1/o/${org}/me/permissions/workspaces`, 'listMyWorkspacePermissions', { status: 200, body: { items: [], nextCursor: null } });
-    api.on('GET', `/api/v1/o/${org}/workspaces`, 'listWorkspaces', { status: 200, body: { items: [{ ...workspace(), name: `Workspace ${name}` }], nextCursor: null } });
+    api.on('GET', `/api/v1/o/${org}/workspaces`, 'listWorkspaces', { status: 200, body: { items: [{ ...workspace(), name: `Ambiente de trabalho ${name}` }], nextCursor: null } });
     api.on('GET', `/api/v1/o/${org}/workspaces/${WS}/automations`, 'listAutomations', { status: 200, body: { items: [automation], nextCursor: null } });
     api.on('GET', `/api/v1/o/${org}/execution-summary`, 'getExecutionSummary', summaryReply);
     api.on('GET', `/api/v1/o/${org}/automations`, 'listOrganizationAutomations', automationsReply);
@@ -431,9 +431,9 @@ describe('Início: troca de organização (PLATFORM-INICIO-001)', () => {
       },
     });
   const acmeSummary = { status: 200, body: summary({ succeeded: 71, failed: 6 }) };
-  const acmeCards = { status: 200, body: { items: [card({ name: 'Fechamento da Acme', workspaceName: 'Workspace Acme' })], nextCursor: null } };
+  const acmeCards = { status: 200, body: { items: [card({ name: 'Fechamento da Acme', workspaceName: 'Ambiente de trabalho Acme' })], nextCursor: null } };
   const betaSummary = { status: 200, body: summary({ succeeded: 3, failed: 1 }) };
-  const betaCards = { status: 200, body: { items: [card({ name: 'Cobrança da Beta', workspaceName: 'Workspace Beta' })], nextCursor: null } };
+  const betaCards = { status: 200, body: { items: [card({ name: 'Cobrança da Beta', workspaceName: 'Ambiente de trabalho Beta' })], nextCursor: null } };
 
   /** A aplicação como em `renderApp`, com acesso à navegação: a troca acontece na MESMA árvore (o caso mais exigente). */
   function renderWithNavigation(path: string) {
@@ -455,7 +455,7 @@ describe('Início: troca de organização (PLATFORM-INICIO-001)', () => {
   /** Nada da Acme na tela: nem o nome, nem o card, nem o workspace, nem os números (77 no total, 71 sucessos). */
   const nothingFromAcme = () => {
     expect(screen.queryByText('Fechamento da Acme')).toBeNull();
-    expect(screen.queryByText(/Workspace Acme/)).toBeNull();
+    expect(screen.queryByText(/Ambiente de trabalho Acme/)).toBeNull();
     expect(screen.queryByText('Acme', { selector: '.pw-dash__org' })).toBeNull();
     for (const value of document.querySelectorAll('.pw-dash__metric-value')) expect(['77', '71', '6']).not.toContain(value.textContent);
   };

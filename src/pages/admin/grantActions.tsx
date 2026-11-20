@@ -24,7 +24,7 @@ export const grantTarget = (g: ClientGrant): GrantTarget => ({
 });
 
 /** "Ana (cliente Acme, workspace Logística)": identifica a concessão, não só a conta. */
-export const grantLabel = (t: GrantTarget) => `${t.displayName} (cliente ${t.clientName}, workspace ${t.workspaceName})`;
+export const grantLabel = (t: GrantTarget) => `${t.displayName} (cliente ${t.clientName}, ambiente de trabalho ${t.workspaceName})`;
 
 /** Estado depois de uma revogação CONFIRMADA (204); antes disso, vale o que a lista leu. */
 export function effectiveGrantStatus(g: ClientGrant, entry: WriteEntry | undefined): GrantStatus {
@@ -148,12 +148,12 @@ export function RevokeGrantDialog({
               <dd>{t.clientName}</dd>
             </div>
             <div>
-              <dt>Workspace</dt>
+              <dt>Ambiente de trabalho</dt>
               <dd>{t.workspaceName}</dd>
             </div>
           </dl>
           <Text>
-            Esta concessão deixa de dar à conta {t.displayName} acesso ao workspace {t.workspaceName} do cliente {t.clientName}.
+            Esta concessão deixa de dar à conta {t.displayName} acesso ao ambiente de trabalho {t.workspaceName} do cliente {t.clientName}.
           </Text>
           <Text variant="body-sm" color="secondary">
             Só esta concessão muda: outras concessões da mesma conta e a própria conta continuam como estão. Não há como

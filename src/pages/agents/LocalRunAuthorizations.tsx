@@ -202,13 +202,13 @@ export function LocalRunAuthorizations({
             </Text>
             {workers ? (
               <Select
-                label="Worker autorizado neste workspace"
+                label="Worker autorizado neste ambiente de trabalho"
                 fullWidth
                 value={workerId}
-                placeholder={eligible.length ? 'Escolha um Worker' : 'Nenhum Worker autorizado neste workspace'}
+                placeholder={eligible.length ? 'Escolha um Worker' : 'Nenhum Worker autorizado neste ambiente de trabalho'}
                 onChange={(e) => setWorkerId(e.target.value)}
                 options={workerOptions}
-                hint="Só Workers ativos e autorizados no workspace (tela de Workers)."
+                hint="Só Workers ativos e autorizados no ambiente de trabalho (tela de Workers)."
               />
             ) : (
               <Input
@@ -240,10 +240,10 @@ export function LocalRunAuthorizations({
             </Text>
             {workers ? (
               <Select
-                label="Worker autorizado neste workspace"
+                label="Worker autorizado neste ambiente de trabalho"
                 fullWidth
                 value={workerId}
-                placeholder={eligible.length ? 'Escolha um Worker' : 'Nenhum Worker autorizado neste workspace'}
+                placeholder={eligible.length ? 'Escolha um Worker' : 'Nenhum Worker autorizado neste ambiente de trabalho'}
                 onChange={(e) => setWorkerId(e.target.value)}
                 options={workerOptions}
               />
@@ -280,7 +280,7 @@ export function LocalRunAuthorizations({
         (items.length === 0 ? (
           <StateView
             status="neutral"
-            title={automation ? 'Esta automação ainda não tem monitoramento autorizado.' : version ? 'Esta versão ainda não tem autorizações.' : 'Nenhuma autorização de execução local neste workspace.'}
+            title={automation ? 'Esta automação ainda não tem monitoramento autorizado.' : version ? 'Esta versão ainda não tem autorizações.' : 'Nenhuma autorização de execução local neste ambiente de trabalho.'}
           />
         ) : (
           <div className="pw-prod__scroll" role="region" aria-label="Autorizações de execução local" tabIndex={0}>
@@ -309,7 +309,7 @@ export function LocalRunAuthorizations({
             hasReason(e, 'conflict', EXISTS_REASON)
               ? existsText
               : licenseRefusalText(e) ?? accessRefusal(e, {
-                  conflict: 'A versão não está publicada com pacote, o Worker não está autorizado neste workspace, ou a automação/workspace não está ativo.',
+                  conflict: 'A versão não está publicada com pacote, o Worker não está autorizado neste ambiente de trabalho, ou a automação ou o ambiente de trabalho não está ativo.',
                 })
           }
           uncertainText="Não foi possível confirmar a autorização. Feche e confira a lista de autorizações antes de repetir."
@@ -344,7 +344,7 @@ export function LocalRunAuthorizations({
           refusalText={(e) =>
             hasReason(e, 'conflict', EXISTS_REASON)
               ? existsText
-              : licenseRefusalText(e) ?? accessRefusal(e, { conflict: 'O Worker não está autorizado neste workspace, ou a automação/workspace não está ativo.' })
+              : licenseRefusalText(e) ?? accessRefusal(e, { conflict: 'O Worker não está autorizado neste ambiente de trabalho, ou a automação ou o ambiente de trabalho não está ativo.' })
           }
           uncertainText="Não foi possível confirmar a autorização. Feche e confira a lista antes de repetir."
           onUnauthenticated={expired}

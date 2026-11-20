@@ -80,7 +80,7 @@ test('PLATFORM-LICENCIAMENTO-001: criação sem o teto de dez; limite de frequê
   const criadas = () => sql(`SELECT count(*) FROM identity_users WHERE identity_id = '${identity}' AND link_channel = 'cadastro_web'`);
   const vazias = () => sql(`SELECT cardinality(public.identity_empty_organizations('${identity}'))`);
   const tornarNaoVazia = (org: string) =>
-    sql(`WITH w AS (INSERT INTO workspaces (workspace_id, organization_id, client_id, name, status) VALUES (gen_random_uuid(), '${org}', NULL, 'Fiscal', 1) RETURNING workspace_id)
+    sql(`WITH w AS (INSERT INTO ambientes de trabalho (workspace_id, organization_id, client_id, name, status) VALUES (gen_random_uuid(), '${org}', NULL, 'Fiscal', 1) RETURNING workspace_id)
          INSERT INTO automations (automation_id, organization_id, workspace_id, name, description, status, created_by_membership_id)
          SELECT gen_random_uuid(), '${org}', w.workspace_id, 'Notas', NULL, 1, (SELECT membership_id FROM organization_memberships WHERE organization_id = '${org}' LIMIT 1) FROM w`);
 

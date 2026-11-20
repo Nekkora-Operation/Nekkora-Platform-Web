@@ -181,7 +181,7 @@ describe('Workers: vincular e gerenciar o Agent (T07)', () => {
     await openPage();
     const row = await waitFor(() => rowOf('Worker financeiro'));
     // livre: autorizar em workspace e vincular Agent lado a lado
-    expect(within(row).getByRole('button', { name: 'Autorizar Worker financeiro num workspace' })).toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: 'Autorizar Worker financeiro num ambiente de trabalho' })).toBeInTheDocument();
     fireEvent.click(within(row).getByRole('button', { name: 'Vincular Agent a Worker financeiro' }));
     const name = within(dialog()).getByLabelText(/^Nome da máquina/) as HTMLInputElement;
     expect(name.value).toBe('Worker financeiro');
@@ -264,7 +264,7 @@ describe('Workers: vincular e gerenciar o Agent (T07)', () => {
     // nunca diz que a máquina foi desligada; a falta de sinal não muda nada no servidor
     expect(document.body.textContent).not.toMatch(/Desligada|Desligado/);
     expect(
-      screen.getByText(/a falta de contato não revoga a credencial, não libera o Worker e não retira workspaces. Desvincular no Agent pede à Platform o encerramento do vínculo: quando ela confirma, o Worker fica sem máquina vinculada e pode ser vinculado de novo. Sem conexão \(ou com o Agent fechado\), o pedido espera na máquina e aqui ela aparece vinculada e offline; quem administra pode revogar o vínculo nesta tela. Agents de versões anteriores só desvinculam na máquina. A lista se atualiza sozinha a cada 30 segundos enquanto a página está aberta. Quando o contato voltar, a máquina aparece online de novo, sem novo pareamento./),
+      screen.getByText(/a falta de contato não revoga a credencial, não libera o Worker e não retira ambientes de trabalho. Desvincular no Agent pede à Platform o encerramento do vínculo: quando ela confirma, o Worker fica sem máquina vinculada e pode ser vinculado de novo. Sem conexão \(ou com o Agent fechado\), o pedido espera na máquina e aqui ela aparece vinculada e offline; quem administra pode revogar o vínculo nesta tela. Agents de versões anteriores só desvinculam na máquina. A lista se atualiza sozinha a cada 30 segundos enquanto a página está aberta. Quando o contato voltar, a máquina aparece online de novo, sem novo pareamento./),
     ).toBeInTheDocument();
   });
 
@@ -287,7 +287,7 @@ describe('Workers: vincular e gerenciar o Agent (T07)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Concluir' }));
 
     fireEvent.click(within(await waitFor(() => rowOf('ESTACAO-01'))).getByRole('button', { name: 'Revogar vínculo de ESTACAO-01 com Worker financeiro' }));
-    expect(within(dialog()).getByText(/O Worker fica livre na Platform e continua existindo, com as autorizações de workspace e o histórico/)).toBeInTheDocument();
+    expect(within(dialog()).getByText(/O Worker fica livre na Platform e continua existindo, com as autorizações de ambiente de trabalho e o histórico/)).toBeInTheDocument();
     expect(within(dialog()).getByText(/A máquina em si não é contatada/)).toBeInTheDocument();
     await confirmIn('Revogar vínculo');
     expect(await screen.findByText(/Vínculo revogado: o Worker Worker financeiro está livre/)).toBeInTheDocument();

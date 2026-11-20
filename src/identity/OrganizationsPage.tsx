@@ -128,7 +128,7 @@ export function OrganizationsPage() {
           title="Você ainda não participa de nenhuma organização."
           description={
             canCreateOrganization
-              ? 'Uma organização reúne as pessoas, os workspaces e as automações da sua empresa. Crie a sua para começar, ou peça a quem administra uma organização que envie um convite para o seu e-mail.'
+              ? 'Uma organização reúne as pessoas, os ambientes de trabalho e as automações da sua empresa. Crie a sua para começar, ou peça a quem administra uma organização que envie um convite para o seu e-mail.'
               : 'Peça a quem administra uma organização que envie um convite para o seu e-mail. O link do convite traz você de volta para cá.'
           }
           actions={

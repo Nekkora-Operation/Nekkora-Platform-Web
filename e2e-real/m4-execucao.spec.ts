@@ -94,11 +94,11 @@ async function setup(page: Page, person: Person) {
   lab('limites', org, person.email);
 
   await page.goto(`/o/${org}/workspaces`);
-  await page.getByRole('button', { name: 'Criar workspace' }).click();
+  await page.getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await page.getByRole('alertdialog').getByLabel(/^Nome/).fill('Operações');
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar workspace' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await expect(page.getByRole('heading', { name: 'Operações' })).toBeVisible();
-  const workspaceId = /workspaces\/([0-9a-f-]{36})/.exec(page.url())![1];
+  const workspaceId = /ambientes de trabalho\/([0-9a-f-]{36})/.exec(page.url())![1];
   await page.getByRole('button', { name: 'Criar automação' }).click();
   // T04: criação em página própria; aqui, o caminho só com o nome (rascunho)
   await page.getByLabel(/^Nome da automação/).fill('Biografias da Wikipédia');
@@ -133,13 +133,13 @@ async function setup(page: Page, person: Person) {
   }
 
   await page.goto(`/o/${org}/workers`);
-  await page.getByRole('button', { name: 'Autorizar Worker do laboratório num workspace' }).click();
-  await page.getByRole('alertdialog').getByLabel('Workspace').selectOption(workspaceId);
+  await page.getByRole('button', { name: 'Autorizar Worker do laboratório num ambiente de trabalho' }).click();
+  await page.getByRole('alertdialog').getByLabel('Ambiente de trabalho').selectOption(workspaceId);
   await confirmStepUp(page, person, 'Autorizar');
-  await expect(page.getByText('Worker autorizado no workspace.')).toBeVisible();
+  await expect(page.getByText('Worker autorizado no ambiente de trabalho.')).toBeVisible();
 
   await page.goto(versionUrl);
-  await page.getByLabel(/^Worker autorizado neste workspace/).selectOption({ label: 'Worker do laboratório' });
+  await page.getByLabel(/^Worker autorizado neste ambiente de trabalho/).selectOption({ label: 'Worker do laboratório' });
   await page.getByRole('button', { name: 'Autorizar execução local' }).click();
   await confirmStepUp(page, person, 'Autorizar execução local');
   await expect(page.getByText(/Execução local autorizada\. Nada foi iniciado/)).toBeVisible();

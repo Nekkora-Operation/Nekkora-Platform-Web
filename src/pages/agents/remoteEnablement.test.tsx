@@ -287,7 +287,7 @@ describe('Workspace: máquinas habilitadas para execução remota (T01a)', () =>
     expect(screen.getByRole('heading', { name: 'Autorizações de execução local' })).toBeInTheDocument();
   });
 
-  it('sem automation.execute no workspace, a lista nem é pedida', async () => {
+  it('sem automation.execute no ambiente de trabalho, a lista nem é pedida', async () => {
     setup(['automation.read']);
     await open();
     await screen.findByRole('heading', { name: 'Autorizações de execução local' });

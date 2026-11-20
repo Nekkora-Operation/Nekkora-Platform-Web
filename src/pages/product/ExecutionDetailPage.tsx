@@ -114,10 +114,10 @@ function ExecutionDetail({ executionId }: { executionId: string }) {
             { key: 'versao', term: 'Versão', description: `versão ${e.automationVersion.versionNumber}` },
             {
               key: 'workspace',
-              term: 'Workspace',
+              term: 'Ambiente de trabalho',
               description: (
                 <Link as={RouterLink} to={orgPath.workspace(org, e.workspaceId)}>
-                  {workspaceName ?? 'Abrir workspace'}
+                  {workspaceName ?? 'Abrir ambiente de trabalho'}
                 </Link>
               ),
             },

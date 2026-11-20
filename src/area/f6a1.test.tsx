@@ -288,7 +288,7 @@ describe('Clientes', () => {
 });
 
 describe('Concessões', () => {
-  it('lista da mais recente para a mais antiga; estados; filtros de estado e workspace na URL', async () => {
+  it('lista da mais recente para a mais antiga; estados; filtros de estado e ambiente de trabalho na URL', async () => {
     sessionFor('ana@nekkora.dev');
     renderAt(grants);
     await screen.findByRole('region', { name: 'Lista de concessões' });
@@ -299,7 +299,7 @@ describe('Concessões', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Ativa' }));
     await waitFor(() => expect(location).toBe(`${grants}?estado=active`));
     await waitFor(() => expect(rows('Lista de concessões')).toHaveLength(3));
-    fireEvent.change(screen.getByRole('combobox', { name: 'Workspace' }), { target: { value: stableUuid('dev:ws:logistica') } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Ambiente de trabalho' }), { target: { value: stableUuid('dev:ws:logistica') } });
     await waitFor(() => expect(location).toBe(`${grants}?estado=active&workspace=${stableUuid('dev:ws:logistica')}`));
     await waitFor(() => expect(rows('Lista de concessões')).toHaveLength(1));
   });

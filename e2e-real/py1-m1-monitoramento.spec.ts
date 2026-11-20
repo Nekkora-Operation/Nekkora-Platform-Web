@@ -76,11 +76,11 @@ test('M1: Python externo do agendador monitorado pela Platform (0, erro com efei
   const ana = await signUpAndEnroll(page, 'py1m1');
   const org = await prepareOrganization(page, ana);
   await page.goto(`/o/${org}/workspaces`);
-  await page.getByRole('button', { name: 'Criar workspace' }).click();
+  await page.getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await page.getByRole('alertdialog').getByLabel(/^Nome/).fill('Operações');
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar workspace' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await expect(page.getByRole('heading', { name: 'Operações' })).toBeVisible();
-  const workspaceId = /workspaces\/([0-9a-f-]{36})/.exec(page.url())![1];
+  const workspaceId = /ambientes de trabalho\/([0-9a-f-]{36})/.exec(page.url())![1];
   await page.getByRole('button', { name: 'Criar automação' }).click();
   // T04: criação em página própria; aqui, o caminho só com o nome (rascunho)
   await page.getByLabel(/^Nome da automação/).fill('Relatório CSV');
@@ -98,15 +98,15 @@ test('M1: Python externo do agendador monitorado pela Platform (0, erro com efei
   await page.getByRole('button', { name: 'Concluir' }).click();
   await expect.poll(() => workersText(page, org), { timeout: 240_000, intervals: [10_000] }).toMatch(/ESTACAO-PY1[\s\S]*Conectada/);
   await page.goto(`/o/${org}/workers`);
-  await page.getByRole('button', { name: 'Autorizar Worker relatórios num workspace' }).click();
-  await page.getByRole('alertdialog').getByLabel('Workspace').selectOption(workspaceId);
+  await page.getByRole('button', { name: 'Autorizar Worker relatórios num ambiente de trabalho' }).click();
+  await page.getByRole('alertdialog').getByLabel('Ambiente de trabalho').selectOption(workspaceId);
   await confirmStepUp(page, ana, 'Autorizar');
-  await expect(page.getByText('Worker autorizado no workspace.')).toBeVisible();
+  await expect(page.getByText('Worker autorizado no ambiente de trabalho.')).toBeVisible();
 
   // ---------- autorização de MONITORAMENTO na automação (sem versão nem impressão)
   await page.goto(automationUrl);
   await expect(page.getByRole('heading', { name: 'Monitoramento de Python externo' })).toBeVisible();
-  await page.getByLabel(/^Worker autorizado neste workspace/).selectOption({ label: 'Worker relatórios' });
+  await page.getByLabel(/^Worker autorizado neste ambiente de trabalho/).selectOption({ label: 'Worker relatórios' });
   await page.getByRole('button', { name: 'Autorizar monitoramento' }).click();
   await confirmStepUp(page, ana, 'Autorizar monitoramento');
   await expect(page.getByText(/Monitoramento autorizado\. Nada foi iniciado/)).toBeVisible();

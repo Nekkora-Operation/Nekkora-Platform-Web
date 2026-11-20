@@ -123,13 +123,13 @@ test('Temas: escolha pela conta com o teclado, aplicação inteira, persistênci
     await page.goto(`/o/${acc.org}`);
     await expect(page.getByRole('heading', { level: 1, name: 'Olá, Lia Prado' })).toBeVisible();
     expect((await current(page))[0], 'recarregar mantém o tema').toBe(t.id);
-    await page.getByRole('link', { name: 'Workspaces' }).first().focus();
+    await page.getByRole('link', { name: 'Ambientes de trabalho' }).first().focus();
     await focusVisible(page, `${t.slug}: menu`);
     await audit(page, `${t.slug}-inicio-desktop`);
 
     // ---- formulário num diálogo
     await page.goto(`/o/${acc.org}/workspaces`);
-    await page.getByRole('button', { name: /^Criar (workspace|ambiente de trabalho)$/i }).click();
+    await page.getByRole('button', { name: /^Criar (ambiente de trabalho|ambiente de trabalho)$/i }).click();
     const dialog = page.getByRole('alertdialog');
     await expect(dialog).toBeVisible();
     await dialog.getByLabel(/^Nome/).focus();

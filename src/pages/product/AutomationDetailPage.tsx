@@ -53,7 +53,7 @@ function AutomationDetail({ automationId }: { automationId: string }) {
     setRefresh((n) => n + 1);
   };
 
-  if (gone) return <NotFoundState title="Automação não encontrada." back={{ to: back, label: 'Voltar para workspaces' }} />;
+  if (gone) return <NotFoundState title="Automação não encontrada." back={{ to: back, label: 'Voltar para ambientes de trabalho' }} />;
   if (automation.status === 'loading') return <StateView status="loading" title="Carregando automação…" />;
   if (automation.status === 'error') {
     return <LoadErrorState error={automation.error} onRetry={onRefresh} page />;
@@ -85,7 +85,7 @@ function AutomationDetail({ automationId }: { automationId: string }) {
 
   return (
     <Stack gap={6}>
-      <PageHeader title={a.name} subtitle="Automação" back={{ to: back, label: workspaceName ? `Voltar para ${workspaceName}` : 'Voltar para o workspace' }} onRefresh={onRefresh} refreshing={automation.refreshing} />
+      <PageHeader title={a.name} subtitle="Automação" back={{ to: back, label: workspaceName ? `Voltar para ${workspaceName}` : 'Voltar para o ambiente de trabalho' }} onRefresh={onRefresh} refreshing={automation.refreshing} />
       <Card variant="surface" padding="lg">
         <Stack gap={4}>
           <DescriptionList
@@ -93,10 +93,10 @@ function AutomationDetail({ automationId }: { automationId: string }) {
               { key: 'estado', term: 'Estado', description: <ResourceStatusBadge status={a.status} /> },
               {
                 key: 'workspace',
-                term: 'Workspace',
+                term: 'Ambiente de trabalho',
                 description: (
                   <Link as={RouterLink} to={orgPath.workspace(org, a.workspaceId)}>
-                    {workspaceName ?? 'Abrir workspace'}
+                    {workspaceName ?? 'Abrir ambiente de trabalho'}
                   </Link>
                 ),
               },
