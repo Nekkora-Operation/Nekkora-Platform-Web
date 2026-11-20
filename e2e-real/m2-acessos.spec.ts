@@ -34,7 +34,7 @@ test('J07/J08: ambiente de trabalho, convite com papel, aceite pela caixa, visã
   await admin.getByRole('alertdialog').getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await expect(admin).toHaveURL(new RegExp(`/o/${org}/workspaces/[0-9a-f-]{36}$`));
   await expect(admin.getByRole('heading', { name: wsName })).toBeVisible();
-  const workspaceId = /ambientes de trabalho\/([0-9a-f-]{36})/.exec(admin.url())![1];
+  const workspaceId = /workspaces\/([0-9a-f-]{36})/.exec(admin.url())![1];
 
   // a convidada se cadastra (identidade própria, outro e-mail)
   const bia = await signUpAndEnroll(guest, 'j08b');

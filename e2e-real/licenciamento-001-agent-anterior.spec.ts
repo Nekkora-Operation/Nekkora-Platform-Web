@@ -248,7 +248,7 @@ test('PLATFORM-LICENCIAMENTO-001 com o Agent anterior em cópia isolada: recusa 
     await anaPage.getByRole('alertdialog').getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
     await expect(anaPage).toHaveURL(new RegExp(`/o/${oficina}/workspaces/[0-9a-f-]{36}$`));
     await settle(anaPage);
-    const workspaceId = /ambientes de trabalho\/([0-9a-f-]{36})/.exec(anaPage.url())![1];
+    const workspaceId = /workspaces\/([0-9a-f-]{36})/.exec(anaPage.url())![1];
     await anaPage.getByRole('button', { name: 'Criar automação' }).click();
     await settle(anaPage);
     await anaPage.getByLabel(/^Nome da automação/).fill(AUTOMACAO);

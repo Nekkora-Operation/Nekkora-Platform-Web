@@ -51,7 +51,7 @@ test('J12: código emitido na tela, pareamento do Agent real, presença, Worker 
   await page.getByRole('alertdialog').getByLabel(/^Nome/).fill('Operações');
   await page.getByRole('alertdialog').getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await expect(page.getByRole('heading', { name: 'Operações' })).toBeVisible();
-  const workspaceId = /ambientes de trabalho\/([0-9a-f-]{36})/.exec(page.url())![1];
+  const workspaceId = /workspaces\/([0-9a-f-]{36})/.exec(page.url())![1];
   await page.getByRole('button', { name: 'Criar automação' }).click();
   // T04: criação em página própria; aqui, o caminho só com o nome (rascunho)
   await page.getByLabel(/^Nome da automação/).fill('Biografias da Wikipédia');

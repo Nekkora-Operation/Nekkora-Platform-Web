@@ -224,7 +224,7 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   await expect(anaPage).toHaveURL(new RegExp(`/o/${matriz}/workspaces/[0-9a-f-]{36}$`));
   await expect(anaPage.getByRole('heading', { name: 'Fiscal' })).toBeVisible();
   const workspaceUrl = anaPage.url();
-  const workspaceId = /ambientes de trabalho\/([0-9a-f-]{36})/.exec(workspaceUrl)![1];
+  const workspaceId = /workspaces\/([0-9a-f-]{36})/.exec(workspaceUrl)![1];
   const automationUrls: Record<string, string> = {};
   for (const name of ['Notas de entrada', 'Folha', 'Conciliação']) {
     // a primeira é criada na página em que o ambiente acabou de nascer; a segunda, abrindo o ambiente de novo

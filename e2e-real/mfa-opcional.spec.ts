@@ -64,7 +64,7 @@ test('MFA opcional: conta sem MFA, ação sensível com senha, convite e papel, 
   await admin.getByRole('alertdialog').getByLabel(/^Nome/).fill(wsName);
   await admin.getByRole('alertdialog').getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await expect(admin).toHaveURL(new RegExp(`/o/${org}/workspaces/[0-9a-f-]{36}$`));
-  const workspaceId = /ambientes de trabalho\/([0-9a-f-]{36})/.exec(admin.url())![1];
+  const workspaceId = /workspaces\/([0-9a-f-]{36})/.exec(admin.url())![1];
 
   // a segunda pessoa, também sem MFA
   const bia = await signUpWithoutMfa(guest, `mfa${tag}b`);
