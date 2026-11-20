@@ -117,7 +117,9 @@ describe('§39/§40 — varredura estática do código de produção', () => {
   it('sem console, localStorage, sessionStorage, document.cookie ou analytics', () => {
     const offenders: string[] = [];
     // única exceção (FRONT-V1-002): o registro de operações incertas guarda só resumos e estados (ver pendingOps.test.ts)
-    const allowed = new Set([join(process.cwd(), 'src', 'api', 'pendingOps.ts')]);
+    // segunda exceção (PLATFORM-FLUXO-002, decisão da titular de 20/11/2026): a preferência de tema deste navegador, só o
+    // nome de um dos três temas, nada que identifique a pessoa (ver theme.test.tsx)
+    const allowed = new Set([join(process.cwd(), 'src', 'api', 'pendingOps.ts'), join(process.cwd(), 'src', 'app', 'theme.tsx')]);
     for (const file of sources(join(process.cwd(), 'src')).filter((f) => !allowed.has(f))) {
       readFileSync(file, 'utf8')
         .split('\n')

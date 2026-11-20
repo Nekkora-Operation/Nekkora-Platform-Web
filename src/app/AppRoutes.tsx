@@ -1,52 +1,68 @@
-import { Navigate, Outlet, Route, Routes, useParams } from 'react-router';
-import { features } from '../config';
-import { orgPath } from '../auth/organization';
-import { IdentityFlowProvider } from '../auth/flow';
-import { AcceptInvitationPage } from '../identity/AcceptInvitationPage';
-import { AccessEventsPage } from '../pages/access/AccessEventsPage';
-import { InvitationsPage } from '../pages/access/InvitationsPage';
-import { MemberAccessPage } from '../pages/access/MemberAccessPage';
-import { AccountPage, ActivateMfaPage, ProtectAccountPage, ReplaceFactorPage } from '../identity/AccountPages';
-import { CreateOrganizationPage } from '../identity/CreateOrganizationPage';
-import { OrganizationEntryPage, RecoverPasswordRoute, RootPage } from '../identity/EntryPages';
-import { IdentityArea } from '../identity/IdentityArea';
-import { LinkAccountPage } from '../identity/LinkAccountPage';
-import { OrganizationsPage } from '../identity/OrganizationsPage';
-import { SignupConfirmPage, SignupPage } from '../identity/SignupPages';
-import { ForgotPasswordPage, ResendVerificationPage } from '../pages/EmailRequestPage';
-import { AuthenticatedArea } from '../area/AuthenticatedArea';
-import { ClientsPage } from '../pages/admin/ClientsPage';
-import { GrantsPage } from '../pages/admin/GrantsPage';
-import { MembersPage } from '../pages/admin/MembersPage';
-import { ExecutionsPage } from '../pages/ExecutionsPage';
-import { AutomationDetailPage } from '../pages/product/AutomationDetailPage';
-import { NewVersionPage } from '../pages/product/NewVersionPage';
-import { ExecutionDetailPage } from '../pages/product/ExecutionDetailPage';
-import { WorkspaceDetailPage } from '../pages/product/WorkspaceDetailPage';
-import { WorkspacesPage } from '../pages/product/WorkspacesPage';
-import { VersionPage } from '../pages/product/VersionPage';
-import { NewAutomationPage } from '../pages/product/NewAutomationPage';
-import { WorkersPage } from '../pages/agents/WorkersPage';
-import { AgentRunPage, AgentRunsPage } from '../pages/agents/supervision';
-import { RemoteExecutionPage } from '../pages/agents/remoteOverview';
-import { InternalHome, OrgAccountPage } from '../pages/HomePage';
-import { DesktopAuthorizePage } from '../pages/DesktopAuthorizePage';
-import { LoginPage } from '../pages/LoginPage';
-import { MfaPage } from '../pages/MfaPage';
-import { MfaSetupPage } from '../pages/MfaSetupPage';
-import { ResetPasswordPage } from '../pages/ResetPasswordPage';
-import { NoOrganizationPage, NotFoundInOrganizationPage } from '../pages/StatusPages';
-import { VerifyEmailPage } from '../pages/VerifyEmailPage';
-import { LicensesPage } from '../pages/licenses/LicensesPage';
-import { LicenseOperatorPage } from '../pages/licenses/LicenseOperatorPage';
-import { OrganizationRequestsPage } from '../pages/licenses/OrganizationRequestsPage';
-import { RequestOrganizationPage } from '../identity/RequestOrganizationPage';
-import { OrganizationRoute } from './organization';
+import { Navigate, Outlet, Route, Routes, useParams } from "react-router";
+import { features } from "../config";
+import { PlatformThemeProvider } from "./theme";
+import { orgPath } from "../auth/organization";
+import { IdentityFlowProvider } from "../auth/flow";
+import { AcceptInvitationPage } from "../identity/AcceptInvitationPage";
+import { AccessEventsPage } from "../pages/access/AccessEventsPage";
+import { InvitationsPage } from "../pages/access/InvitationsPage";
+import { MemberAccessPage } from "../pages/access/MemberAccessPage";
+import {
+  AccountPage,
+  ActivateMfaPage,
+  ProtectAccountPage,
+  ReplaceFactorPage,
+} from "../identity/AccountPages";
+import { CreateOrganizationPage } from "../identity/CreateOrganizationPage";
+import {
+  OrganizationEntryPage,
+  RecoverPasswordRoute,
+  RootPage,
+} from "../identity/EntryPages";
+import { IdentityArea } from "../identity/IdentityArea";
+import { LinkAccountPage } from "../identity/LinkAccountPage";
+import { OrganizationsPage } from "../identity/OrganizationsPage";
+import { SignupConfirmPage, SignupPage } from "../identity/SignupPages";
+import {
+  ForgotPasswordPage,
+  ResendVerificationPage,
+} from "../pages/EmailRequestPage";
+import { AuthenticatedArea } from "../area/AuthenticatedArea";
+import { ClientsPage } from "../pages/admin/ClientsPage";
+import { GrantsPage } from "../pages/admin/GrantsPage";
+import { MembersPage } from "../pages/admin/MembersPage";
+import { ExecutionsPage } from "../pages/ExecutionsPage";
+import { AutomationDetailPage } from "../pages/product/AutomationDetailPage";
+import { NewVersionPage } from "../pages/product/NewVersionPage";
+import { ExecutionDetailPage } from "../pages/product/ExecutionDetailPage";
+import { WorkspaceDetailPage } from "../pages/product/WorkspaceDetailPage";
+import { WorkspacesPage } from "../pages/product/WorkspacesPage";
+import { VersionPage } from "../pages/product/VersionPage";
+import { NewAutomationPage } from "../pages/product/NewAutomationPage";
+import { WorkersPage } from "../pages/agents/WorkersPage";
+import { AgentRunPage, AgentRunsPage } from "../pages/agents/supervision";
+import { RemoteExecutionPage } from "../pages/agents/remoteOverview";
+import { InternalHome, OrgAccountPage } from "../pages/HomePage";
+import { DesktopAuthorizePage } from "../pages/DesktopAuthorizePage";
+import { LoginPage } from "../pages/LoginPage";
+import { MfaPage } from "../pages/MfaPage";
+import { MfaSetupPage } from "../pages/MfaSetupPage";
+import { ResetPasswordPage } from "../pages/ResetPasswordPage";
+import {
+  NoOrganizationPage,
+  NotFoundInOrganizationPage,
+} from "../pages/StatusPages";
+import { VerifyEmailPage } from "../pages/VerifyEmailPage";
+import { LicensesPage } from "../pages/licenses/LicensesPage";
+import { LicenseOperatorPage } from "../pages/licenses/LicenseOperatorPage";
+import { OrganizationRequestsPage } from "../pages/licenses/OrganizationRequestsPage";
+import { RequestOrganizationPage } from "../identity/RequestOrganizationPage";
+import { OrganizationRoute } from "./organization";
 
 /** Endereço antigo de Agents (links e favoritos): leva à tela de Workers, que reúne todos os atos sobre a máquina. */
 function AgentsToWorkers() {
   const { orgId } = useParams();
-  return <Navigate to={orgPath.workers(orgId ?? '')} replace />;
+  return <Navigate to={orgPath.workers(orgId ?? "")} replace />;
 }
 
 /** Telas de entrada da identidade (mesmas páginas da entrada por organização, com o fluxo da identidade). */
@@ -68,75 +84,127 @@ function IdentityFlowOutlet() {
  */
 export function AppRoutes() {
   return (
-    <Routes>
-      <Route path="/" element={<RootPage />} />
-      <Route element={<IdentityFlowOutlet />}>
-        <Route path="/entrar" element={<LoginPage />} />
-        <Route path="/entrar/verificacao" element={<MfaPage />} />
-        <Route path="/entrar/configurar-autenticador" element={<MfaSetupPage />} />
-      </Route>
-      {/* entrada no aplicativo desktop (Nekkora Agent): pedido, confirmação da conta e retorno local */}
-      <Route path="/entrar/aplicativo" element={<DesktopAuthorizePage />} />
-      <Route path="/recuperar-senha" element={<RecoverPasswordRoute />} />
-      <Route path="/cadastro" element={<SignupPage />} />
-      <Route path="/cadastro/confirmar" element={<SignupConfirmPage />} />
-      <Route element={<IdentityArea />}>
-        <Route path="/organizacoes" element={<OrganizationsPage />} />
-        <Route path="/organizacoes/nova" element={<CreateOrganizationPage />} />
-        <Route path="/organizacoes/solicitar" element={<RequestOrganizationPage />} />
-        <Route path="/conta" element={<AccountPage />} />
-        <Route path="/conta/fator" element={<ReplaceFactorPage />} />
-        <Route path="/conta/ativar-autenticacao" element={<ActivateMfaPage />} />
-        <Route path="/conta/proteger" element={<ProtectAccountPage />} />
-        <Route path="/vincular-conta" element={<LinkAccountPage />} />
-      </Route>
-      <Route path="/o/:orgId" element={<OrganizationRoute />}>
-        {/* área autenticada: o portão carrega /me e só monta as rotas internas para conta interna */}
-        <Route element={<AuthenticatedArea />}>
-          <Route index element={<InternalHome />} />
-          <Route path="conta" element={<OrgAccountPage />} />
-          <Route path="execucoes" element={<ExecutionsPage />} />
-          <Route path="execucoes/:executionId" element={<ExecutionDetailPage />} />
-          <Route path="execucoes-remotas/:remoteExecutionId" element={<RemoteExecutionPage />} />
-          <Route path="workspaces" element={<WorkspacesPage />} />
-          <Route path="workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
-          <Route path="workspaces/:workspaceId/nova-automacao" element={<NewAutomationPage />} />
-          <Route path="automacoes/:automationId" element={<AutomationDetailPage />} />
-          <Route path="automacoes/:automationId/nova-versao" element={<NewVersionPage />} />
-          <Route path="versoes/:versionId" element={<VersionPage />} />
-          {/* M4: execução local e supervisão */}
-          {/* PLATFORM-AGENT-V2-002, T07: Workers é a entrada única; o endereço antigo de Agents continua levando até lá */}
-          <Route path="agents" element={<AgentsToWorkers />} />
-          <Route path="workers" element={<WorkersPage />} />
-          <Route path="supervisao" element={<AgentRunsPage />} />
-          <Route path="supervisao/:runId" element={<AgentRunPage />} />
-          {/* F6a-1: administração, só leitura; o acesso de cada tela é decidido pela API (403 → estado próprio) */}
-          <Route path="administracao/membros" element={<MembersPage />} />
-          <Route path="administracao/clientes" element={<ClientsPage />} />
-          <Route path="administracao/concessoes" element={<GrantsPage />} />
-          {/* M2: acessos */}
-          <Route path="administracao/membros/:userId" element={<MemberAccessPage />} />
-          <Route path="administracao/convites" element={<InvitationsPage />} />
-          <Route path="administracao/auditoria" element={<AccessEventsPage />} />
-          <Route path="administracao/licencas" element={<LicensesPage />} />
-          <Route path="administracao/pedidos-de-organizacao" element={<OrganizationRequestsPage />} />
-          <Route path="operador-de-licencas" element={<LicenseOperatorPage />} />
+    <PlatformThemeProvider>
+      <Routes>
+        <Route path="/" element={<RootPage />} />
+        <Route element={<IdentityFlowOutlet />}>
+          <Route path="/entrar" element={<LoginPage />} />
+          <Route path="/entrar/verificacao" element={<MfaPage />} />
+          <Route
+            path="/entrar/configurar-autenticador"
+            element={<MfaSetupPage />}
+          />
         </Route>
-        <Route path="login" element={<LoginPage />} />
-        <Route path="mfa" element={<MfaPage />} />
-        <Route path="mfa/setup" element={<MfaSetupPage />} />
-        <Route path="forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="reset-password" element={<ResetPasswordPage />} />
-        {/* caminho do link do e-mail (contrato da API); reset-password fica como compatibilidade */}
-        <Route path="recuperar-senha" element={<ResetPasswordPage />} />
-        <Route path="entrar" element={<OrganizationEntryPage />} />
-        {/* link do e-mail de convite (contrato da API): aceite pela identidade, fora da sessão de organização */}
-        <Route path="convite" element={<AcceptInvitationPage />} />
-        <Route path="verify-email" element={<VerifyEmailPage />} />
-        {features.resendVerification && <Route path="resend-verification" element={<ResendVerificationPage />} />}
-        <Route path="*" element={<NotFoundInOrganizationPage />} />
-      </Route>
-      <Route path="*" element={<NoOrganizationPage />} />
-    </Routes>
+        {/* entrada no aplicativo desktop (Nekkora Agent): pedido, confirmação da conta e retorno local */}
+        <Route path="/entrar/aplicativo" element={<DesktopAuthorizePage />} />
+        <Route path="/recuperar-senha" element={<RecoverPasswordRoute />} />
+        <Route path="/cadastro" element={<SignupPage />} />
+        <Route path="/cadastro/confirmar" element={<SignupConfirmPage />} />
+        <Route element={<IdentityArea />}>
+          <Route path="/organizacoes" element={<OrganizationsPage />} />
+          <Route
+            path="/organizacoes/nova"
+            element={<CreateOrganizationPage />}
+          />
+          <Route
+            path="/organizacoes/solicitar"
+            element={<RequestOrganizationPage />}
+          />
+          <Route path="/conta" element={<AccountPage />} />
+          <Route path="/conta/fator" element={<ReplaceFactorPage />} />
+          <Route
+            path="/conta/ativar-autenticacao"
+            element={<ActivateMfaPage />}
+          />
+          <Route path="/conta/proteger" element={<ProtectAccountPage />} />
+          <Route path="/vincular-conta" element={<LinkAccountPage />} />
+        </Route>
+        <Route path="/o/:orgId" element={<OrganizationRoute />}>
+          {/* área autenticada: o portão carrega /me e só monta as rotas internas para conta interna */}
+          <Route element={<AuthenticatedArea />}>
+            <Route index element={<InternalHome />} />
+            <Route path="conta" element={<OrgAccountPage />} />
+            <Route path="execucoes" element={<ExecutionsPage />} />
+            <Route
+              path="execucoes/:executionId"
+              element={<ExecutionDetailPage />}
+            />
+            <Route
+              path="execucoes-remotas/:remoteExecutionId"
+              element={<RemoteExecutionPage />}
+            />
+            <Route path="workspaces" element={<WorkspacesPage />} />
+            <Route
+              path="workspaces/:workspaceId"
+              element={<WorkspaceDetailPage />}
+            />
+            <Route
+              path="workspaces/:workspaceId/nova-automacao"
+              element={<NewAutomationPage />}
+            />
+            <Route
+              path="automacoes/:automationId"
+              element={<AutomationDetailPage />}
+            />
+            <Route
+              path="automacoes/:automationId/nova-versao"
+              element={<NewVersionPage />}
+            />
+            <Route path="versoes/:versionId" element={<VersionPage />} />
+            {/* M4: execução local e supervisão */}
+            {/* PLATFORM-AGENT-V2-002, T07: Workers é a entrada única; o endereço antigo de Agents continua levando até lá */}
+            <Route path="agents" element={<AgentsToWorkers />} />
+            <Route path="workers" element={<WorkersPage />} />
+            <Route path="supervisao" element={<AgentRunsPage />} />
+            <Route path="supervisao/:runId" element={<AgentRunPage />} />
+            {/* F6a-1: administração, só leitura; o acesso de cada tela é decidido pela API (403 → estado próprio) */}
+            <Route path="administracao/membros" element={<MembersPage />} />
+            <Route path="administracao/clientes" element={<ClientsPage />} />
+            <Route path="administracao/concessoes" element={<GrantsPage />} />
+            {/* M2: acessos */}
+            <Route
+              path="administracao/membros/:userId"
+              element={<MemberAccessPage />}
+            />
+            <Route
+              path="administracao/convites"
+              element={<InvitationsPage />}
+            />
+            <Route
+              path="administracao/auditoria"
+              element={<AccessEventsPage />}
+            />
+            <Route path="administracao/licencas" element={<LicensesPage />} />
+            <Route
+              path="administracao/pedidos-de-organizacao"
+              element={<OrganizationRequestsPage />}
+            />
+            <Route
+              path="operador-de-licencas"
+              element={<LicenseOperatorPage />}
+            />
+          </Route>
+          <Route path="login" element={<LoginPage />} />
+          <Route path="mfa" element={<MfaPage />} />
+          <Route path="mfa/setup" element={<MfaSetupPage />} />
+          <Route path="forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="reset-password" element={<ResetPasswordPage />} />
+          {/* caminho do link do e-mail (contrato da API); reset-password fica como compatibilidade */}
+          <Route path="recuperar-senha" element={<ResetPasswordPage />} />
+          <Route path="entrar" element={<OrganizationEntryPage />} />
+          {/* link do e-mail de convite (contrato da API): aceite pela identidade, fora da sessão de organização */}
+          <Route path="convite" element={<AcceptInvitationPage />} />
+          <Route path="verify-email" element={<VerifyEmailPage />} />
+          {features.resendVerification && (
+            <Route
+              path="resend-verification"
+              element={<ResendVerificationPage />}
+            />
+          )}
+          <Route path="*" element={<NotFoundInOrganizationPage />} />
+        </Route>
+        <Route path="*" element={<NoOrganizationPage />} />
+      </Routes>
+    </PlatformThemeProvider>
   );
 }

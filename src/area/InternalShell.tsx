@@ -2,6 +2,7 @@ import { isLicenseOperator } from '../api/licenseOperations';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink, Outlet, useLocation } from 'react-router';
 import { Alert, AppShell, Button, Link, Logo, Text, UserMenu, type AppNavGroup } from 'nekkora-lib';
+import { ThemeCycleButton } from '../components/AppearanceSection';
 import { isApiError } from '../api/http';
 import { getMyPermissions } from '../api/permissions';
 import { myOrganizations } from '../api/identity';
@@ -272,6 +273,7 @@ export function InternalShell() {
               {orgLabel}
               {orgHandle && <span className="pw-shell__org-handle"> · {orgHandle}</span>}
             </span>
+            <ThemeCycleButton />
             {/* conta de quem está logado: nome, acesso (só informa; quem decide é a API), atalhos e sair */}
             <UserMenu
               name={me.displayName}
