@@ -44,7 +44,7 @@ describe('validador', () => {
     expect(bad('getMyPermissions', { ...fx.myPermissions, allWorkspaces: { permissions: ['org.manage'] } })).toEqual([
       '$.allWorkspaces.permissions[0] enum',
     ]);
-    expect(bad('getExecution', { ...fx.execution })).toEqual(['$ required retryOfExecutionId', '$ required requestedBy']);
+    expect(bad('getExecution', { ...fx.execution })).toEqual(['$ required retryOfExecutionId', '$ required requestedBy', '$ required machine']);
     expect(bad('listWorkspaces', [])).toEqual(['$ type object']);
   });
 

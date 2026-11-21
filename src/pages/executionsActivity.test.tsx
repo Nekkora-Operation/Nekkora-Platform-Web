@@ -7,6 +7,7 @@ import { fakeLocks } from '../test/fakeLocks';
 import { renderApp } from '../test/render';
 import { RouteApi } from '../test/routeApi';
 import { ATTENTION_LABEL, IN_PROGRESS_INTERVAL_MS } from './ExecutionsPage';
+import * as fx from '../test/contractFixtures';
 
 /**
  * PLATFORM-FLUXO-002 — acompanhamento unificado em Execuções: abas "Em andamento" (padrão, sem período) e "Histórico" (com
@@ -188,6 +189,37 @@ describe('Execuções: acompanhamento unificado', () => {
     const nav = await screen.findByRole('navigation', { name: 'Navegação principal' });
     expect(within(nav).queryByRole('link', { name: 'Supervisão' })).toBeNull();
     expect(within(nav).getByRole('link', { name: 'Execuções' })).toBeInTheDocument();
+  });
+});
+
+describe('Detalhe da execução da Platform: a máquina', () => {
+  const detalhe = (machine: unknown) => {
+    api.on('GET', `/api/v1/o/${ORG}/executions/${EXE}`, 'getExecution', {
+      status: 200,
+      body: { ...fx.executionDetail, executionId: EXE, workspaceId: ID(11), machine },
+    });
+    api.on('GET', new RegExp(`/api/v1/o/${ORG}/executions/${EXE}/events`), 'listExecutionEvents', { status: 200, body: { items: [], nextCursor: null } });
+  };
+
+  it('com máquina: o nome (e o nome da máquina do pareamento), "Abrir a máquina" e "Ver atividade" com o filtro pelo nome', async () => {
+    detalhe({ workerId: W1, name: 'Estação fiscal', computerName: 'NOTE-01' });
+    renderApp(`/o/${ORG}/execucoes/${EXE}`);
+    expect(await screen.findByText(/Estação fiscal \(nome da máquina: NOTE-01\)/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Abrir a máquina' })).toHaveAttribute('href', `/o/${ORG}/workers?maquina=${W1}`);
+    const atividade = screen.getByRole('link', { name: 'Ver atividade' });
+    expect(atividade).toHaveAttribute('href', `/o/${ORG}/execucoes?maquina=${W1}`);
+    fireEvent.click(atividade);
+    await waitFor(() => expect(location()).toBe(`/o/${ORG}/execucoes`));
+    await waitFor(() => expect(sentActivity().at(-1)!.get('workerId')).toBe(W1));
+    expect(await screen.findByText('Somente a máquina Estação fiscal (nome da máquina: NOTE-01).')).toBeInTheDocument();
+  });
+
+  it('sem máquina registrada: diz isso e não oferece link de máquina', async () => {
+    detalhe(null);
+    renderApp(`/o/${ORG}/execucoes/${EXE}`);
+    expect(await screen.findByText('Sem máquina registrada para esta execução.')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Abrir a máquina' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Ver atividade' })).toBeNull();
   });
 });
 

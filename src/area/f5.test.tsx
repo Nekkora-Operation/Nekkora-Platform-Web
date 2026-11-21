@@ -159,9 +159,11 @@ describe('detalhe da execução', () => {
     await screen.findByRole('region', { name: 'Eventos da execução' });
     expect(tableRows('Eventos da execução').map((r) => within(r).getAllByRole('cell')[1].textContent)).toEqual(['Processo iniciado', 'Processo concluído']);
     expect(screen.getAllByRole('term').map((t) => t.textContent)).toEqual([
-      'Estado', 'Origem', 'Automação', 'Versão', 'Ambiente de trabalho', 'Solicitante', 'Criada em', 'Início', 'Término', 'Duração',
+      'Estado', 'Origem', 'Automação', 'Versão', 'Ambiente de trabalho', 'Máquina', 'Solicitante', 'Criada em', 'Início', 'Término', 'Duração',
       'Cancelamento solicitado em', 'Reexecução de',
     ]);
+    // PLATFORM-FLUXO-002: o simulador não registra máquina: o detalhe diz isso, sem inferir uma
+    expect(screen.getByText('Sem máquina registrada para esta execução.')).toBeInTheDocument();
     // menu: Execuções ativo no detalhe
     const nav = screen.getByRole('navigation', { name: 'Navegação principal' });
     expect(within(nav).getByRole('link', { name: 'Execuções' })).toHaveAttribute('aria-current', 'page');

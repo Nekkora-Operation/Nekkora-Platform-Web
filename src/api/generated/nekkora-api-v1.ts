@@ -3755,6 +3755,14 @@ export interface components {
             cancelRequestedAt: string | null;
         };
         ExecutionDetail: components["schemas"]["Execution"] & {
+            /** @description PLATFORM-FLUXO-002: a maquina (Worker) em que a execucao foi registrada; nula quando a execucao nao tem maquina registrada (nada e inferido) */
+            machine: {
+                /** Format: uuid */
+                workerId: string;
+                name: string | null;
+                /** @description Computador vinculado hoje a maquina (informado na vinculacao) */
+                computerName: string | null;
+            } | null;
             /** Format: uuid */
             retryOfExecutionId: string | null;
             /** @description solicitante; nulo em execucao agendada */

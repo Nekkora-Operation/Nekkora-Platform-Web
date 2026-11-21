@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "d795c70f85402ff7b7fc7af436e03bc1e9c047b2baf8269ad99c6279c0fc9977",
+  "openapiSha256": "47445900931c9128bac06d6f871ee7b7ff945aebb504bb22c93d337b4ef86741",
   "schemas": {
     "Error": {
       "type": "object",
@@ -2284,9 +2284,39 @@
           "type": "object",
           "required": [
             "retryOfExecutionId",
-            "requestedBy"
+            "requestedBy",
+            "machine"
           ],
           "properties": {
+            "machine": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "required": [
+                "workerId",
+                "name",
+                "computerName"
+              ],
+              "properties": {
+                "workerId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "computerName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            },
             "retryOfExecutionId": {
               "type": [
                 "string",

@@ -732,6 +732,7 @@ export class ProductData {
       return {
         ...this.executionJson(e),
         retryOfExecutionId: e.retryOf,
+        machine: null, // PLATFORM-FLUXO-002: as execuções do simulador não têm máquina registrada
         requestedBy: by ? { membershipId: by.membershipId, displayName: by.displayName } : null,
       };
     }

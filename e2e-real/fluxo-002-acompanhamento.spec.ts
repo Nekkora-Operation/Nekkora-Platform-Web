@@ -673,8 +673,9 @@ test('2. verificação: Em andamento e Histórico, quatro origens sem duplicaç�
   for (const k of Object.keys(banco) as (keyof typeof banco)[]) expect(porOrigem(k), `origem ${k}: uma linha por execução`).toBe(banco[k]);
   // o preparo criou 2 da Platform, 2 do Agent anterior, 1 pedido e 1 remota; a parte 4 acrescenta pedidos
   expect(banco.platform).toBe(2);
-  expect(banco.local_agent).toBe(2);
-  expect(banco.local_request).toBeGreaterThanOrEqual(1);
+  // depois da parte 5, os pedidos viraram execução e há as do lançador: a contagem vem do banco, comparada acima
+  expect(banco.local_agent).toBeGreaterThanOrEqual(2);
+  const pedidoPendente = andamento.some((e) => e.kind === 'local_request');
   expect(banco.remote).toBe(1);
   const dias30 = Date.now() - 30 * 86_400_000;
   const noPeriodo = historico.filter((e) => Date.parse(e.requestedAt) >= dias30);
@@ -687,7 +688,7 @@ test('2. verificação: Em andamento e Histórico, quatro origens sem duplicaç�
   expect(unk, 'o desconhecido antigo está em Em andamento').toBeTruthy();
   expect(unk.attention).toBe(true);
   expect(unk.outcome).toBe('unconfirmed');
-  expect(andamento.find((e) => e.id === s.pedido)?.outcome).toBe('in_progress');
+  if (andamento.some((e) => e.id === s.pedido)) expect(andamento.find((e) => e.id === s.pedido)?.outcome).toBe('in_progress');
   expect(historico.find((e) => e.id === s.remota)?.machine?.workerId).toBe(s.workers[W_CLIENT]);
   expect(historico.find((e) => e.id === s.localOk)?.machine?.workerId).toBe(s.workers[W_AGENT]);
 
@@ -702,9 +703,11 @@ test('2. verificação: Em andamento e Histórico, quatro origens sem duplicaç�
   await expect(linhaUnk).not.toContainText('Em andamento');
   await expect(linhaUnk).toContainText(W_AGENT);
   await expect(ana.getByText('1 execução requer atenção.')).toBeVisible();
-  const linhaPedido = tableRows(ana).filter({ hasText: 'Pedido ao Agent anterior' }).last();
-  await expect(linhaPedido).toContainText(A_LOCAL);
-  await expect(linhaPedido).toContainText('Em andamento');
+  if (pedidoPendente) {
+    const linhaPedido = tableRows(ana).filter({ hasText: 'Pedido ao Agent anterior' }).last();
+    await expect(linhaPedido).toContainText(A_LOCAL);
+    await expect(linhaPedido).toContainText('Em andamento');
+  }
   await shot(ana, 'v1-em-andamento');
 
   // ------------------------------------------------ Histórico (padrão 30 dias): o desconhecido de 45 dias fica fora; com todo o histórico, aparece marcado
@@ -714,7 +717,7 @@ test('2. verificação: Em andamento e Histórico, quatro origens sem duplicaç�
   await expect(tableRows(ana)).toHaveCount(noPeriodo.length);
   for (const nome of [A_REMOTA, A_LOCAL, A_COMPRAS]) await expect(tableRows(ana).filter({ hasText: nome }).first()).toBeVisible();
   // a local (Python externo, código 0 sem sinal) nunca aparece como sucesso de negócio
-  const linhaLocal = tableRows(ana).filter({ hasText: A_LOCAL }).filter({ hasText: 'Agent anterior' });
+  const linhaLocal = tableRows(ana).filter({ has: ana.locator(`a[href$="/execucoes-locais/${s.localOk}"]`) });
   await expect(linhaLocal).toContainText('Terminou sem erro sinalizado');
   await expect(linhaLocal).not.toContainText('Concluída com sucesso');
   await expect(tableRows(ana).filter({ hasText: A_LONGA })).toHaveCount(0);
@@ -758,7 +761,7 @@ test('2. verificação: Em andamento e Histórico, quatro origens sem duplicaç�
   await expect(ana.getByRole('region', { name: 'Lista de máquinas' })).toContainText(W_CLIENT);
 
   await go(ana, `/o/${org}/execucoes?aba=historico`);
-  await tableRows(ana).filter({ hasText: A_LOCAL }).filter({ hasText: 'Agent anterior' }).getByRole('link', { name: /^Execução de / }).click();
+  await tableRows(ana).filter({ has: ana.locator(`a[href$="/execucoes-locais/${s.localOk}"]`) }).getByRole('link', { name: /^Execução de / }).click();
   await expect(ana).toHaveURL(new RegExp(`/execucoes-locais/${s.localOk}$`));
   await expect(ana.getByRole('heading', { name: 'Execução local' })).toBeVisible();
   await expect(ana.locator('main')).toContainText('Nome da máquina');
@@ -777,9 +780,11 @@ test('2. verificação: Em andamento e Histórico, quatro origens sem duplicaç�
   await expect(ana).toHaveURL(new RegExp(`/execucoes/${s.platform[1]}$`));
   await expect(ana.getByRole('heading', { level: 1, name: /^Execução de / })).toBeVisible();
 
-  await go(ana, `/o/${org}/execucoes`);
-  await tableRows(ana).filter({ hasText: 'Pedido ao Agent anterior' }).last().getByRole('link', { name: /^Pedido de / }).click();
-  await expect(ana).toHaveURL(new RegExp(`/automacoes/${s.automacoes[A_LOCAL]}$`));
+  if (pedidoPendente) {
+    await go(ana, `/o/${org}/execucoes`);
+    await tableRows(ana).filter({ hasText: 'Pedido ao Agent anterior' }).last().getByRole('link', { name: /^Pedido de / }).click();
+    await expect(ana).toHaveURL(new RegExp(`/automacoes/${s.automacoes[A_LOCAL]}$`));
+  }
   log('v1_detalhes', 'remota (registros e resultados), local (relatos do supervisor, codigo 0 sem sinal), Platform e pedido (automacao) abertos pela linha');
 
   // ------------------------------------------------ 2. Máquinas → Ver atividade → detalhe → máquina (o filtro identifica a máquina certa)
@@ -812,8 +817,9 @@ test('2. verificação: Em andamento e Histórico, quatro origens sem duplicaç�
   await ana.getByRole('tab', { name: 'Histórico' }).click();
   await settle(ana);
   await expect(ana).toHaveURL(new RegExp(`maquina=${s.workers[W_CLIENT]}`));
-  await expect(tableRows(ana)).toHaveCount(1);
-  await expect(tableRows(ana).first()).toContainText(A_REMOTA);
+  // a remota (e, depois da parte 6, também a execução da Platform inserida em Fiscal com esta máquina)
+  await expect(tableRows(ana)).toHaveCount(historico.filter((e) => e.machine?.workerId === s.workers[W_CLIENT] && Date.parse(e.requestedAt) >= dias30).length);
+  for (const t of await tableRows(ana).allInnerTexts()) expect(t).toContain(A_REMOTA);
   log('v2_maquina_atividade', { [W_AGENT]: 'atencao 1, em andamento 1, filtro com o nome; detalhe do desconhecido e volta a maquina', [W_CLIENT]: 'filtro com o nome mesmo sem linha em andamento; historico com a remota' });
 
   // ------------------------------------------------ 3. o desconhecido antigo: em "Requer atenção", sem máquina disponível
@@ -1053,4 +1059,87 @@ test('5. Python externo monitorado pelo lançador e pedido ao Agent anterior que
     await agent.fechar().catch(() => agent.derrubar());
     if (existsSync(agent.saida)) copyFileSync(agent.saida, join(EVID, 'aplicativo-agent-parte5.jsonl'));
   }
+});
+
+// ==================================================================================================== 6. a máquina no detalhe da Platform
+test('6. detalhe da execução da Platform: a máquina, os links para ela e para a atividade, e o retorno; sem máquina, dito assim', async ({ browser }) => {
+  test.setTimeout(900_000);
+  const s = JSON.parse(readFileSync(ESTADO, 'utf8')) as Estado;
+  const { org } = s;
+  const [fiscal, compras] = s.platform;
+  // MASSA DECLARADA (leitura): as duas execuções da Platform foram INSERIDAS NO BANCO; a de Fiscal passa a ter a máquina
+  // Estação Client registrada e a de Compras continua sem máquina. Isso valida a leitura e a apresentação, não a produção.
+  // o despacho coerente com as regras da tabela: o vínculo atual máquina–computador, a autorização da máquina no ambiente e a reserva
+  sql(
+    `SET session_replication_role = replica; UPDATE executions e SET worker_id = '${s.workers[W_CLIENT]}', ` +
+      `worker_agent_assignment_id = (SELECT assignment_id FROM worker_agent_assignments WHERE worker_id = '${s.workers[W_CLIENT]}' AND status = 1 ORDER BY created_at DESC LIMIT 1), ` +
+      `worker_workspace_assignment_id = (SELECT assignment_id FROM worker_workspace_assignments WHERE worker_id = '${s.workers[W_CLIENT]}' AND workspace_id = e.workspace_id ORDER BY created_at DESC LIMIT 1), ` +
+      `reserved_at = e.created_at WHERE e.execution_id = '${fiscal}' AND e.worker_id IS NULL`,
+  );
+  expect(sql(`SELECT coalesce(worker_id::text, 'sem') FROM executions WHERE execution_id = '${compras}'`)).toBe('sem');
+  log('6_massa', { fiscal: `${fiscal} com a maquina ${W_CLIENT} (inserida no banco)`, compras: `${compras} sem maquina (inserida no banco)`, valida: 'leitura e apresentacao, nao a producao da execucao' });
+
+  const anaPessoa = reviver(s.ana);
+  const ana = await signedIn(browser, anaPessoa, exato(s.orgName));
+  // na API: o detalhe traz a máquina; sem máquina, nulo
+  const comMaquina = await apiGet(ana, `/api/v1/o/${org}/executions/${fiscal}`);
+  expect(comMaquina.status).toBe(200);
+  expect(comMaquina.body.machine).toEqual({ workerId: s.workers[W_CLIENT], name: W_CLIENT, computerName: PC_CLIENT });
+  expect((await apiGet(ana, `/api/v1/o/${org}/executions/${compras}`)).body.machine).toBeNull();
+
+  // pela lista (Histórico com filtro de automação): a linha leva ao detalhe; o detalhe mostra a máquina e os dois links
+  const listaUrl = `/o/${org}/execucoes?aba=historico&periodo=all&automacao=${s.automacoes[A_REMOTA]}`;
+  await go(ana, listaUrl);
+  const linha = tableRows(ana).filter({ hasText: 'Platform' });
+  await expect(linha).toHaveCount(1);
+  await expect(linha).toContainText(`${W_CLIENT} (nome da máquina: ${PC_CLIENT})`);
+  const voltarPara = ana.url();
+  await linha.getByRole('link', { name: /^Execução de / }).click();
+  await expect(ana).toHaveURL(new RegExp(`/execucoes/${fiscal}$`));
+  await settle(ana);
+  const main = ana.locator('main');
+  await expect(main).toContainText('Máquina');
+  await expect(main).toContainText(`${W_CLIENT} (nome da máquina: ${PC_CLIENT})`);
+  await shot(ana, 'v6-detalhe-platform-com-maquina');
+  // o retorno: "Voltar para execuções" leva à MESMA lista, com os mesmos filtros
+  await expect(ana.getByRole('link', { name: 'Voltar para execuções' })).toHaveAttribute('href', voltarPara.replace(/^https?:\/\/[^/]+/, ''));
+  await ana.getByRole('link', { name: 'Voltar para execuções' }).click();
+  await expect(ana).toHaveURL(voltarPara);
+  await expect(tableRows(ana).filter({ hasText: 'Platform' })).toHaveCount(1);
+  // detalhe → máquina
+  await tableRows(ana).filter({ hasText: 'Platform' }).getByRole('link', { name: /^Execução de / }).click();
+  await settle(ana);
+  await ana.getByRole('link', { name: 'Abrir a máquina' }).click();
+  await expect(ana).toHaveURL(new RegExp(`/workers\\?maquina=${s.workers[W_CLIENT]}$`));
+  await expect(ana.getByRole('region', { name: 'Lista de máquinas' }).locator('tbody tr')).toHaveCount(1);
+  await expect(ana.getByRole('region', { name: 'Lista de máquinas' })).toContainText(W_CLIENT);
+  // de volta ao detalhe (histórico do navegador) → atividade da máquina, com o nome no filtro
+  await ana.goBack();
+  await settle(ana);
+  await expect(ana).toHaveURL(new RegExp(`/execucoes/${fiscal}$`));
+  await ana.getByRole('link', { name: 'Ver atividade' }).click();
+  await settle(ana);
+  await expect(ana.getByText(new RegExp(`^Somente a máquina ${W_CLIENT} \\(nome da máquina: ${PC_CLIENT}\\)\\.$`))).toBeVisible();
+  await ana.getByRole('tab', { name: 'Histórico' }).click();
+  await settle(ana);
+  await expect(tableRows(ana).filter({ hasText: 'Platform' })).toHaveCount(1);
+
+  // sem máquina registrada: dito assim, sem link de máquina
+  await go(ana, `/o/${org}/execucoes/${compras}`);
+  await expect(ana.getByText('Sem máquina registrada para esta execução.')).toBeVisible();
+  await expect(ana.getByRole('link', { name: 'Abrir a máquina' })).toHaveCount(0);
+  await expect(ana.getByRole('link', { name: 'Ver atividade' })).toHaveCount(0);
+  await shot(ana, 'v6-detalhe-platform-sem-maquina');
+
+  // permissões: Bruno (leitura só em Fiscal) vê a de Fiscal com a máquina; a de Compras continua não encontrada
+  const bruno = await signedIn(browser, reviver(s.bruno), exato(s.orgName));
+  await go(bruno, `/o/${org}/execucoes/${fiscal}`);
+  await expect(bruno.locator('main')).toContainText(`${W_CLIENT} (nome da máquina: ${PC_CLIENT})`);
+  expect((await apiGet(bruno, `/api/v1/o/${org}/executions/${compras}`)).status).toBe(404);
+  await go(bruno, `/o/${org}/execucoes/${compras}`);
+  await expect(bruno.getByText(/não encontrada/i).first()).toBeVisible();
+  // outra organização: recusado
+  const nara = await signedIn(browser, reviver(s.nara), /^Entrar em Nekkora Suporte/);
+  expect([401, 403, 404]).toContain((await apiGet(nara, `/api/v1/o/${org}/executions/${fiscal}`)).status);
+  log('6_detalhe_platform', { com_maquina: 'nome, nome da maquina, Abrir a maquina, Ver atividade', retorno: 'Voltar para execucoes com os mesmos filtros; voltar do navegador', sem_maquina: 'Sem maquina registrada para esta execucao.', bruno: 'Fiscal com a maquina; Compras 404', outra_organizacao: 'recusado' });
 });
