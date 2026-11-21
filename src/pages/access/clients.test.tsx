@@ -392,6 +392,25 @@ describe('Pessoas e acessos: abas Compartilhamentos e Histórico', () => {
     expect(within(d).getByRole('button', { name: 'Aprovar e enviar convite' })).toBeInTheDocument();
   });
 
+  it('teclado: as setas percorrem Pessoas, Compartilhamentos e Histórico, com o foco na aba escolhida', async () => {
+    api.on('GET', `/api/v1/o/${ORG}/people`, 'listPeople', { status: 200, body: { items: [memberPerson], nextCursor: null, invitationsEnabled: true } });
+    renderApp(`/o/${ORG}/administracao/pessoas`);
+    await table();
+    const tab = (name: string) => screen.getByRole('tab', { name });
+    tab('Pessoas').focus();
+    fireEvent.keyDown(tab('Pessoas'), { key: 'ArrowRight' });
+    await waitFor(() => expect(tab('Compartilhamentos')).toHaveAttribute('aria-selected', 'true'));
+    await waitFor(() => expect(tab('Compartilhamentos')).toHaveFocus());
+    fireEvent.keyDown(tab('Compartilhamentos'), { key: 'ArrowRight' });
+    await waitFor(() => expect(tab('Histórico')).toHaveAttribute('aria-selected', 'true'));
+    await waitFor(() => expect(tab('Histórico')).toHaveFocus());
+    fireEvent.keyDown(tab('Histórico'), { key: 'ArrowRight' });
+    await waitFor(() => expect(tab('Pessoas')).toHaveAttribute('aria-selected', 'true'));
+    await waitFor(() => expect(tab('Pessoas')).toHaveFocus());
+    fireEvent.keyDown(tab('Pessoas'), { key: 'ArrowLeft' });
+    await waitFor(() => expect(tab('Histórico')).toHaveFocus());
+  });
+
   it('endereços antigos: Auditoria abre o Histórico; Clientes e Concessões conservam os filtros', async () => {
     renderApp(`/o/${ORG}/administracao/auditoria`);
     await waitFor(() => expect(location()).toBe(`/o/${ORG}/administracao/pessoas`)); // ?aba=historico (o probe mostra só o caminho)

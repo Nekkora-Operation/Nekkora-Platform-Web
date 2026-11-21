@@ -165,14 +165,57 @@ test('Compartilhamento por pessoa: dashboard e arquivos de retorno, sem registro
   const inserida = sql(
     `SET session_replication_role = replica; INSERT INTO executions (organization_id, workspace_id, automation_id, automation_version_id, request_key, request_fingerprint, requested_by_membership_id, command_snapshot, status, status_reason, origin, created_at, started_at, finished_at, worker_id, worker_agent_assignment_id, worker_workspace_assignment_id, reserved_at) SELECT a.organization_id, a.workspace_id, a.automation_id, v.automation_version_id, 'compart-${TAG}', repeat('c', 64), m.membership_id, v.command_json, 4, 1, 1, now() - interval '2 hours', now() - interval '2 hours', now() - interval '119 minutes', '${agent}', gen_random_uuid(), gen_random_uuid(), now() - interval '2 hours' FROM automations a JOIN automation_versions v ON v.automation_id = a.automation_id AND v.status = 2 JOIN organization_memberships m ON m.organization_id = a.organization_id JOIN users u ON u.user_id = m.user_id AND u.email_normalized = '${ana.email.toLowerCase()}' WHERE a.automation_id = '${robo}' ORDER BY v.created_at DESC LIMIT 1 RETURNING execution_id`,
   ).split('\n').find((l) => /^[0-9a-f-]{36}$/.test(l))!;
+  // dois estados que NUNCA são "Concluída", na Estação Client (inseridos, declarados): Python externo que terminou com código 0
+  // sem sinal de sucesso (AGT-EXT-001) e uma execução remota encerrada sem confirmação (resultado desconhecido)
+  const semSinal = sql(
+    `SET session_replication_role = replica; INSERT INTO agent_runs (organization_id, workspace_id, automation_id, automation_version_id, authorization_id, agent_id, worker_id, worker_agent_assignment_id, agent_execution_id, package_fingerprint, authorization_state_at_registration, supervisor_state, supervisor_code, registered_at, agent_started_at, agent_ended_at) SELECT a.organization_id, a.workspace_id, a.automation_id, v.automation_version_id, gen_random_uuid(), gen_random_uuid(), '${client}', gen_random_uuid(), 'ex-' || md5(random()::text), repeat('a', 64), 1, 4, 'AGT-EXT-001', now() - interval '90 minutes', now() - interval '90 minutes', now() - interval '89 minutes' FROM automations a JOIN automation_versions v ON v.automation_id = a.automation_id AND v.status = 2 WHERE a.automation_id = '${robo}' ORDER BY v.created_at DESC LIMIT 1 RETURNING agent_run_id`,
+  ).split('\n').find((l) => /^[0-9a-f-]{36}$/.test(l))!;
+  const desconhecida = sql(
+    `SET session_replication_role = replica; WITH x AS (INSERT INTO remote_executions (organization_id, workspace_id, automation_id, automation_version_id, package_fingerprint, package_fingerprint_rule, requirements_revision, effective_dependencies, request_key, requested_by_membership_id, requested_at) SELECT a.organization_id, a.workspace_id, a.automation_id, v.automation_version_id, repeat('ab', 32), 'nekkora-agent/external-python-fingerprint/1', 1, '[]'::jsonb, gen_random_uuid(), m.membership_id, now() - interval '80 minutes' FROM automations a JOIN automation_versions v ON v.automation_id = a.automation_id AND v.status = 2 JOIN organization_memberships m ON m.organization_id = a.organization_id JOIN users u ON u.user_id = m.user_id AND u.email_normalized = '${ana.email.toLowerCase()}' WHERE a.automation_id = '${robo}' ORDER BY v.created_at DESC LIMIT 1 RETURNING remote_execution_id, organization_id, requested_by_membership_id) INSERT INTO remote_attempts (organization_id, remote_execution_id, attempt_number, agent_id, worker_id, authorization_id, created_by_membership_id, created_at, offer_valid_until, state, token_hash, ended_at) SELECT organization_id, remote_execution_id, 1, gen_random_uuid(), '${client}', gen_random_uuid(), requested_by_membership_id, now() - interval '80 minutes', now() - interval '65 minutes', 13, repeat('d', 64), now() - interval '70 minutes' FROM x RETURNING remote_execution_id`,
+  ).split('\n').find((l) => /^[0-9a-f-]{36}$/.test(l))!;
   log('massa', {
     real: { remota_robo_na_estacao_client: remota, arquivo_de_retorno: arquivo },
-    inserida_no_banco: { execucao_da_platform_do_robo_na_estacao_agent: inserida, observacao: 'valida leitura e apresentacao, nao a producao da execucao' },
+    inserida_no_banco: {
+      execucao_da_platform_do_robo_na_estacao_agent: inserida,
+      agent_terminou_sem_sinal_de_erro_na_estacao_client: semSinal,
+      remota_com_resultado_desconhecido_na_estacao_client: desconhecida,
+      observacao: 'valida leitura e apresentacao, nao a producao da execucao',
+    },
   });
 
   const page = await signedIn(browser, ana, orgName);
   await go(page, pessoas);
   await expect(page.getByRole('heading', { level: 1, name: 'Pessoas e acessos' })).toBeVisible();
+
+  // ------------------------------------------------ 0b. abas Pessoas, Compartilhamentos e Histórico (padrão de Execuções), sem abas internas
+  const abas = page.getByRole('tablist', { name: 'Pessoas e acessos' });
+  await expect(abas.getByRole('tab')).toHaveText(['Pessoas', 'Compartilhamentos', 'Histórico']);
+  await expect(abas.getByRole('tab', { name: 'Pessoas' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tabpanel').getByRole('tablist')).toHaveCount(0);
+  const tabela = page.getByRole('region', { name: 'Lista de pessoas e convites' });
+  await expect(tabela).toContainText('Convite');
+  await expect(tabela).toContainText(s.bruno.email);
+  await abas.getByRole('tab', { name: 'Pessoas' }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page).toHaveURL(/[?&]aba=compartilhamentos/);
+  await expect(abas.getByRole('tab', { name: 'Compartilhamentos' })).toBeFocused();
+  await expect(page.getByRole('region', { name: 'Lista de concessões de clientes' })).toBeVisible();
+  await page.keyboard.press('ArrowRight');
+  await expect(page).toHaveURL(/[?&]aba=historico/);
+  await page.reload();
+  await settle(page);
+  await expect(page.getByRole('tab', { name: 'Histórico' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('region', { name: 'Histórico de acessos' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Histórico' }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tab', { name: 'Pessoas' })).toHaveAttribute('aria-selected', 'true');
+  await go(page, `/o/${org}/administracao/pessoas/acessos?aba=historico`);
+  await expect(page).toHaveURL(/\/administracao\/pessoas\?.*aba=historico/);
+  await go(page, `/o/${org}/administracao/auditoria`);
+  await expect(page.getByRole('tab', { name: 'Histórico' })).toHaveAttribute('aria-selected', 'true');
+  await shot(page, '0b-abas');
+  log('0b_abas', { abas: ['Pessoas', 'Compartilhamentos', 'Historico'], teclado: 'setas percorrem as tres', recarga: 'aba mantida', enderecos_antigos: 'acessos e auditoria abrem a aba certa', abas_internas: 0, tabela: 'membros e convites juntos' });
+  await go(page, pessoas);
 
   // ------------------------------------------------ 1. formulário: nome e e-mail, automação, conteúdos; sem registros técnicos; sem cadastro de cliente
   await fillShare(page, 'Bruno', s.bruno.email, 'Fiscal', 'Robô de notas', null, true, false);
@@ -245,6 +288,9 @@ test('Compartilhamento por pessoa: dashboard e arquivos de retorno, sem registro
   await shot(pagE, '3-area-dashboard');
   await cards.getByRole('link', { name: 'Ver o dashboard de Robô de notas' }).click();
   await expect(pagE.getByRole('group', { name: 'Indicadores do período' })).toBeVisible();
+  const execucoesLista = pagE.getByRole('list', { name: 'Execuções' });
+  await expect(execucoesLista).toContainText('Terminou sem confirmação de sucesso');
+  await expect(execucoesLista).toContainText('Resultado desconhecido');
   await shot(pagE, '3-dashboard-da-automacao');
   const resumo = await apiGet(pagE, `/portal/api/v1/o/${org}/shared-automations/${robo}/summary`);
   // as quatro origens (mesma regra do Portal), só desta organização, desta automação e da Estação Client, nos últimos 30 dias
@@ -263,6 +309,12 @@ test('Compartilhamento por pessoa: dashboard e arquivos de retorno, sem registro
     rotas_internas_da_platform: (await apiGet(pagE, `/api/v1/o/${org}/people`)).status,
   };
   expect(escopo.resumo_total).toBe(escopo.esperado_so_estacao_client);
+  const estados = { concluidas: resumo.body.succeeded, sem_confirmacao_de_sucesso: resumo.body.noErrorSignaled, resultado_desconhecido: resumo.body.unconfirmed };
+  expect(estados.sem_confirmacao_de_sucesso).toBeGreaterThanOrEqual(1);
+  expect(estados.resultado_desconhecido).toBeGreaterThanOrEqual(1);
+  const concluidasNoBanco = Number(sql(`SELECT (SELECT count(*) FROM executions WHERE organization_id = '${org}' AND automation_id = '${robo}' AND worker_id = '${client}' AND status = 4 AND created_at >= now() - interval '30 days') + (SELECT count(*) FROM remote_executions x WHERE x.organization_id = '${org}' AND x.automation_id = '${robo}' AND x.requested_at >= now() - interval '30 days' AND (SELECT z.state FROM remote_attempts z WHERE z.remote_execution_id = x.remote_execution_id ORDER BY z.attempt_number DESC LIMIT 1) = 7 AND (SELECT z.worker_id FROM remote_attempts z WHERE z.remote_execution_id = x.remote_execution_id ORDER BY z.attempt_number DESC LIMIT 1) = '${client}')`));
+  expect(estados.concluidas, 'concluidas = so sucesso confirmado').toBe(concluidasNoBanco);
+  log('4b_estados_do_dashboard', { ...estados, concluidas_no_banco: concluidasNoBanco });
   expect(escopo.inserida_na_estacao_agent_fora).toBe(true);
   expect(escopo.campos_da_execucao).not.toContain('machine');
   expect(escopo.arquivos_sem_permissao).toBe(403);
@@ -344,6 +396,38 @@ test('Compartilhamento por pessoa: dashboard e arquivos de retorno, sem registro
   expect(pedroApi.download).toBe(200);
   expect(pedroApi.dashboard).toBe(403);
   log('5_arquivos_de_retorno', pedroApi);
+
+  // ------------------------------------------------ 5b. temas na área do cliente: escolha em Segurança da conta, persistência ao recarregar
+  const temasCliente: Record<string, string> = {};
+  for (const [label, tema] of [
+    ['Nekkora Dark', 'dark'],
+    ['Sakura Dark', 'sakura-dark'],
+    ['Nekkora Light', 'light'],
+  ] as const) {
+    await go(pagE, '/conta');
+    await expect(pagE.getByRole('group', { name: 'Tema' })).toHaveCount(1);
+    await pagE.getByRole('group', { name: 'Tema' }).getByRole('radio', { name: new RegExp(`^${label}`) }).check();
+    await expect.poll(() => pagE.evaluate(() => document.documentElement.getAttribute('data-nk-theme'))).toBe(tema);
+    await go(pagE, `/cliente/o/${org}`);
+    await pagE.reload();
+    await settle(pagE);
+    const aplicado = await pagE.evaluate(() => document.documentElement.getAttribute('data-nk-theme'));
+    expect(aplicado, `tema ${tema} mantido depois de recarregar a área do cliente`).toBe(tema);
+    await audit(pagE, `area-cliente-cards-${tema}`);
+    await shot(pagE, `5b-area-cliente-${tema}`);
+    await go(pagE, `/cliente/o/${org}/automacoes/${robo}`);
+    await expect(pagE.getByRole('group', { name: 'Indicadores do período' })).toBeVisible();
+    await audit(pagE, `area-cliente-dashboard-${tema}`);
+    await go(pagP, '/conta');
+    await pagP.getByRole('group', { name: 'Tema' }).getByRole('radio', { name: new RegExp(`^${label}`) }).check();
+    await go(pagP, `/cliente/o/${org}/arquivos`);
+    await pagP.reload();
+    await settle(pagP);
+    expect(await pagP.evaluate(() => document.documentElement.getAttribute('data-nk-theme'))).toBe(tema);
+    await audit(pagP, `area-cliente-arquivos-${tema}`);
+    temasCliente[tema] = 'selecionado em Seguranca da conta; mantido apos recarregar; axe sem violacoes (cards, dashboard, arquivos)';
+  }
+  log('5b_temas_da_area_do_cliente', temasCliente);
 
   // ------------------------------------------------ 6. revogar com a sessão aberta; histórico preservado
   await go(page, `/o/${org}/administracao/pessoas?aba=compartilhamentos&cliente=${evaClienteId}`);

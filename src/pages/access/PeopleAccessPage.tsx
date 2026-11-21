@@ -1,4 +1,4 @@
-import type { ReactElement, ReactNode } from 'react';
+import { useEffect, useRef, type ReactElement, type ReactNode } from 'react';
 import { Stack } from 'nekkora-lib';
 import { useSearchParams } from 'react-router';
 import { useInternalArea } from '../../area/InternalShell';
@@ -39,6 +39,13 @@ export function PeopleAccessPage() {
   const tab: PeopleAccessTab =
     tabs.find((t) => t.id === asked)?.id ?? (asked === 'historico' || asked === 'compartilhamentos' ? (asked as PeopleAccessTab) : tabs[0]?.id ?? 'pessoas');
   const go = (t: PeopleAccessTab) => setSp(t === 'pessoas' ? {} : { aba: t });
+  // teclado: o foco vai para a aba escolhida DEPOIS que a nova aba foi montada (a barra é desenhada pela aba aberta)
+  const focusAfter = useRef<PeopleAccessTab | null>(null);
+  useEffect(() => {
+    if (focusAfter.current !== tab) return;
+    focusAfter.current = null;
+    document.getElementById(`aba-${tab}`)?.focus();
+  }, [tab]);
 
   const frame: PageFrame = ({ onRefresh, refreshing, children }) => (
     <Stack gap={5}>
@@ -70,8 +77,8 @@ export function PeopleAccessPage() {
               onKeyDown={(ev) => {
                 if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return;
                 const next = tabs[(i + (ev.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length].id;
+                focusAfter.current = next;
                 go(next);
-                requestAnimationFrame(() => document.getElementById(`aba-${next}`)?.focus());
               }}
             >
               {t.label}
