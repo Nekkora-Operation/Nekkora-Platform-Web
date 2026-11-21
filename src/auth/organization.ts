@@ -49,8 +49,14 @@ export const orgPath = {
   agents: (org: string) => `/o/${org}/agents`,
   workers: (org: string) => `/o/${org}/workers`,
   remoteExecution: (org: string, id: string) => `/o/${org}/execucoes-remotas/${encodeURIComponent(id)}`,
-  agentRuns: (org: string) => `/o/${org}/supervisao`,
-  agentRun: (org: string, id: string) => `/o/${org}/supervisao/${encodeURIComponent(id)}`,
+  /** PLATFORM-FLUXO-002: o acompanhamento ficou em Execuções; /supervisao redireciona para lá (compatibilidade). */
+  agentRuns: (org: string) => `/o/${org}/execucoes`,
+  /** Detalhe da execução do Agent anterior (antes /supervisao/:id, que redireciona para cá). */
+  agentRun: (org: string, id: string) => `/o/${org}/execucoes-locais/${encodeURIComponent(id)}`,
+  /** Máquinas com o foco numa máquina (de uma execução para a sua máquina). */
+  machine: (org: string, workerId: string) => `/o/${org}/workers?maquina=${encodeURIComponent(workerId)}`,
+  /** Execuções de uma máquina ("Ver atividade"). */
+  machineActivity: (org: string, workerId: string) => `/o/${org}/execucoes?maquina=${encodeURIComponent(workerId)}`,
   /** F6a-1: administração (só leitura). */
   members: (org: string) => `/o/${org}/administracao/membros`,
   clients: (org: string) => `/o/${org}/administracao/clientes`,

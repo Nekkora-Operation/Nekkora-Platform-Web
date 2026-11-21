@@ -120,7 +120,7 @@ function WorkspaceDetail({ workspaceId }: { workspaceId: string }) {
             ]}
           />
           <div className="pw-prod__links">
-            <Link as={RouterLink} to={`${orgPath.executions(org)}?workspace=${encodeURIComponent(w.workspaceId)}`} arrow>
+            <Link as={RouterLink} to={`${orgPath.executions(org)}?aba=historico&workspace=${encodeURIComponent(w.workspaceId)}`} arrow>
               Ver execuções deste ambiente de trabalho
             </Link>
           </div>

@@ -19,6 +19,9 @@ import type { Page } from '../api/v1';
  *   página ou "carregar mais" em andamento) são ignoradas e não alteram itens nem cursor.
  * - Falha na PRIMEIRA página → status `error`. Falha ao carregar MAIS → a lista exibida continua, `error` é
  *   preenchido e "carregar mais" pode ser tentado de novo.
+ * - `refreshFirst` (PLATFORM-FLUXO-002, acompanhamento): relê a primeira página SEM limpar a lista, para a tela que se
+ *   atualiza sozinha. Só age com uma página exibida e nada em curso (não descarta o que a pessoa carregou a mais); falha
+ *   mantém a lista e preenche `error`.
  */
 export type CursorListStatus = 'loading' | 'ready' | 'loading-more' | 'error';
 
@@ -30,6 +33,7 @@ export interface CursorList<T> {
   cursorRejected: boolean;
   loadMore: () => void;
   reload: () => void;
+  refreshFirst: () => void;
 }
 
 export function useCursorList<T>(
@@ -46,6 +50,7 @@ export function useCursorList<T>(
   const generation = useRef(0);
   const nextRef = useRef<string | null>(null);
   const busy = useRef(false);
+  const pages = useRef(0);
   const fetchRef = useRef(fetchPage);
   fetchRef.current = fetchPage;
   const keyRef = useRef(keyOf);
@@ -59,6 +64,7 @@ export function useCursorList<T>(
   const loadFirst = useCallback(() => {
     const gen = ++generation.current;
     busy.current = true;
+    pages.current = 0;
     applyNext(null);
     setItems([]);
     setError(undefined);
@@ -68,6 +74,7 @@ export function useCursorList<T>(
       (page) => {
         if (gen !== generation.current) return;
         busy.current = false;
+        pages.current = 1;
         setItems(page.items);
         applyNext(page.nextCursor);
         setStatus('ready');
@@ -95,6 +102,7 @@ export function useCursorList<T>(
       (page) => {
         if (gen !== generation.current) return;
         busy.current = false;
+        pages.current++;
         setItems((prev) => {
           const seen = new Set(prev.map((i) => keyRef.current(i)));
           return [...prev, ...page.items.filter((i) => !seen.has(keyRef.current(i)))];
@@ -121,5 +129,26 @@ export function useCursorList<T>(
 
   const reload = useCallback(() => loadFirst(), [loadFirst]);
 
-  return { items, status, error, hasMore: next !== null, cursorRejected, loadMore, reload };
+  const refreshFirst = useCallback(() => {
+    if (busy.current || pages.current !== 1) return;
+    busy.current = true;
+    const gen = generation.current;
+    fetchRef.current(undefined).then(
+      (page) => {
+        if (gen !== generation.current) return;
+        busy.current = false;
+        setItems(page.items);
+        applyNext(page.nextCursor);
+        setCursorRejected(false);
+        setError(undefined);
+      },
+      (e: unknown) => {
+        if (gen !== generation.current) return;
+        busy.current = false;
+        setError(e instanceof Error ? e : new Error(String(e)));
+      },
+    );
+  }, []);
+
+  return { items, status, error, hasMore: next !== null, cursorRejected, loadMore, reload, refreshFirst };
 }

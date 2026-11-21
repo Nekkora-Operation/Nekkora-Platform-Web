@@ -43,15 +43,14 @@ export function useInternalArea(): InternalArea {
 const MAIN_ID = 'conteudo';
 
 /** Seção da área interna a que o endereço pertence (menu ativo e título do topo). */
-function sectionOf(pathname: string, org: string): 'inicio' | 'conta' | 'execucoes' | 'workspaces' | 'membros' | 'clientes' | 'concessoes' | 'convites' | 'auditoria' | 'workers' | 'supervisao' | 'operador' | 'licencas' | 'pedidos' | null {
+function sectionOf(pathname: string, org: string): 'inicio' | 'conta' | 'execucoes' | 'workspaces' | 'membros' | 'clientes' | 'concessoes' | 'convites' | 'auditoria' | 'workers' | 'operador' | 'licencas' | 'pedidos' | null {
   if (pathname === orgPath.home(org)) return 'inicio';
   const rest = pathname.slice(orgPath.home(org).length);
-  if (rest === '/execucoes' || rest.startsWith('/execucoes/') || rest.startsWith('/execucoes-remotas/')) return 'execucoes';
+  if (rest === '/execucoes' || rest.startsWith('/execucoes/') || rest.startsWith('/execucoes-remotas/') || rest.startsWith('/execucoes-locais/')) return 'execucoes';
   if (rest === '/workspaces' || rest.startsWith('/workspaces/') || rest.startsWith('/automacoes/') || rest.startsWith('/versoes/')) return 'workspaces';
   if (rest === '/administracao/membros' || rest.startsWith('/administracao/membros/')) return 'membros';
   if (rest === '/administracao/convites') return 'convites';
   if (rest === '/workers') return 'workers';
-  if (rest === '/supervisao' || rest.startsWith('/supervisao/')) return 'supervisao';
   if (rest === '/administracao/auditoria') return 'auditoria';
   if (rest === '/administracao/licencas') return 'licencas';
   if (rest === '/administracao/pedidos-de-organizacao') return 'pedidos';
@@ -66,6 +65,7 @@ function sectionOf(pathname: string, org: string): 'inicio' | 'conta' | 'execuco
 function titleFor(pathname: string, org: string): string {
   const rest = pathname.slice(orgPath.home(org).length);
   if (rest.startsWith('/execucoes-remotas/')) return 'Execução remota';
+  if (rest.startsWith('/execucoes-locais/')) return 'Execução local';
   if (rest.startsWith('/execucoes/')) return 'Execução';
   if (rest === '/execucoes') return 'Execuções';
   if (rest.startsWith('/workspaces/')) return 'Ambiente de trabalho';
@@ -76,8 +76,6 @@ function titleFor(pathname: string, org: string): string {
   if (rest.startsWith('/administracao/membros/')) return 'Acessos do membro';
   if (rest === '/administracao/convites') return 'Convites';
   if (rest === '/workers') return 'Máquinas';
-  if (rest === '/supervisao') return 'Supervisão';
-  if (rest.startsWith('/supervisao/')) return 'Execução local';
   if (rest === '/administracao/auditoria') return 'Auditoria de acessos';
   if (rest === '/administracao/licencas') return 'Licenças e automações';
   if (rest === '/administracao/pedidos-de-organizacao') return 'Pedidos de organização';
@@ -198,7 +196,7 @@ export function InternalShell() {
       id: 'execucao-local',
       label: 'Execução local',
       items: [
-        { id: 'supervisao', label: 'Supervisão', href: orgPath.agentRuns(org), icon: 'pulse', active: section === 'supervisao' },
+        // PLATFORM-FLUXO-002: o acompanhamento (antes Supervisão) ficou em Execuções, com as abas Em andamento e Histórico
         // PLATFORM-AGENT-V2-002, T07: Workers é a entrada única (a máquina vinculada é gerida na linha do Worker); /agents leva até lá.
         // R1: quem administra só Agents (agent.manage) também entra, para as ações que tinha na antiga tela de Agents.
         ...(permissions.status === 'ready' &&

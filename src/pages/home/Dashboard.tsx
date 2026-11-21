@@ -386,7 +386,7 @@ export function Dashboard({ header }: { header: (period: ReactNode) => ReactNode
           >
             <Metrics summary={summary} onRetry={() => setAppliedAt(Date.now())} />
             <div>
-              <RouteButton to={orgPath.executions(org)} variant="secondary" size="lg" rightIcon="arrow-right">
+              <RouteButton to={`${orgPath.executions(org)}?aba=historico`} variant="secondary" size="lg" rightIcon="arrow-right">
                 Ver execuções
               </RouteButton>
             </div>

@@ -11,3 +11,8 @@
 /* a rolagem fica na região focável acima, não no wrapper interno da tabela */
 .pw-exec__scroll .nk-table-wrapper { overflow: visible; }
 .pw-exec__more-ws { display: flex; align-items: center; flex-wrap: wrap; gap: var(--nk-space-2) var(--nk-space-3); }
+.pw-exec__tabs { display: flex; gap: var(--nk-space-1); border-bottom: 1px solid var(--nk-color-border); }
+.pw-exec__tab { appearance: none; background: none; border: 0; border-bottom: 2px solid transparent; padding: var(--nk-space-2) var(--nk-space-4); font: inherit; font-weight: var(--nk-font-weight-medium, 500); color: var(--nk-color-text-secondary); cursor: pointer; }
+.pw-exec__tab:hover { color: var(--nk-color-text); }
+.pw-exec__tab--active { color: var(--nk-color-text); border-bottom-color: var(--nk-color-accent); }
+.pw-exec__tab:focus-visible { outline: 2px solid var(--nk-color-accent); outline-offset: 2px; border-radius: var(--nk-radius-sm, 4px); }

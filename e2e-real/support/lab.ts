@@ -266,16 +266,74 @@ export async function activateAutomation(
   org: string,
   opts: { workspace: string; automation: string; workers?: string[]; validUntil?: string },
 ) {
+  await page.waitForTimeout(3_000);
   await page.goto(`/o/${org}/administracao/licencas`);
-  await page.getByRole('button', { name: 'Ativar automação' }).click();
+  // falha transitória da leitura (ex.: Platform recém-recriada): espera e usa o próprio "Tentar novamente", como a pessoa
+  const ativar = page.getByRole('button', { name: 'Ativar automação' });
+  for (let vez = 0; vez < 4; vez++) {
+    const retry = page.getByRole('button', { name: 'Tentar novamente' }).first();
+    await Promise.race([ativar.waitFor({ timeout: 30_000 }), retry.waitFor({ timeout: 30_000 })]).catch(() => undefined);
+    if (await ativar.isVisible()) break;
+    await page.waitForTimeout(20_000);
+    if (await retry.isVisible()) await retry.click();
+    else await page.reload();
+  }
   const d = page.getByRole('alertdialog');
-  await d.getByLabel('1. Ambiente de trabalho').selectOption({ label: opts.workspace });
-  const select = d.getByLabel('2. Automação');
-  await expect(select.locator('option', { hasText: opts.automation })).toHaveCount(1);
-  const value = await select.locator('option', { hasText: opts.automation }).getAttribute('value');
-  await select.selectOption(value!);
-  for (const w of opts.workers ?? []) await d.getByRole('checkbox', { name: w }).check();
-  if (opts.validUntil) await d.getByLabel('Validade das autorizações').fill(opts.validUntil);
+  const ambiente = d.getByLabel('1. Ambiente de trabalho');
+  const confirmar = d.getByRole('button', { name: 'Ativar execução e monitoramento' });
+  // leituras recusadas pelo limite de frequência (nenhum limite é zerado): como a pessoa faria, fecha-se o diálogo, espera-se,
+  // usa-se o "Tentar novamente" do aviso de permissões (sem elas o diálogo não sabe quem age e não prepara a proteção contra
+  // repetição) e abre-se de novo
+  const permissoes = page.getByRole('alert').or(page.getByRole('status')).filter({ hasText: 'Não foi possível carregar suas permissões.' });
+  for (let vez = 0; ; vez++) {
+    if (vez >= 5) throw new Error('o diálogo "Ativar automação" não ficou pronto (leituras recusadas)');
+    if (await permissoes.isVisible()) {
+      await page.waitForTimeout(20_000);
+      await permissoes.getByRole('button', { name: 'Tentar novamente' }).click();
+      await expect(permissoes).toHaveCount(0, { timeout: 30_000 }).catch(() => undefined);
+      continue;
+    }
+    await ativar.click();
+    const falhou = d.getByText('Não foi possível carregar os ambientes de trabalho. Feche e tente de novo.');
+    await Promise.race([ambiente.waitFor({ timeout: 30_000 }), falhou.waitFor({ timeout: 30_000 })]).catch(() => undefined);
+    if (await ambiente.isVisible()) {
+      await ambiente.selectOption({ label: opts.workspace });
+      const select = d.getByLabel('2. Automação');
+      await expect(select.locator('option', { hasText: opts.automation })).toHaveCount(1);
+      const value = await select.locator('option', { hasText: opts.automation }).getAttribute('value');
+      await select.selectOption(value!);
+      for (const w of opts.workers ?? []) await d.getByRole('checkbox', { name: w }).check();
+      if (opts.validUntil) await d.getByLabel('Validade das autorizações').fill(opts.validUntil);
+      if (await expect(confirmar).toBeEnabled({ timeout: 30_000 }).then(() => true, () => false)) break;
+    }
+    await d.getByRole('button', { name: 'Cancelar' }).click();
+    await page.waitForTimeout(20_000);
+  }
   await confirmStepUp(page, person, 'Ativar execução e monitoramento');
-  await expect(page.getByRole('alert').filter({ hasText: `${opts.automation}:` }).first()).toBeVisible({ timeout: 30_000 });
+  // o resumo é um aviso de sucesso (status) ou, com algo pendente, de atenção (alert)
+  await expect(page.getByRole('alert').or(page.getByRole('status')).filter({ hasText: `${opts.automation}:` }).first()).toBeVisible({ timeout: 30_000 });
 }
+
+/**
+ * PLATFORM-FLUXO-002 — a antiga lista de Supervisão ficou em Execuções (acompanhamento unificado). As linhas da lista, as
+ * do Agent anterior (origem "Agent anterior") e o texto da lista inteira, em "Histórico" com todo o período (o que já tem
+ * desfecho e as pendências) ou em "Em andamento" (o que ainda não terminou; a aba se atualiza sozinha a cada 30 s).
+ */
+export const executionRows = (page: Page) => page.getByRole('region', { name: 'Lista de execuções' }).locator('tbody tr');
+export const localRunLinks = (page: Page) => executionRows(page).filter({ hasText: 'Agent anterior' }).getByRole('link', { name: /^Execução de / });
+export async function openExecutions(page: Page, org: string, tab: 'andamento' | 'historico') {
+  await page.goto(tab === 'historico' ? `/o/${org}/execucoes?aba=historico&periodo=all` : `/o/${org}/execucoes`);
+  await expect(page.getByRole('tab', { name: tab === 'historico' ? 'Histórico' : 'Em andamento' })).toHaveAttribute('aria-selected', 'true');
+}
+export async function executionsText(page: Page, org: string): Promise<string> {
+  await openExecutions(page, org, 'historico');
+  const region = page.getByRole('region', { name: 'Lista de execuções' });
+  await region.waitFor({ timeout: 20_000 }).catch(() => undefined);
+  return region.innerText().catch(() => '');
+}
+
+/** AAAA-MM-DD daqui a {@code days} dias (validade das autorizações no modelo anterior). */
+export const dayFromNow = (days: number) => {
+  const d = new Date(Date.now() + days * 86_400_000);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};

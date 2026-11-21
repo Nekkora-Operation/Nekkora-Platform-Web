@@ -4,7 +4,7 @@ import { DateTimeText } from '../product/shared';
 /**
  * PLATFORM-FLUXO-002 — a MÁQUINA como a pessoa a reconhece. Na interface, "máquina" é o que o contrato chama de Worker: o
  * nome amigável que a pessoa cadastrou. O computador onde o Agent está instalado fica vinculado a uma máquina por vez; o
- * nome dele é o informado na vinculação (a Platform não coleta o nome real do computador). Identificadores, rotas e
+ * nome dele aparece como "Nome da máquina": o informado no pareamento (a Platform não detecta o nome do computador). Rotas e
  * campos do contrato continuam workerId, /workers etc. Cadastrar ou conectar uma máquina não consome licença: a licença é
  * da automação.
  */
@@ -46,10 +46,13 @@ export function MachineStateBadge({ state, lastContactAt }: { state?: MachineSta
   );
 }
 
-/** "Nome amigável (computador NOTE-01)": o computador só aparece quando há um vinculado e com nome diferente. */
+/**
+ * "Nome amigável (nome da máquina: NOTE-01)": o complemento é o NOME DA MÁQUINA informado no pareamento (nunca um nome
+ * detectado no computador) e só aparece quando há um computador vinculado com nome diferente.
+ */
 export function machineName(name: string | null | undefined, computerName?: string | null): string {
   const n = name ?? 'Máquina sem nome';
-  return computerName && computerName !== n ? `${n} (computador ${computerName})` : n;
+  return computerName && computerName !== n ? `${n} (nome da máquina: ${computerName})` : n;
 }
 
 export const LICENSE_NOT_CONSUMED = 'Cadastrar ou conectar uma máquina não consome licença: a licença é da automação.';

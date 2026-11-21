@@ -117,7 +117,7 @@ function AutomationDetail({ automationId }: { automationId: string }) {
             ]}
           />
           <div className="pw-prod__links">
-            <Link as={RouterLink} to={`${orgPath.executions(org)}?automacao=${encodeURIComponent(a.automationId)}`} arrow>
+            <Link as={RouterLink} to={`${orgPath.executions(org)}?aba=historico&automacao=${encodeURIComponent(a.automationId)}`} arrow>
               Ver execuções desta automação
             </Link>
           </div>

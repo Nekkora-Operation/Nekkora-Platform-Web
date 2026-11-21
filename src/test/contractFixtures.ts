@@ -47,7 +47,7 @@ export const execution = {
   cancelRequestedAt: null,
 };
 
-export const executionDetail = { ...execution, retryOfExecutionId: null, requestedBy: null };
+export const executionDetail = { ...execution, retryOfExecutionId: null, requestedBy: null, machine: null };
 
 export const myPermissions = {
   organizationId: IDS.org,

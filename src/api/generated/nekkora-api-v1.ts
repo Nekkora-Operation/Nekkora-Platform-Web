@@ -1909,6 +1909,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Acompanhamento unificado das execucoes: "Em andamento" e "Historico", com a maquina de cada uma (automation.read por ambiente)
+         * @description Uma linha por EXECUCAO, com as mesmas quatro origens e as mesmas situacoes do resumo do Inicio (getExecutionSummary): platform (execucao da Platform), local_agent (execucao relatada pelo Agent anterior), local_request (pedido ao Agent anterior que nao virou execucao) e remote (solicitacao remota, pela ultima tentativa). Nada e repetido e nenhuma execucao e criada. attention = resultado desconhecido ainda nao reconciliado (Agent anterior em OUTCOME_UNKNOWN sem reconciliacao; ultima tentativa remota ENDED_UNKNOWN sem confirmacao da maquina nem declaracao): nunca e tratado como em andamento nem como maquina livre. tab=in_progress (padrao): em andamento OU com attention, SEM periodo (uma pendencia antiga nunca some). tab=history: o que ja tem desfecho, no periodo [from, to) pelo instante do pedido (as pendencias tambem aparecem, marcadas). Filtros por ambiente, automacao e maquina (workerId). Ordem: pedido mais recente primeiro, com cursor.
+         */
+        get: operations["listActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/activity/machines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Atividade por maquina: em andamento, pendencias de atencao e o ultimo pedido (as mesmas linhas de listActivity, contadas)
+         * @description So nos ambientes com automation.read; uma maquina sem atividade visivel nao aparece. inProgress nao inclui as pendencias (attention), que sao contadas a parte e nunca indicam maquina livre nem execucao comprovadamente ativa.
+         */
+        get: operations["listMachineActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/license-operations": {
         parameters: {
             query?: never;
@@ -3482,6 +3522,59 @@ export interface components {
             }[];
             activation: components["schemas"]["AutomationActivation"];
         };
+        ActivityRef: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
+        ActivityItem: {
+            /**
+             * @description Origem; decide a pagina de detalhe
+             * @enum {string}
+             */
+            kind: "platform" | "local_agent" | "local_request" | "remote";
+            /**
+             * Format: uuid
+             * @description executionId, agentRunId, runRequestId ou remoteExecutionId, conforme kind
+             */
+            id: string;
+            workspace: components["schemas"]["ActivityRef"];
+            automation: components["schemas"]["ActivityRef"];
+            machine: {
+                /** Format: uuid */
+                workerId: string;
+                name: string | null;
+                /** @description Computador vinculado hoje a maquina (informado na vinculacao) */
+                computerName: string | null;
+            } | null;
+            /**
+             * @description no_error_signaled: Python externo monitorado que terminou com codigo 0 SEM sinal de sucesso (AGT-EXT-001); nunca e sucesso de negocio
+             * @enum {string}
+             */
+            outcome: "succeeded" | "failed" | "in_progress" | "cancelled" | "not_started" | "unconfirmed" | "no_error_signaled";
+            /** @description Resultado desconhecido ainda nao reconciliado */
+            attention: boolean;
+            /** Format: date-time */
+            requestedAt: string;
+            /** Format: date-time */
+            startedAt: string | null;
+            /** Format: date-time */
+            endedAt: string | null;
+        };
+        ActivityPage: {
+            items: components["schemas"]["ActivityItem"][];
+            nextCursor: string | null;
+        };
+        MachineActivityList: {
+            items: {
+                /** Format: uuid */
+                workerId: string;
+                inProgress: number;
+                attention: number;
+                /** Format: date-time */
+                lastActivityAt: string | null;
+            }[];
+        };
         LicenseSummary: {
             /**
              * @description legacy: ativacao e limites anteriores; licensed: exige licenca
@@ -3662,6 +3755,14 @@ export interface components {
             cancelRequestedAt: string | null;
         };
         ExecutionDetail: components["schemas"]["Execution"] & {
+            /** @description PLATFORM-FLUXO-002: a maquina (Worker) em que a execucao foi registrada; nula quando a execucao nao tem maquina registrada (nada e inferido) */
+            machine: {
+                /** Format: uuid */
+                workerId: string;
+                name: string | null;
+                /** @description Computador vinculado hoje a maquina (informado na vinculacao) */
+                computerName: string | null;
+            } | null;
             /** Format: uuid */
             retryOfExecutionId: string | null;
             /** @description solicitante; nulo em execucao agendada */
@@ -8980,6 +9081,73 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listActivity: {
+        parameters: {
+            query?: {
+                tab?: "in_progress" | "history";
+                workspaceId?: string;
+                automationId?: string;
+                /** @description A maquina (Worker) */
+                workerId?: string;
+                /** @description So em history */
+                from?: string;
+                /** @description So em history; periodo de ate 366 dias */
+                to?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pagina do acompanhamento */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityPage"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listMachineActivity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Atividade por maquina */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MachineActivityList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };

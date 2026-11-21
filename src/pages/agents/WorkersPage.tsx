@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router';
+import { listMachineActivity, type MachineActivity } from '../../api/activity';
+import { orgPath } from '../../auth/organization';
 import { Alert, Badge, Button, Input, Select, Stack, StateView, Text, type TableColumn } from 'nekkora-lib';
 import { authorizeWorkerInWorkspace, cancelAgentCode, createWorker, listWorkers, revokeWorkerInWorkspace, type AgentCode, type Worker } from '../../api/agents';
 import { hasReason, isApiError } from '../../api/http';
@@ -7,7 +10,7 @@ import { useSession } from '../../area/session';
 import { StepUpDialog } from '../../components/StepUpDialog';
 import { accessRefusal, orgStepUp } from '../access/shared';
 import { ForbiddenState } from '../admin/shared';
-import { DateTimeText, LoadErrorState, PageHeader } from '../product/shared';
+import { DateTimeText, LoadErrorState, PageHeader, RouteLink } from '../product/shared';
 import './workers.css';
 import { OneTimeCode, PairAgentDialog, RevokeLinkDialog, RotateCredentialDialog, type FreeWorker, type LinkedAgent } from './agentDialogs';
 import { LinkedAgentsView } from './linkedAgents';
@@ -61,6 +64,22 @@ function WorkersManagement() {
 
   // o código sai da memória ao sair da tela
   useEffect(() => () => setCode(null), []);
+  // PLATFORM-FLUXO-002: a atividade de cada máquina (as mesmas linhas de Execuções, contadas no servidor); sem leitura de
+  // execuções (automation.read), a coluna diz que não há atividade visível, sem esconder a máquina
+  const [activity, setActivity] = useState<Map<string, MachineActivity> | null>(null);
+  useEffect(() => {
+    let alive = true;
+    listMachineActivity(org).then(
+      (r) => alive && setActivity(new Map(r.items.map((x) => [x.workerId, x]))),
+      () => alive && setActivity(new Map()),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [org, list.status === 'ready' ? list.items : null]);
+  // de uma execução para a sua máquina: /workers?maquina=<id> mostra só ela, com o caminho de volta para todas
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focus = searchParams.get('maquina');
 
   if (list.status === 'error' && isApiError(list.error, 'forbidden')) return <ForbiddenState area="as máquinas" onRetry={() => void load()} />;
 
@@ -90,7 +109,8 @@ function WorkersManagement() {
     },
     {
       key: 'maquina',
-      header: 'Computador vinculado',
+      // o nome informado no pareamento (a Platform não detecta o nome do computador)
+      header: 'Nome da máquina',
       align: 'center',
       render: (w) =>
         w.agentId ? (
@@ -119,6 +139,48 @@ function WorkersManagement() {
         ) : (
           <span aria-label="Sem computador vinculado">—</span>
         ),
+    },
+    {
+      key: 'atividade',
+      header: 'Atividade',
+      align: 'center',
+      render: (w) => {
+        const a = activity?.get(w.workerId!);
+        return (
+          <Stack gap={1}>
+            {activity === null ? (
+              <Text variant="body-sm" color="secondary">
+                Carregando…
+              </Text>
+            ) : !a ? (
+              <Text variant="body-sm" color="secondary">
+                Nenhuma execução visível para você.
+              </Text>
+            ) : (
+              <>
+                <Text variant="body-sm">{a.inProgress === 1 ? '1 em andamento' : `${a.inProgress} em andamento`}</Text>
+                {a.attention > 0 && (
+                  <Badge tone="warning" dot>
+                    {a.attention === 1 ? '1 requer atenção' : `${a.attention} requerem atenção`}
+                  </Badge>
+                )}
+                {a.lastActivityAt && (
+                  <Text variant="body-sm" color="secondary">
+                    Última: <DateTimeText iso={a.lastActivityAt} />
+                  </Text>
+                )}
+              </>
+            )}
+            <RouteLink
+              to={orgPath.machineActivity(org, w.workerId!)}
+              state={{ machine: { workerId: w.workerId!, name: w.name ?? null, computerName: w.agentName ?? null } }}
+              aria-label={`Ver atividade de ${w.name}`}
+            >
+              Ver atividade
+            </RouteLink>
+          </Stack>
+        );
+      },
     },
     {
       key: 'workspaces',
@@ -244,7 +306,23 @@ function WorkersManagement() {
         ) : (
           <>
             {/* R1: tabela quando cabe; cartões quando não cabe (janela estreita, zoom de 200%), com as MESMAS colunas */}
-            <ResponsiveTable className="pw-prod__scroll pw-workers" label="Lista de máquinas" columns={columns} data={list.items} rowKey="workerId" title="nome" caption="Máquinas da organização." />
+            {focus && (
+              <Alert tone="info">
+                {list.items.some((w) => w.workerId === focus) ? 'Mostrando só a máquina da execução.' : 'A máquina indicada não está nesta lista (pode ter sido desativada ou não ser visível para você).'}{' '}
+                <Button size="sm" variant="ghost" onClick={() => setSearchParams(new URLSearchParams(), { replace: true })}>
+                  Mostrar todas as máquinas
+                </Button>
+              </Alert>
+            )}
+            <ResponsiveTable
+              className="pw-prod__scroll pw-workers"
+              label="Lista de máquinas"
+              columns={columns}
+              data={focus ? list.items.filter((w) => w.workerId === focus) : list.items}
+              rowKey="workerId"
+              title="nome"
+              caption="Máquinas da organização."
+            />
             <Text variant="body-sm" color="secondary">
               {PRESENCE_TEXT} Quando o contato voltar, a máquina aparece online de novo, sem novo pareamento.
             </Text>

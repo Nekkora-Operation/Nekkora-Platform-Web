@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { csrfStore } from '../../api/csrf';
 import type { RunRequest } from '../../api/agents';
@@ -77,37 +77,6 @@ beforeEach(() => {
 });
 
 describe('Python externo na supervisão', () => {
-  it('lista mostra automação, máquina, origem, início, duração e "sem erro sinalizado" (não sucesso de negócio)', async () => {
-    api.on('GET', `/api/v1/o/${ORG}/agent-runs`, 'listAgentRuns', {
-      status: 200,
-      body: {
-        items: [
-          monitoredRun(),
-          monitoredRun({
-            runId: ID(8),
-            correlation: { ...monitoredRun().correlation, agentExecutionId: `ex-${'c'.repeat(32)}` },
-            supervisor: { ...monitoredRun().supervisor, state: 'FAILED', code: 'AGT-EXT-002', exitCode: 3 },
-          }),
-        ],
-        nextCursor: null,
-      },
-    });
-    renderApp(`/o/${ORG}/supervisao`);
-    expect(await screen.findAllByText('Relatório CSV')).toHaveLength(2);
-    expect(screen.getAllByText('Estação fiscal')).toHaveLength(2);
-    expect(screen.getAllByText('Python externo monitorado')).toHaveLength(2);
-    expect(screen.getByText(/Terminou sem erro sinalizado \(código 0; sucesso de negócio não sinalizado\)/)).toBeInTheDocument();
-    expect(screen.getByText('Terminou com erro (código de saída 3)')).toBeInTheDocument();
-    // nenhuma linha diz "Concluída com sucesso" (o texto só existe no filtro)
-    expect(screen.getByRole('region', { name: 'Execuções locais' }).textContent).not.toContain('Concluída com sucesso');
-    expect(screen.getAllByText(/1 min 05 s/)).toHaveLength(2);
-    // a legenda descreve a ordem que a API devolve (registeredAt, runId crescente; contrato listAgentRuns), sem reordenar
-    const rows = within(screen.getByRole('region', { name: 'Execuções locais' })).getAllByRole('row').slice(1);
-    expect(rows[0].textContent).not.toContain('código de saída 3');
-    expect(rows[1].textContent).toContain('código de saída 3');
-    expect(screen.getByText('Execuções locais em ordem de registro, da mais antiga para a mais recente (as 25 primeiras).')).toBeInTheDocument();
-  });
-
   it('detalhe diz que não há versão no monitoramento', async () => {
     api.on('GET', `/api/v1/o/${ORG}/agent-runs/${ID(9)}`, 'getAgentRun', { status: 200, body: { ...monitoredRun(), transactionsSeen: {}, retention: { state: 'AVAILABLE', eventsPurged: 0 } } });
     api.on('GET', new RegExp(`/api/v1/o/${ORG}/agent-runs/${ID(9)}/events`), 'listAgentRunEvents', { status: 200, body: { items: [], nextCursor: null } });

@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { confirmStepUp, LAB, pairNewWorker, signUpAndEnroll, type Person, newVersionWithPackage } from './support/lab';
+import { activateAutomation, confirmStepUp, dayFromNow, LAB, openExecutions, pairNewWorker, signUpAndEnroll, type Person, newVersionWithPackage } from './support/lab';
 
 /**
  * M4 (J12) contra a API REAL e o Agent REAL (empacotado, cópia do laboratório: tools/lab/agent.ps1). A execução local
@@ -99,19 +99,21 @@ test('J12: código emitido na tela, pareamento do Agent real, presença, máquin
   await confirmStepUp(page, ana, 'Autorizar');
   await expect(page.getByText('Máquina autorizada no ambiente de trabalho.')).toBeVisible();
 
-  // autorização de execução local (step-up) — não inicia nada
+  // autorização de execução local — PLATFORM-FLUXO-002: pela ativação em um passo (Administração › Licenças e automações),
+  // com a máquina escolhida e a validade (modelo anterior). Não inicia nada.
+  await activateAutomation(page, ana, org, { workspace: 'Operações', automation: 'Biografias da Wikipédia', workers: ['Máquina do laboratório'], validUntil: dayFromNow(10) });
   await page.goto(versionUrl);
-  await page.getByLabel(/^Máquina autorizada neste ambiente de trabalho/).selectOption({ label: 'Máquina do laboratório' });
-  await page.getByRole('button', { name: 'Autorizar execução local' }).click();
-  await confirmStepUp(page, ana, 'Autorizar execução local');
-  await expect(page.getByText(/Execução local autorizada\. Nada foi iniciado/)).toBeVisible();
   await page.waitForTimeout(3_000);
   console.log(`AUTORIZACOES: ${(await page.locator('main').innerText()).replace(/\s+/g, ' ').slice(-700)}`);
   await expect(page.getByRole('table', { name: 'Autorizações de execução local.' })).toContainText('Vigente');
 
-  // sem execução iniciada no Agent, a supervisão está vazia (nada foi despachado)
+  // sem execução iniciada no Agent, o acompanhamento está vazio (nada foi despachado). PLATFORM-FLUXO-002: a antiga
+  // Supervisão é Execuções; o endereço antigo leva até lá
   await page.goto(`/o/${org}/supervisao`);
-  await expect(page.getByText('Nenhuma execução local registrada.')).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/o/${org}/execucoes([?]aba=andamento)?$`));
+  await expect(page.getByText('Nada em andamento agora.')).toBeVisible();
+  await openExecutions(page, org, 'historico');
+  await expect(page.getByText('Nenhuma execução encontrada.')).toBeVisible();
 
   console.log(`J12 org=${org} workspace=${workspaceId} versao=${versionUrl.split('/').pop()}`);
 });

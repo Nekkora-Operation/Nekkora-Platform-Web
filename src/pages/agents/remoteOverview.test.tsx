@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { csrfStore } from '../../api/csrf';
 import { createOperationRegistry, setOperationRegistryForTest } from '../../api/pendingOps';
@@ -105,171 +105,6 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-/** A lista do modelo anterior, vazia (o texto depende de haver workspaces carregados). */
-const EMPTY_OLD_MODEL = /Nenhuma execução encontrada\.|Você ainda não tem acesso a nenhum ambiente de trabalho\./;
-const region = (name: string) => screen.findByRole('region', { name });
-
-describe('Execuções: a execução remota aparece pela solicitação', () => {
-  it('uma linha por solicitação, com automação, versão, ambiente de trabalho, máquina, origem, horários e resultado; continua lá ao recarregar', async () => {
-    api.on('GET', ALL, 'listVisibleRemoteExecutions', { status: 200, body: { items: [twoAttempts()] } });
-    renderApp(`/o/${ORG}/execucoes`);
-    // a página ainda se redesenha enquanto carrega (workspaces, permissões): as linhas são relidas a cada conferência
-    await waitFor(() => {
-      const rows = within(screen.getByRole('region', { name: 'Lista de execuções remotas' })).getAllByRole('row');
-      expect(rows, 'cabeçalho + UMA linha: a solicitação, não as duas tentativas').toHaveLength(2);
-      const row = within(rows[1]);
-      expect(row.getByRole('link', { name: /Execução remota de Conciliação/ })).toHaveAttribute('href', `/o/${ORG}/execucoes-remotas/${X1}`);
-      expect(row.getByText('versão 3')).toBeInTheDocument();
-      expect(row.getByRole('link', { name: 'Financeiro' })).toBeInTheDocument();
-      expect(row.getByText('Concluída')).toBeInTheDocument();
-      expect(row.getByText('código de saída 0')).toBeInTheDocument();
-      expect(row.getByText('Execução remota · solicitada pela Platform')).toBeInTheDocument();
-      expect(row.getByText('ESTACAO-02 · Worker fiscal')).toBeInTheDocument();
-      expect(rows[1].querySelectorAll('time').length, 'solicitada em, início e término').toBeGreaterThanOrEqual(3);
-      expect(row.getByText('2')).toBeInTheDocument();
-    });
-    // há execuções remotas: a lista antiga, vazia, não mostra bloco vazio nenhum (nem "carregando" que não termina)
-    await waitFor(() => expect(screen.queryByText('Carregando execuções…')).toBeNull());
-    expect(screen.queryByText(EMPTY_OLD_MODEL)).toBeNull();
-    expect(api.sent('POST', /.*/)).toEqual([]);
-
-    // recarregar a página: a solicitação continua lá (vem do servidor, não da memória da tela)
-    cleanup();
-    renderApp(`/o/${ORG}/execucoes`);
-    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Lista de execuções remotas' })).getByRole('link', { name: /Execução remota de Conciliação/ })).toBeInTheDocument());
-  });
-
-  it('o filtro de ambiente de trabalho e o período da tela vão na consulta', async () => {
-    api.on('GET', ALL, 'listVisibleRemoteExecutions', { status: 200, body: { items: [] } });
-    // o registro de chamadas do teste guarda só o caminho: os parâmetros são lidos do endereço pedido
-    const inner = globalThis.fetch;
-    const urls: string[] = [];
-    vi.stubGlobal('fetch', (url: RequestInfo | URL, init?: RequestInit) => {
-      urls.push(String(url));
-      return inner(url, init);
-    });
-    renderApp(`/o/${ORG}/execucoes?workspace=${WS}&periodo=30d`);
-    await screen.findByText(EMPTY_OLD_MODEL);
-    const sent = urls.filter((u) => u.split('?')[0] === ALL);
-    expect(sent.length).toBeGreaterThan(0);
-    expect(sent[sent.length - 1]).toContain(`workspaceId=${WS}`);
-    expect(sent[sent.length - 1]).toMatch(/from=\d{4}-/);
-  });
-
-  it('abrir a tela não reabre os filtros sozinha: o início do período é um só e o aviso de erro não é removido e recriado', async () => {
-    // relógio que avança a cada leitura: qualquer recálculo do período relativo depois da montagem muda o início consultado
-    let clock = Date.parse('2026-11-18T12:00:00Z');
-    vi.spyOn(Date, 'now').mockImplementation(() => (clock += 7));
-    api.on('GET', ALL, 'listVisibleRemoteExecutions', { status: 503, body: { error: 'service_unavailable' } });
-    const inner = globalThis.fetch;
-    const starts = new Set<string | null>();
-    vi.stubGlobal('fetch', (url: RequestInfo | URL, init?: RequestInit) => {
-      const [path, query] = String(url).split('?');
-      if (path === ALL || path === `/api/v1/o/${ORG}/executions`) starts.add(new URLSearchParams(query).get('from'));
-      return inner(url, init);
-    });
-    let removed = 0;
-    const found = new Set<Element>();
-    const observer = new MutationObserver(() => {
-      const el = screen.queryByText('Não foi possível consultar as execuções remotas.');
-      if (el) found.add(el);
-      for (const el of found) if (!el.isConnected) removed++, found.delete(el);
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    try {
-      renderApp(`/o/${ORG}/execucoes`);
-      const alert = await screen.findByText('Não foi possível consultar as execuções remotas.');
-      await new Promise((r) => setTimeout(r, 150)); // tempo de sobra para a reabertura indevida acontecer
-      expect([...starts], 'um único início de período nas consultas das duas listas').toHaveLength(1);
-      expect(removed, 'o aviso de erro não saiu da tela').toBe(0);
-      expect(alert).toBeInTheDocument();
-    } finally {
-      observer.disconnect();
-      vi.restoreAllMocks();
-    }
-  });
-
-  it('as duas fontes terminaram sem itens: um único vazio geral, sem a seção de execuções remotas', async () => {
-    api.on('GET', ALL, 'listVisibleRemoteExecutions', { status: 200, body: { items: [] } });
-    renderApp(`/o/${ORG}/execucoes`);
-    expect(await screen.findByText(EMPTY_OLD_MODEL)).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Execuções remotas' })).toBeNull();
-    expect(screen.queryByText('Nenhuma execução remota com esses filtros.')).toBeNull();
-  });
-
-  it('enquanto as execuções remotas carregam, a lista antiga vazia não afirma que não há execuções', async () => {
-    let release: (v: { status: number; body: unknown }) => void = () => undefined;
-    const pending = new Promise<{ status: number; body: unknown }>((r) => (release = r));
-    api.on('GET', ALL, 'listVisibleRemoteExecutions', () => ({ hold: pending }));
-    renderApp(`/o/${ORG}/execucoes`);
-    await waitFor(() => expect(api.sent('GET', `/api/v1/o/${ORG}/executions`).length).toBeGreaterThan(0));
-    expect(await screen.findByText('Carregando execuções…')).toBeInTheDocument();
-    expect(screen.queryByText(EMPTY_OLD_MODEL)).toBeNull();
-    release({ status: 200, body: { items: [twoAttempts()] } });
-    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Lista de execuções remotas' })).getAllByRole('row')).toHaveLength(2));
-    expect(screen.queryByText(EMPTY_OLD_MODEL)).toBeNull();
-  });
-
-  it('falha na consulta das execuções remotas aparece como erro, nunca como ausência de execuções', async () => {
-    api.on('GET', ALL, 'listVisibleRemoteExecutions', { status: 503, body: { error: 'service_unavailable' } });
-    renderApp(`/o/${ORG}/execucoes`);
-    expect(await screen.findByText('Não foi possível consultar as execuções remotas.')).toBeInTheDocument();
-    expect(screen.getByText(/falha de consulta, não a ausência de execuções/)).toBeInTheDocument();
-    expect(screen.queryByText(EMPTY_OLD_MODEL)).toBeNull();
-  });
-
-  it('falha na consulta da lista antiga aparece como erro, e as execuções remotas continuam visíveis', async () => {
-    api.on('GET', `/api/v1/o/${ORG}/executions`, 'listExecutions', () => 'network');
-    api.on('GET', ALL, 'listVisibleRemoteExecutions', { status: 200, body: { items: [twoAttempts()] } });
-    renderApp(`/o/${ORG}/execucoes`);
-    // com a suíte inteira em paralelo a tela demora mais a assentar: prazo folgado, sem mudar o que é conferido
-    expect(await screen.findByRole('button', { name: 'Tentar novamente' }, { timeout: 8_000 })).toBeInTheDocument();
-    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Lista de execuções remotas' })).getAllByRole('row')).toHaveLength(2), { timeout: 8_000 });
-    expect(screen.queryByText(EMPTY_OLD_MODEL)).toBeNull();
-  });
-
-  it('Platform sem a rota (404): a fonte não conta — sem seção, e o vazio geral vale só pela lista antiga', async () => {
-    api.on('GET', ALL, 'listVisibleRemoteExecutions', { status: 404, body: { error: 'not_found' } });
-    renderApp(`/o/${ORG}/execucoes`);
-    expect(await screen.findByText(EMPTY_OLD_MODEL)).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Execuções remotas' })).toBeNull();
-  });
-});
-
-describe('Supervisão: a execução remota aparece pelas tentativas', () => {
-  it('uma linha por tentativa, cada uma com a sua máquina, o sua máquina e o seu desfecho', async () => {
-    api.on('GET', ALL, 'listVisibleRemoteExecutions', { status: 200, body: { items: [twoAttempts()] } });
-    renderApp(`/o/${ORG}/supervisao`);
-    const r = within(await region('Tentativas de execução remota'));
-    const rows = r.getAllByRole('row');
-    expect(rows, 'cabeçalho + duas tentativas da mesma solicitação').toHaveLength(3);
-    const second = within(rows[1]);
-    expect(second.getByText('ESTACAO-02')).toBeInTheDocument();
-    expect(second.getByText('Worker fiscal')).toBeInTheDocument();
-    expect(second.getByText('Concluída')).toBeInTheDocument();
-    expect(second.getByText('2 de 2')).toBeInTheDocument();
-    expect(second.getByText('Conciliação · versão 3')).toBeInTheDocument();
-    expect(second.getByRole('link')).toHaveAttribute('href', `/o/${ORG}/execucoes-remotas/${X1}`);
-    const first = within(rows[2]);
-    expect(first.getByText('ESTACAO-01')).toBeInTheDocument();
-    expect(first.getByText('Não iniciada')).toBeInTheDocument();
-    expect(first.getByText('1 de 2')).toBeInTheDocument();
-    // há tentativas remotas: a lista local, vazia, não mostra bloco vazio
-    expect(screen.queryByText('Nenhuma execução encontrada.')).toBeNull();
-  });
-
-  it('sem execuções locais nem remotas: um único vazio; falha na consulta das remotas é erro, não ausência', async () => {
-    api.on('GET', ALL, 'listVisibleRemoteExecutions', { status: 200, body: { items: [] } });
-    const view = renderApp(`/o/${ORG}/supervisao`);
-    expect(await screen.findByText('Nenhuma execução encontrada.')).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Execuções remotas (tentativas)' })).toBeNull();
-    view.unmount();
-    api.on('GET', ALL, 'listVisibleRemoteExecutions', { status: 503, body: { error: 'service_unavailable' } });
-    renderApp(`/o/${ORG}/supervisao`);
-    expect(await screen.findByText('Não foi possível consultar as execuções remotas.')).toBeInTheDocument();
-    expect(screen.queryByText('Nenhuma execução encontrada.')).toBeNull();
-  });
-});
 
 describe('Detalhe da execução remota', () => {
   it('mostra a solicitação e cada tentativa, com acesso aos registros e aos arquivos da que iniciou e terminou', async () => {
@@ -297,7 +132,10 @@ describe('Detalhe da execução remota', () => {
 
     const second = within(screen.getByLabelText('Tentativa 2'));
     expect(second.getByText('ESTACAO-02')).toBeInTheDocument();
-    expect(second.getByText('Worker fiscal')).toBeInTheDocument();
+    expect(second.getByText(/Worker fiscal/)).toBeInTheDocument();
+    // PLATFORM-FLUXO-002: da execução para a máquina e para a atividade dela
+    expect(second.getByRole('link', { name: 'Abrir a máquina' }).getAttribute('href')).toMatch(/\/workers\?maquina=/);
+    expect(second.getByRole('link', { name: 'Ver atividade' }).getAttribute('href')).toMatch(/\/execucoes\?maquina=/);
     expect(second.getByText('Concluída')).toBeInTheDocument();
     const first = within(screen.getByLabelText('Tentativa 1'));
     expect(first.getByText(/Motivo informado pela máquina/)).toBeInTheDocument();

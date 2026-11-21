@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Badge, Card, Stack, StateView, Table, Text, type TableColumn } from 'nekkora-lib';
+import { Alert, Badge, Button, Card, Stack, StateView, Table, Text, type TableColumn } from 'nekkora-lib';
 import { isApiError } from '../../api/http';
+import { commonMessage } from '../../auth/messages';
 import { listActivations, type AutomationActivationList } from '../../api/activations';
 import { getCapacity, getLicenseSummary, listAllLicenses, type LicenseSummary, type OrganizationCapacity, type OrganizationLicense } from '../../api/licenses';
 import { useSession } from '../../area/session';
@@ -98,6 +99,10 @@ export function LicensesPage() {
   const { org, expired } = useSession();
   const [state, setState] = useState<State>({ status: 'loading' });
   const [activations, setActivations] = useState<AutomationActivationList | null>(null);
+  // a releitura depois de um ato falhou (ex.: muitas tentativas): a tela e o resumo do resultado continuam; só avisa
+  const [staleAfterAct, setStaleAfterAct] = useState(false);
+  // falha ao ler as automações atendidas: é erro, nunca "nenhuma automação ativada"
+  const [activationsError, setActivationsError] = useState<unknown>(null);
   const generation = useRef(0);
 
   // silent: atualização depois de um ato; a tela continua como está (o resumo do resultado não some) até os dados novos chegarem
@@ -106,20 +111,28 @@ export function LicensesPage() {
     if (!silent) setState({ status: 'loading' });
     try {
       const [summary, licenses, capacity] = await Promise.all([getLicenseSummary(org), listAllLicenses(org), getCapacity(org)]);
-      if (gen === generation.current) setState({ status: 'ready', data: { summary, licenses, capacity } });
+      if (gen === generation.current) {
+        setState({ status: 'ready', data: { summary, licenses, capacity } });
+        if (silent) setStaleAfterAct(false);
+      }
     } catch (e) {
       if (gen !== generation.current) return;
       if (isApiError(e, 'unauthenticated')) return expired();
+      // silenciosa: a tela já exibida continua (o resumo do ato não some); o aviso oferece atualizar
+      if (silent) return setStaleAfterAct(true);
       setState({ status: 'error', error: e });
     }
   }, [org, expired]);
 
-  const loadActivations = useCallback(async () => {
+  const loadActivations = useCallback(async (silent = false) => {
     try {
       setActivations(await listActivations(org));
+      setActivationsError(null);
     } catch (e) {
       if (isApiError(e, 'unauthenticated')) return expired();
-      setActivations({ model: 'legacy', licenses: { contracted: 0, used: 0, available: 0 }, items: [], asOf: new Date().toISOString() });
+      // depois de um ato, a lista já exibida continua: nunca é trocada por uma lista vazia
+      if (silent) return setStaleAfterAct(true);
+      setActivationsError(e);
     }
   }, [org, expired]);
 
@@ -129,7 +142,7 @@ export function LicensesPage() {
   }, [load, loadActivations]);
   const refreshAfterAct = useCallback(() => {
     void load(true);
-    void loadActivations();
+    void loadActivations(true);
   }, [load, loadActivations]);
 
   useEffect(() => {
@@ -262,7 +275,32 @@ export function LicensesPage() {
         </Stack>
       </section>
 
-      <ActivationSection data={activations} onChanged={refreshAfterAct} canActivate />
+      {staleAfterAct && (
+        <Alert tone="warning" title="Não foi possível atualizar os números agora.">
+          <Stack gap={2}>
+            <Text>O ato foi registrado e o resultado continua abaixo. Os números desta página podem estar desatualizados.</Text>
+            <div>
+              <Button size="sm" variant="secondary" leftIcon="refresh" onClick={refreshAfterAct}>
+                Atualizar
+              </Button>
+            </div>
+          </Stack>
+        </Alert>
+      )}
+      {activationsError && activations === null ? (
+        <Alert tone="warning" title="Não foi possível carregar as automações atendidas.">
+          <Stack gap={2}>
+            <Text>{commonMessage(activationsError).title} As licenças acima continuam válidas; a lista das automações atendidas não foi lida.</Text>
+            <div>
+              <Button size="sm" variant="secondary" leftIcon="refresh" onClick={() => void loadActivations()}>
+                Tentar novamente
+              </Button>
+            </div>
+          </Stack>
+        </Alert>
+      ) : (
+        <ActivationSection data={activations} onChanged={refreshAfterAct} canActivate />
+      )}
 
       <section aria-labelledby="pw-lic-lista">
         <Stack gap={3}>

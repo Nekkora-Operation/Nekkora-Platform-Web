@@ -94,7 +94,7 @@ test('J17/J18: telas reais com teclado, zoom 200%, viewports, recarga, links dir
     ['workspace', workspaceUrl.replace(/^https?:\/\/[^/]+/, ''), 'Operações'],
     ['versão', versionUrl.replace(/^https?:\/\/[^/]+/, ''), /Biografias da Wikipédia — versão 1/],
     ['workers', `/o/${org}/workers`, 'Máquinas'],
-    ['supervisão', `/o/${org}/supervisao`, 'Supervisão'],
+    ['execuções (o endereço antigo de Supervisão)', `/o/${org}/supervisao`, 'Execuções'],
     ['convites', `/o/${org}/administracao/convites`, 'Convites'],
     ['concessões', `/o/${org}/administracao/concessoes`, 'Concessões'],
     ['conta', '/conta', 'Segurança da conta'],

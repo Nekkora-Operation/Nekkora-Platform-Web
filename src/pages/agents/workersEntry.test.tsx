@@ -183,7 +183,7 @@ describe('Workers: vincular e gerenciar o Agent (T07)', () => {
     // livre: autorizar em workspace e vincular Agent lado a lado
     expect(within(row).getByRole('button', { name: 'Autorizar Worker financeiro num ambiente de trabalho' })).toBeInTheDocument();
     fireEvent.click(within(row).getByRole('button', { name: 'Vincular Agent a Worker financeiro' }));
-    const name = within(dialog()).getByLabelText(/^Nome do computador/) as HTMLInputElement;
+    const name = within(dialog()).getByLabelText(/^Nome da máquina/) as HTMLInputElement;
     expect(name.value).toBe('Worker financeiro');
     fireEvent.change(name, { target: { value: 'ESTACAO-01' } });
     expect(within(dialog()).getByLabelText(/^Validade do código/)).toHaveValue(15);
@@ -216,7 +216,7 @@ describe('Workers: vincular e gerenciar o Agent (T07)', () => {
     api.on('POST', `/api/v1/o/${ORG}/agent-enrollments`, 'createAgentPairingCode', { status: 201, body: { enrollmentId: ENR, code: CODE, expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(), workerId: W1 } });
     await openPage();
     fireEvent.click(within(await waitFor(() => rowOf('Worker financeiro'))).getByRole('button', { name: 'Vincular Agent a Worker financeiro' }));
-    fireEvent.change(within(dialog()).getByLabelText(/^Nome do computador/), { target: { value: 'ESTACAO-01' } });
+    fireEvent.change(within(dialog()).getByLabelText(/^Nome da máquina/), { target: { value: 'ESTACAO-01' } });
     // este teste é do pareamento do Agent anterior (sem execução remota): escolhe-o no diálogo
     fireEvent.click(within(dialog()).getByRole('radio', { name: /^Nekkora Agent anterior/ }));
     await confirmIn('Gerar código');

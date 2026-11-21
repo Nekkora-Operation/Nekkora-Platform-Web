@@ -124,25 +124,26 @@ describe('detalhe da execução', () => {
     sessionFor('ana@nekkora.dev');
     renderAt(`${base}/execucoes`);
     await screen.findByRole('table');
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Concluída' }));
-    await waitFor(() => expect(location).toContain('estado=succeeded'));
+    // a aba Histórico: o que já tem desfecho
+    fireEvent.click(screen.getByRole('tab', { name: 'Histórico' }));
+    await waitFor(() => expect(location).toContain('aba=historico'));
+    await screen.findByRole('table');
     const listUrl = location;
-    const link = (await screen.findAllByRole('link', { name: /^Execução de .*, criada em / }))[0];
+    const link = (await screen.findAllByRole('link', { name: /^Execução de .*, pedida em / }))[0];
     const href = link.getAttribute('href')!;
     expect(href).toMatch(new RegExp(`^${base}/execucoes/[0-9a-f-]{36}$`));
     fireEvent.click(link);
     expect(await screen.findByRole('heading', { level: 1, name: /^Execução de / })).toBeInTheDocument();
     expect(location).toBe(href);
     await waitFor(() => expect(document.activeElement).toBe(document.getElementById('conteudo')));
-    expect(screen.getByText('Concluída')).toBeInTheDocument();
     await screen.findByRole('region', { name: 'Eventos da execução' });
     const back = screen.getByRole('link', { name: 'Voltar para execuções' });
     expect(back).toHaveAttribute('href', listUrl);
     fireEvent.click(back);
     await screen.findByRole('table');
     expect(location).toBe(listUrl);
-    expect(screen.getByRole('checkbox', { name: 'Concluída' })).toBeChecked();
-    expect(new URL(requests.filter((r) => r.includes('/executions?')).at(-1)!, 'http://x').searchParams.getAll('status')).toEqual(['succeeded']);
+    expect(screen.getByRole('tab', { name: 'Histórico' })).toHaveAttribute('aria-selected', 'true');
+    expect(new URL(requests.filter((r) => r.includes('/activity?')).at(-1)!, 'http://x').searchParams.get('tab')).toBe('history');
   });
 
   it('acesso direto: agendada sem solicitante não é erro; campos e eventos só do contrato, em ordem de sequência', async () => {
@@ -158,9 +159,11 @@ describe('detalhe da execução', () => {
     await screen.findByRole('region', { name: 'Eventos da execução' });
     expect(tableRows('Eventos da execução').map((r) => within(r).getAllByRole('cell')[1].textContent)).toEqual(['Processo iniciado', 'Processo concluído']);
     expect(screen.getAllByRole('term').map((t) => t.textContent)).toEqual([
-      'Estado', 'Origem', 'Automação', 'Versão', 'Ambiente de trabalho', 'Solicitante', 'Criada em', 'Início', 'Término', 'Duração',
+      'Estado', 'Origem', 'Automação', 'Versão', 'Ambiente de trabalho', 'Máquina', 'Solicitante', 'Criada em', 'Início', 'Término', 'Duração',
       'Cancelamento solicitado em', 'Reexecução de',
     ]);
+    // PLATFORM-FLUXO-002: o simulador não registra máquina: o detalhe diz isso, sem inferir uma
+    expect(screen.getByText('Sem máquina registrada para esta execução.')).toBeInTheDocument();
     // menu: Execuções ativo no detalhe
     const nav = screen.getByRole('navigation', { name: 'Navegação principal' });
     expect(within(nav).getByRole('link', { name: 'Execuções' })).toHaveAttribute('aria-current', 'page');
@@ -404,7 +407,7 @@ describe('ambientes de trabalho, automações e versões', () => {
       'Limpeza de temporários',
       'Relatório de capacidade',
     ]);
-    expect(screen.getByRole('link', { name: 'Ver execuções deste ambiente de trabalho' })).toHaveAttribute('href', `${base}/execucoes?workspace=${ws('operacoes')}`);
+    expect(screen.getByRole('link', { name: 'Ver execuções deste ambiente de trabalho' })).toHaveAttribute('href', `${base}/execucoes?aba=historico&workspace=${ws('operacoes')}`);
 
     fireEvent.click(screen.getByRole('link', { name: 'Backup dos arquivos de operação' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Backup dos arquivos de operação' })).toBeInTheDocument();
@@ -414,11 +417,11 @@ describe('ambientes de trabalho, automações e versões', () => {
 
     fireEvent.click(screen.getByRole('link', { name: 'Ver execuções desta automação' }));
     expect(await screen.findByText('Somente a automação Backup dos arquivos de operação.')).toBeInTheDocument();
-    await waitFor(() => expect(requests.some((r) => r.includes('/executions?') && r.includes(`automationId=${auto('backup')}`))).toBe(true));
+    await waitFor(() => expect(requests.some((r) => r.includes('/activity?') && r.includes(`automationId=${auto('backup')}`))).toBe(true));
     await screen.findByRole('table');
     fireEvent.click(screen.getByRole('button', { name: 'Remover filtro de automação' }));
     await waitFor(() => expect(location).not.toContain('automacao='));
-    expect(requests.filter((r) => r.includes('/executions?')).at(-1)).not.toContain('automationId=');
+    expect(requests.filter((r) => r.includes('/activity?')).at(-1)).not.toContain('automationId=');
   });
 
   it('rascunho sem publicação e automação sem versões publicadas aparecem como tal', async () => {
@@ -542,27 +545,27 @@ describe('filtros da lista de execuções no endereço', () => {
 
   it('recarga com o mesmo endereço repete exatamente os mesmos limites do período', async () => {
     sessionFor('ana@nekkora.dev');
-    const { unmount } = renderAt(`${base}/execucoes`);
+    const { unmount } = renderAt(`${base}/execucoes?aba=historico`);
     await screen.findByRole('table');
     fireEvent.change(screen.getByLabelText('Período'), { target: { value: '7d' } });
     await waitFor(() => expect(location).toContain('periodo=7d'));
     const url = location;
-    const from1 = new URL(requests.filter((r) => r.includes('/executions?')).at(-1)!, 'http://x').searchParams.get('from');
+    const from1 = new URL(requests.filter((r) => r.includes('/activity?')).at(-1)!, 'http://x').searchParams.get('from');
     unmount();
     vi.setSystemTime(NOW + 3 * 3_600_000); // "recarga" horas depois
     requests = [];
     renderAt(url);
     await screen.findByRole('table');
-    const from2 = new URL(requests.filter((r) => r.includes('/executions?')).at(-1)!, 'http://x').searchParams.get('from');
+    const from2 = new URL(requests.filter((r) => r.includes('/activity?')).at(-1)!, 'http://x').searchParams.get('from');
     expect(from2).toBe(from1);
     expect(location).toBe(url);
   });
 
   it('período personalizado e ambiente de trabalho fora da parte carregada vêm do endereço', async () => {
     sessionFor('ana@nekkora.dev');
-    renderAt(`${base}/execucoes?workspace=${ws('logistica')}&periodo=custom&de=2026-09-01T03:00:00.000Z&ate=2026-09-10T03:00:00.000Z`);
+    renderAt(`${base}/execucoes?aba=historico&workspace=${ws('logistica')}&periodo=custom&de=2026-09-01T03:00:00.000Z&ate=2026-09-10T03:00:00.000Z`);
     await screen.findByRole('table');
-    const q = new URL(requests.filter((r) => r.includes('/executions?')).at(-1)!, 'http://x').searchParams;
+    const q = new URL(requests.filter((r) => r.includes('/activity?')).at(-1)!, 'http://x').searchParams;
     expect(q.get('workspaceId')).toBe(ws('logistica'));
     expect(q.get('from')).toBe('2026-09-01T03:00:00.000Z');
     expect(q.get('to')).toBe('2026-09-10T03:00:00.000Z');
@@ -570,22 +573,22 @@ describe('filtros da lista de execuções no endereço', () => {
 
   it('endereço com valores desconhecidos cai no padrão de 30 dias, sem erro', async () => {
     sessionFor('ana@nekkora.dev');
-    renderAt(`${base}/execucoes?periodo=nunca&estado=quebrado&desde=ontem`);
+    renderAt(`${base}/execucoes?aba=historico&periodo=nunca&estado=quebrado&desde=ontem`);
     await screen.findByRole('table');
-    const q = new URL(requests.filter((r) => r.includes('/executions?')).at(-1)!, 'http://x').searchParams;
+    const q = new URL(requests.filter((r) => r.includes('/activity?')).at(-1)!, 'http://x').searchParams;
     expect(q.getAll('status')).toEqual([]);
     expect(q.get('from')).toBe(new Date(NOW - 30 * DAY).toISOString());
   });
 
   it('link do ambiente de trabalho na linha da lista leva ao detalhe do ambiente de trabalho', async () => {
     sessionFor('ana@nekkora.dev');
-    renderAt(`${base}/execucoes?workspace=${ws('operacoes')}`);
+    renderAt(`${base}/execucoes?aba=historico&workspace=${ws('operacoes')}`);
     await screen.findByRole('table');
     const link = within(screen.getByRole('table')).getAllByRole('link', { name: 'Operações' })[0];
     expect(link).toHaveAttribute('href', `${base}/workspaces/${ws('operacoes')}`);
     fireEvent.click(link);
     expect(await screen.findByRole('heading', { level: 1, name: 'Operações' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Voltar para ambientes de trabalho' })).toHaveAttribute('href', `${base}/execucoes?workspace=${ws('operacoes')}&periodo=30d&desde=${encodeURIComponent(new Date(NOW - 30 * DAY).toISOString())}`);
+    expect(screen.getByRole('link', { name: 'Voltar para ambientes de trabalho' })).toHaveAttribute('href', `${base}/execucoes?aba=historico&workspace=${ws('operacoes')}&periodo=30d&desde=${encodeURIComponent(new Date(NOW - 30 * DAY).toISOString())}`);
   });
 });
 

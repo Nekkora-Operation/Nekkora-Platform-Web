@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { confirmStepUp, LAB, pairNewWorker, signUpAndEnroll, type Person, newVersionWithPackage } from './support/lab';
+import { activateAutomation, confirmStepUp, dayFromNow, LAB, localRunLinks, openExecutions, pairNewWorker, signUpAndEnroll, type Person, newVersionWithPackage } from './support/lab';
 
 /**
  * J13–J15 com o Agent REAL e a API REAL, em sessão ASSISTIDA (FRONT-V1-002).
@@ -138,11 +138,10 @@ async function setup(page: Page, person: Person) {
   await confirmStepUp(page, person, 'Autorizar');
   await expect(page.getByText('Máquina autorizada no ambiente de trabalho.')).toBeVisible();
 
+  // PLATFORM-FLUXO-002: a autorização de execução local é dada pela ativação em um passo (modelo anterior: com validade)
+  await activateAutomation(page, person, org, { workspace: 'Operações', automation: 'Biografias da Wikipédia', workers: ['Máquina do laboratório'], validUntil: dayFromNow(10) });
   await page.goto(versionUrl);
-  await page.getByLabel(/^Máquina autorizada neste ambiente de trabalho/).selectOption({ label: 'Máquina do laboratório' });
-  await page.getByRole('button', { name: 'Autorizar execução local' }).click();
-  await confirmStepUp(page, person, 'Autorizar execução local');
-  await expect(page.getByText(/Execução local autorizada\. Nada foi iniciado/)).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Autorizações de execução local.' })).toContainText('Vigente');
   return { org };
 }
 
@@ -158,10 +157,16 @@ async function startByPerson(label: string, extraInstruction = '') {
   await person(`Execução ${label}: no Agent, clique em "Iniciar".${extraInstruction}`, /EXEC_STARTED/, started0);
 }
 
+/** PLATFORM-FLUXO-002: as execuções do Agent anterior em Execuções › Histórico (todo o período), da mais recente para a mais antiga. */
 async function openNewestRun(page: Page, org: string, expectedRuns: number) {
-  await page.goto(`/o/${org}/supervisao`);
-  const rows = page.getByRole('region', { name: 'Execuções locais' }).getByRole('link');
-  await expect.poll(() => rows.count(), { timeout: 180_000, intervals: [5_000] }).toBe(expectedRuns);
+  const rows = localRunLinks(page);
+  await expect
+    .poll(async () => {
+      await openExecutions(page, org, 'historico');
+      await page.waitForTimeout(1_500);
+      return rows.count();
+    }, { timeout: 180_000, intervals: [5_000] })
+    .toBe(expectedRuns);
   await rows.first().click();
   await expect(page.getByRole('heading', { name: 'Execução local' })).toBeVisible();
 }
@@ -195,11 +200,12 @@ test('J13–J15: execução real supervisionada, quedas de canal, cancelamento l
   if (etapas.includes('A')) {
     runs++;
     // ---------------- A: J13 + J14 (FRONT-V1-004: lista vazia que recebe a execução; J14b que falha sem reconexão)
-    // Supervisão aberta ANTES do início: a lista está vazia e recebe a execução sozinha (sem recarregar nem "Atualizar")
-    await page.goto(`/o/${org}/supervisao`);
-    await expect(page.getByText('Nenhuma execução local registrada.')).toBeVisible();
+    // Execuções › Em andamento aberta ANTES do início (PLATFORM-FLUXO-002: a antiga Supervisão): a lista está vazia e recebe
+    // a execução sozinha (sem recarregar nem "Atualizar"; a aba relê a cada 30 s)
+    await openExecutions(page, org, 'andamento');
+    await expect(page.getByText('Nada em andamento agora.')).toBeVisible();
     const listUrl = page.url();
-    const rows = page.getByRole('region', { name: 'Execuções locais' }).getByRole('link');
+    const rows = localRunLinks(page);
     const registered0 = count(/PLATFORM_RUN_REGISTERED/);
     logFrom = agentLog().length;
     await startByPerson('A (sucesso)');
@@ -234,7 +240,7 @@ test('J13–J15: execução real supervisionada, quedas de canal, cancelamento l
     // a lista aberta antes do início recebe a execução, sem navegação
     await expect.poll(() => rows.count(), { timeout: 120_000, intervals: [2_000] }).toBe(1);
     expect(page.url(), 'a lista recebeu a execução sem navegar').toBe(listUrl);
-    step(`supervisão: lista vazia recebeu a execução sem recarregar; linha: ${(await rows.first().innerText()).replace(/\s+/g, ' ')}`);
+    step(`Execuções › Em andamento: lista vazia recebeu a execução sem recarregar; linha: ${(await rows.first().innerText()).replace(/\s+/g, ' ')}`);
     // reconexão e retomada da entrega: um ACK DEPOIS da retomada que avança além do último antes da pausa
     await expect
       .poll(() => acks().filter((a) => a.t >= resumedAt - 1_000 && a.through > lastBefore).length, { timeout: 180_000, intervals: [2_000] })
@@ -286,8 +292,8 @@ test('J13–J15: execução real supervisionada, quedas de canal, cancelamento l
     const expected = Array.from({ length: Math.min(settled, 2_000) }, (_, i) => i + 1);
     expect(seqA, `eventos na tela = 1..${expected.length} (entregues pelo Agent: ${settled})`).toEqual(expected);
     step(`A: ${settled} eventos entregues; tela com a sequência contínua 1..${seqA.length}; ACKs ${all.length}, sem duplicata`);
-    await page.goto(`/o/${org}/supervisao`);
-    await expect(page.getByRole('region', { name: 'Execuções locais' }).getByRole('link')).toHaveCount(1); // nenhuma nova execução
+    await openExecutions(page, org, 'historico');
+    await expect(localRunLinks(page)).toHaveCount(1); // nenhuma nova execução
   }
 
   if (etapas.includes('B')) {

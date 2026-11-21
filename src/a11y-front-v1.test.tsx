@@ -120,10 +120,10 @@ describe('FRONT-V1-001 — acessibilidade (axe) das telas novas', () => {
     await screen.findByText('Arquivo .zip do pacote');
     expect(await violations()).toEqual([]);
     v.unmount();
-    api.on('GET', `/api/v1/o/${ORG}/agent-runs`, 'listAgentRuns', { status: 200, body: { items: [], nextCursor: null } });
-    api.on('GET', `/api/v1/o/${ORG}/remote-executions`, 'listVisibleRemoteExecutions', { status: 200, body: { items: [] } });
+    // PLATFORM-FLUXO-002: o acompanhamento (antes Supervisão) ficou em Execuções; o endereço antigo leva até lá
+    api.on('GET', new RegExp(`/api/v1/o/${ORG}/activity`), 'listActivity', { status: 200, body: { items: [], nextCursor: null } });
     renderApp(`/o/${ORG}/supervisao`);
-    await screen.findByText('Nenhuma execução encontrada.');
+    await screen.findByText(/Nada em andamento agora\.|Você ainda não tem acesso a nenhum ambiente de trabalho\./);
     expect(await violations()).toEqual([]);
   });
 });
