@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Button, Checkbox, Fieldset, Select, Text } from 'nekkora-lib';
 import { listClients } from '../../api/admin';
 import { listClientShareOptions, type ClientRecord, type ClientShareOption } from '../../api/clientAccess';
@@ -91,6 +91,9 @@ export function ClientInviteFields({
   const [loadError, setLoadError] = useState(false);
   const [creating, setCreating] = useState(false);
   const [reload, setReload] = useState(0);
+  // o rascunho mais recente: as opções chegam depois, e a pessoa pode já ter digitado (nome, e-mail) nesse meio-tempo
+  const latest = useRef(draft);
+  latest.current = draft;
 
   useEffect(() => {
     let live = true;
@@ -106,7 +109,7 @@ export function ClientInviteFields({
           const a = s.automations.find((x) => x.automationId === lockAutomationId);
           if (a)
             onChange({
-              ...draft,
+              ...latest.current,
               workspaceId: a.workspaceId,
               automationId: a.automationId,
               canViewDashboard: a.canShareDashboard,
