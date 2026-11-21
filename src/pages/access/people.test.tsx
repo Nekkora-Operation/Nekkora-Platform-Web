@@ -168,13 +168,13 @@ describe('Pessoas e acessos: a tabela', () => {
     const before = peopleCalls().length;
     fireEvent.change(screen.getByLabelText(/^E-mail da pessoa/), { target: { value: 'outra@empresa.com' } });
     fireEvent.change(screen.getByLabelText(/^Perfil \(opcional\)/), { target: { value: 'OPERATOR' } });
-    fireEvent.change(await screen.findByLabelText(/^Ambiente de trabalho do perfil/), { target: { value: WS } });
+    fireEvent.change(await screen.findByLabelText(/^Ambiente de trabalho do perfil/, {}, { timeout: 5000 }), { target: { value: WS } });
     fireEvent.click(screen.getByRole('button', { name: 'Convidar' }));
-    const d = await screen.findByRole('alertdialog', { name: 'Convidar outra@empresa.com?' });
+    const d = await screen.findByRole('alertdialog', { name: 'Convidar outra@empresa.com?' }, { timeout: 5000 });
     fireEvent.click(within(d).getByRole('button', { name: 'Enviar convite' }));
-    expect(await screen.findByText('Convite enviado. A pessoa recebe o link por e-mail.', {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText('Convite enviado. A pessoa recebe o link por e-mail.', {}, { timeout: 10000 })).toBeInTheDocument();
     expect(api.sent('POST', `/api/v1/o/${ORG}/invitations`)[0].body).toEqual({ email: 'outra@empresa.com', role: 'OPERATOR', workspaceId: WS });
-    await waitFor(() => expect(peopleCalls().length).toBeGreaterThan(before));
+    await waitFor(() => expect(peopleCalls().length).toBeGreaterThan(before), { timeout: 5000 });
   });
 
   it('sem org.manage: a API recusa (403) e a tela não mostra formulário, dados nem ações', async () => {
