@@ -46,7 +46,7 @@ const REQS = ['length', 'uppercase', 'lowercase', 'digit', 'symbol'] as const;
 /** Uma senha por requisito ausente (o único que falta). */
 const FORA: [string, (typeof REQS)[number]][] = [
   ['Nk#2026ok', 'length'],
-  ['Nekkora#2026ok-maisum', 'length'],
+  ['Nekkora#2026ok' + 'x'.repeat(115), 'length'], // 129
   ['nekkora#2026ok', 'uppercase'],
   ['NEKKORA#2026OK', 'lowercase'],
   ['Nekkora#Teste!', 'digit'],
@@ -134,8 +134,8 @@ test('PLATFORM-SENHA-001: cadastro, convite de cliente, troca, recuperação e s
   await page.getByRole('button', { name: 'Concluir cadastro' }).click();
   expect(confirmPosts, 'nada enviado com senha fora da regra ou confirmação divergente').toEqual([]);
 
-  // cumpre as regras, mas a força estimada não é "forte"
-  await page.getByLabel(/^Senha\*?$/).fill('Qwerty@12345');
+  // cumpre as regras (14 caracteres), mas a força estimada não é "forte"
+  await page.getByLabel(/^Senha\*?$/).fill('Password@12345');
   await expect(page.locator('.pw-password__summary')).toHaveText(/Senha atende aos requisitos\./);
   const forca = page.locator('.pw-password__strength');
   await expect(forca).toContainText(/Força estimada: (muito fraca|fraca)/);
@@ -152,15 +152,43 @@ test('PLATFORM-SENHA-001: cadastro, convite de cliente, troca, recuperação e s
   await page.getByRole('button', { name: 'Ocultar senha' }).first().click();
   await expect(campo).toHaveAttribute('type', 'password');
 
-  // colar (área de transferência real): nada cortado nem aparado; campo sem maxlength
+  // limite de 128 ao DIGITAR (nos dois campos): a tecla não entra e aparece o aviso
+  const conf = page.getByLabel(/^Confirmar senha\*?$/);
+  const base127 = 'Ab1!'.repeat(31) + 'Ab1';
+  for (const f of [campo, conf]) {
+    await f.fill(base127);
+    await f.press('End');
+    await f.pressSequentially('!X');
+    expect(Array.from(await f.inputValue()), 'parou em 128').toHaveLength(128);
+  }
+  await expect(page.locator('.nk-field').filter({ has: campo }).getByText('Limite de 128 caracteres.')).toBeVisible();
+  await expect(page.locator('.nk-field').filter({ has: conf }).getByText('Limite de 128 caracteres.')).toBeVisible();
+  await shot(page, '1-cadastro-limite-128');
+
+  // colar (área de transferência real) acima de 128: nada cortado nem aparado; erro visível; o envio é recusado na tela
   await expect(campo).not.toHaveAttribute('maxlength', /.*/);
-  await page.evaluate(() => navigator.clipboard.writeText('  Colada#Senha2026-longa  '));
-  await campo.fill('');
-  await campo.focus();
-  await page.keyboard.press('Control+V');
-  await expect(campo).toHaveValue('  Colada#Senha2026-longa  ');
-  expect((await requirements(page)).length, 'colada com 26: comprimento pendente, sem corte').toBe(false);
-  log('1_colar', { colada: 26, valor_no_campo: 'igual ao colado', comprimento: 'pendente' });
+  const colada = '  ' + 'Ab1!'.repeat(33) + '  '; // 136
+  await page.evaluate((t) => navigator.clipboard.writeText(t), colada);
+  for (const f of [campo, conf]) {
+    await f.fill('');
+    await f.focus();
+    await page.keyboard.press('Control+V');
+    await expect(f).toHaveValue(colada);
+  }
+  await expect(page.locator('.nk-field').filter({ has: campo }).getByText('A senha deve ter no máximo 128 caracteres.')).toBeVisible();
+  await expect(page.locator('.nk-field').filter({ has: conf }).getByText('A senha deve ter no máximo 128 caracteres.')).toBeVisible();
+  await page.getByRole('button', { name: 'Concluir cadastro' }).click();
+  expect(confirmPosts, 'acima de 128: nada enviado').toEqual([]);
+  await shot(page, '1-cadastro-colada-acima-de-128');
+  // preenchimento automático (valor posto direto no campo, sem digitação) acima de 128: o mesmo erro
+  await campo.evaluate((el: HTMLInputElement, v) => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, v);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }, 'Ab1!'.repeat(40));
+  await expect(campo).toHaveValue('Ab1!'.repeat(40));
+  await expect(page.locator('.nk-field').filter({ has: campo }).getByText('A senha deve ter no máximo 128 caracteres.')).toBeVisible();
+  await conf.fill('');
+  log('1_limite_128', { digitando: 'para em 128 com o aviso (senha e confirmação)', colada: 'inteira (136) com o erro, envio recusado', preenchida: 'inteira (160) com o erro' });
 
   // tela estreita: requisitos e força abaixo do campo, sem rolagem horizontal; axe
   await campo.fill('Lia#Se');
@@ -237,7 +265,7 @@ test('PLATFORM-SENHA-001: cadastro, convite de cliente, troca, recuperação e s
   await expect(page.getByRole('heading', { name: 'Confira seu e-mail' })).toBeVisible();
   const tokenRec = await waitToken('PASSWORD_RECOVERY', lia.email);
   const diretas: Record<string, number> = {};
-  for (const [senha, falta] of FORA) diretas[falta + (senha.length > 20 ? '-21' : '')] = await directPost(browser, '/api/v1/auth/password-reset/confirm', { token: tokenRec, newPassword: senha });
+  for (const [senha, falta] of FORA) diretas[falta + (senha.length > 128 ? '-129' : '')] = await directPost(browser, '/api/v1/auth/password-reset/confirm', { token: tokenRec, newPassword: senha });
   expect(Object.values(diretas).every((st) => st === 400), JSON.stringify(diretas)).toBe(true);
   log('3_recuperacao_chamadas_diretas', diretas);
   await page.goto('about:blank');
@@ -250,7 +278,9 @@ test('PLATFORM-SENHA-001: cadastro, convite de cliente, troca, recuperação e s
   await audit(page, 'recuperacao');
   await shot(page, '3-recuperacao');
   await page.getByRole('button', { name: 'Salvar nova senha' }).click();
-  await expect(page.getByRole('heading', { name: 'Senha alterada' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Senha redefinida' })).toBeVisible();
+  await expect(page.getByText('Se a verificação em duas etapas estiver ativada, ela continuará sendo solicitada.', { exact: false })).toBeVisible();
+  await shot(page, '3-recuperacao-concluida');
   await page.getByRole('button', { name: 'Voltar para o login' }).click();
   await identitySignIn(page, lia.email, nova);
   await expect(page.getByText('E-mail ou senha incorretos.')).toBeVisible();

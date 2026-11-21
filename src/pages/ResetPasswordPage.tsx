@@ -77,11 +77,11 @@ export function ResetPasswordPage() {
 
   if (state === 'success') {
     return (
-      <AuthScreen org={org} icon="check-circle" title="Senha alterada" stepKey="success" focusTitle>
+      <AuthScreen org={org} icon="check-circle" title="Senha redefinida" stepKey="success" focusTitle>
         <StateView
           status="success"
-          title="Agora você pode entrar usando sua nova senha."
-          description="Por segurança, as sessões abertas foram encerradas. O código do autenticador continua sendo pedido."
+          title="Entre com sua nova senha."
+          description="Se a verificação em duas etapas estiver ativada, ela continuará sendo solicitada. Por segurança, as sessões abertas foram encerradas."
           actions={
             <Button fullWidth onClick={() => navigate(flow.paths.login, { replace: true })}>
               Voltar para o login

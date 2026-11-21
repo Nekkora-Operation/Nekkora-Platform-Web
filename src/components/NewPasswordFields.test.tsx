@@ -26,7 +26,7 @@ describe('política de senha (espelho da API)', () => {
   it('cada requisito ausente é apontado sozinho; a válida cumpre todos', () => {
     const casos: [string, string][] = [
       ['Nk#2026ok', 'length'],
-      ['Nekkora#2026ok-maisum', 'length'],
+      ['Nekkora#2026ok' + 'x'.repeat(115), 'length'], // 129
       ['nekkora#2026ok', 'uppercase'],
       ['NEKKORA#2026OK', 'lowercase'],
       ['Nekkora#Teste!', 'digit'],
@@ -49,8 +49,9 @@ describe('política de senha (espelho da API)', () => {
   });
 
   it('conta pontos de código, aceita espaços e Unicode como a API', () => {
-    expect(meetsPasswordPolicy('Ab1!' + '😀'.repeat(16))).toBe(true); // 20
-    expect(meetsPasswordPolicy('Ab1!' + '😀'.repeat(17))).toBe(false); // 21
+    expect(meetsPasswordPolicy('Ab1!' + '😀'.repeat(124))).toBe(true); // 128
+    expect(meetsPasswordPolicy('Ab1!' + '😀'.repeat(125))).toBe(false); // 129
+    expect(passwordProblem('Ab1!' + 'x'.repeat(125))).toBe('A senha deve ter no máximo 128 caracteres.');
     expect(passwordChecks('Nekkora 2026 ok').symbol).toBe(false); // espaço não é símbolo
     expect(meetsPasswordPolicy(' Nekkora#2026 ')).toBe(true);
     expect(meetsPasswordPolicy('Ação#2026ébom')).toBe(true);
@@ -81,14 +82,48 @@ describe('NewPasswordFields', () => {
     const f = field();
     expect(f).not.toHaveAttribute('maxlength');
     expect(f).toHaveAttribute('autocomplete', 'new-password');
-    expect(f.getAttribute('passwordrules')).toContain('maxlength: 20');
+    expect(f.getAttribute('passwordrules')).toContain('maxlength: 128');
     f.focus();
-    await userEvent.paste('  Colada#Senha2026-longa-demais  ');
-    expect(f.value).toBe('  Colada#Senha2026-longa-demais  ');
-    expect(within(req('length')).getByText('pendente')).toBeInTheDocument();
+    await userEvent.paste('  Colada#Senha2026-longa  ');
+    expect(f.value).toBe('  Colada#Senha2026-longa  ');
+    expect(within(req('length')).getByText('atendido')).toBeInTheDocument();
     fireEvent.change(f, { target: { value: 'Preenchida#2026' } }); // preenchimento automático
     expect(f.value).toBe('Preenchida#2026');
     expect(within(req('length')).getByText('atendido')).toBeInTheDocument();
+  });
+
+  it('limite de 128 ao digitar: a tecla não entra e aparece o aviso (nos dois campos)', async () => {
+    render(<Harness />);
+    const base = 'Ab1!'.repeat(31) + 'Ab1'; // 127
+    fireEvent.change(field(), { target: { value: base } });
+    await userEvent.type(field(), '!X');
+    expect(field().value).toBe(base + '!');
+    expect(Array.from(field().value)).toHaveLength(128);
+    expect(within(field().closest('.nk-field') as HTMLElement).getByText('Limite de 128 caracteres.')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Limite de 128 caracteres.');
+    await userEvent.type(field(), '{Backspace}');
+    expect(within(field().closest('.nk-field') as HTMLElement).queryByText('Limite de 128 caracteres.')).toBeNull();
+    const conf = screen.getByLabelText(/^Confirmar senha\*?$/) as HTMLInputElement;
+    fireEvent.change(conf, { target: { value: base } });
+    await userEvent.type(conf, '!X');
+    expect(conf.value).toBe(base + '!');
+    expect(within(conf.closest('.nk-field') as HTMLElement).getByText('As senhas não coincidem. Limite de 128 caracteres.')).toBeInTheDocument();
+  });
+
+  it('colada ou preenchida acima de 128: nada é cortado, erro visível (nos dois campos) e o envio é recusado', async () => {
+    render(<Harness />);
+    const longa = 'Ab1!'.repeat(33); // 132
+    field().focus();
+    await userEvent.paste(longa);
+    expect(field().value).toBe(longa);
+    expect(field()).toHaveAttribute('aria-invalid', 'true');
+    expect(within(field().closest('.nk-field') as HTMLElement).getByText('A senha deve ter no máximo 128 caracteres.')).toBeInTheDocument();
+    expect(passwordProblem(longa)).toBe('A senha deve ter no máximo 128 caracteres.');
+    const conf = screen.getByLabelText(/^Confirmar senha\*?$/) as HTMLInputElement;
+    fireEvent.change(conf, { target: { value: longa } }); // preenchimento automático
+    expect(conf.value).toBe(longa);
+    expect(within(conf.closest('.nk-field') as HTMLElement).getByText('A senha deve ter no máximo 128 caracteres.')).toBeInTheDocument();
+    expect(screen.queryByText('As senhas coincidem.')).toBeNull();
   });
 
   it('mostrar/ocultar a senha', async () => {
@@ -147,9 +182,10 @@ describe('NewPasswordFields', () => {
   it('força estimada separada: cumprir as regras não faz a senha aparecer como forte', async () => {
     const check = await loadStrengthChecker();
     // cumpre as cinco regras e é das primeiras a serem tentadas
-    expect(check('Qwerty@12345', []).level).toBeLessThanOrEqual(1);
+    expect(Array.from('Password@12345')).toHaveLength(14);
+    expect(check('Password@12345', []).level).toBeLessThanOrEqual(1);
     render(<Harness />);
-    await userEvent.type(field(), 'Qwerty@12345');
+    await userEvent.type(field(), 'Password@12345');
     expect(document.querySelector('.pw-password__summary')).toHaveTextContent('Senha atende aos requisitos.');
     const forca = described('-forca');
     await waitFor(() => expect(forca).toHaveTextContent(/Força estimada: (muito fraca|fraca)/));

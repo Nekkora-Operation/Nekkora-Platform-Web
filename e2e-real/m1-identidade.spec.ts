@@ -216,7 +216,7 @@ test('J05: troca de senha e novos códigos com step-up; recuperação de senha p
   await page.getByLabel(/^Nova senha/).fill(recovered);
   await page.getByLabel(/^Confirmar nova senha/).fill(recovered);
   await page.getByRole('button', { name: 'Salvar nova senha' }).click();
-  await expect(page.getByText(/O código do autenticador continua sendo pedido/)).toBeVisible();
+  await expect(page.getByText(/Se a verificação em duas etapas estiver ativada, ela continuará sendo solicitada/)).toBeVisible();
   await page.getByRole('button', { name: 'Voltar para o login' }).click();
 
   // MFA continua exigido depois da recuperação

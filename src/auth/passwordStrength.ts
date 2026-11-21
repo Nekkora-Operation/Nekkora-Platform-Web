@@ -1,6 +1,6 @@
 /**
  * Força ESTIMADA da senha (zxcvbn-ts, com os dicionários comum e pt-br). É só uma indicação, separada dos requisitos: cumprir
- * as regras não torna a senha "forte" (ex.: "Qwerty@12345" cumpre as cinco regras e é das primeiras a serem tentadas). A biblioteca
+ * as regras não torna a senha "forte" (ex.: "Password@12345", com 14 caracteres, cumpre as cinco regras e é das primeiras a serem tentadas). A biblioteca
  * e os dicionários (algumas centenas de KB) são carregados sob demanda, só nas telas que definem senha; a senha nunca sai do
  * navegador por aqui.
  */

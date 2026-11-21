@@ -82,7 +82,7 @@ describe('§49 — nada sensível em log, storage ou URL', () => {
     await user().type(screen.getByLabelText(lbl('Nova senha')), SECRETS.newPassword);
     await user().type(screen.getByLabelText(lbl('Confirmar nova senha')), SECRETS.newPassword);
     await user().click(screen.getByRole('button', { name: 'Salvar nova senha' }));
-    await screen.findByRole('heading', { name: 'Senha alterada' });
+    await screen.findByRole('heading', { name: 'Senha redefinida' });
     expect(document.body.textContent).not.toContain(SECRETS.resetToken);
     view.unmount();
 

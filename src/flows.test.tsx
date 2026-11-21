@@ -222,7 +222,7 @@ describe('Redefinição de senha (deep link)', () => {
     await u.type(screen.getByLabelText(lbl('Nova senha')), 'Frase#Segura2026');
     await u.type(screen.getByLabelText(lbl('Confirmar nova senha')), 'Frase#Segura2026');
     await u.click(screen.getByRole('button', { name: 'Salvar nova senha' }));
-    expect(await screen.findByRole('heading', { name: 'Senha alterada' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Senha redefinida' })).toBeInTheDocument();
     expect(fake.api().requests.filter((r) => r.path.endsWith('/password-reset/confirm'))).toHaveLength(1);
     await u.click(screen.getByRole('button', { name: 'Voltar para o login' }));
     expect(location()).toBe(LOGIN);

@@ -1,5 +1,5 @@
 /**
- * Política de senha nova (PasswordPolicy da API, PLATFORM-SENHA-001): de 12 a 20 caracteres (pontos de código Unicode), com
+ * Política de senha nova (PasswordPolicy da API, PLATFORM-SENHA-001): de 12 a 128 caracteres (pontos de código Unicode), com
  * ao menos uma letra maiúscula, uma minúscula, um número e um símbolo. Vale onde uma senha é criada ou substituída (cadastro,
  * inclusive o primeiro acesso pelo convite de cliente; troca; recuperação). O login NÃO aplica a política: as senhas
  * existentes continuam valendo.
@@ -9,7 +9,12 @@
  * aparado: a senha vai à API exatamente como foi digitada, colada ou preenchida. A conferência local só orienta; a API decide.
  */
 export const PASSWORD_MIN = 12;
-export const PASSWORD_MAX = 20;
+export const PASSWORD_MAX = 128;
+
+/** Ao digitar no limite (a tecla não entra). */
+export const PASSWORD_LIMIT_NOTICE = `Limite de ${PASSWORD_MAX} caracteres.`;
+/** Colada ou preenchida acima do limite: nada é cortado; o envio fica bloqueado até corrigir. */
+export const PASSWORD_TOO_LONG = `A senha deve ter no máximo ${PASSWORD_MAX} caracteres.`;
 
 export type PasswordRequirement = 'length' | 'uppercase' | 'lowercase' | 'digit' | 'symbol';
 
@@ -24,7 +29,8 @@ export const PASSWORD_REQUIREMENTS: readonly { id: PasswordRequirement; label: s
 
 /**
  * Regra da senha para gerenciadores que a leem ao sugerir uma senha (atributo `passwordrules`). O comprimento máximo NÃO vai
- * em `maxlength`: o navegador cortaria em silêncio o que fosse colado ou preenchido além dele.
+ * em `maxlength`: o navegador cortaria em silêncio o que fosse colado ou preenchido além dele. A digitação no limite é barrada
+ * pelo campo (beforeinput); colar ou preencher acima dele mostra PASSWORD_TOO_LONG e bloqueia o envio.
  */
 export const PASSWORD_RULES_ATTRIBUTE = `minlength: ${PASSWORD_MIN}; maxlength: ${PASSWORD_MAX}; required: upper; required: lower; required: digit; required: [-!#$%&*+.@_?];`;
 
@@ -56,6 +62,7 @@ export function meetsPasswordPolicy(password: string): boolean {
 /** Mensagem de erro do campo (envio), dizendo o que falta. */
 export function passwordProblem(password: string): string | undefined {
   if (!password) return 'Informe a senha.';
+  if (passwordLength(password) > PASSWORD_MAX) return PASSWORD_TOO_LONG;
   const checks = passwordChecks(password);
   const missing = PASSWORD_REQUIREMENTS.filter((r) => !checks[r.id]).map((r) => r.label.toLowerCase());
   if (missing.length === 0) return undefined;

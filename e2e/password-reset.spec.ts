@@ -27,8 +27,8 @@ test('DoD 2 — esqueci a senha → e-mail (simulado) → link → nova senha �
   await page.getByLabel(/^Nova senha/).fill(NEW_PASSWORD);
   await page.getByLabel(/^Confirmar nova senha/).fill(NEW_PASSWORD);
   await page.getByRole('button', { name: 'Salvar nova senha' }).click();
-  await expect(page.getByRole('heading', { name: 'Senha alterada' })).toBeVisible();
-  await expect(page.getByText('Agora você pode entrar usando sua nova senha.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Senha redefinida' })).toBeVisible();
+  await expect(page.getByText('Entre com sua nova senha.', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Voltar para o login' }).click();
   await expect(page).toHaveURL(path.login(account.org));
