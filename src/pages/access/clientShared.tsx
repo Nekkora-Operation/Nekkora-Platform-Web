@@ -5,7 +5,7 @@ import { hasReason, isApiError } from '../../api/http';
 import { StepUpDialog } from '../../components/StepUpDialog';
 import { accessRefusal } from './shared';
 
-/** PLATFORM-FLUXO-002 (070): textos e peças comuns de clientes e acessos de cliente. */
+/** PLATFORM-FLUXO-002 (070/071): textos e peças comuns de clientes e acessos de cliente. */
 
 export const CLIENT_STATUS_LABEL: Record<ClientRecord['status'], string> = { active: 'Ativo', suspended: 'Suspenso', archived: 'Arquivado' };
 
@@ -13,16 +13,22 @@ export const CLIENT_STATUS_LABEL: Record<ClientRecord['status'], string> = { act
 export const machineScopeText = (machineName: string | null | undefined) =>
   machineName ? `as execuções da máquina ${machineName}` : 'as execuções de todas as máquinas dessa automação';
 
-/** O que a concessão permite ver, com registros e resultados separados. */
-export function permissionsText(canReadLogs: boolean, canDownloadResults: boolean): string {
-  const extra = [canReadLogs ? 'registros' : null, canDownloadResults ? 'arquivos de resultado' : null].filter(Boolean);
-  return extra.length ? `Execuções, ${extra.join(' e ')}` : 'Execuções (sem registros nem resultados)';
+/** O que o compartilhamento mostra (071): dashboard de execução e/ou arquivos de retorno. Registros técnicos nunca. */
+export function permissionsText(canViewDashboard: boolean, canDownloadResults: boolean): string {
+  if (canViewDashboard && canDownloadResults) return 'Dashboard de execução e arquivos de retorno';
+  if (canViewDashboard) return 'Só o dashboard de execução';
+  if (canDownloadResults) return 'Só os arquivos de retorno';
+  return 'Nenhum conteúdo';
 }
 
-/** O resumo pedido na missão, antes de enviar o convite. */
-export function inviteSummary(automation: string, workspace: string, machineName: string | null): string {
-  return `Você está convidando esta pessoa para acompanhar a automação ${automation}, no ambiente de trabalho ${workspace}, com acesso às ${machineScopeText(machineName).replace(/^as /, '')}.`;
+/** O resumo antes de enviar. */
+export function inviteSummary(automation: string, workspace: string, machineName: string | null, person?: string): string {
+  return `Você está compartilhando a automação ${automation} (ambiente de trabalho ${workspace})${person ? ` com ${person}` : ''}, considerando ${machineScopeText(machineName).replace(/^as /, '')}.`;
 }
+
+/** O que a pessoa de fora vê e não vê (071). */
+export const CLIENT_SEES =
+  'A pessoa vê só esta automação: o dashboard de execução (indicadores e o estado de cada execução em linguagem simples) e, se marcado, os arquivos de retorno para ver ou baixar. Não vê registros técnicos, código, pacotes, configurações, máquinas nem o ambiente de trabalho, e não executa nem altera nada. O compartilhamento não consome licença. O acesso só começa quando a pessoa aceita com a identidade Nekkora do mesmo e-mail.';
 
 /** Recusas próprias dos atos de cliente (070); as demais pelo texto comum. */
 export function clientRefusal(e: unknown, conflict?: string): string {
@@ -38,9 +44,11 @@ export function clientRefusal(e: unknown, conflict?: string): string {
   if (hasReason(e, 'conflict', 'client_scope_unavailable'))
     return `O cliente, a automação, o ambiente de trabalho ou a máquina não está mais disponível. Atualize e confira. ${nothing}`;
   if (hasReason(e, 'conflict', 'client_grant_widening_requires_request'))
-    return `Ligar registros ou resultados é um pedido novo, aprovado por outra pessoa. ${nothing}`;
+    return `Ligar o dashboard ou os arquivos de retorno é um pedido novo, aprovado por outra pessoa. ${nothing}`;
   if (isApiError(e, 'forbidden'))
-    return accessRefusal(e, { forbidden: 'O ato não foi permitido. Aprovar exige outra pessoa (quem pediu não aprova) e a confirmação recente.' });
+    return accessRefusal(e, {
+      forbidden: 'O ato não foi permitido. Aprovar exige outra pessoa (quem pediu não aprova) e a confirmação recente; compartilhar exige a permissão nesse ambiente de trabalho.',
+    });
   return accessRefusal(e, { conflict });
 }
 

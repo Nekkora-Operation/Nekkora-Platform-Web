@@ -1,11 +1,11 @@
 import { Navigate, Outlet, Route, Routes, useParams, useSearchParams } from "react-router";
 import { features } from "../config";
 import { PlatformThemeProvider } from "./theme";
-import { orgPath } from "../auth/organization";
+import { clientPath, orgPath } from "../auth/organization";
 import { IdentityFlowProvider } from "../auth/flow";
 import { AcceptInvitationPage } from "../identity/AcceptInvitationPage";
 import { AccessHistoryPage } from "../pages/access/AccessHistoryPage";
-import { ClientAutomationPage, ClientExecutionPage, ClientHomePage, ClientOrganizationPage } from "../client/ClientArea";
+import { ClientAutomationPage, ClientFilesPage, ClientHomePage, ClientOrganizationPage } from "../client/ClientArea";
 import {
   AccountPage,
   ActivateMfaPage,
@@ -103,6 +103,12 @@ function LegacyMemberAccessRedirect() {
  * PLATFORM-FLUXO-002 (070): endereços antigos de Clientes, Concessões e Auditoria de acessos. Os filtros que existiam
  * continuam (situação, cliente e ambiente de trabalho); o resto do endereço é descartado.
  */
+/** 071: /cliente/o/:org/execucoes/... (detalhe técnico removido) → o dashboard da organização. */
+function LegacyClientExecutionRedirect() {
+  const { orgId = "" } = useParams();
+  return <Navigate to={clientPath.organization(orgId)} replace />;
+}
+
 function LegacyClientsRedirect() {
   const { orgId = "" } = useParams();
   const [sp] = useSearchParams();
@@ -184,7 +190,9 @@ export function AppRoutes() {
           <Route path="/cliente" element={<ClientHomePage />} />
           <Route path="/cliente/o/:orgId" element={<ClientOrganizationPage />} />
           <Route path="/cliente/o/:orgId/automacoes/:automationId" element={<ClientAutomationPage />} />
-          <Route path="/cliente/o/:orgId/execucoes/:kind/:id" element={<ClientExecutionPage />} />
+          <Route path="/cliente/o/:orgId/arquivos" element={<ClientFilesPage />} />
+          {/* 071: o detalhe técnico da execução saiu da área do cliente; endereço antigo volta ao dashboard */}
+          <Route path="/cliente/o/:orgId/execucoes/*" element={<LegacyClientExecutionRedirect />} />
         </Route>
         <Route path="/o/:orgId" element={<OrganizationRoute />}>
           {/* área autenticada: o portão carrega /me e só monta as rotas internas para conta interna */}

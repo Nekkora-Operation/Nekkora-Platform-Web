@@ -5,23 +5,22 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 // @ts-expect-error módulo .mjs da ferramenta do laboratório (sem tipos)
 import { compose } from '../tools/lab/lab.mjs';
 import { Authenticator } from '../mock/totp';
-import { confirmStepUp, LAB, signInWithTotp, signUpAndEnroll, syntheticEmail, waitToken, type Person } from './support/lab';
+import { activateMfa, confirmStepUp, identitySignIn, LAB, messages, PASSWORD, signInWithTotp, signUpAndEnroll, syntheticEmail, waitToken, type Person } from './support/lab';
 
 /**
- * PLATFORM-FLUXO-002 (070) — CLIENTES E ACESSOS pela Web de produção contra a API e o Portal reais do laboratório, com pessoas
- * sintéticas. Usa a organização do acompanhamento (~/.nekkora/front-lab/<lab>/acompanhamento.json): a administradora (Ana),
- * o leitor do Fiscal (Bruno) e a pessoa de outra organização (Nara). Cadastra DUAS pessoas: a cliente (Carla, que aceita o
- * convite de Cliente) e uma segunda administradora (Dora, para a aprovação por OUTRA pessoa). O convite da titular que estiver
- * na organização não é tocado.
+ * PLATFORM-FLUXO-002 (070/071) — COMPARTILHAMENTO POR PESSOA pela Web de produção contra a API e o Portal reais do laboratório, com
+ * pessoas sintéticas. Usa a organização do acompanhamento (~/.nekkora/front-lab/<lab>/acompanhamento.json): a administradora (Ana)
+ * e o leitor do Fiscal (Bruno). Cadastra três pessoas: Eva (recebe o dashboard pelo convite e faz o primeiro acesso pelo link),
+ * Wes (membro com WORKSPACE_ADMIN do Fiscal, que PEDE o compartilhamento) e Pedro (recebe os arquivos de retorno pelo pedido
+ * aprovado). O convite da titular que estiver na organização não é tocado.
  *
- * Massa: execuções REAIS do laboratório (execução remota de "Robô de notas" na Estação Client, com registros e um arquivo de
- * resultado; execuções do Agent de "Rotina local" e "Relatório CSV" na Estação Agent). UMA execução da Platform de "Robô de
- * notas" na Estação Agent é INSERIDA no banco (declarada), para haver a mesma automação em duas máquinas: valida leitura e
+ * Massa: a execução remota REAL de "Robô de notas" na Estação Client (com arquivo de retorno). UMA execução da Platform de
+ * "Robô de notas" na Estação Agent é INSERIDA no banco (declarada), para a mesma automação em duas máquinas: valida leitura e
  * apresentação, não a produção da execução.
  *
  *   FRONT_LAB_ID=frontlab-fluxo002 FRONT_PORTA=5196 npx playwright test -c playwright.real.config.ts fluxo-002-clientes
  */
-const EVID = resolve(`tools/lab/saidas/${LAB}/evidencias-fluxo-002-clientes`);
+const EVID = resolve(`tools/lab/saidas/${LAB}/evidencias-fluxo-002-compartilhamento`);
 const ESTADO = join(homedir(), '.nekkora', 'front-lab', LAB, 'acompanhamento.json');
 const TAG = Date.now().toString(36);
 const axeSource = readFileSync(resolve('node_modules/axe-core/axe.min.js'), 'utf8');
@@ -109,18 +108,27 @@ const rowOf = (page: Page, text: string) => rows(page).filter({ hasText: text })
 /** Preenche o convite de Cliente (sem enviar). */
 async function fillClientInvite(page: Page, email: string, client: string, workspace: string, machine: string | null, automation: string, logs: boolean, results: boolean) {
   await page.getByRole('radio', { name: /^Cliente/ }).check();
+
+/** Preenche o compartilhamento por pessoa (sem enviar). `machine` fica em "Opções adicionais". */
+async function fillShare(page: Page, name: string, email: string, workspace: string, automation: string, machine: string | null, dashboard: boolean, files: boolean) {
+  await page.getByRole('radio', { name: /^Pessoa externa/ }).check();
+  await page.getByLabel(/^Nome da pessoa/).fill(name);
   await page.getByLabel(/^E-mail da pessoa/).fill(email);
-  await page.getByRole('combobox', { name: /^Cliente/ }).selectOption({ label: client });
   await page.getByRole('combobox', { name: /^Ambiente de trabalho/ }).selectOption({ label: workspace });
-  if (machine) await page.getByRole('combobox', { name: /^Máquina/ }).selectOption({ label: machine });
+  if (machine) {
+    await page.getByText('Opções adicionais', { exact: true }).click();
+    await page.getByRole('combobox', { name: /^Máquina/ }).selectOption({ label: machine });
+  }
   await page.getByRole('combobox', { name: /^Automação/ }).selectOption({ label: automation });
-  if (logs) await page.getByRole('checkbox', { name: 'Consultar os registros' }).check();
-  if (results) await page.getByRole('checkbox', { name: 'Baixar os arquivos de resultado' }).check();
+  const d = page.getByRole('checkbox', { name: /^Dashboard de execução/ });
+  if ((await d.isChecked()) !== dashboard) await d.click();
+  const f = page.getByRole('checkbox', { name: /^Arquivos de retorno/ });
+  if ((await f.isChecked()) !== files) await f.click();
 }
 
 test.use({ actionTimeout: 20_000, navigationTimeout: 45_000 });
 
-test('Clientes e acessos: convite de Cliente, aceite pela identidade, escopo por automação e máquina, registros e resultados, recusas, segunda pessoa, revogação e suspensão com a sessão aberta, auditoria, perfis internos, links antigos, teclado, tela estreita e temas', async ({ browser }) => {
+test('Compartilhamento por pessoa: dashboard e arquivos de retorno, sem registros técnicos; primeiro acesso sem repetir nome e e-mail; pedido de membro aprovado antes do convite; escopo por automação e máquina nos totais, buscas e downloads; revogação com a sessão aberta; auditoria; temas e tela estreita', async ({ browser }) => {
   test.setTimeout(3_000_000);
   expect(existsSync(ESTADO), 'o roteiro do acompanhamento guardou a organização e as pessoas').toBe(true);
   rmSync(EVID, { recursive: true, force: true });
@@ -130,25 +138,38 @@ test('Clientes e acessos: convite de Cliente, aceite pela identidade, escopo por
   const orgName = new RegExp(`^Entrar em ${s.orgName}(?![0-9a-z])`);
   const pessoas = `/o/${org}/administracao/pessoas`;
   log('laboratorio', readFileSync(resolve(`tools/lab/saidas/${LAB}/laboratorio.txt`), 'utf8').replace(/\n/g, ' | '));
-  expect(sql("SELECT max(substr(obj_description('public'::regnamespace), 1, 80))") || 'ok').toBeTruthy();
 
-  // ------------------------------------------------ massa: o que existe (real) e a execução inserida (declarada)
+  // ------------------------------------------------ 0. a 071 nas concessões e convites que existiam (com registros técnicos)
+  const migracao = {
+    tabela_da_071: sql("SELECT to_regclass('public.client_share_requests') IS NOT NULL"),
+    eventos_25: sql(`SELECT count(*) FROM access_events WHERE organization_id = '${org}' AND event_type = 25`),
+    abertas_com_logs: sql(`SELECT count(*) FROM client_automation_grants WHERE organization_id = '${org}' AND status IN (1, 2) AND can_read_logs`),
+    revogadas_com_logs_historico: sql(`SELECT count(*) FROM client_automation_grants WHERE organization_id = '${org}' AND status = 4 AND can_read_logs`),
+    eventos_antigos_com_logs: sql(`SELECT count(*) FROM access_events WHERE organization_id = '${org}' AND can_read_logs AND event_type <> 25`),
+    convites_abertos_com_logs: sql(`SELECT count(*) FROM identity_invitations WHERE organization_id = '${org}' AND accepted_at IS NULL AND revoked_at IS NULL AND can_read_logs`),
+    funcoes_de_logs_no_portal: sql("SELECT count(*) FROM pg_proc WHERE proname IN ('portal_client_list_logs', 'portal_client_get_execution', 'portal_client_attempt')"),
+  };
+  expect(migracao.abertas_com_logs).toBe('0');
+  expect(migracao.convites_abertos_com_logs).toBe('0');
+  expect(migracao.funcoes_de_logs_no_portal).toBe('0');
+  log('0_tratamento_dos_logs_existentes', migracao);
+
+  // ------------------------------------------------ massa: execuções reais e UMA inserida (declarada)
   const id = (q: string) => sql(q).split('\n')[0];
   const autom = (nome: string) => id(`SELECT automation_id FROM automations WHERE organization_id = '${org}' AND name = '${nome}'`);
   const maquina = (nome: string) => id(`SELECT worker_id FROM workers WHERE organization_id = '${org}' AND name = '${nome}'`);
   const robo = autom('Robô de notas');
-  const rotina = autom('Rotina local');
   const csv = autom('Relatório CSV');
   const client = maquina('Estação Client');
   const agent = maquina('Estação Agent');
   const remota = id(`SELECT remote_execution_id FROM remote_executions WHERE organization_id = '${org}' AND automation_id = '${robo}' ORDER BY requested_at LIMIT 1`);
   const tentativa = id(`SELECT attempt_id FROM remote_attempts WHERE remote_execution_id = '${remota}' ORDER BY attempt_number DESC LIMIT 1`);
-  const runCsv = id(`SELECT agent_run_id FROM agent_runs WHERE organization_id = '${org}' AND automation_id = '${csv}' LIMIT 1`);
+  const arquivo = id(`SELECT file_name FROM remote_attempt_results WHERE attempt_id = '${tentativa}' ORDER BY result_number LIMIT 1`);
   const inserida = sql(
-    `SET session_replication_role = replica; INSERT INTO executions (organization_id, workspace_id, automation_id, automation_version_id, request_key, request_fingerprint, requested_by_membership_id, command_snapshot, status, status_reason, origin, created_at, started_at, finished_at, worker_id, worker_agent_assignment_id, worker_workspace_assignment_id, reserved_at) SELECT a.organization_id, a.workspace_id, a.automation_id, v.automation_version_id, 'clientes-${TAG}', repeat('c', 64), m.membership_id, v.command_json, 4, 1, 1, now() - interval '2 hours', now() - interval '2 hours', now() - interval '119 minutes', '${agent}', gen_random_uuid(), gen_random_uuid(), now() - interval '2 hours' FROM automations a JOIN automation_versions v ON v.automation_id = a.automation_id AND v.status = 2 JOIN organization_memberships m ON m.organization_id = a.organization_id JOIN users u ON u.user_id = m.user_id AND u.email_normalized = '${ana.email.toLowerCase()}' WHERE a.automation_id = '${robo}' ORDER BY v.created_at DESC LIMIT 1 RETURNING execution_id`,
+    `SET session_replication_role = replica; INSERT INTO executions (organization_id, workspace_id, automation_id, automation_version_id, request_key, request_fingerprint, requested_by_membership_id, command_snapshot, status, status_reason, origin, created_at, started_at, finished_at, worker_id, worker_agent_assignment_id, worker_workspace_assignment_id, reserved_at) SELECT a.organization_id, a.workspace_id, a.automation_id, v.automation_version_id, 'compart-${TAG}', repeat('c', 64), m.membership_id, v.command_json, 4, 1, 1, now() - interval '2 hours', now() - interval '2 hours', now() - interval '119 minutes', '${agent}', gen_random_uuid(), gen_random_uuid(), now() - interval '2 hours' FROM automations a JOIN automation_versions v ON v.automation_id = a.automation_id AND v.status = 2 JOIN organization_memberships m ON m.organization_id = a.organization_id JOIN users u ON u.user_id = m.user_id AND u.email_normalized = '${ana.email.toLowerCase()}' WHERE a.automation_id = '${robo}' ORDER BY v.created_at DESC LIMIT 1 RETURNING execution_id`,
   ).split('\n').find((l) => /^[0-9a-f-]{36}$/.test(l))!;
   log('massa', {
-    real: { remota_robo_na_estacao_client: remota, registros: sql(`SELECT count(*) FROM remote_attempt_log_lines WHERE attempt_id = '${tentativa}'`), resultado: sql(`SELECT file_name FROM remote_attempt_results WHERE attempt_id = '${tentativa}'`), execucoes_do_agent_rotina_e_csv_na_estacao_agent: sql(`SELECT count(*) FROM agent_runs WHERE organization_id = '${org}' AND automation_id IN ('${rotina}', '${csv}')`) },
+    real: { remota_robo_na_estacao_client: remota, arquivo_de_retorno: arquivo },
     inserida_no_banco: { execucao_da_platform_do_robo_na_estacao_agent: inserida, observacao: 'valida leitura e apresentacao, nao a producao da execucao' },
   });
 
@@ -156,299 +177,193 @@ test('Clientes e acessos: convite de Cliente, aceite pela identidade, escopo por
   await go(page, pessoas);
   await expect(page.getByRole('heading', { level: 1, name: 'Pessoas e acessos' })).toBeVisible();
 
-  // ------------------------------------------------ cadastro de cliente (pelo modal do próprio convite)
-  const cliente = `Contábil ${TAG}`;
-  await page.getByRole('radio', { name: /^Cliente/ }).check();
-  await page.getByRole('button', { name: 'Cadastrar cliente' }).click();
-  await page.getByRole('alertdialog', { name: 'Cadastrar cliente' }).getByLabel('Nome do cliente').fill(cliente);
-  await page.getByRole('alertdialog', { name: 'Cadastrar cliente' }).getByRole('button', { name: 'Cadastrar' }).click();
-  await expect(page.getByRole('combobox', { name: /^Cliente/ })).toHaveValue(/[0-9a-f-]{36}/);
-  const clienteId = id(`SELECT client_id FROM clients WHERE organization_id = '${org}' AND name = '${cliente}'`);
-  log('1a_cliente_cadastrado', { cliente, clienteId });
-
-  // ------------------------------------------------ membro interno: recusado, com a explicação (antes e no servidor)
-  await fillClientInvite(page, s.bruno.email, cliente, 'Fiscal', null, 'Robô de notas', false, false);
+  // ------------------------------------------------ 1. formulário: nome e e-mail, automação, conteúdos; sem registros técnicos; sem cadastro de cliente
+  await fillShare(page, 'Bruno', s.bruno.email, 'Fiscal', 'Robô de notas', null, true, false);
   await expect(page.getByText(/já é membro interno desta organização/)).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: /registros/i })).toHaveCount(0);
+  await expect(page.getByText('Relatórios personalizados: ainda não disponíveis.')).toBeVisible();
   await page.getByRole('button', { name: 'Convidar' }).click();
-  await confirmStepUp(page, ana, 'Enviar convite de cliente');
-  await expect(page.getByRole('alertdialog').getByText(/já é membro interno da organização. Um convite de Cliente não reduziria/)).toBeVisible();
+  await confirmStepUp(page, ana, 'Compartilhar e enviar convite');
+  await expect(page.getByRole('alertdialog').getByText(/já é membro interno da organização/)).toBeVisible();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Cancelar' }).click();
-  log('9a_membro_interno_recusado', 'aviso na tela e recusa do servidor (client_invitation_internal_member); nada aplicado');
-
-  // ------------------------------------------------ 1. convite de Cliente (Robô de notas, só a Estação Client, com registros)
-  const carlaEmail = syntheticEmail(`cli-carla-${TAG}`);
+  const eva = { name: `Eva Cliente ${TAG}`, email: syntheticEmail(`cmp-eva-${TAG}`) };
   await go(page, pessoas);
-  await fillClientInvite(page, carlaEmail, cliente, 'Fiscal', 'Estação Client', 'Robô de notas', true, false);
-  await expect(page.getByText('Você está convidando esta pessoa para acompanhar a automação Robô de notas, no ambiente de trabalho Fiscal, com acesso às execuções da máquina Estação Client.')).toBeVisible();
-  await shot(page, '1-convite-cliente-resumo');
+  await fillShare(page, eva.name, eva.email, 'Fiscal', 'Robô de notas', 'Estação Client', true, false);
+  await expect(page.getByText(`Você está compartilhando a automação Robô de notas (ambiente de trabalho Fiscal) com ${eva.name}, considerando execuções da máquina Estação Client.`)).toBeVisible();
+  await shot(page, '1-compartilhar-formulario');
   await page.getByRole('button', { name: 'Convidar' }).click();
-  const conf = page.getByRole('alertdialog', { name: new RegExp(`Convidar ${carlaEmail} como cliente`) });
-  for (const t of [cliente, 'Robô de notas', 'Fiscal', 'Estação Client', 'Execuções, registros']) await expect(conf).toContainText(t);
-  await shot(page, '1-convite-cliente-confirmacao');
-  await confirmStepUp(page, ana, 'Enviar convite de cliente');
-  await expect(page.getByText('Convite de cliente enviado. O acesso só começa quando a pessoa aceitar.')).toBeVisible();
-  await expect(rowOf(page, carlaEmail)).toContainText('Convite de cliente pendente');
-  await expect(rowOf(page, carlaEmail)).toContainText(`Cliente · ${cliente}`);
-  expect(sql(`SELECT count(*) FROM client_automation_grants WHERE client_id = '${clienteId}'`), 'o envio não concede nada').toBe('0');
+  const conf = page.getByRole('alertdialog', { name: `Compartilhar Robô de notas com ${eva.name}?` });
+  for (const t of [eva.email, 'Robô de notas', 'Fiscal', 'Estação Client', 'Só o dashboard de execução', 'Criado ou reutilizado com o nome da pessoa']) await expect(conf).toContainText(t);
+  await shot(page, '1-compartilhar-confirmacao');
+  await confirmStepUp(page, ana, 'Compartilhar e enviar convite');
+  await expect(page.getByText('Compartilhamento enviado por convite. O acesso só começa quando a pessoa aceitar.')).toBeVisible();
+  const evaCliente = sql(`SELECT c.name || '|' || c.client_id FROM identity_invitations i JOIN clients c ON c.client_id = i.client_id WHERE i.organization_id = '${org}' AND i.email_normalized = '${eva.email}'`);
+  expect(evaCliente.split('|')[0], 'cliente interno criado com o nome da pessoa, sem etapa').toBe(eva.name);
+  const evaClienteId = evaCliente.split('|')[1];
+  log('1_formulario', { membro_interno: 'aviso + recusa do servidor', registros_tecnicos: 'sem opcao', relatorios: 'marcados como ainda nao disponiveis', cliente_interno: evaCliente });
 
-  // a cliente: cadastro normal (sem senha implícita) e aceite pela identidade
-  const pagC = await (await browser.newContext()).newPage();
-  const carla = await signUpAndEnroll(pagC, `cli-carla-${TAG}`, carlaEmail);
-  // antes do aceite: o Portal não mostra nada
-  expect((await apiGet(pagC, '/portal/api/v1/me/client-organizations')).body.items).toEqual([]);
-  expect((await apiGet(pagC, `/portal/api/v1/o/${org}/shared-automations`)).status).toBe(403);
-  const token = await waitToken('ORG_INVITATION', carlaEmail);
-  await go(pagC, `/o/${org}/convite#token=${token}`);
-  await pagC.getByRole('button', { name: 'Aceitar convite' }).click();
-  await confirmStepUp(pagC, carla, 'Aceitar');
-  await expect(pagC.getByRole('heading', { name: 'Convite aceito' })).toBeVisible();
-  await pagC.getByRole('button', { name: 'Ver o que foi compartilhado' }).click();
-  await expect(pagC).toHaveURL(new RegExp(`/cliente/o/${org}$`));
-  const cards = pagC.getByRole('list', { name: 'Automações compartilhadas' });
-  await expect(cards.getByRole('listitem')).toHaveCount(1);
-  await expect(cards).toContainText('Robô de notas');
-  await expect(cards).toContainText('Estação Client');
-  await shot(pagC, '1-area-do-cliente-cards');
-  const cm = id(`SELECT client_membership_id FROM client_memberships m JOIN users u ON u.user_id = m.user_id WHERE m.organization_id = '${org}' AND u.email_normalized = '${carlaEmail}'`);
-  log('1_convite_e_aceite', {
-    convite: 'resumo e confirmacao com cliente, automacao, ambiente, maquina e permissoes; envio sem conceder nada',
-    aceite: 'cadastro normal + aceite pela identidade; area do cliente com so Robo de notas na Estacao Client',
-    conta: sql(`SELECT account_type || ':' || (SELECT link_channel FROM identity_users iu WHERE iu.user_id = u.user_id) FROM users u WHERE organization_id = '${org}' AND email_normalized = '${carlaEmail}'`),
-    concessao: sql(`SELECT basis || ':' || status FROM client_automation_grants WHERE client_membership_id = '${cm}'`),
+  // ------------------------------------------------ 2. primeiro acesso pelo link: sem repetir nome e e-mail
+  const pagE = await (await browser.newContext()).newPage();
+  const convite = await waitToken('ORG_INVITATION', eva.email);
+  await go(pagE, `/o/${org}/convite#token=${convite}`);
+  await expect(pagE.getByText(new RegExp(`${eva.name}, .* compartilhou com você o acompanhamento de uma automação. O convite é para ${eva.email.replace(/[.+]/g, '\\$&')}`))).toBeVisible();
+  await shot(pagE, '2-convite-sem-sessao');
+  await pagE.getByRole('button', { name: 'Criar meu acesso' }).click();
+  await expect(pagE.getByRole('heading', { name: 'Criar seu acesso' })).toBeVisible();
+  await expect(pagE.getByRole('textbox', { name: /E-mail/ })).toHaveValue(eva.email);
+  await expect(pagE.getByRole('textbox', { name: /E-mail/ })).toHaveAttribute('readonly', '');
+  await pagE.getByRole('button', { name: 'Enviar o link de confirmação' }).click();
+  await expect(pagE.getByRole('heading', { name: 'Confira seu e-mail' })).toBeVisible();
+  const cadastro = await waitToken('IDENTITY_SIGNUP_CONFIRMATION', eva.email);
+  await go(pagE, `/cadastro/confirmar#token=${cadastro}`);
+  await expect(pagE.getByText('Seu nome veio do convite. Só falta escolher a senha.')).toBeVisible();
+  await expect(pagE.getByLabel(/^Nome\*?$/)).toHaveValue(eva.name);
+  await shot(pagE, '2-confirmacao-nome-do-convite');
+  await pagE.getByLabel(/^Senha\*?$/).fill(PASSWORD);
+  await pagE.getByLabel(/^Confirmar senha\*?$/).fill(PASSWORD);
+  await pagE.getByRole('button', { name: 'Concluir cadastro' }).click();
+  await expect(pagE.getByRole('heading', { name: 'Cadastro concluído' })).toBeVisible();
+  await pagE.getByRole('button', { name: 'Entrar' }).click();
+  await identitySignIn(pagE, eva.email);
+  await pagE.waitForURL(/\/(organizacoes|conta\/proteger)$/);
+  const { auth } = await activateMfa(pagE, PASSWORD);
+  const evaP: Person = { email: eva.email, password: PASSWORD, name: eva.name, auth, recoveryCodes: [] };
+  await go(pagE, `/o/${org}/convite#token=${convite}`);
+  await pagE.getByRole('button', { name: 'Aceitar convite' }).click();
+  await confirmStepUp(pagE, evaP, 'Aceitar');
+  await expect(pagE.getByRole('heading', { name: 'Convite aceito' })).toBeVisible();
+  await pagE.getByRole('button', { name: 'Ver o que foi compartilhado' }).click();
+  log('2_primeiro_acesso', {
+    convite_sem_sessao: 'nome e e-mail do convite na tela',
+    cadastro: 'e-mail preenchido e travado; nome preenchido na confirmacao; so a senha digitada; MFA ativado pela oferta',
+    nome_da_identidade: sql(`SELECT display_name FROM identities WHERE email_normalized = '${eva.email}'`),
   });
 
-  // ------------------------------------------------ 3. mesma automação em duas máquinas: só a da Estação Client
-  await cards.getByRole('link', { name: 'Ver Robô de notas' }).click();
-  const execs = pagC.getByRole('list', { name: 'Execuções' });
-  await expect(execs.getByRole('listitem')).toHaveCount(2);
-  await expect(execs).not.toContainText('Estação Agent');
-  const execApi = await apiGet(pagC, `/portal/api/v1/o/${org}/shared-automations/${robo}/executions`);
-  expect(execApi.body.items.map((e: { id: string }) => e.id)).not.toContain(inserida);
-  expect((await apiGet(pagC, `/portal/api/v1/o/${org}/shared-executions/platform/${inserida}`)).status).toBe(404);
-  log('3_mesma_automacao_em_duas_maquinas', { visiveis: execApi.body.items.length, execucao_na_estacao_agent: 'fora (lista e endereco direto: 404)' });
-
-  // ------------------------------------------------ 4. registros sim, resultados não (permissões separadas)
-  await go(pagC, `/cliente/o/${org}/execucoes/remote/${remota}`);
-  await expect(pagC.getByRole('region', { name: 'Registros da execução' }).or(pagC.getByLabel('Registros da execução'))).toBeVisible();
-  await expect(pagC.getByText('Os arquivos de resultado não foram compartilhados com você.')).toBeVisible();
-  expect((await apiGet(pagC, `/portal/api/v1/o/${org}/shared-executions/remote/${remota}/attempts/${tentativa}/results`)).status).toBe(403);
-  await shot(pagC, '4-execucao-registros-sem-resultados');
-
-  // ------------------------------------------------ 5. fora do escopo por endereço e API, e outra organização
-  const fora = {
-    automacao_nao_compartilhada: (await apiGet(pagC, `/portal/api/v1/o/${org}/shared-automations/${csv}/executions`)).status,
-    execucao_de_outra_automacao: (await apiGet(pagC, `/portal/api/v1/o/${org}/shared-executions/local_agent/${runCsv}`)).status,
-    rotas_internas_da_platform: (await apiGet(pagC, `/api/v1/o/${org}/people`)).status,
-    execucoes_internas: (await apiGet(pagC, `/api/v1/o/${org}/activity?tab=history`)).status,
-    outra_organizacao: (await apiGet(pagC, `/portal/api/v1/o/${sql(`SELECT organization_id FROM users WHERE email_normalized = '${s.nara.email.toLowerCase()}' LIMIT 1`)}/shared-automations`)).status,
+  // ------------------------------------------------ 3. área da Eva: só dashboard; nada de máquina, ambiente ou registros; escopo nos totais
+  await expect(pagE).toHaveURL(new RegExp(`/cliente/o/${org}$`));
+  const cards = pagE.getByRole('list', { name: 'Automações compartilhadas' });
+  await expect(cards.getByRole('listitem')).toHaveCount(1);
+  await expect(cards).toContainText('Robô de notas');
+  await expect(pagE.locator('main')).not.toContainText(/Estação|Fiscal|registro/i);
+  await shot(pagE, '3-area-dashboard');
+  await cards.getByRole('link', { name: 'Ver o dashboard de Robô de notas' }).click();
+  await expect(pagE.getByRole('group', { name: 'Indicadores do período' })).toBeVisible();
+  await shot(pagE, '3-dashboard-da-automacao');
+  const resumo = await apiGet(pagE, `/portal/api/v1/o/${org}/shared-automations/${robo}/summary`);
+  const esperado = sql(`SELECT count(*) FROM remote_executions x JOIN LATERAL (SELECT worker_id FROM remote_attempts z WHERE z.remote_execution_id = x.remote_execution_id ORDER BY attempt_number DESC LIMIT 1) t ON true WHERE x.organization_id = '${org}' AND x.automation_id = '${robo}' AND t.worker_id = '${client}' AND x.requested_at >= now() - interval '30 days'`);
+  const execs = await apiGet(pagE, `/portal/api/v1/o/${org}/shared-automations/${robo}/executions`);
+  const escopo = {
+    resumo_total: resumo.body.total,
+    esperado_so_estacao_client: Number(esperado),
+    inserida_na_estacao_agent_fora: !execs.body.items.some((e: { id: string }) => e.id === inserida),
+    campos_da_execucao: Object.keys(execs.body.items[0] ?? {}),
+    arquivos_sem_permissao: (await apiGet(pagE, `/portal/api/v1/o/${org}/shared-files?automationId=${robo}`)).status,
+    download_sem_permissao: (await apiGet(pagE, `/portal/api/v1/o/${org}/shared-files/${tentativa}/1/content`)).status,
+    rota_antiga_de_registros: (await apiGet(pagE, `/portal/api/v1/o/${org}/shared-executions/remote/${remota}/attempts/${tentativa}/logs`)).status,
+    rota_antiga_de_detalhe: (await apiGet(pagE, `/portal/api/v1/o/${org}/shared-executions/remote/${remota}`)).status,
+    automacao_nao_compartilhada: (await apiGet(pagE, `/portal/api/v1/o/${org}/shared-automations/${csv}/summary`)).status,
+    rotas_internas_da_platform: (await apiGet(pagE, `/api/v1/o/${org}/people`)).status,
   };
-  expect(fora.automacao_nao_compartilhada).toBe(404);
-  expect(fora.execucao_de_outra_automacao).toBe(404);
-  expect([401, 403]).toContain(fora.rotas_internas_da_platform);
-  expect([401, 403]).toContain(fora.execucoes_internas);
-  expect(fora.outra_organizacao).toBe(403);
-  await go(pagC, `/cliente/o/${org}/automacoes/${csv}`);
-  await expect(pagC.getByText('Não encontrado, ou não compartilhado com você.')).toBeVisible();
-  log('5_fora_do_escopo', fora);
+  expect(escopo.resumo_total).toBe(escopo.esperado_so_estacao_client);
+  expect(escopo.inserida_na_estacao_agent_fora).toBe(true);
+  expect(escopo.campos_da_execucao).not.toContain('machine');
+  expect(escopo.arquivos_sem_permissao).toBe(403);
+  expect(escopo.download_sem_permissao).toBe(403);
+  expect(escopo.rota_antiga_de_registros).toBe(404);
+  expect(escopo.rota_antiga_de_detalhe).toBe(404);
+  expect(escopo.automacao_nao_compartilhada).toBe(404);
+  expect([401, 403]).toContain(escopo.rotas_internas_da_platform);
+  log('3_area_do_cliente_so_dashboard', escopo);
 
-  // ------------------------------------------------ segunda administradora (para a aprovação por outra pessoa)
-  const doraEmail = syntheticEmail(`cli-dora-${TAG}`);
+  // ------------------------------------------------ 4. membro com WORKSPACE_ADMIN pede; nada sai antes da aprovação; a administradora aprova
+  const wes = syntheticEmail(`cmp-wes-${TAG}`);
   await go(page, pessoas);
   await page.getByRole('radio', { name: /^Pessoa da equipe/ }).check();
-  await page.getByLabel(/^E-mail da pessoa/).fill(doraEmail);
-  await page.getByRole('combobox', { name: /^Perfil/ }).selectOption('ORG_ADMIN');
+  await page.getByLabel(/^E-mail da pessoa/).fill(wes);
+  await page.getByRole('combobox', { name: /^Perfil/ }).selectOption('WORKSPACE_ADMIN');
+  await page.getByRole('combobox', { name: /^Ambiente de trabalho do perfil/ }).selectOption({ label: 'Fiscal' });
   await page.getByRole('button', { name: 'Convidar' }).click();
   await confirmStepUp(page, ana, 'Enviar convite');
-  const pagD = await (await browser.newContext()).newPage();
-  const dora = await signUpAndEnroll(pagD, `cli-dora-${TAG}`, doraEmail);
-  await go(pagD, `/o/${org}/convite#token=${await waitToken('ORG_INVITATION', doraEmail)}`);
-  await pagD.getByRole('button', { name: 'Aceitar convite' }).click();
-  await confirmStepUp(pagD, dora, 'Aceitar');
-  await pagD.getByRole('button', { name: 'Entrar na organização' }).click();
-  await expect(pagD).toHaveURL(new RegExp(`/o/${org}$`));
-  await settle(pagD);
-
-  // ------------------------------------------------ 2. outra automação na MESMA máquina e ambiente (pedido + segunda pessoa)
-  await go(page, `${pessoas}?cliente=${cm}`);
-  let modal = page.getByRole('alertdialog', { name: /^Gerenciar acessos de / });
-  await expect(modal.getByRole('list', { name: 'Automações compartilhadas' })).toBeVisible();
-  await modal.getByText('Compartilhar outra automação', { exact: true }).click();
-  await modal.getByRole('combobox', { name: /^Automação/ }).selectOption({ label: 'Rotina local · Fiscal' });
-  await modal.getByRole('combobox', { name: /^Máquina/ }).selectOption({ label: 'Estação Agent' });
-  await modal.getByRole('button', { name: 'Salvar acessos' }).click();
-  await expect(page.getByText(/O novo compartilhamento aguarda a aprovação de outra pessoa/)).toBeVisible();
-  const pedido = id(`SELECT grant_id FROM client_automation_grants WHERE client_membership_id = '${cm}' AND automation_id = '${rotina}' AND status = 1`);
-  expect((await apiGet(pagC, `/portal/api/v1/o/${org}/shared-automations/${rotina}/executions`)).status, 'pendente não dá acesso').toBe(404);
-  // quem pediu não aprova (servidor)
+  const pagW = await (await browser.newContext()).newPage();
+  const wesP = await signUpAndEnroll(pagW, `cmp-wes-${TAG}`, wes);
+  await go(pagW, `/o/${org}/convite#token=${await waitToken('ORG_INVITATION', wes)}`);
+  await pagW.getByRole('button', { name: 'Aceitar convite' }).click();
+  await confirmStepUp(pagW, wesP, 'Aceitar');
+  await pagW.getByRole('button', { name: 'Entrar na organização' }).click();
+  await expect(pagW).toHaveURL(new RegExp(`/o/${org}$`));
+  await settle(pagW);
+  await go(pagW, `/o/${org}/automacoes/${robo}`);
+  await pagW.getByRole('button', { name: 'Pedir compartilhamento' }).click();
+  const pedro = { name: `Pedro Arquivos ${TAG}`, email: syntheticEmail(`cmp-pedro-${TAG}`) };
+  await pagW.getByLabel(/^Nome da pessoa/).fill(pedro.name);
+  await pagW.getByLabel(/^E-mail da pessoa/).fill(pedro.email);
+  await pagW.getByRole('checkbox', { name: /^Dashboard de execução/ }).uncheck();
+  await pagW.getByRole('checkbox', { name: /^Arquivos de retorno/ }).check();
+  await shot(pagW, '4-membro-pede');
+  await pagW.getByRole('button', { name: 'Revisar pedido' }).click();
+  await pagW.getByRole('alertdialog').getByRole('button', { name: 'Enviar pedido' }).click();
+  await expect(pagW.getByText('Pedido enviado para aprovação. Nada foi enviado à pessoa ainda.')).toBeVisible();
+  await expect(pagW.getByRole('region', { name: 'Pedidos de compartilhamento de Robô de notas' })).toContainText('Aguardando aprovação');
+  expect(messages('ORG_INVITATION', pedro.email), 'nada enviado antes da aprovação').toBe(0);
+  const convidarDireto = await pagW.evaluate(async (o) => (await fetch(`/api/v1/o/${o}/client-invitations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, org);
   await go(page, `/o/${org}/administracao/pessoas/acessos`);
-  const linhaPedido = page.getByRole('region', { name: 'Lista de concessões de clientes' }).locator('tbody tr').filter({ hasText: 'Aguardando aprovação' }).filter({ hasText: 'Rotina local' });
-  await linhaPedido.getByRole('button', { name: /^Aprovar Rotina local/ }).click();
-  await confirmStepUp(page, ana, 'Aprovar');
-  await expect(page.getByRole('alertdialog').getByText(/Aprovar exige outra pessoa/)).toBeVisible();
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Cancelar' }).click();
-  // Dora aprova
-  await go(pagD, `/o/${org}/administracao/pessoas/acessos`);
-  await pagD.getByRole('region', { name: 'Lista de concessões de clientes' }).locator('tbody tr').filter({ hasText: 'Rotina local' }).getByRole('button', { name: /^Aprovar Rotina local/ }).click();
-  await confirmStepUp(pagD, dora, 'Aprovar');
-  await expect(pagD.getByText('Compartilhamento aprovado. A pessoa já vê a automação na próxima consulta.')).toBeVisible();
-  const rotinaApi = await apiGet(pagC, `/portal/api/v1/o/${org}/shared-automations/${rotina}/executions`);
-  expect(rotinaApi.status).toBe(200);
-  expect(rotinaApi.body.items.length).toBeGreaterThan(0);
-  const mesma = {
-    rotina_local: rotinaApi.body.items.length,
-    relatorio_csv_na_mesma_maquina: (await apiGet(pagC, `/portal/api/v1/o/${org}/shared-automations/${csv}/executions`)).status,
-    rotina_longa_na_mesma_maquina: (await apiGet(pagC, `/portal/api/v1/o/${org}/shared-automations/${autom('Rotina longa')}/executions`)).status,
+  const painel = page.getByRole('list', { name: 'Pedidos de compartilhamento aguardando decisão' });
+  await expect(painel).toContainText(pedro.name);
+  await shot(page, '4-pedido-para-aprovar');
+  await painel.getByRole('button', { name: `Aprovar o compartilhamento com ${pedro.name}` }).click();
+  await confirmStepUp(page, ana, 'Aprovar e enviar convite');
+  await expect(page.getByText('Pedido aprovado. O convite foi enviado; o acesso só começa quando a pessoa aceitar.')).toBeVisible();
+  const pagP = await (await browser.newContext()).newPage();
+  const pedroP = await signUpAndEnroll(pagP, `cmp-pedro-${TAG}`, pedro.email);
+  await go(pagP, `/o/${org}/convite#token=${await waitToken('ORG_INVITATION', pedro.email)}`);
+  await pagP.getByRole('button', { name: 'Aceitar convite' }).click();
+  await confirmStepUp(pagP, pedroP, 'Aceitar');
+  await pagP.getByRole('button', { name: 'Ver o que foi compartilhado' }).click();
+  log('4_pedido_de_membro', {
+    antes_da_aprovacao: 'nenhum e-mail para a pessoa',
+    convite_direto_pelo_membro: convidarDireto,
+    pedido: sql(`SELECT status || ':' || (decided_by_membership_id <> requested_by_membership_id) FROM client_share_requests WHERE organization_id = '${org}' AND email_normalized = '${pedro.email}'`),
+    excecao_no_convite: sql(`SELECT grant_exception FROM access_events e JOIN identity_invitations i ON i.invitation_id = e.invitation_id WHERE i.email_normalized = '${pedro.email}' AND e.event_type = 1`),
+  });
+
+  // ------------------------------------------------ 5. Pedro: só arquivos de retorno (ver e baixar); sem dashboard
+  await expect(pagP.getByRole('list', { name: 'Automações compartilhadas' })).toContainText('O dashboard desta automação não foi compartilhado com você.');
+  await pagP.getByRole('link', { name: 'Ver arquivos de retorno' }).click();
+  const lista = pagP.getByRole('list', { name: 'Arquivos de retorno' });
+  await expect(lista).toContainText(arquivo);
+  await expect(lista).toContainText('Robô de notas · execução de');
+  await pagP.getByRole('button', { name: `Visualizar ${arquivo}` }).first().click();
+  await expect(pagP.getByLabel(`Conteúdo de ${arquivo}`)).toBeVisible();
+  await shot(pagP, '5-arquivos-de-retorno');
+  const pedroApi = {
+    lista: (await apiGet(pagP, `/portal/api/v1/o/${org}/shared-files`)).body.items.length,
+    busca_inexistente: (await apiGet(pagP, `/portal/api/v1/o/${org}/shared-files?q=nao-existe-${TAG}`)).body.items.length,
+    download: (await apiGet(pagP, `/portal/api/v1/o/${org}/shared-files/${tentativa}/1/content`)).status,
+    dashboard: (await apiGet(pagP, `/portal/api/v1/o/${org}/shared-automations/${robo}/summary`)).status,
   };
-  expect(mesma.relatorio_csv_na_mesma_maquina).toBe(404);
-  expect(mesma.rotina_longa_na_mesma_maquina).toBe(404);
-  log('2_duas_automacoes_na_mesma_maquina', { ...mesma, pedido, aprovacao: 'quem pediu foi recusado; a segunda administradora aprovou com confirmacao' });
+  expect(pedroApi.lista).toBeGreaterThan(0);
+  expect(pedroApi.busca_inexistente).toBe(0);
+  expect(pedroApi.download).toBe(200);
+  expect(pedroApi.dashboard).toBe(403);
+  log('5_arquivos_de_retorno', pedroApi);
 
-  // ------------------------------------------------ 4b. ampliar resultados: pedido novo, aprovado por outra pessoa; download
-  await go(page, `${pessoas}?cliente=${cm}`);
-  modal = page.getByRole('alertdialog', { name: /^Gerenciar acessos de / });
-  await expect(modal.getByRole('list', { name: 'Automações compartilhadas' })).toBeVisible();
-  await modal.getByText('Compartilhar outra automação', { exact: true }).click();
-  await modal.getByRole('combobox', { name: /^Automação/ }).selectOption({ label: 'Robô de notas · Fiscal' });
-  await modal.getByRole('combobox', { name: /^Máquina/ }).selectOption({ label: 'Estação Client' });
-  await modal.getByRole('checkbox', { name: 'Consultar os registros' }).check();
-  await modal.getByRole('checkbox', { name: 'Baixar os arquivos de resultado' }).check();
-  await modal.getByRole('button', { name: 'Salvar acessos' }).click();
-  await expect(page.getByText(/aguarda a aprovação de outra pessoa/)).toBeVisible();
-  await go(pagD, `/o/${org}/administracao/pessoas/acessos`);
-  await pagD.getByRole('region', { name: 'Lista de concessões de clientes' }).locator('tbody tr').filter({ hasText: 'Aguardando aprovação' }).filter({ hasText: 'Robô de notas' }).getByRole('button', { name: /^Aprovar Robô de notas/ }).click();
-  await confirmStepUp(pagD, dora, 'Aprovar');
-  await expect(pagD.getByText(/Compartilhamento aprovado/)).toBeVisible();
-  await go(pagC, `/cliente/o/${org}/execucoes/remote/${remota}`);
-  const baixar = pagC.getByRole('link', { name: /^Baixar / });
-  await expect(baixar).toBeVisible();
-  const download = await apiGet(pagC, `/portal/api/v1/o/${org}/shared-executions/remote/${remota}/attempts/${tentativa}/results/1/content`);
-  expect(download.status).toBe(200);
-  await shot(pagC, '4-execucao-com-resultados');
-  // reduzir: registros desligados (uma pessoa, sem pedido); vale na próxima consulta
-  await go(page, `${pessoas}?cliente=${cm}`);
-  modal = page.getByRole('alertdialog', { name: /^Gerenciar acessos de / });
-  await expect(modal.getByRole('list', { name: 'Automações compartilhadas' })).toBeVisible();
-  await modal.getByRole('listitem').filter({ hasText: 'Robô de notas' }).getByRole('checkbox', { name: /^Registros/ }).uncheck();
-  await modal.getByRole('button', { name: 'Salvar acessos' }).click();
-  await expect(page.getByText(/Acessos de .* salvos\./)).toBeVisible();
-  const reduzido = (await apiGet(pagC, `/portal/api/v1/o/${org}/shared-executions/remote/${remota}/attempts/${tentativa}/logs`)).status;
-  expect(reduzido).toBe(403);
-  log('4_registros_e_resultados', { sem_resultados: 403, ampliado_por_pedido_aprovado_por_outra_pessoa: 'download 200', registros_reduzidos: reduzido });
-
-  // ------------------------------------------------ 7. revogar um acesso e suspender o vínculo com a sessão da cliente aberta
-  await go(page, `/o/${org}/administracao/pessoas/acessos`);
-  await page.getByRole('region', { name: 'Lista de concessões de clientes' }).locator('tbody tr').filter({ hasText: 'Rotina local' }).filter({ hasText: 'Ativa' }).getByRole('button', { name: /^Revogar Rotina local/ }).click();
+  // ------------------------------------------------ 6. revogar com a sessão aberta; histórico preservado
+  await go(page, `/o/${org}/administracao/pessoas/acessos?cliente=${evaClienteId}`);
+  await page.getByRole('region', { name: 'Lista de concessões de clientes' }).locator('tbody tr').filter({ hasText: 'Ativa' }).getByRole('button', { name: /^Revogar Robô de notas/ }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Revogar' }).click();
   await expect(page.getByText('Acesso revogado. Os demais acessos da pessoa continuam valendo.')).toBeVisible();
-  const aposRevogar = {
-    rotina_local: (await apiGet(pagC, `/portal/api/v1/o/${org}/shared-automations/${rotina}/executions`)).status,
-    robo_de_notas_continua: (await apiGet(pagC, `/portal/api/v1/o/${org}/shared-automations/${robo}/executions`)).status,
-  };
-  expect(aposRevogar).toEqual({ rotina_local: 404, robo_de_notas_continua: 200 });
-  await go(page, `${pessoas}?cliente=${cm}`);
-  modal = page.getByRole('alertdialog', { name: /^Gerenciar acessos de / });
-  await expect(modal.getByRole('list', { name: 'Automações compartilhadas' })).toBeVisible();
-  await modal.getByRole('combobox', { name: 'Vínculo com o cliente' }).selectOption('suspend');
-  await modal.getByRole('button', { name: 'Salvar acessos' }).click();
-  await expect(page.getByText(/Acessos de .* salvos\./)).toBeVisible();
-  const suspensa = (await apiGet(pagC, `/portal/api/v1/o/${org}/shared-automations`)).status;
-  expect(suspensa).toBe(403);
-  await go(pagC, `/cliente/o/${org}`);
-  await expect(pagC.getByText('Você não tem acesso de cliente nesta organização (ou ele foi suspenso).')).toBeVisible();
-  await go(page, `${pessoas}?cliente=${cm}`);
-  modal = page.getByRole('alertdialog', { name: /^Gerenciar acessos de / });
-  await expect(modal.getByRole('list', { name: 'Automações compartilhadas' })).toBeVisible();
-  await modal.getByRole('combobox', { name: 'Vínculo com o cliente' }).selectOption('reactivate');
-  await confirmStepUp(page, ana, 'Salvar acessos');
-  await expect(page.getByText(/Acessos de .* salvos\./)).toBeVisible();
-  const reativada = (await apiGet(pagC, `/portal/api/v1/o/${org}/shared-automations`)).body.items.map((a: { name: string }) => a.name);
-  expect(reativada).toEqual(['Robô de notas']);
-  log('7_revogar_e_suspender_com_sessao_aberta', { ...aposRevogar, suspensa, reativada });
+  const revogada = (await apiGet(pagE, `/portal/api/v1/o/${org}/shared-automations/${robo}/summary`)).status;
+  expect(revogada).toBe(404);
+  const hist = await apiGet(page, `/api/v1/o/${org}/access-history?limit=100`);
+  const atos = hist.body.items.map((e: any) => `${e.type}${e.grantException ? '*' : ''}`);
+  for (const t of ['COMPARTILHAMENTO_SOLICITADO', 'COMPARTILHAMENTO_APROVADO', 'CONVITE_EMITIDO*', 'CLIENTE_CONCESSAO_APLICADA_NO_ACEITE*', 'CLIENTE_CONCESSAO_REVOGADA'])
+    expect(atos, t).toContain(t);
+  await go(page, `/o/${org}/administracao/pessoas/acessos?aba=historico`);
+  await expect(page.getByRole('region', { name: 'Histórico de acessos' })).toContainText('Pedido de compartilhamento aprovado');
+  await shot(page, '6-historico');
+  log('6_revogacao_e_historico', { revogada_na_proxima_consulta: revogada, atos: atos.slice(0, 15) });
 
-  // ------------------------------------------------ 6. convites: reenviar (link anterior deixa de valer), revogar, vencer; sem duplicar
-  const x1 = syntheticEmail(`cli-x1-${TAG}`);
-  const x2 = syntheticEmail(`cli-x2-${TAG}`);
-  const x3 = syntheticEmail(`cli-x3-${TAG}`);
-  for (const e of [x1, x2, x3]) {
-    await go(page, pessoas);
-    await fillClientInvite(page, e, cliente, 'Fiscal', null, 'Relatório CSV', false, false);
-    await page.getByRole('button', { name: 'Convidar' }).click();
-    await confirmStepUp(page, ana, 'Enviar convite de cliente');
-    await expect(page.getByText('Convite de cliente enviado. O acesso só começa quando a pessoa aceitar.')).toBeVisible();
-  }
-  const antigo = id(`SELECT invitation_id FROM identity_invitations WHERE organization_id = '${org}' AND email_normalized = '${x1}' AND revoked_at IS NULL`);
-  await rowOf(page, x1).getByRole('button', { name: `Reenviar convite para ${x1}` }).click();
-  await expect(page.getByRole('alertdialog')).toContainText('O escopo confirmado não muda');
-  await confirmStepUp(page, ana, 'Reenviar');
-  await expect(page.getByText('Convite reenviado. O link anterior deixou de valer.')).toBeVisible();
-  await rowOf(page, x2).getByRole('button', { name: `Revogar convite para ${x2}` }).click();
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Revogar convite' }).click();
-  await expect(page.getByText('Convite revogado. O link deixou de valer.')).toBeVisible();
-  sql(`SET session_replication_role = replica; UPDATE identity_invitations SET created_at = now() - interval '8 days', expires_at = now() - interval '1 minute' WHERE organization_id = '${org}' AND email_normalized = '${x3}' AND revoked_at IS NULL AND accepted_at IS NULL`);
-  const convites = {
-    reenviado: sql(`SELECT revoke_reason || ':' || (SELECT automation_id = old.automation_id AND worker_id IS NOT DISTINCT FROM old.worker_id FROM identity_invitations n WHERE n.replaces_invitation_id = old.invitation_id) FROM identity_invitations old WHERE invitation_id = '${antigo}'`),
-    revogado: sql(`SELECT revoke_reason FROM identity_invitations WHERE organization_id = '${org}' AND email_normalized = '${x2}'`),
-    carla_uma_linha: sql(`SELECT count(*) FROM users WHERE organization_id = '${org}' AND email_normalized = '${carlaEmail}'`),
-  };
-  expect(convites.reenviado).toBe('2:true');
-  expect(convites.carla_uma_linha).toBe('1');
-  await go(page, `${pessoas}?estado=invitation_expired&estado=invitation_revoked&estado=invitation_accepted`);
-  await expect(rowOf(page, x3)).toContainText('Convite de cliente vencido');
-  await expect(rowOf(page, x2)).toContainText('Convite de cliente revogado');
-  await expect(rowOf(page, carlaEmail)).toContainText('Convite de cliente aceito');
-  await go(page, pessoas);
-  await expect(rowOf(page, carlaEmail)).toHaveCount(1);
-  await expect(rowOf(page, carlaEmail)).toContainText('Cliente ativo');
-  await shot(page, '6-pessoas-com-cliente');
-  log('6_convites', { ...convites, vencido_e_revogado_e_aceito: 'so pelo filtro', cliente_na_tabela: 'uma linha (Cliente ativo)' });
-
-  // ------------------------------------------------ 8. auditoria: responsável e escopo de cada ato; a exceção marcada
-  const hist = await apiGet(page, `/api/v1/o/${org}/access-history?clientId=${clienteId}&limit=100`);
-  const atos = hist.body.items.map((e: any) => `${e.type}${e.grantException ? '*' : ''}|${e.byInvitee ? 'convidada' : e.actor?.email}`);
-  for (const esperado of ['CLIENTE_CADASTRADO|', 'CONVITE_EMITIDO*|', 'CONVITE_ACEITO|convidada', 'CLIENTE_CONCESSAO_APLICADA_NO_ACEITE*|', 'CLIENTE_CONCESSAO_SOLICITADA|', 'CLIENTE_CONCESSAO_REDUZIDA|', 'CLIENTE_CONCESSAO_REVOGADA|', 'VINCULO_CLIENTE_SUSPENSO|', 'VINCULO_CLIENTE_REATIVADO|', 'CONVITE_REENVIADO*|', 'CONVITE_REVOGADO|'])
-    expect(atos.some((a: string) => a.startsWith(esperado.split('|')[0]) && (esperado.endsWith('|') || a.endsWith(esperado.split('|')[1]))), esperado).toBe(true);
-  expect(atos.filter((a: string) => a.startsWith('CLIENTE_CONCESSAO_APROVADA')).every((a: string) => a.endsWith(doraEmail))).toBe(true);
-  await go(page, `/o/${org}/administracao/pessoas/acessos?aba=historico&cliente=${clienteId}`);
-  await expect(page.getByRole('region', { name: 'Histórico de acessos' })).toContainText('Exceção do convite de cliente');
-  await shot(page, '8-historico');
-  log('8_auditoria', { atos: atos.length, aprovacoes_por: doraEmail, amostra: atos.slice(0, 12) });
-
-  // ------------------------------------------------ 9. perfis internos, modal de acessos e links antigos
-  await go(page, pessoas);
-  await rowOf(page, s.bruno.email).getByRole('button', { name: /^Gerenciar acessos de / }).click();
-  modal = page.getByRole('alertdialog', { name: /^Gerenciar acessos de / });
-  await expect(modal.getByRole('list', { name: 'Acessos atuais' })).toBeVisible();
-  await modal.getByText('Alcance efetivo desta pessoa').click();
-  await expect(modal.getByText(/Acesso de Cliente não se soma a um membro interno/)).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(page.getByRole('alertdialog')).toHaveCount(0);
-  await expect(rowOf(page, s.bruno.email).getByRole('button', { name: /^Gerenciar acessos de / })).toBeFocused();
-  const antigos: Record<string, string> = {};
-  for (const [de, para] of [
-    [`/o/${org}/administracao/clientes?estado=active`, `/o/${org}/administracao/pessoas/clientes?estado=active`],
-    [`/o/${org}/administracao/concessoes?cliente=${clienteId}`, `/o/${org}/administracao/pessoas/acessos?cliente=${clienteId}`],
-    [`/o/${org}/administracao/auditoria`, `/o/${org}/administracao/pessoas/acessos?aba=historico`],
-    [`/o/${org}/administracao/membros`, `/o/${org}/administracao/pessoas`],
-  ]) {
-    await go(page, de);
-    await expect(page).toHaveURL(para);
-    antigos[de.replace(`/o/${org}`, '')] = para.replace(`/o/${org}`, '');
-  }
-  await expect(page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Clientes' })).toHaveCount(0);
-  await expect(page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Concessões' })).toHaveCount(0);
-  await expect(page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Auditoria de acessos' })).toHaveCount(0);
-  // Gerenciar clientes: detalhes com a pessoa vinculada e a automação compartilhada
-  await go(page, `/o/${org}/administracao/pessoas/clientes?cliente=${clienteId}`);
-  await expect(page.getByRole('heading', { level: 2, name: cliente })).toBeVisible();
-  await expect(page.getByText(carlaEmail)).toBeVisible();
-  log('9_perfis_internos_modal_e_links_antigos', { modal_do_membro: 'alcance efetivo explicado; Esc fecha e o foco volta', links_antigos: antigos, menu: 'Clientes, Concessoes e Auditoria fora do menu' });
-
-  // ------------------------------------------------ 10. teclado (abas), temas (axe com contraste) e tela estreita
-  await go(page, `/o/${org}/administracao/pessoas/acessos`);
-  await page.getByRole('tab', { name: 'Concessões' }).focus();
-  await page.keyboard.press('ArrowRight');
-  await expect(page.getByRole('tab', { name: 'Histórico' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('tab', { name: 'Histórico' })).toBeFocused();
+  // ------------------------------------------------ 7. acessibilidade: axe com contraste nos três temas e em 375 px
   for (const [label, tema] of [
     ['Nekkora Dark', 'dark'],
     ['Nekkora Light', 'light'],
@@ -458,60 +373,39 @@ test('Clientes e acessos: convite de Cliente, aceite pela identidade, escopo por
     await page.getByRole('group', { name: 'Tema' }).getByRole('radio', { name: new RegExp(`^${label}`) }).check();
     await expect.poll(() => page.evaluate(() => document.documentElement.getAttribute('data-nk-theme'))).toBe(tema);
     await go(page, pessoas);
-    await page.getByRole('radio', { name: /^Cliente/ }).check();
+    await page.getByRole('radio', { name: /^Pessoa externa/ }).check();
     await page.getByRole('combobox', { name: /^Ambiente de trabalho/ }).selectOption({ label: 'Fiscal' });
-    await audit(page, `pessoas-cliente-${tema}`);
-    await shot(page, `10-pessoas-cliente-${tema}`);
-    await go(page, `${pessoas}?cliente=${cm}`);
-    await expect(page.getByRole('alertdialog', { name: /^Gerenciar acessos de / }).getByRole('list', { name: 'Automações compartilhadas' })).toBeVisible();
-    await audit(page, `modal-cliente-${tema}`);
-    await go(page, `/o/${org}/administracao/pessoas/acessos?cliente=${clienteId}`);
+    await page.getByText('Opções adicionais', { exact: true }).click();
+    await audit(page, `pessoas-compartilhar-${tema}`);
+    await shot(page, `7-pessoas-compartilhar-${tema}`);
+    await go(page, `/o/${org}/administracao/pessoas/acessos`);
     await audit(page, `acessos-${tema}`);
-    await go(page, `/o/${org}/administracao/pessoas/acessos?aba=historico&cliente=${clienteId}`);
+    await go(page, `/o/${org}/administracao/pessoas/acessos?aba=historico`);
     await audit(page, `historico-${tema}`);
-    await go(page, `/o/${org}/administracao/pessoas/clientes?cliente=${clienteId}`);
-    await audit(page, `clientes-${tema}`);
-    await shot(page, `10-clientes-${tema}`);
   }
   await go(page, `/o/${org}/conta`);
   await page.getByRole('group', { name: 'Tema' }).getByRole('radio', { name: /^Nekkora Light/ }).check();
-  for (const [tema, nome] of [
-    ['dark', 'Nekkora Dark'],
-    ['light', 'Nekkora Light'],
-    ['sakura-dark', 'Sakura Dark'],
-  ] as const) {
-    await pagC.evaluate((t) => localStorage.setItem('nekkora.tema', t), tema).catch(() => undefined);
-    await go(pagC, '/organizacoes');
-    const seletor = pagC.getByRole('button', { name: /Tema/ }).first();
-    if (await seletor.isVisible().catch(() => false)) {
-      await seletor.click();
-      await pagC.getByRole('menuitemradio', { name: new RegExp(`^${nome}`) }).or(pagC.getByRole('radio', { name: new RegExp(`^${nome}`) })).first().click().catch(() => undefined);
-    }
-    await go(pagC, `/cliente/o/${org}`);
-    await audit(pagC, `area-cliente-${tema}`);
-    await go(pagC, `/cliente/o/${org}/execucoes/remote/${remota}`);
-    await audit(pagC, `area-cliente-execucao-${tema}`);
-    await shot(pagC, `10-area-cliente-${tema}`);
-  }
-  const estreita = await signedIn(browser, ana, orgName, { width: 375, height: 800 });
-  await go(estreita, pessoas);
-  await estreita.getByRole('radio', { name: /^Cliente/ }).check();
-  await audit(estreita, 'pessoas-cliente-375');
-  await shot(estreita, '10-pessoas-cliente-375');
-  await go(estreita, `${pessoas}?cliente=${cm}`);
-  await expect(estreita.getByRole('alertdialog', { name: /^Gerenciar acessos de / }).getByRole('list', { name: 'Automações compartilhadas' })).toBeVisible();
-  await audit(estreita, 'modal-cliente-375');
-  await go(estreita, `/o/${org}/administracao/pessoas/acessos`);
-  await audit(estreita, 'acessos-375');
-  const cEstreita = await (await browser.newContext({ viewport: { width: 375, height: 800 } })).newPage();
-  await signInWithTotp(cEstreita, carla).catch(async () => {
-    await cEstreita.waitForTimeout(31_000);
-    await cEstreita.getByLabel('Código de autenticação').fill(await carla.auth.next());
+  await go(pagW, `/o/${org}/automacoes/${robo}`);
+  await audit(pagW, 'automacao-pedido-de-membro');
+  await go(pagP, `/cliente/o/${org}`);
+  await audit(pagP, 'area-cliente-cards');
+  await go(pagP, `/cliente/o/${org}/arquivos`);
+  await audit(pagP, 'area-cliente-arquivos');
+  // a cliente com dashboard (antes de revogar já foi conferido; aqui a área vazia de Eva, tema claro)
+  await go(pagE, `/cliente/o/${org}`);
+  await audit(pagE, 'area-cliente-sem-nada');
+  const estreita = await (await browser.newContext({ viewport: { width: 375, height: 800 } })).newPage();
+  await signInWithTotp(estreita, pedroP).catch(async () => {
+    await estreita.waitForTimeout(31_000);
+    await estreita.getByLabel('Código de autenticação').fill(await pedroP.auth.next());
   });
-  await expect(cEstreita.getByRole('heading', { name: 'Compartilhado com você' })).toBeVisible();
-  await go(cEstreita, `/cliente/o/${org}/execucoes/remote/${remota}`);
-  await audit(cEstreita, 'area-cliente-375');
-  await shot(cEstreita, '10-area-cliente-375');
-  log('10_teclado_temas_e_tela_estreita', { teclado: 'setas trocam as abas; Esc fecha o modal e devolve o foco', axe_com_contraste: 'pessoas (cliente), modal, acessos, historico, clientes e area do cliente nos tres temas e em 375 px, sem violacoes', rolagem_horizontal: 'nenhuma' });
-  log('fim', 'roteiro de Clientes e acessos concluido');
+  await go(estreita, `/cliente/o/${org}/arquivos`);
+  await audit(estreita, 'area-cliente-arquivos-375');
+  await shot(estreita, '7-arquivos-375');
+  const adminEstreita = await signedIn(browser, ana, orgName, { width: 375, height: 800 });
+  await go(adminEstreita, pessoas);
+  await adminEstreita.getByRole('radio', { name: /^Pessoa externa/ }).check();
+  await audit(adminEstreita, 'pessoas-compartilhar-375');
+  log('7_acessibilidade', { axe_com_contraste: 'formulario, acessos e historico nos tres temas; pedido do membro; area do cliente (cards, arquivos, vazia) no tema claro; 375 px', rolagem_horizontal: 'nenhuma' });
+  log('fim', 'roteiro de compartilhamento por pessoa concluido');
 });

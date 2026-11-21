@@ -76,7 +76,7 @@ export interface GrantRow {
 const ROUTES = [
   /^\/members$/, /^\/client-grants$/, /^\/clients$/, /^\/people$/,
   // PLATFORM-FLUXO-002 (070): leituras de "Clientes e acessos" (o simulador não tem concessões por automação nem convites de cliente)
-  /^\/access-grants$/, /^\/access-history$/, /^\/client-share-options$/, /^\/clients\/[^/]+$/,
+  /^\/access-grants$/, /^\/access-history$/, /^\/client-share-options$/, /^\/clients\/[^/]+$/, /^\/client-share-requests$/,
 ];
 /** PLATFORM-FLUXO-002: situações de "Pessoas e acessos". O simulador não tem convites (a funcionalidade fica desligada). */
 const PERSON_SITUATIONS = [
@@ -202,7 +202,12 @@ export class AdminData {
 
     if (req.route === '/client-share-options') {
       authorize('external_access.manage');
-      return { automations: [] };
+      return { automations: [], mode: 'invite' };
+    }
+
+    // 071: pedidos de compartilhamento de membros (o simulador não tem pedidos)
+    if (req.route === '/client-share-requests') {
+      return { items: [] };
     }
 
     if (req.route.startsWith('/clients/')) {
@@ -284,7 +289,7 @@ export class AdminData {
       person: { userId: g.externalAccount.userId, name: g.externalAccount.displayName, email: g.externalAccount.email },
       clientMembershipId: g.externalAccount.clientMembershipId, membershipStatus: g.externalAccount.membershipStatus,
       client: { clientId: c.clientId, name: c.name }, workspace: { workspaceId: w.workspaceId, name: w.name },
-      automation: null, machine: null, canReadLogs: false, canDownloadResults: false, basis: 'second_person', requestedBy: null, approvedBy: null,
+      automation: null, machine: null, canViewDashboard: true, canDownloadResults: false, basis: 'second_person', requestedBy: null, approvedBy: null,
       createdAt: iso(g.createdAt), approvedAt: iso(g.approvedAt), revokedAt: iso(g.revokedAt), revokeReason: null, replacesGrantId: null,
       expiresAt: iso(g.expiresAt), nextReviewAt: iso(g.nextReviewAt),
     };

@@ -101,8 +101,9 @@ export const clientPath = {
   home: () => '/cliente',
   organization: (org: string) => `/cliente/o/${encodeURIComponent(org)}`,
   automation: (org: string, automationId: string) => `/cliente/o/${encodeURIComponent(org)}/automacoes/${encodeURIComponent(automationId)}`,
-  execution: (org: string, kind: string, id: string) =>
-    `/cliente/o/${encodeURIComponent(org)}/execucoes/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`,
+  /** 071: arquivos de retorno autorizados (opcionalmente de uma automação). */
+  files: (org: string, automationId?: string) =>
+    `/cliente/o/${encodeURIComponent(org)}/arquivos${automationId ? `?automacao=${encodeURIComponent(automationId)}` : ''}`,
 };
 
 /**

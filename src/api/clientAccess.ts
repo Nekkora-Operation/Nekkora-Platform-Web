@@ -1,5 +1,7 @@
 /**
- * PLATFORM-FLUXO-002 (070): clientes e acessos de cliente, lado da administração. Convite de Cliente para UMA automação
+ * PLATFORM-FLUXO-002 (070/071): clientes e acessos de cliente, lado da administração. 071: o compartilhamento pede nome e e-mail
+ * da pessoa, a automação e os conteúdos (dashboard de execução e/ou arquivos de retorno; registros técnicos não se compartilham);
+ * membro com client_share.request faz um PEDIDO que outra pessoa aprova antes do convite. Convite de Cliente para UMA automação
  * (exceção à D-GRANT-1, só administradora, com step-up), cadastro de clientes, concessões por automação (pedido →
  * aprovação por OUTRA pessoa), vínculo de cliente e as leituras de "Acessos e histórico". O servidor confere tudo de novo:
  * a interface só apresenta e pede.
@@ -26,6 +28,10 @@ export type AccessHistoryPage = S['AccessHistoryPage'];
 export type AccessHistoryCategory = S['AccessHistoryCategory'];
 export type PersonClient = S['PersonClient'];
 export type PersonClientScope = S['PersonClientScope'];
+export type ClientShareOptions = S['ClientShareOptions'];
+export type ClientShareRequestBody = S['ClientShareRequestBody'];
+export type ClientShareRequestState = S['ClientShareRequestState'];
+export type ClientShareRequestItem = S['ClientShareRequestItem'];
 
 const base = (org: string) => `/api/v1/o/${encodeURIComponent(org)}`;
 const id = (v: string) => encodeURIComponent(v);
@@ -57,8 +63,35 @@ export function getClientDetail(org: string, clientId: string): Promise<ClientDe
   return send(org, 'getClientDetail', `/clients/${id(clientId)}`);
 }
 
-export function listClientShareOptions(org: string): Promise<S['ClientShareOptions']> {
+/** `mode`: invite (administradora, convite direto) ou request (membro com client_share.request: pedido aprovado por outra pessoa). */
+export function listClientShareOptions(org: string): Promise<ClientShareOptions> {
   return send(org, 'listClientShareOptions', '/client-share-options');
+}
+
+// ------------------------------------------------------------------ pedidos de compartilhamento (071)
+
+/** Pedido do membro: não concede nem envia nada; outra pessoa aprova antes do convite. */
+export function requestClientShare(org: string, body: ClientShareRequestBody): Promise<ClientShareRequestState> {
+  return send(org, 'requestClientShare', '/client-share-requests', { method: 'POST', body });
+}
+
+/** external_access.manage vê todos; os demais, só os próprios. */
+export async function listClientShareRequests(org: string, q: { automationId?: string; pendingOnly?: boolean } = {}): Promise<ClientShareRequestItem[]> {
+  return (await send<S['ClientShareRequestList']>(org, 'listClientShareRequests', `/client-share-requests${queryString(q)}`)).items;
+}
+
+/** Step-up; outra pessoa (quem pediu: 403). O convite sai neste ato. */
+export function approveClientShare(org: string, requestId: string): Promise<ClientShareRequestState> {
+  return send(org, 'approveClientShare', `/client-share-requests/${id(requestId)}/approve`, { method: 'POST' });
+}
+
+export function refuseClientShare(org: string, requestId: string): Promise<ClientShareRequestState> {
+  return send(org, 'refuseClientShare', `/client-share-requests/${id(requestId)}/refuse`, { method: 'POST' });
+}
+
+/** Só quem pediu. */
+export function cancelClientShare(org: string, requestId: string): Promise<ClientShareRequestState> {
+  return send(org, 'cancelClientShare', `/client-share-requests/${id(requestId)}/cancel`, { method: 'POST' });
 }
 
 // ------------------------------------------------------------------ concessões por automação (D-GRANT-1)
@@ -66,7 +99,7 @@ export function listClientShareOptions(org: string): Promise<S['ClientShareOptio
 /** Nasce PENDENTE; só vale com a aprovação de outra pessoa. */
 export function requestClientAutomationGrant(
   org: string,
-  body: { clientMembershipId: string; automationId: string; workerId: string | null; canReadLogs: boolean; canDownloadResults: boolean },
+  body: { clientMembershipId: string; automationId: string; workerId: string | null; canViewDashboard: boolean; canDownloadResults: boolean },
 ): Promise<ClientAutomationGrant> {
   return send(org, 'requestClientAutomationGrant', '/client-automation-grants', { method: 'POST', body });
 }
@@ -76,8 +109,8 @@ export function approveClientAutomationGrant(org: string, grantId: string): Prom
   return send(org, 'approveClientAutomationGrant', `/client-automation-grants/${id(grantId)}/approve`, { method: 'POST' });
 }
 
-/** Só desliga permissões; ligar exige outro pedido. */
-export function reduceClientAutomationGrant(org: string, grantId: string, body: { canReadLogs: boolean; canDownloadResults: boolean }): Promise<ClientAutomationGrant> {
+/** Só desliga conteúdos; ligar exige outro pedido; os dois desligados é revogar. */
+export function reduceClientAutomationGrant(org: string, grantId: string, body: { canViewDashboard: boolean; canDownloadResults: boolean }): Promise<ClientAutomationGrant> {
   return send(org, 'reduceClientAutomationGrant', `/client-automation-grants/${id(grantId)}/reduce`, { method: 'POST', body });
 }
 

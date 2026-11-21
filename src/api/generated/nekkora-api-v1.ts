@@ -297,6 +297,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/signup/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * O que a confirmacao ja sabe pelo token do link: o e-mail e o nome vindo do convite (nulo se nao houver)
+         * @description 071. Sem consumir o token. displayName so vem quando o pedido de cadastro foi feito a partir de um convite aberto para o mesmo e-mail (o nome informado por quem convidou); a pessoa confirma ou ajusta na confirmacao. Token malformado, desconhecido, vencido, consumido ou de identidade fora de PENDING: 400. Desligado: 404.
+         */
+        post: operations["signupPreview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/signup/confirmation/resend": {
         parameters: {
             query?: never;
@@ -1077,6 +1097,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/invitations/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Primeiro acesso pelo link do convite: organizacao, nome e e-mail do convite aberto (pre-autenticacao)
+         * @description 071. So com o token do link e a organizacao; convite aberto e no prazo, senao 404 unico. O cadastro usa o nome e o e-mail para nao pedi-los de novo; nao confirma identidade (o e-mail continua confirmado pelo codigo e o aceite exige a identidade com o mesmo e-mail verificado). Nada de conta, escopo ou quem convidou. Chaves nekkora.convites.enabled e nekkora.entrada-geral.enabled: desligada, 404.
+         */
+        post: operations["invitationPreview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/invitations/accept": {
         parameters: {
             query?: never;
@@ -1596,8 +1636,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Convite de Cliente para acompanhar UMA automacao (excecao a D-GRANT-1; so administradora, com step-up)
-         * @description Exige org.manage E external_access.manage e step-up. O envio nao concede nada: no aceite (pela identidade global) o servidor reconfere identidade, convite, autoridade de quem convidou e escopo, e so entao cria ou reutiliza a conta e o vinculo de cliente e a concessao (base CONVITE_DE_CLIENTE). Maquina nula = todas as maquinas desta automacao. Registros e resultados sao permissoes explicitas. Auditado com grant_exception. 409: client_invitation_internal_member, client_invitation_legacy_account, client_invitation_other_client, client_grant_exists, client_scope_unavailable; conflict sem motivo: convite pendente para o e-mail.
+         * Compartilha UMA automacao com uma pessoa (nome e e-mail): convite de Cliente (excecao a D-GRANT-1; so administradora, com step-up)
+         * @description Exige org.manage E external_access.manage e step-up. 071: pede nome e e-mail, a automacao, os conteudos (dashboard de execucao e/ou arquivos de retorno; registros tecnicos nao se compartilham: canReadLogs true e 400) e, opcional, a maquina e um cliente cadastrado; sem cliente, o cliente interno e criado ou reutilizado. O envio nao concede nada: no aceite (pela identidade global) o servidor reconfere identidade, convite, autoridade de quem convidou e escopo, e so entao cria ou reutiliza a conta e o vinculo de cliente e a concessao (base CONVITE_DE_CLIENTE). Maquina nula = todas as maquinas desta automacao. Auditado com grant_exception. 409: client_invitation_internal_member, client_invitation_legacy_account, client_invitation_other_client, client_grant_exists, client_scope_unavailable; conflict sem motivo: convite pendente para o e-mail.
          */
         post: operations["inviteClient"];
         delete?: never;
@@ -1631,10 +1671,82 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Automacoes compartilhaveis (ativas, em ambiente ativo) com as maquinas desta automacao (external_access.manage) */
+        /** Automacoes compartilhaveis com as maquinas desta automacao: administradora, todas (mode invite); membro com client_share.request, as dos ambientes dele e os conteudos que ele pode ver (mode request); sem nenhuma, 403 */
         get: operations["listClientShareOptions"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-share-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pedidos de compartilhamento: external_access.manage ve todos; os demais, so os proprios (ate 200, do mais recente) */
+        get: operations["listClientShareRequests"];
+        put?: never;
+        /**
+         * Pedido de compartilhamento de um membro (client_share.request no ambiente): nao concede nem envia nada ate outra pessoa aprovar
+         * @description 071. Quem tem client_share.request no ambiente da automacao (WORKSPACE_ADMIN) pede o compartilhamento com uma pessoa (nome e e-mail), so com os conteudos que ele mesmo pode ver (dashboard: automation.read; arquivos de retorno: logs.read). Sem step-up. Outra pessoa com org.manage e external_access.manage aprova (com step-up) e o convite sai na aprovacao; a excecao da administradora nao se estende ao pedido. 403 sem a permissao; 409 como no convite de Cliente e client_grant_exists (pedido igual pendente).
+         */
+        post: operations["requestClientShare"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-share-requests/{request}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Aprova o pedido (outra pessoa com org.manage e external_access.manage, step-up) e emite o convite no mesmo ato */
+        post: operations["approveClientShare"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-share-requests/{request}/refuse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Recusa o pedido (outra pessoa com org.manage e external_access.manage); nada e enviado */
+        post: operations["refuseClientShare"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-share-requests/{request}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancela o proprio pedido pendente (so quem pediu) */
+        post: operations["cancelClientShare"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1687,7 +1799,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Desliga registros e/ou resultados de uma concessao ativa (so reduz; ligar: 409 client_grant_widening_requires_request) */
+        /** Desliga o dashboard e/ou os arquivos de retorno de uma concessao ativa (so reduz; ligar: 409 client_grant_widening_requires_request; os dois desligados: 400, use revoke) */
         post: operations["reduceClientAutomationGrant"];
         delete?: never;
         options?: never;
@@ -2556,6 +2668,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/portal/api/v1/o/{org}/shared-automations/{automation}/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dashboard: contagem por estado no periodo (padrao: 30 dias; maximo 400) de uma automacao compartilhada com dashboard
+         * @description Area do cliente (070/071): somente GET; sessao de IDENTIDADE (__Host-nekkora_id), conferida a cada chamada junto com a conta e o vinculo de cliente e as concessoes vigentes e o conteudo pedido (dashboard ou arquivos de retorno; registros tecnicos nao existem aqui). 401: sessao invalida; 403: sem vinculo de cliente vigente ou sem aquele conteudo; 404: fora do escopo (igual a inexistente).
+         */
+        get: operations["portalSharedSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/portal/api/v1/o/{org}/shared-automations/{automation}/executions": {
         parameters: {
             query?: never;
@@ -2564,8 +2696,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Execucoes de uma automacao compartilhada (so as maquinas concedidas), da mais recente; cursor opaco
-         * @description Area do cliente (070): somente GET; sessao de IDENTIDADE (__Host-nekkora_id), conferida a cada chamada junto com a conta e o vinculo de cliente e as concessoes vigentes. 401: sessao invalida; 403: sem vinculo de cliente vigente (ou sem a permissao pedida); 404: fora do escopo (igual a inexistente).
+         * Dashboard: execucoes de uma automacao compartilhada com dashboard (so as maquinas concedidas), no periodo, da mais recente; estado em linguagem simples, sem maquina nem detalhe tecnico
+         * @description Area do cliente (070/071): somente GET; sessao de IDENTIDADE (__Host-nekkora_id), conferida a cada chamada junto com a conta e o vinculo de cliente e as concessoes vigentes e o conteudo pedido (dashboard ou arquivos de retorno; registros tecnicos nao existem aqui). 401: sessao invalida; 403: sem vinculo de cliente vigente ou sem aquele conteudo; 404: fora do escopo (igual a inexistente).
          */
         get: operations["portalSharedExecutions"];
         put?: never;
@@ -2576,7 +2708,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/portal/api/v1/o/{org}/shared-executions/{kind}/{id}": {
+    "/portal/api/v1/o/{org}/shared-files": {
         parameters: {
             query?: never;
             header?: never;
@@ -2584,10 +2716,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Detalhe de uma execucao no escopo; tentativas remotas so nas maquinas concedidas, com as permissoes de cada uma
-         * @description Area do cliente (070): somente GET; sessao de IDENTIDADE (__Host-nekkora_id), conferida a cada chamada junto com a conta e o vinculo de cliente e as concessoes vigentes. 401: sessao invalida; 403: sem vinculo de cliente vigente (ou sem a permissao pedida); 404: fora do escopo (igual a inexistente).
+         * Arquivos de retorno autorizados (todas as automacoes com arquivos, ou uma), pelo periodo da execucao e busca no nome; da execucao mais recente
+         * @description Area do cliente (070/071): somente GET; sessao de IDENTIDADE (__Host-nekkora_id), conferida a cada chamada junto com a conta e o vinculo de cliente e as concessoes vigentes e o conteudo pedido (dashboard ou arquivos de retorno; registros tecnicos nao existem aqui). 401: sessao invalida; 403: sem vinculo de cliente vigente ou sem aquele conteudo; 404: fora do escopo (igual a inexistente).
          */
-        get: operations["portalSharedExecution"];
+        get: operations["portalSharedFiles"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2596,7 +2728,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/portal/api/v1/o/{org}/shared-executions/remote/{id}/attempts/{attempt}/logs": {
+    "/portal/api/v1/o/{org}/shared-files/{attempt}/{number}/content": {
         parameters: {
             query?: never;
             header?: never;
@@ -2604,50 +2736,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Registros de uma tentativa (so com a permissao de registros)
-         * @description Area do cliente (070): somente GET; sessao de IDENTIDADE (__Host-nekkora_id), conferida a cada chamada junto com a conta e o vinculo de cliente e as concessoes vigentes. 401: sessao invalida; 403: sem vinculo de cliente vigente (ou sem a permissao pedida); 404: fora do escopo (igual a inexistente).
+         * Bytes de um arquivo de retorno, sempre como anexo (application/octet-stream, nosniff); a tela "Visualizar" mostra o conteudo na propria pagina
+         * @description Area do cliente (070/071): somente GET; sessao de IDENTIDADE (__Host-nekkora_id), conferida a cada chamada junto com a conta e o vinculo de cliente e as concessoes vigentes e o conteudo pedido (dashboard ou arquivos de retorno; registros tecnicos nao existem aqui). 401: sessao invalida; 403: sem vinculo de cliente vigente ou sem aquele conteudo; 404: fora do escopo (igual a inexistente).
          */
-        get: operations["portalSharedLogs"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/portal/api/v1/o/{org}/shared-executions/remote/{id}/attempts/{attempt}/results": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Arquivos de resultado de uma tentativa (so com a permissao de resultados)
-         * @description Area do cliente (070): somente GET; sessao de IDENTIDADE (__Host-nekkora_id), conferida a cada chamada junto com a conta e o vinculo de cliente e as concessoes vigentes. 401: sessao invalida; 403: sem vinculo de cliente vigente (ou sem a permissao pedida); 404: fora do escopo (igual a inexistente).
-         */
-        get: operations["portalSharedResults"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/portal/api/v1/o/{org}/shared-executions/remote/{id}/attempts/{attempt}/results/{number}/content": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Bytes de um arquivo de resultado, como anexo (so com a permissao de resultados)
-         * @description Area do cliente (070): somente GET; sessao de IDENTIDADE (__Host-nekkora_id), conferida a cada chamada junto com a conta e o vinculo de cliente e as concessoes vigentes. 401: sessao invalida; 403: sem vinculo de cliente vigente (ou sem a permissao pedida); 404: fora do escopo (igual a inexistente).
-         */
-        get: operations["portalSharedResultContent"];
+        get: operations["portalSharedFileContent"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3498,10 +3590,10 @@ export interface components {
             reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "license_already_assigned" | "automation_already_licensed" | "license_not_valid" | "license_automation_archived" | "license_ended" | "license_period_overlaps" | "license_period_already_ended" | "license_model_unchanged" | "license_preview_changed" | "license_required" | "license_expired" | "run_not_covered" | "capacity_pending_limit_reached" | "license_not_assigned" | "license_transfer_same_automation" | "license_transfer_work_in_progress" | "organization_responsible_not_found" | "organization_responsible_is_client" | "previous_agent_session_has_outcome" | "previous_agent_session_already_reconciled" | "license_transfer_requester_not_admin" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_machine_unconfirmed" | "remote_machine_finishing" | "remote_previous_processes_pending" | "remote_previous_result_unconfirmed" | "remote_attempt_not_unconfirmed" | "remote_attempt_already_reconciled" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_package_not_supported" | "remote_package_not_registered" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_dependency_check_too_soon" | "remote_dependency_check_closed" | "remote_result_unavailable" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken" | "organization_creation_client_profile" | "organization_creation_requires_request" | "empty_organization_limit_reached" | "organization_request_not_available" | "organization_request_not_pending" | "organization_request_own" | "organization_request_approver_without_identity" | "organization_request_responsible_not_eligible" | "organization_not_responsible" | "organization_work_in_progress" | "organization_blocked_by_nekkora" | "organization_state_conflict" | "license_unavailable" | "activation_worker_not_in_workspace" | "activation_automation_inactive" | "activation_without_workers" | "activation_renewal_not_applicable" | "client_invitation_internal_member" | "client_invitation_legacy_account" | "client_invitation_other_client" | "client_grant_exists" | "client_scope_unavailable" | "client_grant_widening_requires_request";
         };
         /**
-         * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
+         * @description Permissoes de workspace (14): podem aparecer em allWorkspaces e em atribuicoes de workspace. client_share.request (071): pedir compartilhamento com pessoa externa (WORKSPACE_ADMIN).
          * @enum {string}
          */
-        WorkspacePermissionCode: "workspace.configure" | "role.assign_operator_viewer" | "automation.read" | "automation.execute" | "logs.read" | "automation.manage" | "automation.publish" | "workspace_parameter.read" | "workspace_parameter.manage" | "workspace_secret.read" | "workspace_secret.manage" | "automation_schedule.read" | "automation_schedule.manage";
+        WorkspacePermissionCode: "workspace.configure" | "role.assign_operator_viewer" | "automation.read" | "automation.execute" | "logs.read" | "automation.manage" | "automation.publish" | "client_share.request" | "workspace_parameter.read" | "workspace_parameter.manage" | "workspace_secret.read" | "workspace_secret.manage" | "automation_schedule.read" | "automation_schedule.manage";
         /**
          * @description Permissoes organizacionais (10): so aparecem em organization.permissions.
          * @enum {string}
@@ -3570,8 +3662,13 @@ export interface components {
         };
         ClientInvitationRequest: {
             email: string;
-            /** Format: uuid */
-            clientId: string;
+            /** @description 071: nome da pessoa (preenche o primeiro acesso) */
+            name: string;
+            /**
+             * Format: uuid
+             * @description 071: opcional; sem ele, o cliente interno e criado ou reutilizado
+             */
+            clientId?: string | null;
             /** Format: uuid */
             automationId: string;
             /**
@@ -3579,13 +3676,16 @@ export interface components {
              * @description nulo = todas as maquinas desta automacao
              */
             workerId?: string | null;
-            canReadLogs: boolean;
+            /** @description dashboard de execucao (indicadores e estado em linguagem simples) */
+            canViewDashboard: boolean;
+            /** @description arquivos de retorno (ver e baixar) */
             canDownloadResults: boolean;
         };
         ClientInvitationCreated: {
             /** Format: uuid */
             invitationId: string;
             email: string;
+            recipientName: string;
             /** Format: uuid */
             clientId: string;
             /** Format: uuid */
@@ -3594,10 +3694,76 @@ export interface components {
             automationId: string;
             /** Format: uuid */
             workerId: string | null;
-            canReadLogs: boolean;
+            canViewDashboard: boolean;
             canDownloadResults: boolean;
+            /** Format: uuid */
+            shareRequestId: string | null;
             /** Format: date-time */
             expiresAt: string;
+        };
+        ClientShareRequestBody: {
+            email: string;
+            name: string;
+            /** Format: uuid */
+            automationId: string;
+            /** Format: uuid */
+            workerId?: string | null;
+            canViewDashboard: boolean;
+            canDownloadResults: boolean;
+        };
+        /** @enum {string} */
+        ClientShareRequestStatus: "PENDENTE" | "APROVADO" | "RECUSADO" | "CANCELADO";
+        ClientShareRequestState: {
+            /** Format: uuid */
+            shareRequestId: string;
+            status: components["schemas"]["ClientShareRequestStatus"];
+            recipientName: string;
+            email: string;
+            /** Format: uuid */
+            workspaceId: string;
+            /** Format: uuid */
+            automationId: string;
+            /** Format: uuid */
+            workerId: string | null;
+            canViewDashboard: boolean;
+            canDownloadResults: boolean;
+            /** Format: uuid */
+            requestedByMembershipId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            decidedAt: string | null;
+            /**
+             * Format: uuid
+             * @description convite emitido na aprovacao
+             */
+            invitationId: string | null;
+        };
+        ClientShareRequest: components["schemas"]["ClientShareRequestState"];
+        ClientShareRequestItem: {
+            /** Format: uuid */
+            shareRequestId: string;
+            status: components["schemas"]["ClientShareRequestStatus"];
+            recipientName: string;
+            email: string;
+            automation: components["schemas"]["AutomationRef"];
+            workspace: components["schemas"]["WorkspaceRef"];
+            machine: components["schemas"]["MachineRef"] | null;
+            requestedBy: string;
+            decidedBy: string | null;
+            canViewDashboard: boolean;
+            canDownloadResults: boolean;
+            /** Format: uuid */
+            requestedByMembershipId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            decidedAt: string | null;
+            /** Format: uuid */
+            invitationId: string | null;
+        };
+        ClientShareRequestList: {
+            items: components["schemas"]["ClientShareRequestItem"][];
         };
         ClientCreateRequest: {
             name: string;
@@ -3613,11 +3779,11 @@ export interface components {
             automationId: string;
             /** Format: uuid */
             workerId?: string | null;
-            canReadLogs: boolean;
+            canViewDashboard: boolean;
             canDownloadResults: boolean;
         };
         ClientAutomationGrantReduceRequest: {
-            canReadLogs: boolean;
+            canViewDashboard: boolean;
             canDownloadResults: boolean;
         };
         ClientAutomationGrant: {
@@ -3637,7 +3803,7 @@ export interface components {
             automationId: string;
             /** Format: uuid */
             workerId: string | null;
-            canReadLogs: boolean;
+            canViewDashboard: boolean;
             canDownloadResults: boolean;
             /** Format: uuid */
             replacesGrantId: string | null;
@@ -3667,9 +3833,18 @@ export interface components {
             workspaceName: string;
             /** @description maquinas desta automacao (ativacao), ativas e autorizadas no ambiente */
             machines: components["schemas"]["ShareMachine"][];
+            /** @description 071: quem consulta pode compartilhar o dashboard desta automacao */
+            canShareDashboard: boolean;
+            /** @description 071: quem consulta pode compartilhar os arquivos de retorno desta automacao */
+            canShareFiles: boolean;
         };
         ClientShareOptions: {
             automations: components["schemas"]["ClientShareOption"][];
+            /**
+             * @description 071: invite = convite direto (administradora); request = pedido que outra pessoa aprova
+             * @enum {string}
+             */
+            mode: "invite" | "request";
         };
         AccessPerson: {
             /** Format: uuid */
@@ -3706,7 +3881,8 @@ export interface components {
             workspace: components["schemas"]["WorkspaceRef"];
             automation: components["schemas"]["AutomationRef"] | null;
             machine: components["schemas"]["MachineRef"] | null;
-            canReadLogs: boolean;
+            /** @description por ambiente inteiro (modelo anterior): sempre true */
+            canViewDashboard: boolean;
             canDownloadResults: boolean;
             /** @enum {string} */
             basis: "second_person" | "client_invitation";
@@ -3732,16 +3908,16 @@ export interface components {
             nextCursor: string | null;
         };
         /** @enum {string} */
-        AccessHistoryCategory: "invitations" | "roles" | "grants" | "client_links" | "clients";
+        AccessHistoryCategory: "invitations" | "roles" | "grants" | "client_links" | "clients" | "share_requests";
         AccessHistoryEvent: {
             /** Format: uuid */
             eventId: string;
             /** @enum {string} */
-            type: "CONVITE_EMITIDO" | "CONVITE_REVOGADO" | "CONVITE_REENVIADO" | "CONVITE_ACEITO" | "PAPEL_ATRIBUIDO" | "PAPEL_REVOGADO" | "PAPEL_ALTERADO" | "VINCULO_RETIRADO" | "CONCESSAO_CRIADA" | "CONCESSAO_APROVADA" | "CONCESSAO_RENOVADA" | "CONCESSAO_REVISADA" | "CONCESSAO_REVOGADA" | "CONCESSAO_RENOVACAO_SOLICITADA" | "CLIENTE_CONCESSAO_SOLICITADA" | "CLIENTE_CONCESSAO_APROVADA" | "CLIENTE_CONCESSAO_APLICADA_NO_ACEITE" | "CLIENTE_CONCESSAO_REDUZIDA" | "CLIENTE_CONCESSAO_REVOGADA" | "VINCULO_CLIENTE_SUSPENSO" | "VINCULO_CLIENTE_REATIVADO" | "VINCULO_CLIENTE_RETIRADO" | "CLIENTE_CADASTRADO" | "CLIENTE_ALTERADO";
+            type: "CONVITE_EMITIDO" | "CONVITE_REVOGADO" | "CONVITE_REENVIADO" | "CONVITE_ACEITO" | "PAPEL_ATRIBUIDO" | "PAPEL_REVOGADO" | "PAPEL_ALTERADO" | "VINCULO_RETIRADO" | "CONCESSAO_CRIADA" | "CONCESSAO_APROVADA" | "CONCESSAO_RENOVADA" | "CONCESSAO_REVISADA" | "CONCESSAO_REVOGADA" | "CONCESSAO_RENOVACAO_SOLICITADA" | "CLIENTE_CONCESSAO_SOLICITADA" | "CLIENTE_CONCESSAO_APROVADA" | "CLIENTE_CONCESSAO_APLICADA_NO_ACEITE" | "CLIENTE_CONCESSAO_REDUZIDA" | "CLIENTE_CONCESSAO_REVOGADA" | "VINCULO_CLIENTE_SUSPENSO" | "VINCULO_CLIENTE_REATIVADO" | "VINCULO_CLIENTE_RETIRADO" | "CLIENTE_CADASTRADO" | "CLIENTE_ALTERADO" | "CLIENTE_REGISTROS_TECNICOS_RETIRADOS" | "COMPARTILHAMENTO_SOLICITADO" | "COMPARTILHAMENTO_APROVADO" | "COMPARTILHAMENTO_RECUSADO" | "COMPARTILHAMENTO_CANCELADO";
             category: components["schemas"]["AccessHistoryCategory"];
             /** Format: date-time */
             createdAt: string;
-            /** @description responsavel (nulo quando foi a propria pessoa convidada: byInvitee) */
+            /** @description responsavel (nulo quando foi a propria pessoa convidada: byInvitee; ou ato do sistema: CLIENTE_REGISTROS_TECNICOS_RETIRADOS, 071) */
             actor: components["schemas"]["AccessPerson"] | null;
             byInvitee: boolean;
             target: components["schemas"]["AccessPerson"] | null;
@@ -3761,8 +3937,12 @@ export interface components {
             invitationId: string | null;
             /** @enum {string|null} */
             decision: "KEEP" | "SUSPEND" | "REVOKE" | null;
-            canReadLogs: boolean | null;
+            /** @description 071: o ato (anterior a 071) envolvia registros tecnicos; o historico continua mostrando */
+            technicalLogs: boolean;
+            canViewDashboard: boolean | null;
             canDownloadResults: boolean | null;
+            /** Format: uuid */
+            shareRequestId: string | null;
             /** @description o ato usou a excecao a D-GRANT-1 do convite de Cliente */
             grantException: boolean;
             /** Format: uuid */
@@ -3783,7 +3963,7 @@ export interface components {
             automation: components["schemas"]["AutomationRef"] | null;
             workspace: components["schemas"]["WorkspaceRef"];
             machine: components["schemas"]["MachineRef"] | null;
-            canReadLogs: boolean;
+            canViewDashboard: boolean;
             canDownloadResults: boolean;
             /** @enum {string} */
             basis: "second_person" | "client_invitation";
@@ -3857,11 +4037,16 @@ export interface components {
             /** Format: uuid */
             workerId: string | null;
             workerName: string | null;
-            canReadLogs: boolean;
+            canViewDashboard: boolean;
             canDownloadResults: boolean;
+            /** @description 071: nome informado no convite (nulo nos convites anteriores) */
+            recipientName: string | null;
+            /**
+             * Format: uuid
+             * @description 071: pedido de membro aprovado que originou o convite
+             */
+            shareRequestId: string | null;
         };
-        /** @enum {string} */
-        PortalExecutionKind: "platform" | "local_agent" | "local_request" | "remote";
         PortalClientOrganization: {
             /** Format: uuid */
             organizationId: string;
@@ -3872,92 +4057,85 @@ export interface components {
         PortalClientOrganizationList: {
             items: components["schemas"]["PortalClientOrganization"][];
         };
+        PortalSharedDashboard: {
+            executionsLast30Days: number;
+            succeededLast30Days: number;
+            failedLast30Days: number;
+            inProgress: number;
+            /** Format: date-time */
+            lastRequestedAt: string | null;
+            lastOutcome: components["schemas"]["PortalOutcome"] | null;
+        };
+        /** @enum {string} */
+        PortalOutcome: "succeeded" | "failed" | "in_progress" | "cancelled" | "not_started" | "unconfirmed" | "no_error_signaled";
         PortalSharedAutomation: {
             /** Format: uuid */
             automationId: string;
             name: string;
-            workspaceName: string;
-            allMachines: boolean;
-            machines: components["schemas"]["ShareMachine"][];
-            canReadLogs: boolean;
+            canViewDashboard: boolean;
             canDownloadResults: boolean;
-            executionsLast30Days: number;
-            /** Format: date-time */
-            lastRequestedAt: string | null;
-            lastOutcome: string | null;
+            /** @description so com o dashboard compartilhado */
+            dashboard: components["schemas"]["PortalSharedDashboard"] | null;
+            /** @description so com os arquivos de retorno compartilhados */
+            filesAvailable: number | null;
             clientName: string;
         };
         PortalSharedAutomationList: {
             items: components["schemas"]["PortalSharedAutomation"][];
         };
+        PortalSharedSummary: {
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+            total: number;
+            succeeded: number;
+            failed: number;
+            inProgress: number;
+            notStarted: number;
+            cancelled: number;
+            /** @description sem confirmacao ou concluida sem sinal de erro */
+            other: number;
+            /** Format: date-time */
+            lastRequestedAt: string | null;
+            lastOutcome: components["schemas"]["PortalOutcome"] | null;
+        };
         PortalSharedExecution: {
-            kind: components["schemas"]["PortalExecutionKind"];
             /** Format: uuid */
             id: string;
-            machine: components["schemas"]["MachineRef"] | null;
             /** Format: date-time */
             requestedAt: string;
             /** Format: date-time */
             startedAt: string | null;
             /** Format: date-time */
             endedAt: string | null;
-            /** @enum {string} */
-            outcome: "succeeded" | "failed" | "in_progress" | "cancelled" | "not_started" | "unconfirmed" | "no_error_signaled";
+            outcome: components["schemas"]["PortalOutcome"];
+            /** @description arquivos de retorno disponiveis desta execucao (nulo sem os arquivos compartilhados) */
+            files: number | null;
         };
         PortalSharedExecutionPage: {
             items: components["schemas"]["PortalSharedExecution"][];
             nextCursor: string | null;
         };
-        PortalSharedAttempt: {
-            /** Format: uuid */
+        PortalSharedFile: {
+            /**
+             * Format: uuid
+             * @description identificador opaco do arquivo, com number
+             */
             attemptId: string;
             number: number;
-            /** Format: uuid */
-            workerId: string;
-            workerName: string | null;
-            /** Format: date-time */
-            startedAt: string | null;
-            /** Format: date-time */
-            endedAt: string | null;
-            canReadLogs: boolean;
-            canDownloadResults: boolean;
-        };
-        PortalSharedExecutionDetail: components["schemas"]["PortalSharedExecution"] & {
             automation: components["schemas"]["AutomationRef"];
-            attempts: components["schemas"]["PortalSharedAttempt"][];
-        };
-        PortalSharedLogLine: {
-            sequence: number;
             /** Format: date-time */
-            capturedAt: string;
-            /** @enum {string} */
-            channel: "STDOUT" | "STDERR" | "EXECUTOR";
-            truncated: boolean;
-            message: string;
-            textRemoved: boolean;
-        };
-        PortalSharedLogs: {
-            items: components["schemas"]["PortalSharedLogLine"][];
-            total: number;
-            /** Format: date-time */
-            closedAt: string | null;
-            droppedLines: number | null;
-            nextAfter: number | null;
-        };
-        PortalSharedResultFile: {
-            number: number;
+            executionRequestedAt: string;
             fileName: string;
             sizeBytes: number;
-            sha256: string;
             /** Format: date-time */
             receivedAt: string;
             available: boolean;
         };
-        PortalSharedResults: {
-            items: components["schemas"]["PortalSharedResultFile"][];
-            /** Format: date-time */
-            closedAt: string | null;
-            skippedByLimit: number | null;
+        PortalSharedFilePage: {
+            items: components["schemas"]["PortalSharedFile"][];
+            nextCursor: string | null;
         };
         /** @enum {string} */
         PersonSituation: "invitation_pending" | "invitation_expired" | "invitation_revoked" | "invitation_accepted" | "member_pending" | "member_active" | "member_suspended" | "member_revoked" | "client_active" | "client_suspended" | "client_revoked";
@@ -4888,6 +5066,17 @@ export interface components {
         /** @description Pedido de cadastro: SO o e-mail, sem espacos nas pontas nem internos, com um @, ate 254 caracteres (comparado em minusculas). password ou displayName presentes: 400 (pertencem a confirmacao). */
         SignupRequest: {
             email: string;
+            /** @description 071 (opcional): o convite aberto de onde a pessoa veio. Para o mesmo e-mail, o nome do convite vira o nome provisorio (a resposta nao muda; convite invalido e ignorado). */
+            invitation?: {
+                /** Format: uuid */
+                organizationId: string;
+                token: string;
+            };
+        };
+        SignupPreview: {
+            email: string;
+            /** @description nome vindo do convite; nulo = a pessoa escolhe */
+            displayName: string | null;
         };
         /** @description Conclusao do cadastro pela titular do e-mail: token recebido, senha pela politica atual (12-128 pontos de codigo, sem regras de composicao) e nome (ate 120 pontos de codigo, nao em branco, sem caracteres de controle). */
         SignupConfirmation: {
@@ -5114,6 +5303,15 @@ export interface components {
             organizationId: string;
             /** @description token do link do convite (fragmento #token=); nunca vai a log */
             token: string;
+        };
+        InvitationPreview: {
+            /** Format: uuid */
+            organizationId: string;
+            organizationName: string;
+            email: string;
+            recipientName: string | null;
+            /** @enum {string} */
+            audience: "internal" | "client";
         };
         InvitationAccepted: {
             /** Format: uuid */
@@ -6939,6 +7137,36 @@ export interface operations {
             503: components["responses"]["ServiceUnavailable"];
         };
     };
+    signupPreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Cadastro pendente */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignupPreview"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["CsrfForbidden"];
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
     resendSignupConfirmation: {
         parameters: {
             query?: never;
@@ -8263,6 +8491,47 @@ export interface operations {
             503: components["responses"]["ServiceUnavailable"];
         };
     };
+    invitationPreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvitationAcceptRequest"];
+            };
+        };
+        responses: {
+            /** @description Convite aberto */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationPreview"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            /** @description Origin/CSRF de pre-autenticacao invalido */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "forbidden"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
     acceptInvitation: {
         parameters: {
             query?: never;
@@ -9396,6 +9665,155 @@ export interface operations {
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listClientShareRequests: {
+        parameters: {
+            query?: {
+                automationId?: string;
+                pendingOnly?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pedidos */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientShareRequestList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    requestClientShare: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientShareRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Pedido */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientShareRequest"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    approveClientShare: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                request: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Aprovado; convite emitido */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientShareRequestState"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    refuseClientShare: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                request: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recusado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientShareRequestState"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    cancelClientShare: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                request: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cancelado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientShareRequestState"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             429: components["responses"]["RateLimited"];
         };
     };
@@ -11252,9 +11670,43 @@ export interface operations {
             429: components["responses"]["RateLimited"];
         };
     };
+    portalSharedSummary: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                automation: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resumo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalSharedSummary"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
     portalSharedExecutions: {
         parameters: {
             query?: {
+                from?: string;
+                to?: string;
                 cursor?: string;
                 /** @description fora de 1-100 ou nao inteiro -> 400; pode mudar entre paginas */
                 limit?: components["parameters"]["Limit"];
@@ -11285,59 +11737,33 @@ export interface operations {
             429: components["responses"]["RateLimited"];
         };
     };
-    portalSharedExecution: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
-                org: components["parameters"]["Org"];
-                kind: components["schemas"]["PortalExecutionKind"];
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Execucao */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PortalSharedExecutionDetail"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["RateLimited"];
-        };
-    };
-    portalSharedLogs: {
+    portalSharedFiles: {
         parameters: {
             query?: {
-                after?: number;
-                limit?: number;
+                automationId?: string;
+                from?: string;
+                to?: string;
+                q?: string;
+                cursor?: string;
+                /** @description fora de 1-100 ou nao inteiro -> 400; pode mudar entre paginas */
+                limit?: components["parameters"]["Limit"];
             };
             header?: never;
             path: {
                 /** @description malformado -> 401 (nenhuma sessao e resolvida) */
                 org: components["parameters"]["Org"];
-                id: string;
-                attempt: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Registros */
+            /** @description Pagina */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PortalSharedLogs"];
+                    "application/json": components["schemas"]["PortalSharedFilePage"];
                 };
             };
             400: components["responses"]["InvalidRequest"];
@@ -11347,43 +11773,13 @@ export interface operations {
             429: components["responses"]["RateLimited"];
         };
     };
-    portalSharedResults: {
+    portalSharedFileContent: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 /** @description malformado -> 401 (nenhuma sessao e resolvida) */
                 org: components["parameters"]["Org"];
-                id: string;
-                attempt: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Resultados */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PortalSharedResults"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            429: components["responses"]["RateLimited"];
-        };
-    };
-    portalSharedResultContent: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
-                org: components["parameters"]["Org"];
-                id: string;
                 attempt: string;
                 number: number;
             };

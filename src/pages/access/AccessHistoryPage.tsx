@@ -22,15 +22,17 @@ import { useCursorList } from '../../hooks/useCursorList';
 import { DateTimeText, LoadErrorState, PageHeader, useExpiresOn } from '../product/shared';
 import { ADMIN_PAGE, AdminLoadMore, ForbiddenState, useAccessDenied, useUrlFilters } from '../admin/shared';
 import { clientRefusal, machineScopeText, permissionsText } from './clientShared';
+import { ShareRequestsPanel } from './ShareRequests';
 import { orgStepUp, ROLE_LABEL } from './shared';
 import './people.css';
 
 const SITUATIONS: AccessGrantSituation[] = ['pending', 'active', 'suspended', 'revoked'];
 const SITUATION_LABEL: Record<AccessGrantSituation, string> = { pending: 'Aguardando aprovação', active: 'Ativa', suspended: 'Suspensa', revoked: 'Revogada' };
 const SITUATION_TONE: Record<AccessGrantSituation, 'info' | 'success' | 'warning' | 'neutral'> = { pending: 'info', active: 'success', suspended: 'warning', revoked: 'neutral' };
-const CATEGORIES: AccessHistoryCategory[] = ['grants', 'invitations', 'client_links', 'clients', 'roles'];
+const CATEGORIES: AccessHistoryCategory[] = ['grants', 'share_requests', 'invitations', 'client_links', 'clients', 'roles'];
 const CATEGORY_LABEL: Record<AccessHistoryCategory, string> = {
   grants: 'Concessões',
+  share_requests: 'Pedidos de compartilhamento',
   invitations: 'Convites',
   client_links: 'Vínculos de cliente',
   clients: 'Cadastro de clientes',
@@ -54,13 +56,18 @@ const EVENT_LABEL: Record<AccessHistoryEvent['type'], string> = {
   CLIENTE_CONCESSAO_SOLICITADA: 'Compartilhamento pedido',
   CLIENTE_CONCESSAO_APROVADA: 'Compartilhamento aprovado',
   CLIENTE_CONCESSAO_APLICADA_NO_ACEITE: 'Compartilhamento aplicado no aceite',
-  CLIENTE_CONCESSAO_REDUZIDA: 'Permissões reduzidas',
+  CLIENTE_CONCESSAO_REDUZIDA: 'Conteúdos reduzidos',
   CLIENTE_CONCESSAO_REVOGADA: 'Compartilhamento revogado',
   VINCULO_CLIENTE_SUSPENSO: 'Vínculo de cliente suspenso',
   VINCULO_CLIENTE_REATIVADO: 'Vínculo de cliente reativado',
   VINCULO_CLIENTE_RETIRADO: 'Vínculo de cliente retirado',
   CLIENTE_CADASTRADO: 'Cliente cadastrado',
   CLIENTE_ALTERADO: 'Cliente alterado',
+  CLIENTE_REGISTROS_TECNICOS_RETIRADOS: 'Registros técnicos retirados (atualização do sistema)',
+  COMPARTILHAMENTO_SOLICITADO: 'Compartilhamento pedido por membro',
+  COMPARTILHAMENTO_APROVADO: 'Pedido de compartilhamento aprovado',
+  COMPARTILHAMENTO_RECUSADO: 'Pedido de compartilhamento recusado',
+  COMPARTILHAMENTO_CANCELADO: 'Pedido de compartilhamento cancelado',
 };
 
 type FilterKey = AccessGrantSituation | AccessHistoryCategory;
@@ -197,7 +204,7 @@ export function AccessHistoryPage() {
         </span>
       ),
     },
-    { key: 'permissoes', header: 'Permissões', render: (g) => permissionsText(g.canReadLogs, g.canDownloadResults) },
+    { key: 'permissoes', header: 'Conteúdos', render: (g) => (g.kind === 'workspace' ? 'Ambiente inteiro (modelo anterior)' : permissionsText(g.canViewDashboard, g.canDownloadResults)) },
     {
       key: 'situacao',
       header: 'Situação',
@@ -260,7 +267,14 @@ export function AccessHistoryPage() {
     {
       key: 'responsavel',
       header: 'Responsável',
-      render: (e) => (e.byInvitee ? 'A própria pessoa convidada' : e.actor ? `${e.actor.name ?? ''} (${e.actor.email ?? ''})` : '—'),
+      render: (e) =>
+        e.byInvitee
+          ? 'A própria pessoa convidada'
+          : e.type === 'CLIENTE_REGISTROS_TECNICOS_RETIRADOS'
+            ? 'Sistema (registros técnicos deixaram de ser compartilháveis)'
+            : e.actor
+              ? `${e.actor.name ?? ''} (${e.actor.email ?? ''})`
+              : '—',
     },
     { key: 'alvo', header: 'Alvo', render: (e) => (e.target ? (e.target.name ? `${e.target.name} (${e.target.email})` : e.target.email) : '—') },
     {
@@ -272,9 +286,10 @@ export function AccessHistoryPage() {
           {e.automation && <span>{e.automation.name}</span>}
           {e.workspace && <span className="pw-prod__muted">{e.workspace.name}</span>}
           {e.automation && <span className="pw-prod__muted">{machineScopeText(e.machine?.name)}</span>}
-          {e.canReadLogs !== null && e.canDownloadResults !== null && (
-            <span className="pw-prod__muted">{permissionsText(!!e.canReadLogs, !!e.canDownloadResults)}</span>
+          {e.canViewDashboard !== null && e.canDownloadResults !== null && (
+            <span className="pw-prod__muted">{permissionsText(!!e.canViewDashboard, !!e.canDownloadResults)}</span>
           )}
+          {e.technicalLogs && <span className="pw-prod__muted">Incluía registros técnicos (antes da atualização)</span>}
           {e.role && <span className="pw-prod__muted">{e.previousRole ? `${ROLE_LABEL[e.previousRole as keyof typeof ROLE_LABEL] ?? e.previousRole} → ` : ''}{ROLE_LABEL[e.role as keyof typeof ROLE_LABEL] ?? e.role}</span>}
           {e.decision && <span className="pw-prod__muted">Decisão: {e.decision === 'KEEP' ? 'manter' : e.decision === 'SUSPEND' ? 'suspender' : 'revogar'}</span>}
         </span>
@@ -399,6 +414,17 @@ export function AccessHistoryPage() {
           <ForbiddenState area={tab === 'concessoes' ? 'as concessões desta organização' : 'o histórico de acessos desta organização'} onRetry={list.reload} />
         ) : (
           <Stack gap={5}>
+            {tab === 'concessoes' && canAct && (
+              <ShareRequestsPanel
+                org={org}
+                refresh={refresh}
+                onChanged={(text) => {
+                  setNotice({ tone: 'success', text });
+                  setRefresh((n) => n + 1);
+                }}
+                onUnauthenticated={expired}
+              />
+            )}
             {filtersForm}
             {tab === 'historico' && scope === 'client_access' && (
               <Text variant="body-sm" color="secondary">
@@ -450,7 +476,7 @@ export function AccessHistoryPage() {
         {act?.kind === 'approve' && (
           <Text>
             {act.grant.client.name} · {act.grant.automation?.name} ({act.grant.workspace.name}) · {machineScopeText(act.grant.machine?.name)} ·{' '}
-            {permissionsText(act.grant.canReadLogs, act.grant.canDownloadResults)}. Quem pediu não pode aprovar.
+            {permissionsText(act.grant.canViewDashboard, act.grant.canDownloadResults)}. Quem pediu não pode aprovar.
           </Text>
         )}
       </StepUpDialog>

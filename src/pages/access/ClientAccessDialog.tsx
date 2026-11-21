@@ -28,6 +28,7 @@ export interface ClientAccessSaved {
   requested: boolean;
 }
 
+/** `logs` guarda o DASHBOARD de execução (071: registros técnicos não se compartilham); `results`, os arquivos de retorno. */
 interface GrantDraft {
   grant: AccessGrant;
   revoke: boolean;
@@ -42,7 +43,8 @@ type Load = { status: 'loading' } | { status: 'ready'; grants: AccessGrant[]; op
  * "Gerenciar acessos" de uma pessoa de cliente (PLATFORM-FLUXO-002, 070): as automações compartilhadas com ela, num rascunho.
  * Salvar aplica pelas rotas da API; Cancelar fecha sem enviar nada.
  * - Revogar remove só aquele acesso; os demais continuam.
- * - Registros e resultados só podem ser DESLIGADOS aqui; ligar é um pedido novo, aprovado por outra pessoa.
+ * - Dashboard de execução e arquivos de retorno só podem ser DESLIGADOS aqui; ligar é um pedido novo, aprovado por outra pessoa.
+ *   Registros técnicos não se compartilham (071). Desligar os dois é revogar.
  * - Compartilhar outra automação é um pedido (D-GRANT-1): fica pendente até outra pessoa aprovar em "Acessos e histórico".
  * - Vínculo: suspender (a próxima consulta do cliente já é recusada), reativar (confirmação da hora) ou retirar desta
  *   organização (revoga as concessões dele; a identidade Nekkora continua).
@@ -66,7 +68,7 @@ export function ClientAccessDialog({
   const [load, setLoad] = useState<Load>({ status: 'loading' });
   const [rows, setRows] = useState<GrantDraft[]>([]);
   const [membership, setMembership] = useState<MembershipChange>('');
-  const [share, setShare] = useState({ automationId: '', workerId: '', logs: false, results: false });
+  const [share, setShare] = useState({ automationId: '', workerId: '', logs: true, results: false });
 
   useEffect(() => {
     if (!target) return;
@@ -74,13 +76,13 @@ export function ClientAccessDialog({
     setLoad({ status: 'loading' });
     setRows([]);
     setMembership('');
-    setShare({ automationId: '', workerId: '', logs: false, results: false });
+    setShare({ automationId: '', workerId: '', logs: true, results: false });
     Promise.all([listAccessGrants(org, { personId: target.userId, situation: ['pending', 'active', 'suspended'], limit: 100 }), listClientShareOptions(org)]).then(
       ([page, opts]) => {
         if (!alive) return;
         const grants = page.items.filter((g) => g.clientMembershipId === target.clientMembershipId);
         setLoad({ status: 'ready', grants, options: opts.automations });
-        setRows(grants.map((g) => ({ grant: g, revoke: false, logs: g.canReadLogs, results: g.canDownloadResults })));
+        setRows(grants.map((g) => ({ grant: g, revoke: false, logs: g.canViewDashboard, results: g.canDownloadResults })));
       },
       (e: unknown) => {
         if (!alive) return;
@@ -106,11 +108,11 @@ export function ClientAccessDialog({
     const out: string[] = [];
     if (membership === 'reactivate') out.push('Reativar o vínculo');
     for (const r of rows) {
-      if (r.revoke) out.push(r.grant.situation === 'pending' ? `Cancelar o pedido: ${r.grant.automation?.name}` : `Revogar: ${scopeOf(r.grant)}`);
-      else if (r.logs !== r.grant.canReadLogs || r.results !== r.grant.canDownloadResults)
+      if (r.revoke || (!r.logs && !r.results)) out.push(r.grant.situation === 'pending' ? `Cancelar o pedido: ${r.grant.automation?.name}` : `Revogar: ${scopeOf(r.grant)}`);
+      else if (r.logs !== r.grant.canViewDashboard || r.results !== r.grant.canDownloadResults)
         out.push(`Reduzir ${r.grant.automation?.name} para: ${permissionsText(r.logs, r.results).toLowerCase()}`);
     }
-    if (shareOption)
+    if (shareOption && (share.logs || share.results))
       out.push(
         `Pedir acompanhamento de ${shareOption.name} (${machineScopeText(shareMachine?.name)}; ${permissionsText(share.logs, share.results).toLowerCase()}) — fica pendente até outra pessoa aprovar`,
       );
@@ -127,11 +129,11 @@ export function ClientAccessDialog({
       ops.push({ text: 'retirar o vínculo', run: () => retireClientMembership(org, membershipId).then(() => (status = 'revoked')) });
     } else {
       if (membership === 'reactivate') ops.push({ text: 'reativar o vínculo', run: () => reactivateClientMembership(org, membershipId).then(() => (status = 'active')) });
-      for (const r of rows) if (r.revoke) ops.push({ text: `revogar ${r.grant.automation?.name ?? r.grant.workspace.name}`, run: () => revokeClientAutomationGrant(org, r.grant.grantId) });
+      for (const r of rows) if (r.revoke || (!r.logs && !r.results)) ops.push({ text: `revogar ${r.grant.automation?.name ?? r.grant.workspace.name}`, run: () => revokeClientAutomationGrant(org, r.grant.grantId) });
       for (const r of rows)
-        if (!r.revoke && (r.logs !== r.grant.canReadLogs || r.results !== r.grant.canDownloadResults))
-          ops.push({ text: `reduzir ${r.grant.automation?.name}`, run: () => reduceClientAutomationGrant(org, r.grant.grantId, { canReadLogs: r.logs, canDownloadResults: r.results }) });
-      if (shareOption)
+        if (!r.revoke && (r.logs || r.results) && (r.logs !== r.grant.canViewDashboard || r.results !== r.grant.canDownloadResults))
+          ops.push({ text: `reduzir ${r.grant.automation?.name}`, run: () => reduceClientAutomationGrant(org, r.grant.grantId, { canViewDashboard: r.logs, canDownloadResults: r.results }) });
+      if (shareOption && (share.logs || share.results))
         ops.push({
           text: `pedir ${shareOption.name}`,
           run: () =>
@@ -139,7 +141,7 @@ export function ClientAccessDialog({
               clientMembershipId: membershipId,
               automationId: shareOption.automationId,
               workerId: share.workerId || null,
-              canReadLogs: share.logs,
+              canViewDashboard: share.logs,
               canDownloadResults: share.results,
             }),
         });
@@ -159,7 +161,7 @@ export function ClientAccessDialog({
     const grants = await listAccessGrants(org, { personId: target!.userId, situation: ['pending', 'active', 'suspended'], limit: 100 })
       .then((p) => p.items.filter((g) => g.clientMembershipId === membershipId))
       .catch(() => null);
-    return { grants, status, partial, requested: !!shareOption && partial === null };
+    return { grants, status, partial, requested: !!shareOption && (share.logs || share.results) && partial === null };
   };
 
   const editor = () => {
@@ -210,18 +212,18 @@ export function ClientAccessDialog({
                     {g.kind === 'automation' && g.situation === 'active' && (
                       <div className="pw-access__perms">
                         <Checkbox
-                          label="Registros"
+                          label="Dashboard de execução"
                           checked={r.logs}
-                          disabled={locked || r.revoke || !g.canReadLogs}
+                          disabled={locked || r.revoke || !g.canViewDashboard}
                           onChange={(e) => set({ logs: e.target.checked })}
                         />
                         <Checkbox
-                          label="Resultados"
+                          label="Arquivos de retorno"
                           checked={r.results}
                           disabled={locked || r.revoke || !g.canDownloadResults}
                           onChange={(e) => set({ results: e.target.checked })}
                         />
-                        {(!g.canReadLogs || !g.canDownloadResults) && (
+                        {(!g.canViewDashboard || !g.canDownloadResults) && (
                           <Text variant="body-sm" color="secondary">
                             Aqui só se desliga. Para ligar, peça de novo em "Compartilhar outra automação" (outra pessoa aprova).
                           </Text>
@@ -234,7 +236,7 @@ export function ClientAccessDialog({
                         variant="ghost"
                         disabled={locked}
                         aria-label={`${r.revoke ? 'Manter' : g.situation === 'pending' ? 'Cancelar pedido de' : 'Revogar'} ${g.automation?.name}`}
-                        onClick={() => set({ revoke: !r.revoke, logs: g.canReadLogs, results: g.canDownloadResults })}
+                        onClick={() => set({ revoke: !r.revoke, logs: g.canViewDashboard, results: g.canDownloadResults })}
                       >
                         {r.revoke ? 'Manter' : g.situation === 'pending' ? 'Cancelar pedido' : 'Revogar'}
                       </Button>
@@ -273,10 +275,15 @@ export function ClientAccessDialog({
                 onChange={(e) => setShare({ ...share, workerId: e.target.value })}
                 options={[{ value: '', label: 'Todas as máquinas desta automação' }, ...(shareOption?.machines ?? []).map((m) => ({ value: m.workerId, label: m.name }))]}
               />
-              <Checkbox label="Consultar os registros" checked={share.logs} disabled={!shareOption} onChange={(e) => setShare({ ...share, logs: e.target.checked })} />
-              <Checkbox label="Baixar os arquivos de resultado" checked={share.results} disabled={!shareOption} onChange={(e) => setShare({ ...share, results: e.target.checked })} />
+              <Checkbox label="Dashboard de execução" checked={share.logs} disabled={!shareOption} onChange={(e) => setShare({ ...share, logs: e.target.checked })} />
+              <Checkbox label="Ver e baixar os arquivos de retorno" checked={share.results} disabled={!shareOption} onChange={(e) => setShare({ ...share, results: e.target.checked })} />
+              {shareOption && !share.logs && !share.results && (
+                <Text variant="body-sm" color="secondary">
+                  Escolha ao menos um conteúdo.
+                </Text>
+              )}
               {shareOption && (
-                <Button variant="ghost" size="sm" onClick={() => setShare({ automationId: '', workerId: '', logs: false, results: false })}>
+                <Button variant="ghost" size="sm" onClick={() => setShare({ automationId: '', workerId: '', logs: true, results: false })}>
                   Desfazer o pedido
                 </Button>
               )}

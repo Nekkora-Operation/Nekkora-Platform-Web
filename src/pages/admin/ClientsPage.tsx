@@ -136,7 +136,7 @@ export function ClientsPage() {
                                 <Text variant="body-sm" color="secondary">
                                   {g.kind === 'workspace'
                                     ? `Ambiente de trabalho ${g.workspace.name} inteiro`
-                                    : `${g.automation?.name} · ${machineScopeText(g.machine?.name)} · ${permissionsText(g.canReadLogs, g.canDownloadResults)}`}
+                                    : `${g.automation?.name} · ${machineScopeText(g.machine?.name)} · ${permissionsText(g.canViewDashboard, g.canDownloadResults)}`}
                                   {g.situation === 'pending' ? ' · aguardando aprovação' : ''}
                                 </Text>
                               </li>

@@ -8,9 +8,9 @@ import { renderApp } from '../../test/render';
 import { RouteApi } from '../../test/routeApi';
 
 /**
- * PLATFORM-FLUXO-002 (070) — clientes e acessos de cliente, contra respostas conferidas pelo contrato: o convite de Cliente
- * (opção explícita, campos na ordem da missão, máquina que filtra automações, permissões separadas, resumo e confirmação com
- * o escopo), a pessoa de cliente na tabela única e o modal dela (revogar só aquele acesso, só reduzir permissões, compartilhar
+ * PLATFORM-FLUXO-002 (070/071) — clientes e acessos de cliente, contra respostas conferidas pelo contrato: o compartilhamento
+ * por pessoa (nome e e-mail, automação, conteúdos dashboard/arquivos, máquina em opções adicionais, cliente opcional, sem registros
+ * técnicos; resumo e confirmação com o escopo), os pedidos de membro aprovados por outra pessoa, a pessoa de cliente na tabela única e o modal dela (revogar só aquele acesso, só reduzir permissões, compartilhar
  * outra automação como pedido), "Acessos e histórico" (abas, filtros no endereço, "Ver histórico"), os endereços antigos e a
  * área do cliente (só o Portal).
  */
@@ -40,7 +40,7 @@ const grant = (id: string, automation: string, name: string, machine: { workerId
   workspace: { workspaceId: WS, name: 'Fiscal' },
   automation: { automationId: automation, name },
   machine,
-  canReadLogs: true,
+  canViewDashboard: true,
   canDownloadResults: false,
   basis: 'client_invitation',
   requestedBy: 'Ana Souza',
@@ -133,68 +133,81 @@ beforeEach(() => {
   api.on('GET', `/api/v1/o/${ORG}/client-share-options`, 'listClientShareOptions', {
     status: 200,
     body: {
+      mode: 'invite',
       automations: [
-        { automationId: A1, name: 'Conciliação', workspaceId: WS, workspaceName: 'Fiscal', machines: [{ workerId: W1, name: 'Estação fiscal' }] },
-        { automationId: A2, name: 'Folha interna', workspaceId: WS, workspaceName: 'Fiscal', machines: [{ workerId: W2, name: 'Estação dois' }] },
+        { automationId: A1, name: 'Conciliação', workspaceId: WS, workspaceName: 'Fiscal', machines: [{ workerId: W1, name: 'Estação fiscal' }], canShareDashboard: true, canShareFiles: true },
+        { automationId: A2, name: 'Folha interna', workspaceId: WS, workspaceName: 'Fiscal', machines: [{ workerId: W2, name: 'Estação dois' }], canShareDashboard: true, canShareFiles: true },
       ],
     },
   });
+  api.on('GET', new RegExp(`^/api/v1/o/${ORG}/client-share-requests`), 'listClientShareRequests', { status: 200, body: { items: [] } });
 });
 
 const table = async () => within(await screen.findByRole('region', { name: 'Lista de pessoas e convites' }));
 
-describe('convite de Cliente', () => {
-  it('opção explícita Cliente; máquina filtra as automações; permissões separadas; resumo; confirmação com o escopo; corpo enviado', async () => {
+describe('compartilhamento por pessoa (convite de Cliente)', () => {
+  it('nome e e-mail, automação e conteúdos; máquina em opções adicionais filtra; sem registros técnicos; confirmação com o escopo; corpo enviado', async () => {
     api.on('POST', `/api/v1/o/${ORG}/client-invitations`, 'inviteClient', {
       status: 201,
       body: {
-        invitationId: ID(70), email: 'nova@cliente.com', clientId: CLIENT, workspaceId: WS, automationId: A1, workerId: W1, canReadLogs: true,
-        canDownloadResults: false, expiresAt: '2026-11-27T10:00:00Z',
+        invitationId: ID(70), email: 'nova@cliente.com', recipientName: 'Nova Pessoa', clientId: CLIENT, workspaceId: WS, automationId: A1, workerId: W1,
+        canViewDashboard: true, canDownloadResults: true, shareRequestId: null, expiresAt: '2026-11-27T10:00:00Z',
       },
     });
     renderApp(`/o/${ORG}/administracao/pessoas`);
     await table();
-    fireEvent.click(screen.getByRole('radio', { name: /Cliente/ }));
+    fireEvent.click(screen.getByRole('radio', { name: /Pessoa externa/ }));
+    fireEvent.change(screen.getByLabelText(/^Nome da pessoa/), { target: { value: 'Nova Pessoa' } });
     fireEvent.change(screen.getByLabelText(/^E-mail da pessoa/), { target: { value: 'nova@cliente.com' } });
-    fireEvent.change(await screen.findByRole('combobox', { name: /^Cliente/ }), { target: { value: CLIENT } });
-    fireEvent.change(screen.getByLabelText(/^Ambiente de trabalho/), { target: { value: WS } });
-    // todas as máquinas: as duas automações; escolher a máquina filtra
+    fireEvent.change(await screen.findByLabelText(/^Ambiente de trabalho/), { target: { value: WS } });
+    // nada de cadastro de cliente obrigatório nem registros técnicos
+    expect(screen.queryByRole('checkbox', { name: /registros/i })).toBeNull();
+    expect((screen.getByLabelText(/^Cliente cadastrado/) as HTMLSelectElement).value).toBe('');
     const automation = screen.getByLabelText(/^Automação/) as HTMLSelectElement;
     expect([...automation.options].map((o) => o.textContent)).toEqual(expect.arrayContaining(['Conciliação', 'Folha interna']));
     fireEvent.change(screen.getByLabelText(/^Máquina/), { target: { value: W1 } });
     expect([...(screen.getByLabelText(/^Automação/) as HTMLSelectElement).options].map((o) => o.textContent)).not.toContain('Folha interna');
     fireEvent.change(screen.getByLabelText(/^Automação/), { target: { value: A1 } });
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Consultar os registros' }));
+    expect(screen.getByRole('checkbox', { name: /Dashboard de execução/ })).toBeChecked();
+    fireEvent.click(screen.getByRole('checkbox', { name: /Arquivos de retorno/ }));
+    expect(screen.getByText('Relatórios personalizados: ainda não disponíveis.')).toBeInTheDocument();
     expect(
-      await screen.findByText('Você está convidando esta pessoa para acompanhar a automação Conciliação, no ambiente de trabalho Fiscal, com acesso às execuções da máquina Estação fiscal.'),
+      await screen.findByText('Você está compartilhando a automação Conciliação (ambiente de trabalho Fiscal) com Nova Pessoa, considerando execuções da máquina Estação fiscal.'),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Convidar' }));
-    const d = await screen.findByRole('alertdialog', { name: 'Convidar nova@cliente.com como cliente?' });
-    for (const t of ['Contábil Exemplo', 'Conciliação', 'Fiscal', 'Estação fiscal', 'Execuções, registros']) expect(d).toHaveTextContent(t);
-    fireEvent.click(within(d).getByRole('button', { name: 'Enviar convite de cliente' }));
-    expect(await screen.findByText('Convite de cliente enviado. O acesso só começa quando a pessoa aceitar.', {}, { timeout: 5000 })).toBeInTheDocument();
+    const d = await screen.findByRole('alertdialog', { name: 'Compartilhar Conciliação com Nova Pessoa?' });
+    for (const t of ['Nova Pessoa (nova@cliente.com)', 'Conciliação', 'Fiscal', 'Estação fiscal', 'Dashboard de execução e arquivos de retorno', 'Criado ou reutilizado com o nome da pessoa'])
+      expect(d).toHaveTextContent(t);
+    fireEvent.click(within(d).getByRole('button', { name: 'Compartilhar e enviar convite' }));
+    expect(await screen.findByText('Compartilhamento enviado por convite. O acesso só começa quando a pessoa aceitar.', {}, { timeout: 5000 })).toBeInTheDocument();
     expect(api.sent('POST', `/api/v1/o/${ORG}/client-invitations`).map((c) => c.body)).toEqual([
-      { email: 'nova@cliente.com', clientId: CLIENT, automationId: A1, workerId: W1, canReadLogs: true, canDownloadResults: false },
+      { email: 'nova@cliente.com', name: 'Nova Pessoa', clientId: null, automationId: A1, workerId: W1, canViewDashboard: true, canDownloadResults: true },
     ]);
   });
 
-  it('e-mail de membro interno: aviso antes de enviar; a recusa do servidor explica o alcance', async () => {
+  it('sem nome ou sem conteúdo: não envia; e-mail de membro interno: aviso e a recusa do servidor explica o alcance', async () => {
     api.on('POST', `/api/v1/o/${ORG}/client-invitations`, 'inviteClient', {
       status: 409,
       body: { error: 'conflict', reason: 'client_invitation_internal_member' },
     });
     renderApp(`/o/${ORG}/administracao/pessoas`);
     await table();
-    fireEvent.click(screen.getByRole('radio', { name: /Cliente/ }));
+    fireEvent.click(screen.getByRole('radio', { name: /Pessoa externa/ }));
     fireEvent.change(screen.getByLabelText(/^E-mail da pessoa/), { target: { value: 'ana@empresa.com' } });
     expect(await screen.findByText(/Ana Souza já é membro interno desta organização/)).toBeInTheDocument();
-    fireEvent.change(await screen.findByRole('combobox', { name: /^Cliente/ }), { target: { value: CLIENT } });
-    fireEvent.change(screen.getByLabelText(/^Ambiente de trabalho/), { target: { value: WS } });
+    fireEvent.change(await screen.findByLabelText(/^Ambiente de trabalho/), { target: { value: WS } });
     fireEvent.change(screen.getByLabelText(/^Automação/), { target: { value: A2 } });
+    fireEvent.click(screen.getByRole('checkbox', { name: /Dashboard de execução/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Convidar' }));
-    const d = await screen.findByRole('alertdialog', { name: /como cliente\?/ });
-    fireEvent.click(within(d).getByRole('button', { name: 'Enviar convite de cliente' }));
-    expect(await within(d).findByText(/já é membro interno da organização. Um convite de Cliente não reduziria/)).toBeInTheDocument();
+    expect(await screen.findByText('Informe o nome da pessoa.')).toBeInTheDocument();
+    expect(screen.getByText('Escolha ao menos um conteúdo.')).toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    fireEvent.change(screen.getByLabelText(/^Nome da pessoa/), { target: { value: 'Ana' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: /Dashboard de execução/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Convidar' }));
+    const d = await screen.findByRole('alertdialog', { name: /Compartilhar Folha interna com Ana\?/ });
+    fireEvent.click(within(d).getByRole('button', { name: 'Compartilhar e enviar convite' }));
+    expect(await within(d).findByText(/já é membro interno da organização. Um convite de Cliente não reduziria/, {}, { timeout: 5000 })).toBeInTheDocument();
   });
 
   it('sem external_access.manage: só o convite de pessoa da equipe', async () => {
@@ -204,7 +217,7 @@ describe('convite de Cliente', () => {
     });
     renderApp(`/o/${ORG}/administracao/pessoas`);
     await table();
-    expect(screen.queryByRole('radio', { name: /Cliente/ })).toBeNull();
+    expect(screen.queryByRole('radio', { name: /Pessoa externa/ })).toBeNull();
     expect(screen.queryByRole('link', { name: /Acessos e histórico/ })).toBeNull();
     expect(screen.getByRole('link', { name: /Gerenciar clientes/ })).toBeInTheDocument();
   });
@@ -214,13 +227,13 @@ describe('pessoa de cliente na tabela e o modal', () => {
   it('a linha identifica o cliente e a automação; o modal revoga só um acesso, reduz o outro e pede uma automação nova; Cancelar não envia nada', async () => {
     const twoGrants = [
       grant(G1, A1, 'Conciliação', { workerId: W1, name: 'Estação fiscal' }),
-      grant(G2, A2, 'Folha interna', null, { canReadLogs: true, canDownloadResults: true, basis: 'second_person' }),
+      grant(G2, A2, 'Folha interna', null, { canViewDashboard: true, canDownloadResults: true, basis: 'second_person' }),
     ];
     api.on('GET', `/api/v1/o/${ORG}/access-grants`, 'listAccessGrants', { status: 200, body: { items: twoGrants, nextCursor: null } });
     api.on('POST', `/api/v1/o/${ORG}/client-automation-grants/${G1}/revoke`, 'revokeClientAutomationGrant', { status: 204 });
     api.on('POST', `/api/v1/o/${ORG}/client-automation-grants/${G2}/reduce`, 'reduceClientAutomationGrant', {
       status: 200,
-      body: { grantId: G2, status: 'ATIVA', basis: 'SEGUNDA_PESSOA', clientId: CLIENT, clientMembershipId: CM, workspaceId: WS, automationId: A2, workerId: null, canReadLogs: true, canDownloadResults: false, replacesGrantId: null },
+      body: { grantId: G2, status: 'ATIVA', basis: 'SEGUNDA_PESSOA', clientId: CLIENT, clientMembershipId: CM, workspaceId: WS, automationId: A2, workerId: null, canViewDashboard: true, canDownloadResults: false, replacesGrantId: null },
     });
     renderApp(`/o/${ORG}/administracao/pessoas`);
     const t = await table();
@@ -240,12 +253,12 @@ describe('pessoa de cliente na tabela e o modal', () => {
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
     expect(api.sent('POST', /client-automation-grants/)).toHaveLength(0);
 
-    // de novo: revogar um, reduzir o outro (resultados desligados); ligar não é oferecido
+    // de novo: revogar um, reduzir o outro (arquivos de retorno desligados); ligar não é oferecido
     fireEvent.click(within(row).getByRole('button', { name: 'Gerenciar acessos de Carla Cliente' }));
     d = await screen.findByRole('alertdialog', { name: 'Gerenciar acessos de Carla Cliente' });
     await within(d).findByRole('list', { name: 'Automações compartilhadas' });
     fireEvent.click(within(d).getByRole('button', { name: 'Revogar Conciliação' }));
-    const results = within(d).getAllByRole('checkbox', { name: /Resultados/ });
+    const results = within(d).getAllByRole('checkbox', { name: /Arquivos de retorno/ });
     fireEvent.click(results[results.length - 1]);
     const changes = within(d).getByRole('list', { name: 'Mudanças a salvar' });
     expect(changes).toHaveTextContent('Revogar: Conciliação');
@@ -256,14 +269,14 @@ describe('pessoa de cliente na tabela e o modal', () => {
       `/api/v1/o/${ORG}/client-automation-grants/${G1}/revoke`,
       `/api/v1/o/${ORG}/client-automation-grants/${G2}/reduce`,
     ]);
-    expect(api.sent('POST', /reduce/)[0].body).toEqual({ canReadLogs: true, canDownloadResults: false });
+    expect(api.sent('POST', /reduce/)[0].body).toEqual({ canViewDashboard: true, canDownloadResults: false });
   });
 
   it('compartilhar outra automação vira pedido pendente (outra pessoa aprova); a mesma pessoa, sem convite novo', async () => {
     api.on('GET', `/api/v1/o/${ORG}/access-grants`, 'listAccessGrants', { status: 200, body: { items: [grant(G1, A1, 'Conciliação', null)], nextCursor: null } });
     api.on('POST', `/api/v1/o/${ORG}/client-automation-grants`, 'requestClientAutomationGrant', {
       status: 201,
-      body: { grantId: G2, status: 'PENDENTE', basis: 'SEGUNDA_PESSOA', clientId: CLIENT, clientMembershipId: CM, workspaceId: WS, automationId: A2, workerId: W2, canReadLogs: false, canDownloadResults: true, replacesGrantId: null },
+      body: { grantId: G2, status: 'PENDENTE', basis: 'SEGUNDA_PESSOA', clientId: CLIENT, clientMembershipId: CM, workspaceId: WS, automationId: A2, workerId: W2, canViewDashboard: true, canDownloadResults: true, replacesGrantId: null },
     });
     renderApp(`/o/${ORG}/administracao/pessoas?cliente=${CM}`);
     const d = await screen.findByRole('alertdialog', { name: 'Gerenciar acessos de Carla Cliente' });
@@ -271,12 +284,12 @@ describe('pessoa de cliente na tabela e o modal', () => {
     fireEvent.click(within(d).getByText('Compartilhar outra automação'));
     fireEvent.change(within(d).getByLabelText(/^Automação/), { target: { value: A2 } });
     fireEvent.change(within(d).getByLabelText(/^Máquina/), { target: { value: W2 } });
-    fireEvent.click(within(d).getByRole('checkbox', { name: 'Baixar os arquivos de resultado' }));
+    fireEvent.click(within(d).getByRole('checkbox', { name: 'Ver e baixar os arquivos de retorno' }));
     expect(within(d).getByRole('list', { name: 'Mudanças a salvar' })).toHaveTextContent('fica pendente até outra pessoa aprovar');
     fireEvent.click(within(d).getByRole('button', { name: 'Salvar acessos' }));
     expect(await screen.findByText(/O novo compartilhamento aguarda a aprovação de outra pessoa/)).toBeInTheDocument();
     expect(api.sent('POST', `/api/v1/o/${ORG}/client-automation-grants`)[0].body).toEqual({
-      clientMembershipId: CM, automationId: A2, workerId: W2, canReadLogs: false, canDownloadResults: true,
+      clientMembershipId: CM, automationId: A2, workerId: W2, canViewDashboard: true, canDownloadResults: true,
     });
   });
 });
@@ -299,8 +312,8 @@ describe('Acessos e histórico', () => {
             target: { userId: CLIENT_USER, name: 'Carla Cliente', email: 'carla@cliente.com' }, role: null, previousRole: null,
             workspace: { workspaceId: WS, name: 'Fiscal' }, client: { clientId: CLIENT, name: 'Contábil Exemplo' },
             automation: { automationId: A1, name: 'Conciliação' }, machine: { workerId: W1, name: 'Estação fiscal' },
-            grant: { kind: 'automation', grantId: G1 }, invitationId: ID(70), decision: null, canReadLogs: true, canDownloadResults: false,
-            grantException: true, correlationId: ID(81),
+            grant: { kind: 'automation', grantId: G1 }, invitationId: ID(70), decision: null, technicalLogs: false, canViewDashboard: true,
+            canDownloadResults: false, shareRequestId: null, grantException: true, correlationId: ID(81),
           },
         ],
       },
@@ -310,7 +323,7 @@ describe('Acessos e histórico', () => {
   it('abas Concessões e Histórico; filtros no endereço e na API; "Ver histórico" abre a outra aba filtrada; aprovar pede a confirmação', async () => {
     api.on('POST', `/api/v1/o/${ORG}/client-automation-grants/${G2}/approve`, 'approveClientAutomationGrant', {
       status: 200,
-      body: { grantId: G2, status: 'ATIVA', basis: 'SEGUNDA_PESSOA', clientId: CLIENT, clientMembershipId: CM, workspaceId: WS, automationId: A2, workerId: null, canReadLogs: true, canDownloadResults: false, replacesGrantId: null },
+      body: { grantId: G2, status: 'ATIVA', basis: 'SEGUNDA_PESSOA', clientId: CLIENT, clientMembershipId: CM, workspaceId: WS, automationId: A2, workerId: null, canViewDashboard: true, canDownloadResults: false, replacesGrantId: null },
     });
     api.on('POST', `/api/v1/o/${ORG}/auth/mfa/step-up`, 'mfaStepUp', { status: 204 });
     renderApp(`/o/${ORG}/administracao/pessoas/acessos`);
@@ -343,6 +356,38 @@ describe('Acessos e histórico', () => {
     expect(h.getAllByRole('row')[1]).toHaveTextContent('Exceção do convite de cliente');
     expect(h.getAllByRole('row')[1]).toHaveTextContent('Ana Souza (ana@empresa.com)');
     expect(new URL(api.sent('GET', `/api/v1/o/${ORG}/access-history`).at(-1)!.url, 'http://x').searchParams.get('grantId')).toBe(G1);
+  });
+
+  it('pedidos de compartilhamento de membros: aparecem para aprovar (o convite sai na aprovação) ou recusar', async () => {
+    const SR = ID(90);
+    api.on('GET', new RegExp(`^/api/v1/o/${ORG}/client-share-requests`), 'listClientShareRequests', {
+      status: 200,
+      body: {
+        items: [
+          {
+            shareRequestId: SR, status: 'PENDENTE', recipientName: 'Pedro Pedido', email: 'pedro@cliente.com', automation: { automationId: A1, name: 'Conciliação' },
+            workspace: { workspaceId: WS, name: 'Fiscal' }, machine: null, requestedBy: 'Bruno Membro', decidedBy: null, canViewDashboard: true,
+            canDownloadResults: false, requestedByMembershipId: ID(52), createdAt: T, decidedAt: null, invitationId: null,
+          },
+        ],
+      },
+    });
+    api.on('POST', `/api/v1/o/${ORG}/client-share-requests/${SR}/approve`, 'approveClientShare', {
+      status: 200,
+      body: {
+        shareRequestId: SR, status: 'APROVADO', recipientName: 'Pedro Pedido', email: 'pedro@cliente.com', workspaceId: WS, automationId: A1, workerId: null,
+        canViewDashboard: true, canDownloadResults: false, requestedByMembershipId: ID(52), createdAt: T, decidedAt: T, invitationId: ID(91),
+      },
+    });
+    api.on('POST', `/api/v1/o/${ORG}/auth/mfa/step-up`, 'mfaStepUp', { status: 204 });
+    renderApp(`/o/${ORG}/administracao/pessoas/acessos`);
+    const panel = within(await screen.findByRole('list', { name: 'Pedidos de compartilhamento aguardando decisão' }));
+    expect(panel.getByText('Pedro Pedido (pedro@cliente.com)')).toBeInTheDocument();
+    expect(panel.getByText(/Só o dashboard de execução/)).toBeInTheDocument();
+    fireEvent.click(panel.getByRole('button', { name: 'Aprovar o compartilhamento com Pedro Pedido' }));
+    const d = await screen.findByRole('alertdialog', { name: 'Aprovar o compartilhamento de Conciliação com Pedro Pedido?' });
+    expect(d).toHaveTextContent('Bruno Membro');
+    expect(within(d).getByRole('button', { name: 'Aprovar e enviar convite' })).toBeInTheDocument();
   });
 
   it('endereços antigos: Auditoria abre o Histórico; Clientes e Concessões conservam os filtros', async () => {

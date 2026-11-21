@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "9d380d531395ed5900710972c8f9c9472f9bda8c7f2b2c59d8320eee2fd01139",
+  "openapiSha256": "ada748b0190e7d0725172e4265e49a82b26b29c1ceb9c75ae38d54a18b00bdd1",
   "schemas": {
     "Error": {
       "type": "object",
@@ -120,6 +120,7 @@
         "logs.read",
         "automation.manage",
         "automation.publish",
+        "client_share.request",
         "workspace_parameter.read",
         "workspace_parameter.manage",
         "workspace_secret.read",
@@ -409,9 +410,9 @@
       "type": "object",
       "required": [
         "email",
-        "clientId",
+        "name",
         "automationId",
-        "canReadLogs",
+        "canViewDashboard",
         "canDownloadResults"
       ],
       "properties": {
@@ -419,8 +420,16 @@
           "type": "string",
           "maxLength": 254
         },
-        "clientId": {
+        "name": {
           "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "clientId": {
+          "type": [
+            "string",
+            "null"
+          ],
           "format": "uuid"
         },
         "automationId": {
@@ -434,7 +443,7 @@
           ],
           "format": "uuid"
         },
-        "canReadLogs": {
+        "canViewDashboard": {
           "type": "boolean"
         },
         "canDownloadResults": {
@@ -447,12 +456,14 @@
       "required": [
         "invitationId",
         "email",
+        "recipientName",
         "clientId",
         "workspaceId",
         "automationId",
         "workerId",
-        "canReadLogs",
+        "canViewDashboard",
         "canDownloadResults",
+        "shareRequestId",
         "expiresAt"
       ],
       "properties": {
@@ -461,6 +472,9 @@
           "format": "uuid"
         },
         "email": {
+          "type": "string"
+        },
+        "recipientName": {
           "type": "string"
         },
         "clientId": {
@@ -482,15 +496,250 @@
           ],
           "format": "uuid"
         },
-        "canReadLogs": {
+        "canViewDashboard": {
           "type": "boolean"
         },
         "canDownloadResults": {
           "type": "boolean"
         },
+        "shareRequestId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
         "expiresAt": {
           "type": "string",
           "format": "date-time"
+        }
+      }
+    },
+    "ClientShareRequestBody": {
+      "type": "object",
+      "required": [
+        "email",
+        "name",
+        "automationId",
+        "canViewDashboard",
+        "canDownloadResults"
+      ],
+      "properties": {
+        "email": {
+          "type": "string",
+          "maxLength": 254
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workerId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "canViewDashboard": {
+          "type": "boolean"
+        },
+        "canDownloadResults": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ClientShareRequestStatus": {
+      "type": "string",
+      "enum": [
+        "PENDENTE",
+        "APROVADO",
+        "RECUSADO",
+        "CANCELADO"
+      ]
+    },
+    "ClientShareRequestState": {
+      "type": "object",
+      "required": [
+        "shareRequestId",
+        "status",
+        "recipientName",
+        "email",
+        "workspaceId",
+        "automationId",
+        "workerId",
+        "canViewDashboard",
+        "canDownloadResults",
+        "requestedByMembershipId",
+        "createdAt",
+        "decidedAt",
+        "invitationId"
+      ],
+      "properties": {
+        "shareRequestId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "status": {
+          "$ref": "#/components/schemas/ClientShareRequestStatus"
+        },
+        "recipientName": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workerId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "canViewDashboard": {
+          "type": "boolean"
+        },
+        "canDownloadResults": {
+          "type": "boolean"
+        },
+        "requestedByMembershipId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "decidedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "invitationId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        }
+      }
+    },
+    "ClientShareRequest": {
+      "$ref": "#/components/schemas/ClientShareRequestState"
+    },
+    "ClientShareRequestItem": {
+      "type": "object",
+      "required": [
+        "shareRequestId",
+        "status",
+        "recipientName",
+        "email",
+        "automation",
+        "workspace",
+        "machine",
+        "requestedBy",
+        "decidedBy",
+        "canViewDashboard",
+        "canDownloadResults",
+        "requestedByMembershipId",
+        "createdAt",
+        "decidedAt",
+        "invitationId"
+      ],
+      "properties": {
+        "shareRequestId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "status": {
+          "$ref": "#/components/schemas/ClientShareRequestStatus"
+        },
+        "recipientName": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "automation": {
+          "$ref": "#/components/schemas/AutomationRef"
+        },
+        "workspace": {
+          "$ref": "#/components/schemas/WorkspaceRef"
+        },
+        "machine": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/MachineRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requestedBy": {
+          "type": "string"
+        },
+        "decidedBy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "canViewDashboard": {
+          "type": "boolean"
+        },
+        "canDownloadResults": {
+          "type": "boolean"
+        },
+        "requestedByMembershipId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "decidedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "invitationId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        }
+      }
+    },
+    "ClientShareRequestList": {
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/ClientShareRequestItem"
+          }
         }
       }
     },
@@ -525,7 +774,7 @@
       "required": [
         "clientMembershipId",
         "automationId",
-        "canReadLogs",
+        "canViewDashboard",
         "canDownloadResults"
       ],
       "properties": {
@@ -544,7 +793,7 @@
           ],
           "format": "uuid"
         },
-        "canReadLogs": {
+        "canViewDashboard": {
           "type": "boolean"
         },
         "canDownloadResults": {
@@ -555,11 +804,11 @@
     "ClientAutomationGrantReduceRequest": {
       "type": "object",
       "required": [
-        "canReadLogs",
+        "canViewDashboard",
         "canDownloadResults"
       ],
       "properties": {
-        "canReadLogs": {
+        "canViewDashboard": {
           "type": "boolean"
         },
         "canDownloadResults": {
@@ -578,7 +827,7 @@
         "workspaceId",
         "automationId",
         "workerId",
-        "canReadLogs",
+        "canViewDashboard",
         "canDownloadResults",
         "replacesGrantId"
       ],
@@ -625,7 +874,7 @@
           ],
           "format": "uuid"
         },
-        "canReadLogs": {
+        "canViewDashboard": {
           "type": "boolean"
         },
         "canDownloadResults": {
@@ -698,7 +947,9 @@
         "name",
         "workspaceId",
         "workspaceName",
-        "machines"
+        "machines",
+        "canShareDashboard",
+        "canShareFiles"
       ],
       "properties": {
         "automationId": {
@@ -720,13 +971,20 @@
           "items": {
             "$ref": "#/components/schemas/ShareMachine"
           }
+        },
+        "canShareDashboard": {
+          "type": "boolean"
+        },
+        "canShareFiles": {
+          "type": "boolean"
         }
       }
     },
     "ClientShareOptions": {
       "type": "object",
       "required": [
-        "automations"
+        "automations",
+        "mode"
       ],
       "properties": {
         "automations": {
@@ -734,6 +992,13 @@
           "items": {
             "$ref": "#/components/schemas/ClientShareOption"
           }
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "invite",
+            "request"
+          ]
         }
       }
     },
@@ -820,7 +1085,7 @@
         "workspace",
         "automation",
         "machine",
-        "canReadLogs",
+        "canViewDashboard",
         "canDownloadResults",
         "basis",
         "requestedBy",
@@ -884,7 +1149,7 @@
             }
           ]
         },
-        "canReadLogs": {
+        "canViewDashboard": {
           "type": "boolean"
         },
         "canDownloadResults": {
@@ -991,7 +1256,8 @@
         "roles",
         "grants",
         "client_links",
-        "clients"
+        "clients",
+        "share_requests"
       ]
     },
     "AccessHistoryEvent": {
@@ -1013,8 +1279,10 @@
         "grant",
         "invitationId",
         "decision",
-        "canReadLogs",
+        "technicalLogs",
+        "canViewDashboard",
         "canDownloadResults",
+        "shareRequestId",
         "grantException",
         "correlationId"
       ],
@@ -1049,7 +1317,12 @@
             "VINCULO_CLIENTE_REATIVADO",
             "VINCULO_CLIENTE_RETIRADO",
             "CLIENTE_CADASTRADO",
-            "CLIENTE_ALTERADO"
+            "CLIENTE_ALTERADO",
+            "CLIENTE_REGISTROS_TECNICOS_RETIRADOS",
+            "COMPARTILHAMENTO_SOLICITADO",
+            "COMPARTILHAMENTO_APROVADO",
+            "COMPARTILHAMENTO_RECUSADO",
+            "COMPARTILHAMENTO_CANCELADO"
           ]
         },
         "category": {
@@ -1180,7 +1453,10 @@
             null
           ]
         },
-        "canReadLogs": {
+        "technicalLogs": {
+          "type": "boolean"
+        },
+        "canViewDashboard": {
           "type": [
             "boolean",
             "null"
@@ -1191,6 +1467,13 @@
             "boolean",
             "null"
           ]
+        },
+        "shareRequestId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
         },
         "grantException": {
           "type": "boolean"
@@ -1239,7 +1522,7 @@
         "automation",
         "workspace",
         "machine",
-        "canReadLogs",
+        "canViewDashboard",
         "canDownloadResults",
         "basis",
         "createdAt"
@@ -1282,7 +1565,7 @@
             }
           ]
         },
-        "canReadLogs": {
+        "canViewDashboard": {
           "type": "boolean"
         },
         "canDownloadResults": {
@@ -1496,8 +1779,10 @@
         "workspaceName",
         "workerId",
         "workerName",
-        "canReadLogs",
-        "canDownloadResults"
+        "canViewDashboard",
+        "canDownloadResults",
+        "recipientName",
+        "shareRequestId"
       ],
       "properties": {
         "clientId": {
@@ -1534,22 +1819,26 @@
             "null"
           ]
         },
-        "canReadLogs": {
+        "canViewDashboard": {
           "type": "boolean"
         },
         "canDownloadResults": {
           "type": "boolean"
+        },
+        "recipientName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "shareRequestId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
         }
       }
-    },
-    "PortalExecutionKind": {
-      "type": "string",
-      "enum": [
-        "platform",
-        "local_agent",
-        "local_request",
-        "remote"
-      ]
     },
     "PortalClientOrganization": {
       "type": "object",
@@ -1589,48 +1878,27 @@
         }
       }
     },
-    "PortalSharedAutomation": {
+    "PortalSharedDashboard": {
       "type": "object",
       "required": [
-        "automationId",
-        "name",
-        "workspaceName",
-        "allMachines",
-        "machines",
-        "canReadLogs",
-        "canDownloadResults",
         "executionsLast30Days",
+        "succeededLast30Days",
+        "failedLast30Days",
+        "inProgress",
         "lastRequestedAt",
-        "lastOutcome",
-        "clientName"
+        "lastOutcome"
       ],
       "properties": {
-        "automationId": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "name": {
-          "type": "string"
-        },
-        "workspaceName": {
-          "type": "string"
-        },
-        "allMachines": {
-          "type": "boolean"
-        },
-        "machines": {
-          "type": "array",
-          "items": {
-            "$ref": "#/components/schemas/ShareMachine"
-          }
-        },
-        "canReadLogs": {
-          "type": "boolean"
-        },
-        "canDownloadResults": {
-          "type": "boolean"
-        },
         "executionsLast30Days": {
+          "type": "integer"
+        },
+        "succeededLast30Days": {
+          "type": "integer"
+        },
+        "failedLast30Days": {
+          "type": "integer"
+        },
+        "inProgress": {
           "type": "integer"
         },
         "lastRequestedAt": {
@@ -1641,8 +1909,67 @@
           "format": "date-time"
         },
         "lastOutcome": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/PortalOutcome"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "PortalOutcome": {
+      "type": "string",
+      "enum": [
+        "succeeded",
+        "failed",
+        "in_progress",
+        "cancelled",
+        "not_started",
+        "unconfirmed",
+        "no_error_signaled"
+      ]
+    },
+    "PortalSharedAutomation": {
+      "type": "object",
+      "required": [
+        "automationId",
+        "name",
+        "canViewDashboard",
+        "canDownloadResults",
+        "dashboard",
+        "filesAvailable",
+        "clientName"
+      ],
+      "properties": {
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "canViewDashboard": {
+          "type": "boolean"
+        },
+        "canDownloadResults": {
+          "type": "boolean"
+        },
+        "dashboard": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/PortalSharedDashboard"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "filesAvailable": {
           "type": [
-            "string",
+            "integer",
             "null"
           ]
         },
@@ -1665,34 +1992,84 @@
         }
       }
     },
-    "PortalSharedExecution": {
+    "PortalSharedSummary": {
       "type": "object",
       "required": [
-        "kind",
-        "id",
-        "machine",
-        "requestedAt",
-        "startedAt",
-        "endedAt",
-        "outcome"
+        "from",
+        "to",
+        "total",
+        "succeeded",
+        "failed",
+        "inProgress",
+        "notStarted",
+        "cancelled",
+        "other",
+        "lastRequestedAt",
+        "lastOutcome"
       ],
       "properties": {
-        "kind": {
-          "$ref": "#/components/schemas/PortalExecutionKind"
-        },
-        "id": {
+        "from": {
           "type": "string",
-          "format": "uuid"
+          "format": "date-time"
         },
-        "machine": {
+        "to": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "total": {
+          "type": "integer"
+        },
+        "succeeded": {
+          "type": "integer"
+        },
+        "failed": {
+          "type": "integer"
+        },
+        "inProgress": {
+          "type": "integer"
+        },
+        "notStarted": {
+          "type": "integer"
+        },
+        "cancelled": {
+          "type": "integer"
+        },
+        "other": {
+          "type": "integer"
+        },
+        "lastRequestedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "lastOutcome": {
           "oneOf": [
             {
-              "$ref": "#/components/schemas/MachineRef"
+              "$ref": "#/components/schemas/PortalOutcome"
             },
             {
               "type": "null"
             }
           ]
+        }
+      }
+    },
+    "PortalSharedExecution": {
+      "type": "object",
+      "required": [
+        "id",
+        "requestedAt",
+        "startedAt",
+        "endedAt",
+        "outcome",
+        "files"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
         },
         "requestedAt": {
           "type": "string",
@@ -1713,15 +2090,12 @@
           "format": "date-time"
         },
         "outcome": {
-          "type": "string",
-          "enum": [
-            "succeeded",
-            "failed",
-            "in_progress",
-            "cancelled",
-            "not_started",
-            "unconfirmed",
-            "no_error_signaled"
+          "$ref": "#/components/schemas/PortalOutcome"
+        },
+        "files": {
+          "type": [
+            "integer",
+            "null"
           ]
         }
       }
@@ -1747,17 +2121,17 @@
         }
       }
     },
-    "PortalSharedAttempt": {
+    "PortalSharedFile": {
       "type": "object",
       "required": [
         "attemptId",
         "number",
-        "workerId",
-        "workerName",
-        "startedAt",
-        "endedAt",
-        "canReadLogs",
-        "canDownloadResults"
+        "automation",
+        "executionRequestedAt",
+        "fileName",
+        "sizeBytes",
+        "receivedAt",
+        "available"
       ],
       "properties": {
         "attemptId": {
@@ -1767,162 +2141,18 @@
         "number": {
           "type": "integer"
         },
-        "workerId": {
-          "type": "string",
-          "format": "uuid"
+        "automation": {
+          "$ref": "#/components/schemas/AutomationRef"
         },
-        "workerName": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "startedAt": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "date-time"
-        },
-        "endedAt": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "date-time"
-        },
-        "canReadLogs": {
-          "type": "boolean"
-        },
-        "canDownloadResults": {
-          "type": "boolean"
-        }
-      }
-    },
-    "PortalSharedExecutionDetail": {
-      "allOf": [
-        {
-          "$ref": "#/components/schemas/PortalSharedExecution"
-        },
-        {
-          "type": "object",
-          "required": [
-            "automation",
-            "attempts"
-          ],
-          "properties": {
-            "automation": {
-              "$ref": "#/components/schemas/AutomationRef"
-            },
-            "attempts": {
-              "type": "array",
-              "items": {
-                "$ref": "#/components/schemas/PortalSharedAttempt"
-              }
-            }
-          }
-        }
-      ]
-    },
-    "PortalSharedLogLine": {
-      "type": "object",
-      "required": [
-        "sequence",
-        "capturedAt",
-        "channel",
-        "truncated",
-        "message",
-        "textRemoved"
-      ],
-      "properties": {
-        "sequence": {
-          "type": "integer"
-        },
-        "capturedAt": {
+        "executionRequestedAt": {
           "type": "string",
           "format": "date-time"
-        },
-        "channel": {
-          "type": "string",
-          "enum": [
-            "STDOUT",
-            "STDERR",
-            "EXECUTOR"
-          ]
-        },
-        "truncated": {
-          "type": "boolean"
-        },
-        "message": {
-          "type": "string"
-        },
-        "textRemoved": {
-          "type": "boolean"
-        }
-      }
-    },
-    "PortalSharedLogs": {
-      "type": "object",
-      "required": [
-        "items",
-        "total",
-        "closedAt",
-        "droppedLines",
-        "nextAfter"
-      ],
-      "properties": {
-        "items": {
-          "type": "array",
-          "items": {
-            "$ref": "#/components/schemas/PortalSharedLogLine"
-          }
-        },
-        "total": {
-          "type": "integer"
-        },
-        "closedAt": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "date-time"
-        },
-        "droppedLines": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "nextAfter": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        }
-      }
-    },
-    "PortalSharedResultFile": {
-      "type": "object",
-      "required": [
-        "number",
-        "fileName",
-        "sizeBytes",
-        "sha256",
-        "receivedAt",
-        "available"
-      ],
-      "properties": {
-        "number": {
-          "type": "integer"
         },
         "fileName": {
           "type": "string"
         },
         "sizeBytes": {
           "type": "integer"
-        },
-        "sha256": {
-          "type": "string"
         },
         "receivedAt": {
           "type": "string",
@@ -1933,30 +2163,22 @@
         }
       }
     },
-    "PortalSharedResults": {
+    "PortalSharedFilePage": {
       "type": "object",
       "required": [
         "items",
-        "closedAt",
-        "skippedByLimit"
+        "nextCursor"
       ],
       "properties": {
         "items": {
           "type": "array",
           "items": {
-            "$ref": "#/components/schemas/PortalSharedResultFile"
+            "$ref": "#/components/schemas/PortalSharedFile"
           }
         },
-        "closedAt": {
+        "nextCursor": {
           "type": [
             "string",
-            "null"
-          ],
-          "format": "date-time"
-        },
-        "skippedByLimit": {
-          "type": [
-            "integer",
             "null"
           ]
         }
@@ -5149,6 +5371,40 @@
         "email": {
           "type": "string",
           "maxLength": 254
+        },
+        "invitation": {
+          "type": "object",
+          "required": [
+            "organizationId",
+            "token"
+          ],
+          "properties": {
+            "organizationId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "token": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "SignupPreview": {
+      "type": "object",
+      "required": [
+        "email",
+        "displayName"
+      ],
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     },
@@ -5879,6 +6135,41 @@
         },
         "token": {
           "type": "string"
+        }
+      }
+    },
+    "InvitationPreview": {
+      "type": "object",
+      "required": [
+        "organizationId",
+        "organizationName",
+        "email",
+        "recipientName",
+        "audience"
+      ],
+      "properties": {
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationName": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "recipientName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "audience": {
+          "type": "string",
+          "enum": [
+            "internal",
+            "client"
+          ]
         }
       }
     },
@@ -9923,6 +10214,42 @@
         }
       }
     },
+    "signupPreview": {
+      "method": "POST",
+      "path": "/api/v1/signup/preview",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/SignupPreview"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
     "resendSignupConfirmation": {
       "method": "POST",
       "path": "/api/v1/signup/confirmation/resend",
@@ -11647,6 +11974,42 @@
         }
       }
     },
+    "invitationPreview": {
+      "method": "POST",
+      "path": "/api/v1/invitations/preview",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/InvitationPreview"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
     "acceptInvitation": {
       "method": "POST",
       "path": "/api/v1/invitations/accept",
@@ -13164,6 +13527,210 @@
           }
         },
         "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "listClientShareRequests": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/client-share-requests",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ClientShareRequestList"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "requestClientShare": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/client-share-requests",
+      "responses": {
+        "201": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ClientShareRequest"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "approveClientShare": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/client-share-requests/{request}/approve",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ClientShareRequestState"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "refuseClientShare": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/client-share-requests/{request}/refuse",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ClientShareRequestState"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "cancelClientShare": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/client-share-requests/{request}/cancel",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ClientShareRequestState"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/Error"
@@ -15812,6 +16379,48 @@
         }
       }
     },
+    "portalSharedSummary": {
+      "method": "GET",
+      "path": "/portal/api/v1/o/{org}/shared-automations/{automation}/summary",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/PortalSharedSummary"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
     "portalSharedExecutions": {
       "method": "GET",
       "path": "/portal/api/v1/o/{org}/shared-automations/{automation}/executions",
@@ -15854,50 +16463,14 @@
         }
       }
     },
-    "portalSharedExecution": {
+    "portalSharedFiles": {
       "method": "GET",
-      "path": "/portal/api/v1/o/{org}/shared-executions/{kind}/{id}",
+      "path": "/portal/api/v1/o/{org}/shared-files",
       "responses": {
         "200": {
           "contentType": "application/json",
           "schema": {
-            "$ref": "#/components/schemas/PortalSharedExecutionDetail"
-          }
-        },
-        "401": {
-          "contentType": "application/json",
-          "schema": {
-            "$ref": "#/components/schemas/Error"
-          }
-        },
-        "403": {
-          "contentType": "application/json",
-          "schema": {
-            "$ref": "#/components/schemas/Error"
-          }
-        },
-        "404": {
-          "contentType": "application/json",
-          "schema": {
-            "$ref": "#/components/schemas/Error"
-          }
-        },
-        "429": {
-          "contentType": "application/json",
-          "schema": {
-            "$ref": "#/components/schemas/Error"
-          }
-        }
-      }
-    },
-    "portalSharedLogs": {
-      "method": "GET",
-      "path": "/portal/api/v1/o/{org}/shared-executions/remote/{id}/attempts/{attempt}/logs",
-      "responses": {
-        "200": {
-          "contentType": "application/json",
-          "schema": {
-            "$ref": "#/components/schemas/PortalSharedLogs"
+            "$ref": "#/components/schemas/PortalSharedFilePage"
           }
         },
         "400": {
@@ -15932,45 +16505,9 @@
         }
       }
     },
-    "portalSharedResults": {
+    "portalSharedFileContent": {
       "method": "GET",
-      "path": "/portal/api/v1/o/{org}/shared-executions/remote/{id}/attempts/{attempt}/results",
-      "responses": {
-        "200": {
-          "contentType": "application/json",
-          "schema": {
-            "$ref": "#/components/schemas/PortalSharedResults"
-          }
-        },
-        "401": {
-          "contentType": "application/json",
-          "schema": {
-            "$ref": "#/components/schemas/Error"
-          }
-        },
-        "403": {
-          "contentType": "application/json",
-          "schema": {
-            "$ref": "#/components/schemas/Error"
-          }
-        },
-        "404": {
-          "contentType": "application/json",
-          "schema": {
-            "$ref": "#/components/schemas/Error"
-          }
-        },
-        "429": {
-          "contentType": "application/json",
-          "schema": {
-            "$ref": "#/components/schemas/Error"
-          }
-        }
-      }
-    },
-    "portalSharedResultContent": {
-      "method": "GET",
-      "path": "/portal/api/v1/o/{org}/shared-executions/remote/{id}/attempts/{attempt}/results/{number}/content",
+      "path": "/portal/api/v1/o/{org}/shared-files/{attempt}/{number}/content",
       "responses": {
         "200": {
           "contentType": "application/octet-stream",

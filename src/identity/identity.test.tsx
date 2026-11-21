@@ -63,7 +63,8 @@ describe('cadastro', () => {
     expect(window.location.hash).toBe('');
     renderApp('/cadastro/confirmar');
     await screen.findByRole('heading', { name: 'Conclua seu cadastro' });
-    expect(api.calls.filter((c) => c.method === 'POST')).toEqual([]);
+    // 071: só a prévia (que não consome o token) sai na abertura; a confirmação, só ao concluir
+    expect(api.calls.filter((c) => c.method === 'POST' && c.path !== '/api/v1/signup/preview')).toEqual([]);
 
     await user().type(screen.getByLabelText(lbl('Nome')), 'Ana');
     await user().type(screen.getByLabelText(lbl('Senha')), PASSWORD);
@@ -75,6 +76,20 @@ describe('cadastro', () => {
     await user().type(screen.getByLabelText(lbl('E-mail do cadastro')), 'ana@empresa.com');
     await user().click(screen.getByRole('button', { name: 'Enviar nova mensagem' }));
     expect(await screen.findByText(/Pedido recebido/)).toBeInTheDocument();
+  });
+
+  it('071: vindo do convite, o nome informado no convite já vem preenchido (só falta a senha)', async () => {
+    api.on('POST', '/api/v1/signup/preview', 'signupPreview', { status: 200, body: { email: 'carla@cliente.com', displayName: 'Carla Cliente' } });
+    api.on('POST', '/api/v1/signup/confirm', 'confirmSignup', { status: 204 });
+    openLink('/cadastro/confirmar', TOKEN);
+    renderApp('/cadastro/confirmar');
+    expect(await screen.findByText('Seu nome veio do convite. Só falta escolher a senha.')).toBeInTheDocument();
+    expect(screen.getByLabelText(lbl('Nome'))).toHaveValue('Carla Cliente');
+    await user().type(screen.getByLabelText(lbl('Senha')), PASSWORD);
+    await user().type(screen.getByLabelText(lbl('Confirmar senha')), PASSWORD);
+    await user().click(screen.getByRole('button', { name: 'Concluir cadastro' }));
+    await screen.findByRole('heading', { name: 'Cadastro concluído' });
+    expect(api.sent('POST', '/api/v1/signup/confirm')[0].body).toEqual({ token: TOKEN, password: PASSWORD, displayName: 'Carla Cliente' });
   });
 
   it('senha fora da política não é enviada', async () => {

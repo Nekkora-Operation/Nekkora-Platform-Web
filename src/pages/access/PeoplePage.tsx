@@ -44,7 +44,15 @@ import { UncertainPanel, type UncertainCopy } from '../admin/uncertainPanel';
 import { ADMIN_PAGE, AccountStatusBadge, AdminLoadMore, ForbiddenState, StatusFilter, useAccessDenied, useUrlFilters } from '../admin/shared';
 import { MemberAccessDialog, type AccessSaved, type AccessTarget } from './MemberAccessDialog';
 import { ClientAccessDialog, type ClientAccessSaved } from './ClientAccessDialog';
-import { ClientInviteFields, EMPTY_CLIENT_DRAFT, resolveDraft, type ClientInviteDraft, type ClientInviteOptions, type ClientInviteResolved } from './ClientInviteFields';
+import {
+  ClientInviteFields,
+  draftErrors,
+  EMPTY_CLIENT_DRAFT,
+  resolveDraft,
+  type ClientInviteDraft,
+  type ClientInviteOptions,
+  type ClientInviteResolved,
+} from './ClientInviteFields';
 import { clientRefusal, inviteSummary, machineScopeText, permissionsText } from './clientShared';
 import { accessRefusal, isWorkspaceRole, orgStepUp, REVOKE_REASON_LABEL, ROLE_LABEL, ROLE_OPTIONS } from './shared';
 import '../admin/admin.css';
@@ -335,7 +343,7 @@ export function PeoplePage() {
   const [inviteType, setInviteType] = useState<'internal' | 'client'>('internal');
   const [clientDraft, setClientDraft] = useState<ClientInviteDraft>(EMPTY_CLIENT_DRAFT);
   const [clientOptions, setClientOptions] = useState<ClientInviteOptions | null>(null);
-  const [clientErrors, setClientErrors] = useState<{ client?: string; automation?: string }>({});
+  const [clientErrors, setClientErrors] = useState<{ name?: string; automation?: string; content?: string }>({});
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<RoleCode | ''>('');
   const [workspaceId, setWorkspaceId] = useState('');
@@ -351,14 +359,11 @@ export function PeoplePage() {
     e.preventDefault();
     if (inviteType === 'client') {
       const emailError = /^[^\s@]+@[^\s@]+$/.test(email.trim()) ? undefined : 'Informe um e-mail válido.';
-      const cErrors = {
-        client: clientDraft.clientId ? undefined : 'Escolha o cliente.',
-        automation: clientDraft.automationId ? undefined : 'Escolha a automação compartilhada.',
-      };
+      const cErrors = draftErrors(clientDraft);
       setFormError({ email: emailError });
       setClientErrors(cErrors);
       const resolved = clientOptions ? resolveDraft(clientDraft, clientOptions) : null;
-      if (emailError || cErrors.client || cErrors.automation || !resolved) return;
+      if (emailError || cErrors.name || cErrors.automation || cErrors.content || !resolved) return;
       setNotice(null);
       setAct({ kind: 'issue-client', email: email.trim(), draft: clientDraft, resolved });
       return;
@@ -507,11 +512,13 @@ export function PeoplePage() {
           if (sc)
             return (
               <span className="pw-admin__person">
-                <span>Cliente · {sc.clientName}</span>
-                <span className="pw-prod__muted">
-                  Acompanhar {sc.automationName} ({sc.workspaceName}) · {sc.workerName ? `máquina ${sc.workerName}` : 'todas as máquinas'}
+                <span>
+                  {sc.recipientName ? `${sc.recipientName} · ` : ''}Cliente · {sc.clientName}
                 </span>
-                <span className="pw-prod__muted">{permissionsText(sc.canReadLogs, sc.canDownloadResults)}</span>
+                <span className="pw-prod__muted">
+                  {sc.automationName} ({sc.workspaceName}) · {sc.workerName ? `máquina ${sc.workerName}` : 'todas as máquinas'}
+                </span>
+                <span className="pw-prod__muted">{permissionsText(sc.canViewDashboard, sc.canDownloadResults)}</span>
               </span>
             );
           return roleText(p.invitation!);
@@ -687,11 +694,28 @@ export function PeoplePage() {
                     }}
                     options={[
                       { value: 'internal', label: 'Pessoa da equipe', description: 'Membro da organização, com perfil opcional.' },
-                      { value: 'client', label: 'Cliente', description: 'Acompanha uma automação compartilhada, sem criar nem operar nada.' },
+                      {
+                        value: 'client',
+                        label: 'Pessoa externa (cliente)',
+                        description: 'Vê o dashboard e/ou os arquivos de retorno de uma automação, sem criar nem operar nada.',
+                      },
                     ]}
                   />
                 )}
                 <div className="pw-people__invite-fields">
+                  {inviteType === 'client' && (
+                    <Input
+                      label="Nome da pessoa"
+                      required
+                      fullWidth
+                      autoComplete="off"
+                      value={clientDraft.name}
+                      onChange={(e) => setClientDraft({ ...clientDraft, name: e.target.value })}
+                      error={clientErrors.name}
+                      maxLength={200}
+                      hint="Aparece no primeiro acesso dela: não é pedido de novo."
+                    />
+                  )}
                   <Input label="E-mail da pessoa" type="email" required fullWidth value={email} onChange={(e) => setEmail(e.target.value)} error={formError.email} maxLength={254} />
                   {inviteType === 'client' ? (
                     <ClientInviteFields
@@ -699,7 +723,6 @@ export function PeoplePage() {
                       draft={clientDraft}
                       onChange={setClientDraft}
                       errors={clientErrors}
-                      canCreateClient={canManage || canExternal}
                       onOptions={setClientOptions}
                       onUnauthenticated={expired}
                     />
@@ -818,18 +841,19 @@ export function PeoplePage() {
 
       <StepUpDialog
         open={act?.kind === 'issue-client'}
-        title={act?.kind === 'issue-client' ? `Convidar ${act.email} como cliente?` : ''}
+        title={act?.kind === 'issue-client' ? `Compartilhar ${act.resolved.automationName} com ${act.draft.name.trim()}?` : ''}
         guard={{ operation: 'invitation.issue.client', target: act?.kind === 'issue-client' ? act.email.trim().toLowerCase() : undefined }}
-        confirmLabel="Enviar convite de cliente"
+        confirmLabel="Compartilhar e enviar convite"
         stepUp={orgStepUp(org)}
         action={() =>
           act?.kind === 'issue-client'
             ? inviteClient(org, {
                 email: act.email,
-                clientId: act.draft.clientId,
+                name: act.draft.name.trim(),
+                clientId: act.draft.clientId || null,
                 automationId: act.draft.automationId,
                 workerId: act.draft.workerId || null,
-                canReadLogs: act.draft.canReadLogs,
+                canViewDashboard: act.draft.canViewDashboard,
                 canDownloadResults: act.draft.canDownloadResults,
               })
             : Promise.reject()
@@ -837,7 +861,7 @@ export function PeoplePage() {
         onDone={() => {
           setEmail('');
           setClientDraft(EMPTY_CLIENT_DRAFT);
-          actDone('Convite de cliente enviado. O acesso só começa quando a pessoa aceitar.');
+          actDone('Compartilhamento enviado por convite. O acesso só começa quando a pessoa aceitar.');
         }}
         onClose={() => setAct(null)}
         refusalText={(e) => clientRefusal(e, 'Já existe um convite aberto para este e-mail (use Reenviar).')}
@@ -847,22 +871,26 @@ export function PeoplePage() {
       >
         {act?.kind === 'issue-client' && (
           <Stack gap={2}>
-            <Text>{inviteSummary(act.resolved.automationName, act.resolved.workspaceName, act.resolved.machineName)}</Text>
+            <Text>{inviteSummary(act.resolved.automationName, act.resolved.workspaceName, act.resolved.machineName, act.draft.name.trim())}</Text>
             <dl className="pw-people__confirm">
-              <dt>Cliente</dt>
-              <dd>{act.resolved.clientName}</dd>
+              <dt>Pessoa</dt>
+              <dd>
+                {act.draft.name.trim()} ({act.email})
+              </dd>
               <dt>Automação</dt>
               <dd>{act.resolved.automationName}</dd>
               <dt>Ambiente de trabalho</dt>
               <dd>{act.resolved.workspaceName}</dd>
               <dt>Máquinas</dt>
               <dd>{act.resolved.machineName ?? 'Todas as máquinas desta automação'}</dd>
-              <dt>Permissões</dt>
-              <dd>{permissionsText(act.draft.canReadLogs, act.draft.canDownloadResults)}</dd>
+              <dt>Conteúdos</dt>
+              <dd>{permissionsText(act.draft.canViewDashboard, act.draft.canDownloadResults)}</dd>
+              <dt>Cliente (cadastro interno)</dt>
+              <dd>{act.resolved.clientName ?? 'Criado ou reutilizado com o nome da pessoa'}</dd>
             </dl>
             <Text variant="body-sm" color="secondary">
-              Convite de Cliente aprovado por você (exceção registrada na auditoria). Nada é concedido antes do aceite; no aceite o servidor
-              confere tudo de novo. Sem execução, publicação ou administração.
+              Compartilhamento aprovado por você (exceção registrada na auditoria). Nada é concedido antes do aceite; no aceite o servidor
+              confere tudo de novo. Sem registros técnicos, execução, publicação ou administração.
             </Text>
           </Stack>
         )}

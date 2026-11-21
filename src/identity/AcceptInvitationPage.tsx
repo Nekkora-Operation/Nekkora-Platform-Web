@@ -3,7 +3,7 @@ import { Link as RouterLink, useLocation, useNavigate } from 'react-router';
 import { Alert, Button, Link, StateView, Text } from 'nekkora-lib';
 import { csrfStore } from '../api/csrf';
 import { ApiError, isApiError } from '../api/http';
-import { acceptInvitation, enterOrganization, identitySession, identityStepUp } from '../api/identity';
+import { acceptInvitation, enterOrganization, identitySession, identityStepUp, invitationPreview, type InvitationPreview } from '../api/identity';
 import { AuthScreen } from '../app/AuthScreen';
 import { useOrganization } from '../app/organization';
 import { identityPath } from '../auth/flow';
@@ -64,6 +64,24 @@ export function AcceptInvitationPage() {
   const [entering, setEntering] = useState(false);
   const [enterError, setEnterError] = useState<UserMessage | 'no_access' | null>(null);
   const [uncertain, setUncertain] = useState(false);
+  // 071: sem sessão, o convite aberto mostra a organização, o nome e o e-mail (o cadastro não os pede de novo)
+  const [preview, setPreview] = useState<InvitationPreview | 'invalid' | null>(null);
+  useEffect(() => {
+    if (probe !== 'none' || !token) return;
+    let alive = true;
+    invitationPreview(org, token).then(
+      (p) => alive && setPreview(p),
+      (e: unknown) => alive && isApiError(e, 'not_found') && setPreview('invalid'),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [probe, org, token]);
+  const startSignup = () => {
+    // o e-mail (não secreto) vai pela navegação; o token do convite continua só na memória da aba (pendingInvitation)
+    if (preview && preview !== 'invalid') navigate(identityPath.signup, { state: { inviteEmail: preview.email } });
+    else navigate(identityPath.signup);
+  };
 
   useEffect(() => {
     let alive = true;
@@ -166,12 +184,24 @@ export function AcceptInvitationPage() {
       )}
       {probe === 'none' && (
         <>
-          <Text>Para aceitar, entre com a identidade Nekkora do e-mail que recebeu o convite. Se ainda não tem cadastro, crie com esse mesmo e-mail.</Text>
+          {preview === 'invalid' && (
+            <Alert tone="warning">Este convite não está mais aberto (pode ter vencido, sido revogado ou substituído). Peça um convite novo a quem enviou.</Alert>
+          )}
+          {preview && preview !== 'invalid' && (
+            <Text>
+              {preview.recipientName ? `${preview.recipientName}, ` : ''}
+              {preview.audience === 'client'
+                ? `${preview.organizationName} compartilhou com você o acompanhamento de uma automação.`
+                : `${preview.organizationName} convidou você para participar da organização.`}{' '}
+              O convite é para {preview.email}.
+            </Text>
+          )}
+          <Text>Para aceitar, entre com a identidade Nekkora desse e-mail. Se ainda não tem, crie o seu acesso: só falta a senha (e, se quiser, a verificação em duas etapas).</Text>
           <Button fullWidth size="lg" onClick={() => navigate(identityPath.login)}>
             Entrar
           </Button>
-          <Button fullWidth variant="secondary" onClick={() => navigate(identityPath.signup)}>
-            Criar cadastro
+          <Button fullWidth variant="secondary" onClick={startSignup}>
+            Criar meu acesso
           </Button>
           <Text variant="body-sm" color="secondary">
             Depois de entrar, você volta a este convite pelo aviso na lista das suas organizações (nesta aba) ou abrindo de novo o link do e-mail.

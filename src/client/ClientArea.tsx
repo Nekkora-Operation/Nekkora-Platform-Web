@@ -1,36 +1,36 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { Alert, Badge, Button, Card, Link, SectionHeader, Stack, StateView, Text } from 'nekkora-lib';
-import { Link as RouterLink, useParams } from 'react-router';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { Alert, Badge, Button, Card, Input, Link, SectionHeader, Select, Stack, StateView, Text } from 'nekkora-lib';
+import { Link as RouterLink, useParams, useSearchParams } from 'react-router';
 import {
-  getSharedExecution,
-  getSharedLogs,
-  getSharedResults,
+  fetchSharedFile,
+  getSharedSummary,
   listClientOrganizations,
   listSharedAutomations,
   listSharedExecutions,
-  sharedResultHref,
+  listSharedFiles,
+  previewKind,
+  PreviewError,
+  sharedFileHref,
   type ClientOrganization,
-  type ExecutionKind,
-  type SharedAttempt,
   type SharedAutomation,
   type SharedExecution,
-  type SharedExecutionDetail,
-  type SharedLogs,
-  type SharedResults,
+  type SharedFile,
+  type SharedOutcome,
+  type SharedSummary,
 } from '../api/clientArea';
 import { ApiError, isApiError } from '../api/http';
 import { clientPath } from '../auth/organization';
 import { useCursorList } from '../hooks/useCursorList';
 import { useIdentityArea } from '../identity/IdentityArea';
 import { DateTimeText } from '../pages/product/shared';
-import { OUTCOME } from '../pages/ExecutionsPage';
 import './client.css';
 
 /**
- * Área do cliente (PLATFORM-FLUXO-002, 070). A pessoa entra com a conta Nekkora; em cada organização vê SÓ o que foi
- * compartilhado com ela: automações (cards) → automação e execuções → execução, com registros e resultados quando
- * concedidos separadamente. Tudo vem do Portal, que reconfere vínculo e concessões a cada consulta: revogar ou suspender vale na
- * próxima leitura. A máquina aparece só como contexto da execução (sem acesso à administração dela nem às outras atividades).
+ * Área do cliente (PLATFORM-FLUXO-002, 070/071). A pessoa entra com a conta Nekkora e, em cada organização, vê SÓ o que foi
+ * compartilhado com ela: o DASHBOARD de execução das automações (indicadores e o estado de cada execução em linguagem simples) e
+ * os ARQUIVOS DE RETORNO autorizados (ver ou baixar), identificados pela automação e pela data da execução. Nada de registros
+ * técnicos, máquinas, ambientes de trabalho ou ações. Tudo vem do Portal, que reconfere vínculo, concessões e o conteúdo a cada
+ * consulta: revogar, reduzir ou suspender vale na próxima leitura. Relatórios personalizados ainda não existem.
  */
 
 type Load<T> = { status: 'loading' } | { status: 'ready'; data: T } | { status: 'error'; error: unknown };
@@ -59,9 +59,9 @@ function useLoad<T>(fn: () => Promise<T>, deps: readonly unknown[]): [Load<T>, (
 }
 
 /** Recusas do Portal sem revelar o que não foi compartilhado (fora do escopo e inexistente respondem igual). */
-function ClientError({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
+function ClientError({ error, onRetry, forbidden }: { error: unknown; onRetry?: () => void; forbidden?: string }) {
   const title = isApiError(error, 'forbidden')
-    ? 'Você não tem acesso de cliente nesta organização (ou ele foi suspenso).'
+    ? (forbidden ?? 'Você não tem acesso de cliente nesta organização (ou ele foi suspenso).')
     : isApiError(error, 'not_found') || (error instanceof ApiError && error.status === 404)
       ? 'Não encontrado, ou não compartilhado com você.'
       : 'Não foi possível carregar agora.';
@@ -85,20 +85,29 @@ function ClientError({ error, onRetry }: { error: unknown; onRetry?: () => void 
   );
 }
 
-function OutcomeBadge({ outcome }: { outcome: string | null }) {
-  if (!outcome) return <span className="pw-prod__muted">—</span>;
-  const o = OUTCOME[outcome as keyof typeof OUTCOME];
+/** O estado da execução em linguagem simples, sempre com texto (a cor nunca fala sozinha). */
+export const CLIENT_OUTCOME: Record<SharedOutcome, { label: string; tone: 'neutral' | 'info' | 'success' | 'danger' | 'warning' }> = {
+  succeeded: { label: 'Concluída', tone: 'success' },
+  failed: { label: 'Não concluída', tone: 'danger' },
+  in_progress: { label: 'Em andamento', tone: 'info' },
+  cancelled: { label: 'Cancelada', tone: 'neutral' },
+  not_started: { label: 'Não iniciada', tone: 'neutral' },
+  unconfirmed: { label: 'Aguardando confirmação', tone: 'warning' },
+  no_error_signaled: { label: 'Terminou sem aviso de erro', tone: 'neutral' },
+};
+
+function OutcomeBadge({ outcome }: { outcome: SharedOutcome | null }) {
+  if (!outcome) return <span className="pw-prod__muted">Nenhuma execução</span>;
+  const o = CLIENT_OUTCOME[outcome];
   return (
-    <Badge tone={o?.tone ?? 'neutral'} dot>
-      {o?.label ?? outcome}
+    <Badge tone={o.tone} dot>
+      {o.label}
     </Badge>
   );
 }
 
-const machinesText = (a: Pick<SharedAutomation, 'allMachines' | 'machines'>) =>
-  a.allMachines ? 'Todas as máquinas desta automação' : a.machines.map((m) => m.name).join(', ');
-const permissionsText = (a: { canReadLogs: boolean; canDownloadResults: boolean }) =>
-  [a.canReadLogs ? 'registros' : null, a.canDownloadResults ? 'resultados' : null].filter(Boolean).join(' e ') || 'só as execuções';
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const sizeText = (b: number) => (b < 1024 ? `${b} B` : b < 1024 * 1024 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1024 / 1024).toFixed(1)} MB`);
 
 function Back({ to, children }: { to: string; children: ReactNode }) {
   return (
@@ -139,7 +148,7 @@ export function SharedWithYouSection() {
                     {o.organizationName}
                   </Text>
                   <Text variant="body-sm" color="secondary">
-                    Cliente {o.clientName} · {o.sharedAutomations === 1 ? '1 automação' : `${o.sharedAutomations} automações`}
+                    {plural(o.sharedAutomations, 'automação compartilhada', 'automações compartilhadas')}
                   </Text>
                 </div>
                 <Link as={RouterLink} to={clientPath.organization(o.organizationId)} arrow>
@@ -159,7 +168,7 @@ export function ClientHomePage() {
   const [state, retry] = useLoad(() => listClientOrganizations(), []);
   return (
     <Stack gap={5} className="pw-client">
-      <SectionHeader as="h1" title="Compartilhado com você" description="Automações que organizações compartilharam com você para acompanhamento." />
+      <SectionHeader as="h1" title="Compartilhado com você" description="Dashboards de execução e arquivos de retorno que organizações compartilharam com você." />
       {state.status === 'loading' ? (
         <StateView status="loading" title="Carregando…" />
       ) : state.status === 'error' ? (
@@ -173,14 +182,30 @@ export function ClientHomePage() {
   );
 }
 
-/** /cliente/o/:orgId — cards das automações compartilhadas nesta organização. */
+/** Um indicador: número grande e o rótulo (sem cor; o estado vem só nos selos com texto). */
+function Stat({ value, label }: { value: ReactNode; label: string }) {
+  return (
+    <div className="pw-client__stat">
+      <span className="pw-client__stat-value">{value}</span>
+      <span className="pw-client__stat-label">{label}</span>
+    </div>
+  );
+}
+
+/** /cliente/o/:orgId — dashboards de execução (cards por automação) e o acesso aos arquivos de retorno. */
 export function ClientOrganizationPage() {
   const { orgId = '' } = useParams();
   const [state, retry] = useLoad(() => listSharedAutomations(orgId), [orgId]);
+  const withFiles = state.status === 'ready' ? state.data.filter((a) => a.canDownloadResults) : [];
+  const filesTotal = withFiles.reduce((n, a) => n + (a.filesAvailable ?? 0), 0);
   return (
     <Stack gap={5} className="pw-client">
       <Back to={clientPath.home()}>Compartilhado com você</Back>
-      <SectionHeader as="h1" title="Automações compartilhadas" description={state.status === 'ready' && state.data[0] ? `Cliente ${state.data[0].clientName}` : undefined} />
+      <SectionHeader
+        as="h1"
+        title="Dashboards de execução"
+        description={state.status === 'ready' && state.data[0] ? `Compartilhado com ${state.data[0].clientName}. Indicadores dos últimos 30 dias.` : undefined}
+      />
       {state.status === 'loading' ? (
         <StateView status="loading" title="Carregando automações…" />
       ) : state.status === 'error' ? (
@@ -188,215 +213,353 @@ export function ClientOrganizationPage() {
       ) : state.data.length === 0 ? (
         <StateView status="neutral" title="Nenhuma automação compartilhada com você" />
       ) : (
-        <ul className="pw-client__cards" aria-label="Automações compartilhadas">
-          {state.data.map((a) => (
-            <li key={a.automationId}>
-              <Card variant="outlined" padding="md" className="pw-client__card">
-                <Stack gap={2}>
-                  <Text as="h2" variant="h4">
-                    {a.name}
-                  </Text>
-                  <Text variant="body-sm" color="secondary">
-                    {a.workspaceName} · {machinesText(a)}
-                  </Text>
-                  <div className="pw-client__card-row">
-                    <OutcomeBadge outcome={a.lastOutcome} />
-                    {a.lastRequestedAt && (
-                      <Text variant="body-sm" color="secondary">
-                        última em <DateTimeText iso={a.lastRequestedAt} />
-                      </Text>
-                    )}
-                  </div>
-                  <Text variant="body-sm" color="secondary">
-                    {a.executionsLast30Days === 1 ? '1 execução' : `${a.executionsLast30Days} execuções`} nos últimos 30 dias · você vê {permissionsText(a)}
-                  </Text>
-                  <Link as={RouterLink} to={clientPath.automation(orgId, a.automationId)} arrow aria-label={`Ver ${a.name}`}>
-                    Ver execuções
-                  </Link>
-                </Stack>
-              </Card>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Stack>
-  );
-}
-
-/** /cliente/o/:orgId/automacoes/:automationId — o que foi compartilhado da automação e as execuções dela. */
-export function ClientAutomationPage() {
-  const { orgId = '', automationId = '' } = useParams();
-  const [info] = useLoad(() => listSharedAutomations(orgId).then((all) => all.find((a) => a.automationId === automationId) ?? null), [orgId, automationId]);
-  const executions = useCursorList<SharedExecution>((cursor) => listSharedExecutions(orgId, automationId, { cursor, limit: 25 }), (e) => `${e.kind}:${e.id}`, [
-    orgId,
-    automationId,
-  ]);
-  const automation = info.status === 'ready' ? info.data : null;
-  if (info.status === 'ready' && !automation) return <ClientError error={new ApiError('not_found', 404)} />;
-  return (
-    <Stack gap={5} className="pw-client">
-      <Back to={clientPath.organization(orgId)}>Automações compartilhadas</Back>
-      {info.status === 'error' ? (
-        <ClientError error={info.error} />
-      ) : (
         <>
-          <SectionHeader
-            as="h1"
-            title={automation?.name ?? 'Automação'}
-            description={automation ? `${automation.workspaceName} · ${machinesText(automation)} · você vê ${permissionsText(automation)}` : undefined}
-          />
-          {executions.status === 'loading' ? (
-            <StateView status="loading" title="Carregando execuções…" />
-          ) : executions.status === 'error' ? (
-            <ClientError error={executions.error} onRetry={executions.reload} />
-          ) : executions.items.length === 0 ? (
-            <StateView status="neutral" title="Nenhuma execução ainda." />
-          ) : (
-            <>
-              <ul className="pw-client__executions" aria-label="Execuções">
-                {executions.items.map((e) => (
-                  <li key={`${e.kind}:${e.id}`}>
-                    <Card variant="outlined" padding="sm">
-                      <div className="pw-client__execution">
-                        <OutcomeBadge outcome={e.outcome} />
-                        <Text variant="body-sm">
-                          Pedida em <DateTimeText iso={e.requestedAt} />
-                        </Text>
-                        <Text variant="body-sm" color="secondary">
-                          {e.machine ? `Máquina ${e.machine.name}` : 'Sem máquina registrada'}
-                        </Text>
-                        <Link as={RouterLink} to={clientPath.execution(orgId, e.kind, e.id)} arrow>
-                          Detalhes
-                        </Link>
-                      </div>
-                    </Card>
-                  </li>
-                ))}
-              </ul>
-              {executions.hasMore && (
+          {withFiles.length > 0 && (
+            <Card variant="surface" padding="md">
+              <div className="pw-client__org">
                 <div>
-                  <Button variant="secondary" loading={executions.status === 'loading-more'} onClick={executions.loadMore}>
-                    Carregar mais
-                  </Button>
+                  <Text as="h2" variant="h4">
+                    Arquivos de retorno
+                  </Text>
+                  <Text variant="body-sm" color="secondary">
+                    {plural(filesTotal, 'arquivo disponível', 'arquivos disponíveis')} de {plural(withFiles.length, 'automação', 'automações')}
+                  </Text>
                 </div>
-              )}
-            </>
+                <Link as={RouterLink} to={clientPath.files(orgId)} arrow>
+                  Ver arquivos de retorno
+                </Link>
+              </div>
+            </Card>
           )}
+          <ul className="pw-client__cards" aria-label="Automações compartilhadas">
+            {state.data.map((a) => (
+              <li key={a.automationId}>
+                <AutomationCard org={orgId} a={a} />
+              </li>
+            ))}
+          </ul>
         </>
       )}
     </Stack>
   );
 }
 
-/** /cliente/o/:orgId/execucoes/:kind/:id — estado, horários e, quando concedidos, registros e resultados. */
-export function ClientExecutionPage() {
-  const { orgId = '', kind = '', id = '' } = useParams();
-  const [state, retry] = useLoad(() => getSharedExecution(orgId, kind as ExecutionKind, id), [orgId, kind, id]);
-  if (state.status === 'loading') return <StateView status="loading" title="Carregando execução…" />;
-  if (state.status === 'error')
-    return (
-      <Stack gap={5} className="pw-client">
-        <Back to={clientPath.organization(orgId)}>Automações compartilhadas</Back>
-        <ClientError error={state.error} onRetry={retry} />
+function AutomationCard({ org, a }: { org: string; a: SharedAutomation }) {
+  const d = a.dashboard;
+  return (
+    <Card variant="outlined" padding="md" className="pw-client__card">
+      <Stack gap={3}>
+        <Text as="h2" variant="h4">
+          {a.name}
+        </Text>
+        {d ? (
+          <>
+            <div className="pw-client__card-row">
+              <OutcomeBadge outcome={d.lastOutcome} />
+              {d.lastRequestedAt && (
+                <Text variant="body-sm" color="secondary">
+                  última em <DateTimeText iso={d.lastRequestedAt} />
+                </Text>
+              )}
+            </div>
+            <div className="pw-client__stats" aria-label={`Indicadores de ${a.name} nos últimos 30 dias`} role="group">
+              <Stat value={d.executionsLast30Days} label="execuções" />
+              <Stat value={d.succeededLast30Days} label="concluídas" />
+              <Stat value={d.failedLast30Days} label="não concluídas" />
+              <Stat value={d.inProgress} label="em andamento" />
+            </div>
+            <Link as={RouterLink} to={clientPath.automation(org, a.automationId)} arrow aria-label={`Ver o dashboard de ${a.name}`}>
+              Ver dashboard
+            </Link>
+          </>
+        ) : (
+          <Text variant="body-sm" color="secondary">
+            O dashboard desta automação não foi compartilhado com você.
+          </Text>
+        )}
+        {a.canDownloadResults && (
+          <Link as={RouterLink} to={clientPath.files(org, a.automationId)} arrow aria-label={`Ver os arquivos de retorno de ${a.name}`}>
+            {plural(a.filesAvailable ?? 0, 'arquivo de retorno', 'arquivos de retorno')}
+          </Link>
+        )}
       </Stack>
-    );
-  const e: SharedExecutionDetail = state.data;
+    </Card>
+  );
+}
+
+const PERIODS = [
+  { value: '7', label: 'Últimos 7 dias' },
+  { value: '30', label: 'Últimos 30 dias' },
+  { value: '90', label: 'Últimos 90 dias' },
+  { value: '365', label: 'Últimos 12 meses' },
+];
+/** Período em dias (padrão 30) → [de, até) em ISO; até = agora (o Portal limita a 400 dias). */
+function periodOf(days: string | null): { from: string; to: string; days: string } {
+  const d = PERIODS.some((p) => p.value === days) ? days! : '30';
+  const to = new Date(Date.now() + 1000);
+  const from = new Date(to.getTime() - Number(d) * 86_400_000);
+  return { from: from.toISOString(), to: to.toISOString(), days: d };
+}
+
+/** /cliente/o/:orgId/automacoes/:automationId — o dashboard de UMA automação: resumo do período e as execuções. */
+export function ClientAutomationPage() {
+  const { orgId = '', automationId = '' } = useParams();
+  const [params, setParams] = useSearchParams();
+  const period = useMemo(() => periodOf(params.get('periodo')), [params]);
+  const [info] = useLoad(() => listSharedAutomations(orgId).then((all) => all.find((a) => a.automationId === automationId) ?? null), [orgId, automationId]);
+  const [summary, retrySummary] = useLoad<SharedSummary>(() => getSharedSummary(orgId, automationId, period), [orgId, automationId, period.days]);
+  const executions = useCursorList<SharedExecution>(
+    (cursor) => listSharedExecutions(orgId, automationId, { from: period.from, to: period.to, cursor, limit: 25 }),
+    (e) => e.id,
+    [orgId, automationId, period.days],
+  );
+  const automation = info.status === 'ready' ? info.data : null;
+  if (info.status === 'ready' && !automation) return <ClientError error={new ApiError('not_found', 404)} />;
   return (
     <Stack gap={5} className="pw-client">
-      <Back to={clientPath.automation(orgId, e.automation.automationId)}>{e.automation.name}</Back>
-      <SectionHeader as="h1" title={`Execução de ${e.automation.name}`} />
-      <Card variant="outlined" padding="md">
-        <dl className="pw-client__facts">
-          <dt>Situação</dt>
-          <dd>
-            <OutcomeBadge outcome={e.outcome} />
-          </dd>
-          <dt>Pedida em</dt>
-          <dd>
-            <DateTimeText iso={e.requestedAt} />
-          </dd>
-          <dt>Início</dt>
-          <dd>
-            <DateTimeText iso={e.startedAt} />
-          </dd>
-          <dt>Fim</dt>
-          <dd>
-            <DateTimeText iso={e.endedAt} />
-          </dd>
-          <dt>Máquina</dt>
-          <dd>{e.machine?.name ?? 'Sem máquina registrada para esta execução.'}</dd>
-        </dl>
-      </Card>
-      {e.attempts.length === 0 ? (
-        <Text color="secondary">Esta execução não tem registros nem arquivos de resultado enviados à Platform.</Text>
+      <Back to={clientPath.organization(orgId)}>Dashboards de execução</Back>
+      {info.status === 'error' ? (
+        <ClientError error={info.error} />
       ) : (
-        e.attempts.map((a) => <AttemptSection key={a.attemptId} org={orgId} execution={e.id} attempt={a} many={e.attempts.length > 1} />)
+        <>
+          <SectionHeader as="h1" title={automation?.name ?? 'Automação'} description="Dashboard de execução" />
+          <div className="pw-client__toolbar">
+            <Select
+              label="Período"
+              value={period.days}
+              onChange={(e) => setParams((p) => (p.set('periodo', e.target.value), p), { replace: true })}
+              options={PERIODS}
+            />
+            {automation?.canDownloadResults && (
+              <Link as={RouterLink} to={clientPath.files(orgId, automationId)} arrow>
+                Arquivos de retorno desta automação
+              </Link>
+            )}
+          </div>
+          {summary.status === 'loading' ? (
+            <StateView status="loading" title="Carregando indicadores…" />
+          ) : summary.status === 'error' ? (
+            <ClientError error={summary.error} onRetry={retrySummary} forbidden="O dashboard desta automação não foi compartilhado com você." />
+          ) : (
+            <Card variant="surface" padding="md">
+              <div className="pw-client__stats pw-client__stats--wide" role="group" aria-label="Indicadores do período">
+                <Stat value={summary.data.total} label="execuções" />
+                <Stat value={summary.data.succeeded} label="concluídas" />
+                <Stat value={summary.data.failed} label="não concluídas" />
+                <Stat value={summary.data.inProgress} label="em andamento" />
+                <Stat value={summary.data.notStarted + summary.data.cancelled + summary.data.other} label="outras" />
+              </div>
+            </Card>
+          )}
+          {summary.status === 'ready' &&
+            (executions.status === 'loading' ? (
+              <StateView status="loading" title="Carregando execuções…" />
+            ) : executions.status === 'error' ? (
+              <ClientError error={executions.error} onRetry={executions.reload} />
+            ) : executions.items.length === 0 ? (
+              <StateView status="neutral" title="Nenhuma execução neste período." />
+            ) : (
+              <section aria-labelledby="execucoes-titulo">
+                <Stack gap={3}>
+                  <Text as="h2" variant="h4" id="execucoes-titulo">
+                    Execuções
+                  </Text>
+                  <ul className="pw-client__executions" aria-label="Execuções">
+                    {executions.items.map((e) => (
+                      <li key={e.id}>
+                        <Card variant="outlined" padding="sm">
+                          <div className="pw-client__execution">
+                            <OutcomeBadge outcome={e.outcome} />
+                            <Text variant="body-sm">
+                              Pedida em <DateTimeText iso={e.requestedAt} />
+                            </Text>
+                            <Text variant="body-sm" color="secondary">
+                              {e.endedAt ? (
+                                <>
+                                  Terminou em <DateTimeText iso={e.endedAt} />
+                                </>
+                              ) : e.startedAt ? (
+                                <>
+                                  Começou em <DateTimeText iso={e.startedAt} />
+                                </>
+                              ) : (
+                                'Ainda não começou'
+                              )}
+                            </Text>
+                            {e.files !== null && e.files > 0 && (
+                              <Link as={RouterLink} to={clientPath.files(orgId, automationId)}>
+                                {plural(e.files, 'arquivo de retorno', 'arquivos de retorno')}
+                              </Link>
+                            )}
+                          </div>
+                        </Card>
+                      </li>
+                    ))}
+                  </ul>
+                  {executions.hasMore && (
+                    <div>
+                      <Button variant="secondary" loading={executions.status === 'loading-more'} onClick={executions.loadMore}>
+                        Carregar mais
+                      </Button>
+                    </div>
+                  )}
+                </Stack>
+              </section>
+            ))}
+        </>
       )}
     </Stack>
   );
 }
 
-function AttemptSection({ org, execution, attempt, many }: { org: string; execution: string; attempt: SharedAttempt; many: boolean }) {
-  const [logs] = useLoad<SharedLogs | null>(() => (attempt.canReadLogs ? getSharedLogs(org, execution, attempt.attemptId) : Promise.resolve(null)), [attempt.attemptId]);
-  const [results] = useLoad<SharedResults | null>(
-    () => (attempt.canDownloadResults ? getSharedResults(org, execution, attempt.attemptId) : Promise.resolve(null)),
-    [attempt.attemptId],
+type Preview = { file: SharedFile; state: 'loading' } | { file: SharedFile; state: 'text'; text: string } | { file: SharedFile; state: 'blob'; url: string; kind: 'image' | 'pdf' } | { file: SharedFile; state: 'error'; text: string };
+
+/** /cliente/o/:orgId/arquivos — arquivos de retorno autorizados: por automação, período e nome; ver na página ou baixar. */
+export function ClientFilesPage() {
+  const { orgId = '' } = useParams();
+  const [params, setParams] = useSearchParams();
+  const automationId = params.get('automacao') ?? '';
+  const q = params.get('q') ?? '';
+  const period = useMemo(() => periodOf(params.get('periodo') ?? '90'), [params]);
+  const [search, setSearch] = useState(q);
+  const [automations] = useLoad(() => listSharedAutomations(orgId), [orgId]);
+  const files = useCursorList<SharedFile>(
+    (cursor) => listSharedFiles(orgId, { automationId: automationId || undefined, from: period.from, to: period.to, q: q || undefined, cursor, limit: 25 }),
+    (f) => `${f.attemptId}:${f.number}`,
+    [orgId, automationId, q, period.days],
   );
+  const [preview, setPreview] = useState<Preview | null>(null);
+  useEffect(() => () => (preview?.state === 'blob' ? URL.revokeObjectURL(preview.url) : undefined), [preview]);
+  const set = (k: string, v: string) => setParams((p) => (v ? p.set(k, v) : p.delete(k), p), { replace: true });
+  const options = automations.status === 'ready' ? automations.data.filter((a) => a.canDownloadResults) : [];
+
+  const view = async (f: SharedFile) => {
+    setPreview({ file: f, state: 'loading' });
+    try {
+      const r = await fetchSharedFile(orgId, f.attemptId, f.number, f.fileName);
+      if ('text' in r) setPreview({ file: f, state: 'text', text: r.text });
+      else setPreview({ file: f, state: 'blob', url: URL.createObjectURL(r.blob), kind: previewKind(f.fileName) === 'pdf' ? 'pdf' : 'image' });
+    } catch (e) {
+      const s = e instanceof PreviewError ? e.status : 0;
+      setPreview({
+        file: f,
+        state: 'error',
+        text:
+          s === 413
+            ? 'Arquivo grande demais para ver na página. Use Baixar.'
+            : s === 403 || s === 404
+              ? 'Este arquivo não está mais compartilhado com você.'
+              : s === 409
+                ? 'Este arquivo foi removido pelo prazo de guarda.'
+                : 'Não foi possível abrir o arquivo agora.',
+      });
+    }
+  };
+
   return (
-    <section aria-labelledby={`tentativa-${attempt.attemptId}`} className="pw-client__attempt">
-      <Text as="h2" variant="h4" id={`tentativa-${attempt.attemptId}`}>
-        {many ? `Tentativa ${attempt.number} · máquina ${attempt.workerName ?? '—'}` : `Na máquina ${attempt.workerName ?? '—'}`}
-      </Text>
+    <Stack gap={5} className="pw-client">
+      <Back to={clientPath.organization(orgId)}>Dashboards de execução</Back>
+      <SectionHeader as="h1" title="Arquivos de retorno" description="Resultados das automações compartilhadas com você, pela data da execução." />
       <Card variant="surface" padding="md">
-        <Stack gap={2}>
-          <Text as="h3" variant="body" className="pw-client__subtitle">
-            Registros
-          </Text>
-          {!attempt.canReadLogs ? (
-            <Text color="secondary">Os registros não foram compartilhados com você.</Text>
-          ) : logs.status === 'loading' ? (
-            <Text color="secondary">Carregando registros…</Text>
-          ) : logs.status === 'error' ? (
-            <Alert tone="warning">Não foi possível carregar os registros.</Alert>
-          ) : !logs.data || logs.data.items.length === 0 ? (
-            <Text color="secondary">Nenhum registro enviado.</Text>
-          ) : (
-            <pre className="pw-client__logs" tabIndex={0} aria-label="Registros da execução">
-              {logs.data.items.map((l) => (l.textRemoved ? '[texto removido pelo prazo de guarda]' : l.message)).join('\n')}
-            </pre>
+        <form
+          className="pw-client__toolbar"
+          aria-label="Filtros de arquivos"
+          onSubmit={(e: FormEvent) => {
+            e.preventDefault();
+            set('q', search.trim());
+          }}
+        >
+          {options.length > 0 && (
+            <Select
+              label="Automação"
+              value={automationId}
+              onChange={(e) => set('automacao', e.target.value)}
+              options={[{ value: '', label: 'Todas' }, ...options.map((a) => ({ value: a.automationId, label: a.name }))]}
+            />
           )}
-        </Stack>
+          <Select label="Período da execução" value={period.days} onChange={(e) => set('periodo', e.target.value)} options={PERIODS} />
+          <Input label="Nome do arquivo" type="search" value={search} maxLength={100} onChange={(e) => setSearch(e.target.value)} />
+          <Button type="submit" variant="secondary">
+            Buscar
+          </Button>
+        </form>
       </Card>
-      <Card variant="surface" padding="md">
-        <Stack gap={2}>
-          <Text as="h3" variant="body" className="pw-client__subtitle">
-            Arquivos de resultado
-          </Text>
-          {!attempt.canDownloadResults ? (
-            <Text color="secondary">Os arquivos de resultado não foram compartilhados com você.</Text>
-          ) : results.status === 'loading' ? (
-            <Text color="secondary">Carregando arquivos…</Text>
-          ) : results.status === 'error' ? (
-            <Alert tone="warning">Não foi possível carregar os arquivos.</Alert>
-          ) : !results.data || results.data.items.length === 0 ? (
-            <Text color="secondary">Nenhum arquivo de resultado enviado.</Text>
-          ) : (
-            <ul className="pw-client__files">
-              {results.data.items.map((f) => (
-                <li key={f.number}>
-                  {f.available ? (
-                    <a href={sharedResultHref(org, execution, attempt.attemptId, f.number)} download>
-                      Baixar {f.fileName}
-                    </a>
-                  ) : (
-                    <Text color="secondary">{f.fileName} (removido pelo prazo de guarda)</Text>
-                  )}
-                </li>
-              ))}
-            </ul>
+      {files.status === 'loading' ? (
+        <StateView status="loading" title="Carregando arquivos…" />
+      ) : files.status === 'error' ? (
+        <ClientError error={files.error} onRetry={files.reload} forbidden="Os arquivos de retorno desta automação não foram compartilhados com você." />
+      ) : files.items.length === 0 ? (
+        <StateView status="neutral" title="Nenhum arquivo de retorno com esses filtros." />
+      ) : (
+        <>
+          <ul className="pw-client__files" aria-label="Arquivos de retorno">
+            {files.items.map((f) => (
+              <li key={`${f.attemptId}:${f.number}`}>
+                <Card variant="outlined" padding="sm">
+                  <div className="pw-client__execution">
+                    <span className="pw-client__file">
+                      <Text>{f.fileName}</Text>
+                      <Text variant="body-sm" color="secondary">
+                        {f.automation.name} · execução de <DateTimeText iso={f.executionRequestedAt} /> · {sizeText(f.sizeBytes)}
+                      </Text>
+                    </span>
+                    {f.available ? (
+                      <span className="pw-client__file-actions">
+                        {previewKind(f.fileName) && (
+                          <Button size="sm" variant="ghost" onClick={() => void view(f)} aria-label={`Visualizar ${f.fileName}`}>
+                            Visualizar
+                          </Button>
+                        )}
+                        <a className="pw-client__download" href={sharedFileHref(orgId, f.attemptId, f.number)} download aria-label={`Baixar ${f.fileName}`}>
+                          Baixar
+                        </a>
+                      </span>
+                    ) : (
+                      <Text variant="body-sm" color="secondary">
+                        Removido pelo prazo de guarda
+                      </Text>
+                    )}
+                  </div>
+                </Card>
+              </li>
+            ))}
+          </ul>
+          {files.hasMore && (
+            <div>
+              <Button variant="secondary" loading={files.status === 'loading-more'} onClick={files.loadMore}>
+                Carregar mais
+              </Button>
+            </div>
           )}
-        </Stack>
-      </Card>
-    </section>
+        </>
+      )}
+      {preview && (
+        <Card variant="outlined" padding="md">
+          <section aria-labelledby="visualizacao-titulo">
+            <Stack gap={3}>
+              <div className="pw-client__org">
+                <Text as="h2" variant="h4" id="visualizacao-titulo">
+                  {preview.file.fileName}
+                </Text>
+                <Button size="sm" variant="ghost" onClick={() => setPreview(null)}>
+                  Fechar visualização
+                </Button>
+              </div>
+              {preview.state === 'loading' && <Text color="secondary">Abrindo…</Text>}
+              {preview.state === 'error' && <Alert tone="warning">{preview.text}</Alert>}
+              {preview.state === 'text' && (
+                <pre className="pw-client__preview" tabIndex={0} aria-label={`Conteúdo de ${preview.file.fileName}`}>
+                  {preview.text}
+                </pre>
+              )}
+              {preview.state === 'blob' && preview.kind === 'image' && <img className="pw-client__image" src={preview.url} alt={`Conteúdo de ${preview.file.fileName}`} />}
+              {preview.state === 'blob' && preview.kind === 'pdf' && (
+                <iframe className="pw-client__pdf" src={preview.url} title={`Conteúdo de ${preview.file.fileName}`} />
+              )}
+            </Stack>
+          </section>
+        </Card>
+      )}
+    </Stack>
   );
 }
