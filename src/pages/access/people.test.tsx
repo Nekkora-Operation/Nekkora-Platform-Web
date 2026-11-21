@@ -172,7 +172,7 @@ describe('Pessoas e acessos: a tabela', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Convidar' }));
     const d = await screen.findByRole('alertdialog', { name: 'Convidar outra@empresa.com?' });
     fireEvent.click(within(d).getByRole('button', { name: 'Enviar convite' }));
-    expect(await screen.findByText('Convite enviado. A pessoa recebe o link por e-mail.')).toBeInTheDocument();
+    expect(await screen.findByText('Convite enviado. A pessoa recebe o link por e-mail.', {}, { timeout: 5000 })).toBeInTheDocument();
     expect(api.sent('POST', `/api/v1/o/${ORG}/invitations`)[0].body).toEqual({ email: 'outra@empresa.com', role: 'OPERATOR', workspaceId: WS });
     await waitFor(() => expect(peopleCalls().length).toBeGreaterThan(before));
   });

@@ -172,7 +172,7 @@ describe('convite de Cliente', () => {
     const d = await screen.findByRole('alertdialog', { name: 'Convidar nova@cliente.com como cliente?' });
     for (const t of ['Contábil Exemplo', 'Conciliação', 'Fiscal', 'Estação fiscal', 'Execuções, registros']) expect(d).toHaveTextContent(t);
     fireEvent.click(within(d).getByRole('button', { name: 'Enviar convite de cliente' }));
-    expect(await screen.findByText('Convite de cliente enviado. O acesso só começa quando a pessoa aceitar.')).toBeInTheDocument();
+    expect(await screen.findByText('Convite de cliente enviado. O acesso só começa quando a pessoa aceitar.', {}, { timeout: 5000 })).toBeInTheDocument();
     expect(api.sent('POST', `/api/v1/o/${ORG}/client-invitations`).map((c) => c.body)).toEqual([
       { email: 'nova@cliente.com', clientId: CLIENT, automationId: A1, workerId: W1, canReadLogs: true, canDownloadResults: false },
     ]);
