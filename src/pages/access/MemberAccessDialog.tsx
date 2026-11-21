@@ -158,6 +158,13 @@ export function MemberAccessDialog({
     const d = load.data;
     return (
       <Stack gap={4}>
+        <details className="pw-people__details">
+          <summary>Alcance efetivo desta pessoa</summary>
+          <Text variant="body-sm" color="secondary">
+            Membro interno: o que esta pessoa vê e faz é o que os perfis abaixo permitem. Acesso de Cliente não se soma a um membro
+            interno nem o restringe; um convite de Cliente para este e-mail é recusado. Para restringir, ajuste os perfis.
+          </Text>
+        </details>
         {!active && (
           <Alert tone="info">
             {d.membershipState === 'RETIRADO'

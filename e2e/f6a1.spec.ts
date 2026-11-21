@@ -57,7 +57,7 @@ async function audit(page: Page, name: string) {
 
 const nav = (page: Page) => page.getByRole('navigation', { name: 'Navegação principal' });
 const rows = (page: Page, name: string) => page.getByRole('region', { name }).locator('tbody tr');
-const adminCalls = (urls: { url: string; status?: number }[]) => urls.filter((u) => /\/(people|members|clients|client-grants)(\?|$)/.test(u.url));
+const adminCalls = (urls: { url: string; status?: number }[]) => urls.filter((u) => /\/(people|members|clients|client-grants|access-grants)(\?|$)/.test(u.url));
 
 test('ORG_ADMIN: menu Administração → Membros (paginação e filtro na URL, recarga mantém) → Clientes → Concessões do cliente; axe', async ({ page }) => {
   const urls = recordRequests(page);
@@ -87,12 +87,14 @@ test('ORG_ADMIN: menu Administração → Membros (paginação e filtro na URL, 
   await expect(rows(page, 'Lista de pessoas e convites')).toHaveCount(1);
   await expect(page.getByRole('checkbox', { name: 'Retirado da organização' })).toBeChecked();
 
-  await nav(page).getByRole('link', { name: 'Clientes' }).click();
+  // PLATFORM-FLUXO-002 (070): Clientes e Concessões ficam dentro de "Pessoas e acessos"
+  await page.getByRole('link', { name: 'Gerenciar clientes' }).click();
   await expect(rows(page, 'Lista de clientes')).toHaveCount(4);
   await audit(page, 'f6a1-clientes');
-  await page.getByRole('link', { name: 'Ver concessões de Banco Exemplo S.A.' }).click();
-  await expect(page).toHaveURL(org(`/administracao/concessoes?cliente=${stableUuid('dev:client:banco')}`));
-  await expect(rows(page, 'Lista de concessões')).toHaveCount(3);
+  await page.getByRole('button', { name: 'Ver detalhes de Banco Exemplo S.A.' }).click();
+  await page.getByRole('link', { name: /Ver concessões e histórico deste cliente/ }).click();
+  await expect(page).toHaveURL(org(`/administracao/pessoas/acessos?cliente=${stableUuid('dev:client:banco')}`));
+  await expect(rows(page, 'Lista de concessões de clientes')).toHaveCount(3);
   await expect(page.getByRole('combobox', { name: 'Cliente' })).toHaveValue(stableUuid('dev:client:banco'));
   await audit(page, 'f6a1-concessoes');
 

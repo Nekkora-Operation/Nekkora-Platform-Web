@@ -1556,7 +1556,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Pessoas e acessos: membros e convites de conta interna numa lista so (exige org.manage)
+         * Pessoas e acessos: membros, clientes (070) e convites numa lista so (exige org.manage)
          * @description So leitura. Ordem da lista inteira (com cursor): convites pendentes (criacao, do mais recente), depois membros (entrada, do mais recente), depois convites encerrados (so com o filtro). Sem `situation`: pendentes e todos os membros; o convite aceito nao aparece ao lado do membro que criou. Convites so entram com a funcionalidade ligada (`invitationsEnabled` na resposta).
          */
         get: operations["listPeople"];
@@ -1577,6 +1577,221 @@ export interface paths {
         };
         /** Lista clientes (org.manage ou external_access.manage) */
         get: operations["listClients"];
+        put?: never;
+        /** Cadastra um cliente (org.manage ou external_access.manage); nasce ativo; auditado */
+        post: operations["createClient"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Convite de Cliente para acompanhar UMA automacao (excecao a D-GRANT-1; so administradora, com step-up)
+         * @description Exige org.manage E external_access.manage e step-up. O envio nao concede nada: no aceite (pela identidade global) o servidor reconfere identidade, convite, autoridade de quem convidou e escopo, e so entao cria ou reutiliza a conta e o vinculo de cliente e a concessao (base CONVITE_DE_CLIENTE). Maquina nula = todas as maquinas desta automacao. Registros e resultados sao permissoes explicitas. Auditado com grant_exception. 409: client_invitation_internal_member, client_invitation_legacy_account, client_invitation_other_client, client_grant_exists, client_scope_unavailable; conflict sem motivo: convite pendente para o e-mail.
+         */
+        post: operations["inviteClient"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/clients/{client}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cadastro de cliente com as pessoas vinculadas, convites pendentes e automacoes compartilhadas (org.manage ou external_access.manage) */
+        get: operations["getClientDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Altera nome e/ou situacao do cliente (nada e apagado; suspender ou arquivar barra a area do cliente) */
+        patch: operations["updateClient"];
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-share-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Automacoes compartilhaveis (ativas, em ambiente ativo) com as maquinas desta automacao (external_access.manage) */
+        get: operations["listClientShareOptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-automation-grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pede o acompanhamento de outra automacao (ou mais permissoes) para um vinculo de cliente: nasce PENDENTE (D-GRANT-1)
+         * @description external_access.manage. So vale com a aprovacao de OUTRA pessoa (approve). Com uma concessao ativa do mesmo escopo, o pedido so serve para ampliar permissoes e a substitui na aprovacao. 409 client_grant_exists (ja ativa sem ampliar, ou pedido pendente) ou client_scope_unavailable.
+         */
+        post: operations["requestClientAutomationGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-automation-grants/{grant}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Aprova o pedido: outra pessoa (quem pediu: 403), com step-up; o banco confere de novo */
+        post: operations["approveClientAutomationGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-automation-grants/{grant}/reduce": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Desliga registros e/ou resultados de uma concessao ativa (so reduz; ligar: 409 client_grant_widening_requires_request) */
+        post: operations["reduceClientAutomationGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-automation-grants/{grant}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoga a concessao ativa ou cancela o pedido pendente (so aquele acesso); idempotente */
+        post: operations["revokeClientAutomationGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-memberships/{membership}/suspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Suspende o vinculo de cliente (org.manage): a area do cliente recusa a proxima consulta */
+        post: operations["suspendClientMembership"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-memberships/{membership}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reativa o vinculo suspenso (org.manage, step-up); concessoes revogadas continuam revogadas */
+        post: operations["reactivateClientMembership"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-memberships/{membership}/retire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retira o vinculo de cliente desta organizacao e revoga as concessoes dele (a identidade global continua) */
+        post: operations["retireClientMembership"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/access-grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Concessoes das duas especies (por automacao e por ambiente inteiro), da mais recente (external_access.manage) */
+        get: operations["listAccessGrants"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/access-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Historico de acesso com nomes e filtros; org.manage ve tudo, so external_access.manage ve os atos de cliente
+         * @description Somente consulta. scope=all (org.manage) ou client_access (so external_access.manage: sem os atos de papel; dos demais, so os que tem cliente). grantId filtra os eventos de UMA concessao (qualquer especie), inclusive revogada.
+         */
+        get: operations["listAccessHistory"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2293,6 +2508,146 @@ export interface paths {
         };
         /** Eventos da execucao (sem payload); execucao sem acesso -> 404 (diferente do portal) */
         get: operations["listExecutionEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/portal/api/v1/me/client-organizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Organizacoes em que a identidade e cliente (vinculo ativo), com quantas automacoes compartilhadas
+         * @description Area do cliente (070): somente GET; sessao de IDENTIDADE (__Host-nekkora_id), conferida a cada chamada junto com a conta e o vinculo de cliente e as concessoes vigentes. 401: sessao invalida; 403: sem vinculo de cliente vigente (ou sem a permissao pedida); 404: fora do escopo (igual a inexistente).
+         */
+        get: operations["portalClientOrganizations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/portal/api/v1/o/{org}/shared-automations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Automacoes compartilhadas com a pessoa nesta organizacao (cards)
+         * @description Area do cliente (070): somente GET; sessao de IDENTIDADE (__Host-nekkora_id), conferida a cada chamada junto com a conta e o vinculo de cliente e as concessoes vigentes. 401: sessao invalida; 403: sem vinculo de cliente vigente (ou sem a permissao pedida); 404: fora do escopo (igual a inexistente).
+         */
+        get: operations["portalSharedAutomations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/portal/api/v1/o/{org}/shared-automations/{automation}/executions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Execucoes de uma automacao compartilhada (so as maquinas concedidas), da mais recente; cursor opaco
+         * @description Area do cliente (070): somente GET; sessao de IDENTIDADE (__Host-nekkora_id), conferida a cada chamada junto com a conta e o vinculo de cliente e as concessoes vigentes. 401: sessao invalida; 403: sem vinculo de cliente vigente (ou sem a permissao pedida); 404: fora do escopo (igual a inexistente).
+         */
+        get: operations["portalSharedExecutions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/portal/api/v1/o/{org}/shared-executions/{kind}/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Detalhe de uma execucao no escopo; tentativas remotas so nas maquinas concedidas, com as permissoes de cada uma
+         * @description Area do cliente (070): somente GET; sessao de IDENTIDADE (__Host-nekkora_id), conferida a cada chamada junto com a conta e o vinculo de cliente e as concessoes vigentes. 401: sessao invalida; 403: sem vinculo de cliente vigente (ou sem a permissao pedida); 404: fora do escopo (igual a inexistente).
+         */
+        get: operations["portalSharedExecution"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/portal/api/v1/o/{org}/shared-executions/remote/{id}/attempts/{attempt}/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Registros de uma tentativa (so com a permissao de registros)
+         * @description Area do cliente (070): somente GET; sessao de IDENTIDADE (__Host-nekkora_id), conferida a cada chamada junto com a conta e o vinculo de cliente e as concessoes vigentes. 401: sessao invalida; 403: sem vinculo de cliente vigente (ou sem a permissao pedida); 404: fora do escopo (igual a inexistente).
+         */
+        get: operations["portalSharedLogs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/portal/api/v1/o/{org}/shared-executions/remote/{id}/attempts/{attempt}/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Arquivos de resultado de uma tentativa (so com a permissao de resultados)
+         * @description Area do cliente (070): somente GET; sessao de IDENTIDADE (__Host-nekkora_id), conferida a cada chamada junto com a conta e o vinculo de cliente e as concessoes vigentes. 401: sessao invalida; 403: sem vinculo de cliente vigente (ou sem a permissao pedida); 404: fora do escopo (igual a inexistente).
+         */
+        get: operations["portalSharedResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/portal/api/v1/o/{org}/shared-executions/remote/{id}/attempts/{attempt}/results/{number}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Bytes de um arquivo de resultado, como anexo (so com a permissao de resultados)
+         * @description Area do cliente (070): somente GET; sessao de IDENTIDADE (__Host-nekkora_id), conferida a cada chamada junto com a conta e o vinculo de cliente e as concessoes vigentes. 401: sessao invalida; 403: sem vinculo de cliente vigente (ou sem a permissao pedida); 404: fora do escopo (igual a inexistente).
+         */
+        get: operations["portalSharedResultContent"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3140,7 +3495,7 @@ export interface components {
              * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached, draft_exists, draft_changed, local_run_authorization_exists, organization_name_taken; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
              * @enum {string}
              */
-            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "license_already_assigned" | "automation_already_licensed" | "license_not_valid" | "license_automation_archived" | "license_ended" | "license_period_overlaps" | "license_period_already_ended" | "license_model_unchanged" | "license_preview_changed" | "license_required" | "license_expired" | "run_not_covered" | "capacity_pending_limit_reached" | "license_not_assigned" | "license_transfer_same_automation" | "license_transfer_work_in_progress" | "organization_responsible_not_found" | "organization_responsible_is_client" | "previous_agent_session_has_outcome" | "previous_agent_session_already_reconciled" | "license_transfer_requester_not_admin" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_machine_unconfirmed" | "remote_machine_finishing" | "remote_previous_processes_pending" | "remote_previous_result_unconfirmed" | "remote_attempt_not_unconfirmed" | "remote_attempt_already_reconciled" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_package_not_supported" | "remote_package_not_registered" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_dependency_check_too_soon" | "remote_dependency_check_closed" | "remote_result_unavailable" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken" | "organization_creation_client_profile" | "organization_creation_requires_request" | "empty_organization_limit_reached" | "organization_request_not_available" | "organization_request_not_pending" | "organization_request_own" | "organization_request_approver_without_identity" | "organization_request_responsible_not_eligible" | "organization_not_responsible" | "organization_work_in_progress" | "organization_blocked_by_nekkora" | "organization_state_conflict" | "license_unavailable" | "activation_worker_not_in_workspace" | "activation_automation_inactive" | "activation_without_workers" | "activation_renewal_not_applicable";
+            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "license_already_assigned" | "automation_already_licensed" | "license_not_valid" | "license_automation_archived" | "license_ended" | "license_period_overlaps" | "license_period_already_ended" | "license_model_unchanged" | "license_preview_changed" | "license_required" | "license_expired" | "run_not_covered" | "capacity_pending_limit_reached" | "license_not_assigned" | "license_transfer_same_automation" | "license_transfer_work_in_progress" | "organization_responsible_not_found" | "organization_responsible_is_client" | "previous_agent_session_has_outcome" | "previous_agent_session_already_reconciled" | "license_transfer_requester_not_admin" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_machine_unconfirmed" | "remote_machine_finishing" | "remote_previous_processes_pending" | "remote_previous_result_unconfirmed" | "remote_attempt_not_unconfirmed" | "remote_attempt_already_reconciled" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_package_not_supported" | "remote_package_not_registered" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_dependency_check_too_soon" | "remote_dependency_check_closed" | "remote_result_unavailable" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken" | "organization_creation_client_profile" | "organization_creation_requires_request" | "empty_organization_limit_reached" | "organization_request_not_available" | "organization_request_not_pending" | "organization_request_own" | "organization_request_approver_without_identity" | "organization_request_responsible_not_eligible" | "organization_not_responsible" | "organization_work_in_progress" | "organization_blocked_by_nekkora" | "organization_state_conflict" | "license_unavailable" | "activation_worker_not_in_workspace" | "activation_automation_inactive" | "activation_without_workers" | "activation_renewal_not_applicable" | "client_invitation_internal_member" | "client_invitation_legacy_account" | "client_invitation_other_client" | "client_grant_exists" | "client_scope_unavailable" | "client_grant_widening_requires_request";
         };
         /**
          * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
@@ -3213,8 +3568,399 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
+        ClientInvitationRequest: {
+            email: string;
+            /** Format: uuid */
+            clientId: string;
+            /** Format: uuid */
+            automationId: string;
+            /**
+             * Format: uuid
+             * @description nulo = todas as maquinas desta automacao
+             */
+            workerId?: string | null;
+            canReadLogs: boolean;
+            canDownloadResults: boolean;
+        };
+        ClientInvitationCreated: {
+            /** Format: uuid */
+            invitationId: string;
+            email: string;
+            /** Format: uuid */
+            clientId: string;
+            /** Format: uuid */
+            workspaceId: string;
+            /** Format: uuid */
+            automationId: string;
+            /** Format: uuid */
+            workerId: string | null;
+            canReadLogs: boolean;
+            canDownloadResults: boolean;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        ClientCreateRequest: {
+            name: string;
+        };
+        ClientUpdateRequest: {
+            name?: string;
+            status?: components["schemas"]["ResourceStatus"];
+        };
+        ClientAutomationGrantRequest: {
+            /** Format: uuid */
+            clientMembershipId: string;
+            /** Format: uuid */
+            automationId: string;
+            /** Format: uuid */
+            workerId?: string | null;
+            canReadLogs: boolean;
+            canDownloadResults: boolean;
+        };
+        ClientAutomationGrantReduceRequest: {
+            canReadLogs: boolean;
+            canDownloadResults: boolean;
+        };
+        ClientAutomationGrant: {
+            /** Format: uuid */
+            grantId: string;
+            /** @enum {string} */
+            status: "PENDENTE" | "ATIVA" | "REVOGADA";
+            /** @enum {string} */
+            basis: "SEGUNDA_PESSOA" | "CONVITE_DE_CLIENTE";
+            /** Format: uuid */
+            clientId: string;
+            /** Format: uuid */
+            clientMembershipId: string;
+            /** Format: uuid */
+            workspaceId: string;
+            /** Format: uuid */
+            automationId: string;
+            /** Format: uuid */
+            workerId: string | null;
+            canReadLogs: boolean;
+            canDownloadResults: boolean;
+            /** Format: uuid */
+            replacesGrantId: string | null;
+        };
+        ClientMembershipState: {
+            /** Format: uuid */
+            clientMembershipId: string;
+            /** Format: uuid */
+            clientId: string;
+            /** Format: uuid */
+            userId: string;
+            status: components["schemas"]["ClientMembershipStatus"];
+        };
         /** @enum {string} */
-        PersonSituation: "invitation_pending" | "invitation_expired" | "invitation_revoked" | "invitation_accepted" | "member_pending" | "member_active" | "member_suspended" | "member_revoked";
+        ClientMembershipStatus: "pending" | "active" | "suspended" | "revoked";
+        ShareMachine: {
+            /** Format: uuid */
+            workerId: string;
+            name: string;
+        };
+        ClientShareOption: {
+            /** Format: uuid */
+            automationId: string;
+            name: string;
+            /** Format: uuid */
+            workspaceId: string;
+            workspaceName: string;
+            /** @description maquinas desta automacao (ativacao), ativas e autorizadas no ambiente */
+            machines: components["schemas"]["ShareMachine"][];
+        };
+        ClientShareOptions: {
+            automations: components["schemas"]["ClientShareOption"][];
+        };
+        AccessPerson: {
+            /** Format: uuid */
+            userId: string | null;
+            name: string | null;
+            email: string | null;
+        };
+        AutomationRef: {
+            /** Format: uuid */
+            automationId: string;
+            name: string;
+        };
+        MachineRef: {
+            /** Format: uuid */
+            workerId: string;
+            name: string;
+        };
+        /** @enum {string} */
+        AccessGrantSituation: "pending" | "active" | "suspended" | "revoked";
+        AccessGrant: {
+            /**
+             * @description automation (070) ou workspace (ambiente inteiro, 003)
+             * @enum {string}
+             */
+            kind: "automation" | "workspace";
+            /** Format: uuid */
+            grantId: string;
+            situation: components["schemas"]["AccessGrantSituation"];
+            person: components["schemas"]["AccessPerson"];
+            /** Format: uuid */
+            clientMembershipId: string;
+            membershipStatus: components["schemas"]["ClientMembershipStatus"];
+            client: components["schemas"]["ClientRef"];
+            workspace: components["schemas"]["WorkspaceRef"];
+            automation: components["schemas"]["AutomationRef"] | null;
+            machine: components["schemas"]["MachineRef"] | null;
+            canReadLogs: boolean;
+            canDownloadResults: boolean;
+            /** @enum {string} */
+            basis: "second_person" | "client_invitation";
+            requestedBy: string | null;
+            approvedBy: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            approvedAt: string | null;
+            /** Format: date-time */
+            revokedAt: string | null;
+            /** @enum {string|null} */
+            revokeReason: "revoked" | "replaced" | "link_retired" | "request_cancelled" | null;
+            /** Format: uuid */
+            replacesGrantId: string | null;
+            /** Format: date-time */
+            expiresAt: string | null;
+            /** Format: date-time */
+            nextReviewAt: string | null;
+        };
+        AccessGrantPage: {
+            items: components["schemas"]["AccessGrant"][];
+            nextCursor: string | null;
+        };
+        /** @enum {string} */
+        AccessHistoryCategory: "invitations" | "roles" | "grants" | "client_links" | "clients";
+        AccessHistoryEvent: {
+            /** Format: uuid */
+            eventId: string;
+            /** @enum {string} */
+            type: "CONVITE_EMITIDO" | "CONVITE_REVOGADO" | "CONVITE_REENVIADO" | "CONVITE_ACEITO" | "PAPEL_ATRIBUIDO" | "PAPEL_REVOGADO" | "PAPEL_ALTERADO" | "VINCULO_RETIRADO" | "CONCESSAO_CRIADA" | "CONCESSAO_APROVADA" | "CONCESSAO_RENOVADA" | "CONCESSAO_REVISADA" | "CONCESSAO_REVOGADA" | "CONCESSAO_RENOVACAO_SOLICITADA" | "CLIENTE_CONCESSAO_SOLICITADA" | "CLIENTE_CONCESSAO_APROVADA" | "CLIENTE_CONCESSAO_APLICADA_NO_ACEITE" | "CLIENTE_CONCESSAO_REDUZIDA" | "CLIENTE_CONCESSAO_REVOGADA" | "VINCULO_CLIENTE_SUSPENSO" | "VINCULO_CLIENTE_REATIVADO" | "VINCULO_CLIENTE_RETIRADO" | "CLIENTE_CADASTRADO" | "CLIENTE_ALTERADO";
+            category: components["schemas"]["AccessHistoryCategory"];
+            /** Format: date-time */
+            createdAt: string;
+            /** @description responsavel (nulo quando foi a propria pessoa convidada: byInvitee) */
+            actor: components["schemas"]["AccessPerson"] | null;
+            byInvitee: boolean;
+            target: components["schemas"]["AccessPerson"] | null;
+            role: string | null;
+            previousRole: string | null;
+            workspace: components["schemas"]["WorkspaceRef"] | null;
+            client: components["schemas"]["ClientRef"] | null;
+            automation: components["schemas"]["AutomationRef"] | null;
+            machine: components["schemas"]["MachineRef"] | null;
+            grant: {
+                /** @enum {string} */
+                kind: "automation" | "workspace";
+                /** Format: uuid */
+                grantId: string;
+            } | null;
+            /** Format: uuid */
+            invitationId: string | null;
+            /** @enum {string|null} */
+            decision: "KEEP" | "SUSPEND" | "REVOKE" | null;
+            canReadLogs: boolean | null;
+            canDownloadResults: boolean | null;
+            /** @description o ato usou a excecao a D-GRANT-1 do convite de Cliente */
+            grantException: boolean;
+            /** Format: uuid */
+            correlationId: string;
+        };
+        AccessHistoryPage: {
+            items: components["schemas"]["AccessHistoryEvent"][];
+            nextCursor: string | null;
+            /** @enum {string} */
+            scope: "all" | "client_access";
+        };
+        ClientGrantSummary: {
+            /** @enum {string} */
+            kind: "automation" | "workspace";
+            /** Format: uuid */
+            grantId: string;
+            situation: components["schemas"]["AccessGrantSituation"];
+            automation: components["schemas"]["AutomationRef"] | null;
+            workspace: components["schemas"]["WorkspaceRef"];
+            machine: components["schemas"]["MachineRef"] | null;
+            canReadLogs: boolean;
+            canDownloadResults: boolean;
+            /** @enum {string} */
+            basis: "second_person" | "client_invitation";
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ClientDetailPerson: {
+            /** Format: uuid */
+            clientMembershipId: string;
+            person: components["schemas"]["AccessPerson"];
+            status: components["schemas"]["ClientMembershipStatus"];
+            /** Format: date-time */
+            joinedAt: string;
+            linkedToIdentity: boolean;
+            grants: components["schemas"]["AccessGrant"][];
+        };
+        ClientDetail: {
+            /** Format: uuid */
+            clientId: string;
+            name: string;
+            status: components["schemas"]["ResourceStatus"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            people: components["schemas"]["ClientDetailPerson"][];
+            pendingInvitations: {
+                /** Format: uuid */
+                invitationId: string;
+                email: string;
+                automationName: string;
+                /** Format: date-time */
+                createdAt: string;
+                /** Format: date-time */
+                expiresAt: string;
+            }[];
+            sharedAutomations: {
+                automation: components["schemas"]["AutomationRef"];
+                workspace: components["schemas"]["WorkspaceRef"];
+                people: number;
+            }[];
+        };
+        PersonClient: {
+            /** Format: uuid */
+            clientMembershipId: string;
+            /** Format: uuid */
+            userId: string;
+            displayName: string;
+            email: string;
+            status: components["schemas"]["ClientMembershipStatus"];
+            /** Format: date-time */
+            joinedAt: string;
+            /** Format: uuid */
+            clientId: string;
+            clientName: string;
+            /** @description falso nas contas de cliente antigas (sem identidade) */
+            linkedToIdentity: boolean;
+            /** @description concessoes que ainda contam (pedidos e ativas; por ambiente nao revogadas) */
+            grants: components["schemas"]["AccessGrant"][];
+        };
+        PersonClientScope: {
+            /** Format: uuid */
+            clientId: string;
+            clientName: string;
+            /** Format: uuid */
+            automationId: string;
+            automationName: string;
+            /** Format: uuid */
+            workspaceId: string;
+            workspaceName: string;
+            /** Format: uuid */
+            workerId: string | null;
+            workerName: string | null;
+            canReadLogs: boolean;
+            canDownloadResults: boolean;
+        };
+        /** @enum {string} */
+        PortalExecutionKind: "platform" | "local_agent" | "local_request" | "remote";
+        PortalClientOrganization: {
+            /** Format: uuid */
+            organizationId: string;
+            organizationName: string;
+            clientName: string;
+            sharedAutomations: number;
+        };
+        PortalClientOrganizationList: {
+            items: components["schemas"]["PortalClientOrganization"][];
+        };
+        PortalSharedAutomation: {
+            /** Format: uuid */
+            automationId: string;
+            name: string;
+            workspaceName: string;
+            allMachines: boolean;
+            machines: components["schemas"]["ShareMachine"][];
+            canReadLogs: boolean;
+            canDownloadResults: boolean;
+            executionsLast30Days: number;
+            /** Format: date-time */
+            lastRequestedAt: string | null;
+            lastOutcome: string | null;
+            clientName: string;
+        };
+        PortalSharedAutomationList: {
+            items: components["schemas"]["PortalSharedAutomation"][];
+        };
+        PortalSharedExecution: {
+            kind: components["schemas"]["PortalExecutionKind"];
+            /** Format: uuid */
+            id: string;
+            machine: components["schemas"]["MachineRef"] | null;
+            /** Format: date-time */
+            requestedAt: string;
+            /** Format: date-time */
+            startedAt: string | null;
+            /** Format: date-time */
+            endedAt: string | null;
+            /** @enum {string} */
+            outcome: "succeeded" | "failed" | "in_progress" | "cancelled" | "not_started" | "unconfirmed" | "no_error_signaled";
+        };
+        PortalSharedExecutionPage: {
+            items: components["schemas"]["PortalSharedExecution"][];
+            nextCursor: string | null;
+        };
+        PortalSharedAttempt: {
+            /** Format: uuid */
+            attemptId: string;
+            number: number;
+            /** Format: uuid */
+            workerId: string;
+            workerName: string | null;
+            /** Format: date-time */
+            startedAt: string | null;
+            /** Format: date-time */
+            endedAt: string | null;
+            canReadLogs: boolean;
+            canDownloadResults: boolean;
+        };
+        PortalSharedExecutionDetail: components["schemas"]["PortalSharedExecution"] & {
+            automation: components["schemas"]["AutomationRef"];
+            attempts: components["schemas"]["PortalSharedAttempt"][];
+        };
+        PortalSharedLogLine: {
+            sequence: number;
+            /** Format: date-time */
+            capturedAt: string;
+            /** @enum {string} */
+            channel: "STDOUT" | "STDERR" | "EXECUTOR";
+            truncated: boolean;
+            message: string;
+            textRemoved: boolean;
+        };
+        PortalSharedLogs: {
+            items: components["schemas"]["PortalSharedLogLine"][];
+            total: number;
+            /** Format: date-time */
+            closedAt: string | null;
+            droppedLines: number | null;
+            nextAfter: number | null;
+        };
+        PortalSharedResultFile: {
+            number: number;
+            fileName: string;
+            sizeBytes: number;
+            sha256: string;
+            /** Format: date-time */
+            receivedAt: string;
+            available: boolean;
+        };
+        PortalSharedResults: {
+            items: components["schemas"]["PortalSharedResultFile"][];
+            /** Format: date-time */
+            closedAt: string | null;
+            skippedByLimit: number | null;
+        };
+        /** @enum {string} */
+        PersonSituation: "invitation_pending" | "invitation_expired" | "invitation_revoked" | "invitation_accepted" | "member_pending" | "member_active" | "member_suspended" | "member_revoked" | "client_active" | "client_suspended" | "client_revoked";
         PersonRole: {
             role: components["schemas"]["RoleCode"];
             /** Format: uuid */
@@ -3265,17 +4011,25 @@ export interface components {
              * @description conta criada pelo aceite (o membro)
              */
             acceptedUserId: string | null;
+            /**
+             * @description 070: convite de pessoa da equipe ou de Cliente
+             * @enum {string}
+             */
+            audience: "internal" | "client";
+            /** @description 070: escopo confirmado do convite de Cliente */
+            clientScope: components["schemas"]["PersonClientScope"] | null;
         };
         PersonItem: {
             /** @enum {string} */
-            kind: "member" | "invitation";
+            kind: "member" | "invitation" | "client";
             /**
              * Format: uuid
-             * @description membershipId ou invitationId, conforme kind
+             * @description membershipId, invitationId ou clientMembershipId, conforme kind
              */
             id: string;
             member: components["schemas"]["PersonMember"] | null;
             invitation: components["schemas"]["PersonInvitation"] | null;
+            client: components["schemas"]["PersonClient"] | null;
         };
         PeoplePage: {
             items: components["schemas"]["PersonItem"][];
@@ -4364,6 +5118,11 @@ export interface components {
         InvitationAccepted: {
             /** Format: uuid */
             organizationId: string;
+            /**
+             * @description 070: internal troca para a sessao da organizacao; client entra pela area do cliente (Portal), sem sessao da organizacao
+             * @enum {string}
+             */
+            audience: "internal" | "client";
         };
         RoleRequest: {
             role: components["schemas"]["RoleCode"];
@@ -7556,7 +8315,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description already_member, account_exists ou account_unavailable */
+            /** @description already_member, account_exists ou account_unavailable; 070 (convite de Cliente): conflict com client_invitation_internal_member, client_invitation_other_client, client_grant_exists ou client_scope_unavailable */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8480,6 +9239,452 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClientPage"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["CatalogInconsistent"];
+        };
+    };
+    createClient: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Cliente */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Client"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    inviteClient: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientInvitationRequest"];
+            };
+        };
+        responses: {
+            /** @description Convite emitido */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientInvitationCreated"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getClientDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                client: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cliente */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientDetail"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    updateClient: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                client: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Cliente */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Client"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listClientShareOptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Opcoes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientShareOptions"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    requestClientAutomationGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientAutomationGrantRequest"];
+            };
+        };
+        responses: {
+            /** @description Pedido */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientAutomationGrant"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    approveClientAutomationGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                grant: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Concessao ativa */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientAutomationGrant"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    reduceClientAutomationGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                grant: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientAutomationGrantReduceRequest"];
+            };
+        };
+        responses: {
+            /** @description Concessao */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientAutomationGrant"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    revokeClientAutomationGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                grant: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revogada */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    suspendClientMembership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                membership: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Vinculo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientMembershipState"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    reactivateClientMembership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                membership: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Vinculo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientMembershipState"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    retireClientMembership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                membership: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Vinculo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientMembershipState"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listAccessGrants: {
+        parameters: {
+            query?: {
+                /** @description conta beneficiaria (userId) */
+                personId?: string;
+                clientId?: string;
+                workspaceId?: string;
+                automationId?: string;
+                workerId?: string;
+                situation?: components["schemas"]["AccessGrantSituation"][];
+                /** @description criacao, inclusivo */
+                from?: string;
+                /** @description criacao, exclusivo */
+                to?: string;
+                /** @description Opaco e assinado: base64url(payload) "." base64url(HMAC-SHA256). Vinculado a rota, organizacao, vinculo da sessao, recurso pai, filtros (impressao canonica; limit fora) e ordenacao. Posicao = chave de ordenacao de tamanho limitado (prefixo de 48 pontos de codigo + id, ou campos de tamanho fixo); id da chave como impressao de 11 caracteres. O servidor nunca emite cursor maior que 872 caracteres (pior caso calculado, documento secao 1.5.1); aceita ate 1024. Nao e autoridade: autorizacao reaplicada a cada pagina. Malformado, adulterado, de outra rota/organizacao/vinculo/pai, com filtros ou ordenacao diferentes, ou de chave desconhecida (inclusive apos rotacao da chave) -> 400. Sem expiracao por tempo. Chave: decisao DC-15 (subchave derivada; a rotacao invalida os cursores). */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description fora de 1-100 ou nao inteiro -> 400; pode mudar entre paginas */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pagina */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessGrantPage"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["CatalogInconsistent"];
+        };
+    };
+    listAccessHistory: {
+        parameters: {
+            query?: {
+                /** @description alvo ou responsavel (userId) */
+                personId?: string;
+                clientId?: string;
+                workspaceId?: string;
+                automationId?: string;
+                workerId?: string;
+                grantId?: string;
+                category?: components["schemas"]["AccessHistoryCategory"][];
+                from?: string;
+                to?: string;
+                /** @description Opaco e assinado: base64url(payload) "." base64url(HMAC-SHA256). Vinculado a rota, organizacao, vinculo da sessao, recurso pai, filtros (impressao canonica; limit fora) e ordenacao. Posicao = chave de ordenacao de tamanho limitado (prefixo de 48 pontos de codigo + id, ou campos de tamanho fixo); id da chave como impressao de 11 caracteres. O servidor nunca emite cursor maior que 872 caracteres (pior caso calculado, documento secao 1.5.1); aceita ate 1024. Nao e autoridade: autorizacao reaplicada a cada pagina. Malformado, adulterado, de outra rota/organizacao/vinculo/pai, com filtros ou ordenacao diferentes, ou de chave desconhecida (inclusive apos rotacao da chave) -> 400. Sem expiracao por tempo. Chave: decisao DC-15 (subchave derivada; a rotacao invalida os cursores). */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description fora de 1-100 ou nao inteiro -> 400; pode mudar entre paginas */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pagina */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessHistoryPage"];
                 };
             };
             400: components["responses"]["InvalidRequest"];
@@ -9997,6 +11202,210 @@ export interface operations {
             404: components["responses"]["NotFound"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["CatalogInconsistent"];
+        };
+    };
+    portalClientOrganizations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Organizacoes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalClientOrganizationList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    portalSharedAutomations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Automacoes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalSharedAutomationList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    portalSharedExecutions: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                /** @description fora de 1-100 ou nao inteiro -> 400; pode mudar entre paginas */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                automation: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pagina */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalSharedExecutionPage"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    portalSharedExecution: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                kind: components["schemas"]["PortalExecutionKind"];
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Execucao */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalSharedExecutionDetail"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    portalSharedLogs: {
+        parameters: {
+            query?: {
+                after?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                id: string;
+                attempt: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Registros */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalSharedLogs"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    portalSharedResults: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                id: string;
+                attempt: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resultados */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalSharedResults"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    portalSharedResultContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                id: string;
+                attempt: string;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Arquivo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     portalListWorkspaces: {

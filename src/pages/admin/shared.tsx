@@ -141,6 +141,12 @@ export function useUrlFilters<S extends string>(spec: UrlFilterSpec<S>) {
     key: normalized,
     toggleStatus: (s: S, on: boolean) => write(on ? [...statuses, s] : statuses.filter((x) => x !== s), ids),
     setId: (k: string, v: string | null) => write(statuses, { ...ids, [k]: v }),
+    /** Vários identificadores/textos de uma vez (uma só escrita no endereço). */
+    setMany: (values: Record<string, string | null>) =>
+      write(statuses, {
+        ...ids,
+        ...Object.fromEntries(Object.entries(values).map(([k, v]) => [k, (spec.texts ?? []).includes(k) ? textValue(v) : v])),
+      }),
     /** Texto livre (spec.texts): aparado; vazio remove do endereço. */
     setText: (k: string, v: string) => write(statuses, { ...ids, [k]: textValue(v) }),
     clear: () => write([], {}),

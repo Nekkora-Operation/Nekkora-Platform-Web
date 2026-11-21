@@ -62,3 +62,76 @@
     align-items: start;
   }
 }
+
+/* PLATFORM-FLUXO-002 (070): clientes e acessos de cliente — só arranjo, com os tokens da Nekkora-Lib. */
+.pw-people__shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nk-space-4);
+}
+.pw-people__client-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--nk-space-2);
+  align-items: end;
+}
+.pw-people__details > summary {
+  cursor: pointer;
+  padding: var(--nk-space-1) 0;
+}
+.pw-people__details[open] > summary {
+  margin-bottom: var(--nk-space-2);
+}
+.pw-people__confirm {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--nk-space-1) var(--nk-space-3);
+  margin: 0;
+}
+.pw-people__confirm dt {
+  font-weight: 600;
+}
+.pw-people__confirm dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.pw-access__item--stack {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+.pw-access__item--stack .pw-access__perms {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nk-space-4);
+}
+.pw-access-history__filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--nk-space-3);
+  align-items: end;
+}
+.pw-access-history__filters > fieldset,
+.pw-access-history__filters > div[role='alert'],
+.pw-access-history__filters > div:last-child {
+  grid-column: 1 / -1;
+}
+.pw-clients__detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nk-space-3);
+  align-items: center;
+}
+.pw-clients__list,
+.pw-clients__sublist {
+  margin: 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: var(--nk-space-1);
+}
+@media (max-width: 40rem) {
+  .pw-people__client-row,
+  .pw-access__item--stack {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -227,7 +227,7 @@ describe('isolamento por sessão', () => {
     let view = await openMembers();
     await uncertainSuspend();
     view.unmount();
-    view = renderAt(`/o/${DEV_ORG}/administracao/concessoes`);
+    view = renderAt(`/o/${DEV_ORG}/administracao/pessoas/acessos/ambientes`);
     await screen.findByRole('region', { name: 'Lista de concessões' });
     view.unmount();
     await openMembers({ actions: false });

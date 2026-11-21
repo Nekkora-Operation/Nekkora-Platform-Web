@@ -18,7 +18,8 @@ import { revokeClientGrant } from '../api/admin';
 import { PreviouslyUncertain, resetWriteStore, startWrite, writeEntry } from '../admin/writeStore';
 
 const NOW = Date.UTC(2026, 9, 3, 12, 0, 0);
-const grants = `/o/${DEV_ORG}/administracao/concessoes`;
+// PLATFORM-FLUXO-002 (070): as concessões por ambiente inteiro (com as decisões de antes) ficam em "Acessos e histórico"
+const grants = `/o/${DEV_ORG}/administracao/pessoas/acessos/ambientes`;
 const members = `/o/${DEV_ORG}/administracao/membros`;
 const G = (k: string) => stableUuid(`dev:grant:${k}`);
 const G1 = 'Pessoa do Portal (cliente ACME Logística, ambiente de trabalho Logística)';

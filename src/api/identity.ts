@@ -325,11 +325,11 @@ export async function confirmAccountLink(organizationId: string): Promise<void> 
 // ------------------------------------------------------------------ convites (chave nekkora.convites.enabled)
 
 /** Aceite pela identidade (step-up). 404 único = convite inválido para esta identidade; 409 = already_member, account_exists, account_unavailable. */
-export async function acceptInvitation(organizationId: string, token: string): Promise<string> {
-  const data = await send<S['InvitationAccepted']>('acceptInvitation', '/api/v1/invitations/accept', {
+/** 070: `audience` diz se a pessoa entrou como membro (troca de sessão) ou como cliente (área do cliente, pelo Portal). */
+export async function acceptInvitation(organizationId: string, token: string): Promise<S['InvitationAccepted']> {
+  return send<S['InvitationAccepted']>('acceptInvitation', '/api/v1/invitations/accept', {
     method: 'POST',
     body: { organizationId, token },
     csrf: await identityCsrf(),
   });
-  return data.organizationId;
 }

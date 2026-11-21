@@ -26,6 +26,7 @@ const member = (n: number, name: string, roles: { role: string; workspaceId: str
   kind: 'member',
   id: ID(n + 50),
   invitation: null,
+  client: null,
   member: {
     membershipId: ID(n + 50),
     userId: ID(n),
@@ -44,6 +45,7 @@ const invitation = (n: number, email: string, state = 'PENDENTE', over: Record<s
   kind: 'invitation',
   id: ID(n),
   member: null,
+  client: null,
   invitation: {
     invitationId: ID(n),
     email,
@@ -57,6 +59,8 @@ const invitation = (n: number, email: string, state = 'PENDENTE', over: Record<s
     revokedAt: null,
     revokeReason: null,
     acceptedUserId: null,
+    audience: 'internal',
+    clientScope: null,
     ...over,
   },
 });

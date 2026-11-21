@@ -169,8 +169,9 @@ test('transporte: redefinição aplicada e resposta perdida → incerto; conferi
   await expect(panel(page)).toContainText('não confirma o resultado do pedido');
 
   const nav = page.getByRole('navigation', { name: 'Navegação principal' });
-  await nav.getByRole('link', { name: 'Clientes' }).click();
-  await expect(page).toHaveURL(`/o/${org}/administracao/clientes`);
+  // PLATFORM-FLUXO-002 (070): "Gerenciar clientes" fica dentro de "Pessoas e acessos"
+  await page.getByRole('link', { name: 'Gerenciar clientes' }).click();
+  await expect(page).toHaveURL(`/o/${org}/administracao/pessoas/clientes`);
   await nav.getByRole('link', { name: 'Pessoas e acessos' }).click();
   await expect(panel(page)).toContainText(`Redefinição de MFA de ${ALVO}: resultado não confirmado.`);
 
