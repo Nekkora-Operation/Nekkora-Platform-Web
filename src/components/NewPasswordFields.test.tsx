@@ -113,6 +113,37 @@ describe('NewPasswordFields', () => {
     expect(screen.getByText('As senhas coincidem.')).toBeInTheDocument();
   });
 
+  it('erro do envio some quando a pessoa corrige (senha e confirmação)', async () => {
+    function WithErrors() {
+      const [v, setV] = useState('nekkora2026ok');
+      const [c, setC] = useState('outra');
+      return (
+        <NewPasswordFields
+          label="Senha"
+          confirmLabel="Confirmar senha"
+          value={v}
+          onChange={setV}
+          confirmation={c}
+          onConfirmationChange={setC}
+          error="A senha ainda não atende aos requisitos: uma letra maiúscula; um símbolo (por exemplo ! @ # - _)."
+          confirmationError="As senhas não coincidem."
+        />
+      );
+    }
+    render(<WithErrors />);
+    expect(screen.getByText(/A senha ainda não atende aos requisitos/)).toBeInTheDocument();
+    expect(screen.getByText('As senhas não coincidem.')).toBeInTheDocument();
+    await userEvent.clear(field());
+    await userEvent.type(field(), 'Nekkora#2026ok');
+    expect(screen.queryByText(/A senha ainda não atende aos requisitos/)).toBeNull();
+    expect(field()).not.toHaveAttribute('aria-invalid');
+    const conf = screen.getByLabelText(/^Confirmar senha\*?$/);
+    await userEvent.clear(conf);
+    await userEvent.type(conf, 'Nekkora#2026ok');
+    expect(screen.queryByText('As senhas não coincidem.')).toBeNull();
+    expect(screen.getByText('As senhas coincidem.')).toBeInTheDocument();
+  });
+
   it('força estimada separada: cumprir as regras não faz a senha aparecer como forte', async () => {
     const check = await loadStrengthChecker();
     // cumpre as cinco regras e é das primeiras a serem tentadas

@@ -229,7 +229,10 @@ test('PLATFORM-SENHA-001: cadastro, convite de cliente, troca, recuperação e s
 
   // ------------------------------------------------ 3. recuperação: chamada direta fora da regra recusada sem consumir o link
   await page.getByRole('link', { name: 'Esqueci minha senha' }).click();
+  await expect(page).toHaveURL(/\/recuperar-senha$/);
+  await expect(page.getByRole('heading', { name: 'Esqueceu sua senha?' })).toBeVisible();
   await page.getByRole('textbox', { name: /E-mail/ }).fill(lia.email);
+  await expect(page.getByRole('textbox', { name: /E-mail/ })).toHaveValue(lia.email);
   await page.getByRole('button', { name: 'Enviar instruções' }).click();
   await expect(page.getByRole('heading', { name: 'Confira seu e-mail' })).toBeVisible();
   const tokenRec = await waitToken('PASSWORD_RECOVERY', lia.email);
@@ -258,6 +261,13 @@ test('PLATFORM-SENHA-001: cadastro, convite de cliente, troca, recuperação e s
   // ------------------------------------------------ 4. primeiro acesso pelo convite de cliente (Ivo)
   const ivo = { name: `Ivo Cliente ${TAG}`, email: syntheticEmail(`senha-ivo-${TAG}`), password: 'Ivo#Cliente-26' };
   await anaPage.goto(`/o/${org}/administracao/pessoas`);
+  const entrarOrg = anaPage.getByRole('button', { name: 'Entrar nesta organização' });
+  await expect(entrarOrg.or(anaPage.getByRole('form', { name: 'Novo convite' }))).toBeVisible();
+  if (await entrarOrg.isVisible()) {
+    await entrarOrg.click();
+    await expect(anaPage).not.toHaveURL(/\/entrar$/);
+    await anaPage.goto(`/o/${org}/administracao/pessoas`);
+  }
   await anaPage.getByRole('radio', { name: /^Pessoa externa/ }).check();
   await anaPage.getByLabel(/^Nome da pessoa/).fill(ivo.name);
   await anaPage.getByLabel(/^E-mail da pessoa/).fill(ivo.email);
@@ -286,10 +296,11 @@ test('PLATFORM-SENHA-001: cadastro, convite de cliente, troca, recuperação e s
   await identitySignIn(ivoPage, ivo.email, ivo.password);
   await ivoPage.waitForURL(/\/(organizacoes|conta\/proteger)$/);
   const { auth } = await activateMfa(ivoPage, ivo.password);
-  void auth;
+  const ivoP: Person = { email: ivo.email, password: ivo.password, name: ivo.name, auth, recoveryCodes: [] };
   await ivoPage.goto(`/o/${org}/convite#token=${convite}`);
   await ivoPage.getByRole('button', { name: 'Aceitar convite' }).click();
-  await ivoPage.waitForURL(new RegExp(`/cliente/o/${org}`));
+  await confirmStepUp(ivoPage, ivoP, 'Aceitar');
+  await expect(ivoPage.getByRole('heading', { name: 'Convite aceito' })).toBeVisible();
   log('4_convite_cliente', {
     nome: 'veio do convite',
     requisitos: 'iguais ao cadastro comum',

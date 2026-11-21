@@ -81,10 +81,13 @@ export function NewPasswordFields({
     setAnnounce(allMet ? 'Senha atende aos requisitos.' : value ? 'A senha deixou de atender aos requisitos.' : '');
   }
 
+  // o erro do ENVIO deixa de aparecer quando a pessoa corrige o campo (senão "não coincidem" ficaria ao lado de senhas iguais)
   const typedConfirmation = confirmation.length > 0;
+  const matches = typedConfirmation && confirmation === value;
   const mismatchNow = typedConfirmation && confirmation !== value && passwordLength(confirmation) >= passwordLength(value);
-  const confirmError = confirmationError ?? (mismatchNow ? 'As senhas não coincidem.' : undefined);
-  const describedBy = [error ? `${pwId}-message` : null, `${pwId}-requisitos`, `${pwId}-forca`].filter(Boolean).join(' ');
+  const confirmError = matches ? undefined : (confirmationError ?? (mismatchNow ? 'As senhas não coincidem.' : undefined));
+  const passwordError = allMet ? undefined : error;
+  const describedBy = [passwordError ? `${pwId}-message` : null, `${pwId}-requisitos`, `${pwId}-forca`].filter(Boolean).join(' ');
 
   return (
     <>
@@ -100,7 +103,7 @@ export function NewPasswordFields({
           autoFocus={autoFocus}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          error={error}
+          error={passwordError}
           readOnly={readOnly}
           aria-describedby={describedBy}
           {...{ passwordrules: PASSWORD_RULES_ATTRIBUTE }}
@@ -161,7 +164,7 @@ export function NewPasswordFields({
         value={confirmation}
         onChange={(e) => onConfirmationChange(e.target.value)}
         error={confirmError}
-        success={!confirmError && typedConfirmation && confirmation === value ? 'As senhas coincidem.' : undefined}
+        success={matches ? 'As senhas coincidem.' : undefined}
         readOnly={readOnly}
       />
     </>
