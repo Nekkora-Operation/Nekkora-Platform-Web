@@ -310,6 +310,8 @@ test('PLATFORM-SENHA-001: cadastro, convite de cliente, troca, recuperação e s
   const convite = await waitToken('ORG_INVITATION', ivo.email);
   await ivoPage.goto(`/o/${org}/convite#token=${convite}`);
   await ivoPage.getByRole('button', { name: 'Criar meu acesso' }).click();
+  await expect(ivoPage.getByRole('heading', { name: 'Criar seu acesso' })).toBeVisible();
+  await expect(ivoPage.getByRole('textbox', { name: /E-mail/ })).toHaveValue(ivo.email);
   await ivoPage.getByRole('button', { name: 'Enviar o link de confirmação' }).click();
   await expect(ivoPage.getByRole('heading', { name: 'Confira seu e-mail' })).toBeVisible();
   const tokenIvo = await waitToken('IDENTITY_SIGNUP_CONFIRMATION', ivo.email);
