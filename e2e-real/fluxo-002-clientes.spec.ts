@@ -272,7 +272,7 @@ test('Clientes e acessos: convite de Cliente, aceite pela identidade, escopo por
   await go(page, `${pessoas}?cliente=${cm}`);
   let modal = page.getByRole('alertdialog', { name: /^Gerenciar acessos de / });
   await expect(modal.getByRole('list', { name: 'Automações compartilhadas' })).toBeVisible();
-  await modal.getByText('Compartilhar outra automação').click();
+  await modal.getByText('Compartilhar outra automação', { exact: true }).click();
   await modal.getByRole('combobox', { name: /^Automação/ }).selectOption({ label: 'Rotina local · Fiscal' });
   await modal.getByRole('combobox', { name: /^Máquina/ }).selectOption({ label: 'Estação Agent' });
   await modal.getByRole('button', { name: 'Salvar acessos' }).click();
@@ -307,7 +307,7 @@ test('Clientes e acessos: convite de Cliente, aceite pela identidade, escopo por
   await go(page, `${pessoas}?cliente=${cm}`);
   modal = page.getByRole('alertdialog', { name: /^Gerenciar acessos de / });
   await expect(modal.getByRole('list', { name: 'Automações compartilhadas' })).toBeVisible();
-  await modal.getByText('Compartilhar outra automação').click();
+  await modal.getByText('Compartilhar outra automação', { exact: true }).click();
   await modal.getByRole('combobox', { name: /^Automação/ }).selectOption({ label: 'Robô de notas · Fiscal' });
   await modal.getByRole('combobox', { name: /^Máquina/ }).selectOption({ label: 'Estação Client' });
   await modal.getByRole('checkbox', { name: 'Consultar os registros' }).check();
@@ -508,7 +508,7 @@ test('Clientes e acessos: convite de Cliente, aceite pela identidade, escopo por
     await cEstreita.waitForTimeout(31_000);
     await cEstreita.getByLabel('Código de autenticação').fill(await carla.auth.next());
   });
-  await expect(cEstreita.getByRole('region', { name: 'Compartilhado com você' }).or(cEstreita.getByRole('heading', { name: 'Compartilhado com você' }))).toBeVisible();
+  await expect(cEstreita.getByRole('heading', { name: 'Compartilhado com você' })).toBeVisible();
   await go(cEstreita, `/cliente/o/${org}/execucoes/remote/${remota}`);
   await audit(cEstreita, 'area-cliente-375');
   await shot(cEstreita, '10-area-cliente-375');
