@@ -213,16 +213,19 @@ export function ClientAccessDialog({
                           label="Registros"
                           checked={r.logs}
                           disabled={locked || r.revoke || !g.canReadLogs}
-                          hint={!g.canReadLogs ? 'Para ligar, peça de novo abaixo (outra pessoa aprova).' : undefined}
                           onChange={(e) => set({ logs: e.target.checked })}
                         />
                         <Checkbox
                           label="Resultados"
                           checked={r.results}
                           disabled={locked || r.revoke || !g.canDownloadResults}
-                          hint={!g.canDownloadResults ? 'Para ligar, peça de novo abaixo (outra pessoa aprova).' : undefined}
                           onChange={(e) => set({ results: e.target.checked })}
                         />
+                        {(!g.canReadLogs || !g.canDownloadResults) && (
+                          <Text variant="body-sm" color="secondary">
+                            Aqui só se desliga. Para ligar, peça de novo em "Compartilhar outra automação" (outra pessoa aprova).
+                          </Text>
+                        )}
                       </div>
                     )}
                     {g.kind === 'automation' ? (
