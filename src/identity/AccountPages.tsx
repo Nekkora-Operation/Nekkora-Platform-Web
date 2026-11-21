@@ -16,7 +16,8 @@ import {
 import { identityPath } from '../auth/flow';
 import { commonMessage, INVALID_CODE, type UserMessage } from '../auth/messages';
 import { manualKeyFromOtpauth } from '../auth/otpauth';
-import { meetsPasswordPolicy, PASSWORD_MAX, PASSWORD_MIN } from '../auth/passwordPolicy';
+import { passwordProblem } from '../auth/passwordPolicy';
+import { NewPasswordFields } from '../components/NewPasswordFields';
 import { StepUpDialog } from '../components/StepUpDialog';
 import { ErrorAlert } from '../pages/ErrorAlert';
 import { RecoveryCodesPanel } from '../pages/RecoveryCodesPanel';
@@ -61,7 +62,7 @@ function PasswordSection() {
     e.preventDefault();
     const found = {
       current: current ? undefined : 'Informe a senha atual.',
-      next: meetsPasswordPolicy(next) ? undefined : `A senha nova precisa ter entre ${PASSWORD_MIN} e ${PASSWORD_MAX} caracteres.`,
+      next: passwordProblem(next),
       confirmation: confirmation === next ? undefined : 'As senhas não coincidem.',
     };
     setErrors(found);
@@ -86,26 +87,15 @@ function PasswordSection() {
         )}
         <form className="pw-identity__form" onSubmit={submit} noValidate>
           <Input label="Senha atual" type="password" autoComplete="current-password" required fullWidth value={current} onChange={(e) => setCurrent(e.target.value)} error={errors.current} />
-          <Input
+          <NewPasswordFields
             label="Senha nova"
-            type="password"
-            autoComplete="new-password"
-            required
-            fullWidth
+            confirmLabel="Confirmar senha nova"
             value={next}
-            onChange={(e) => setNext(e.target.value)}
+            onChange={setNext}
+            confirmation={confirmation}
+            onConfirmationChange={setConfirmation}
             error={errors.next}
-            hint={`Entre ${PASSWORD_MIN} e ${PASSWORD_MAX} caracteres.`}
-          />
-          <Input
-            label="Confirmar senha nova"
-            type="password"
-            autoComplete="new-password"
-            required
-            fullWidth
-            value={confirmation}
-            onChange={(e) => setConfirmation(e.target.value)}
-            error={errors.confirmation}
+            confirmationError={errors.confirmation}
           />
           <div>
             <Button type="submit" disabled={uncertain}>

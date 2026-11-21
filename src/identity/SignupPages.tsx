@@ -8,7 +8,8 @@ import { identityPath } from '../auth/flow';
 import { onboarding } from '../auth/onboarding';
 import { consumeInitialLinkToken } from '../auth/linkToken';
 import { commonMessage, type UserMessage } from '../auth/messages';
-import { meetsPasswordPolicy, PASSWORD_MAX, PASSWORD_MIN, passwordLength } from '../auth/passwordPolicy';
+import { passwordProblem } from '../auth/passwordPolicy';
+import { NewPasswordFields } from '../components/NewPasswordFields';
 import { ErrorAlert } from '../pages/ErrorAlert';
 import { pendingInvitation } from './AcceptInvitationPage';
 
@@ -200,7 +201,7 @@ export function SignupConfirmPage() {
     if (inFlight.current || !token) return;
     const next = {
       displayName: displayNameProblem(displayName),
-      password: meetsPasswordPolicy(password) ? undefined : `A senha precisa ter entre ${PASSWORD_MIN} e ${PASSWORD_MAX} caracteres.`,
+      password: passwordProblem(password),
       confirmation: confirmation === password ? undefined : 'As senhas não coincidem.',
     };
     setErrors(next);
@@ -216,8 +217,9 @@ export function SignupConfirmPage() {
       setState('success');
     } catch (e) {
       // 400 = link inválido para a API (vencido, já usado, revogado, substituído por reenvio). Os campos já foram conferidos
-      // com as MESMAS regras da API (e04a57c: PasswordPolicy 12–128 pontos de código; nome sem controle, até 120), então
-      // um 400 aqui não é recusa de política. Se a API endurecer a política, esta tela precisa distinguir os dois casos.
+      // com as MESMAS regras da API (PasswordPolicy, PLATFORM-SENHA-001: 12 a 20 pontos de código com maiúscula, minúscula,
+      // número e símbolo; nome sem controle, até 120), então um 400 aqui não é recusa de política. Se as regras mudarem,
+      // as duas pontas mudam juntas (passwordPolicy.ts espelha a API).
       if (isApiError(e, 'invalid_request')) setState('invalid');
       else if (isDisabled(e)) setState('disabled');
       else setError(commonMessage(e));
@@ -296,9 +298,6 @@ export function SignupConfirmPage() {
     );
   }
 
-  const length = passwordLength(password);
-  const lengthOk = length >= PASSWORD_MIN && length <= PASSWORD_MAX;
-
   return (
     <AuthScreen
       icon="user"
@@ -320,32 +319,18 @@ export function SignupConfirmPage() {
           error={errors.displayName}
           readOnly={pending}
         />
-        <Input
+        <NewPasswordFields
           label="Senha"
-          type="password"
-          name="new-password"
-          autoComplete="new-password"
-          required
-          fullWidth
-          autoFocus={!!prefill?.name}
+          confirmLabel="Confirmar senha"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={setPassword}
+          confirmation={confirmation}
+          onConfirmationChange={setConfirmation}
           error={errors.password}
-          hint={`Entre ${PASSWORD_MIN} e ${PASSWORD_MAX} caracteres. Frases longas são mais seguras e fáceis de lembrar.`}
-          success={!errors.password && lengthOk ? `Entre ${PASSWORD_MIN} e ${PASSWORD_MAX} caracteres — atendido.` : undefined}
+          confirmationError={errors.confirmation}
           readOnly={pending}
-        />
-        <Input
-          label="Confirmar senha"
-          type="password"
-          name="confirm-password"
-          autoComplete="new-password"
-          required
-          fullWidth
-          value={confirmation}
-          onChange={(e) => setConfirmation(e.target.value)}
-          error={errors.confirmation}
-          readOnly={pending}
+          autoFocus={!!prefill?.name}
+          userInputs={[displayName]}
         />
         <Button type="submit" fullWidth size="lg" loading={pending}>
           {pending ? 'Concluindo…' : 'Concluir cadastro'}

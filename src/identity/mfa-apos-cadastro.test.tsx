@@ -15,7 +15,7 @@ import { RouteApi } from '../test/routeApi';
  * foco da tela; seguir sem ela é possível e menos destacado. Fora desse momento, a entrada vai direto às organizações.
  */
 const TOKEN = 'A'.repeat(43);
-const PASSWORD = 'senha-muito-segura-123';
+const PASSWORD = 'Senha#Segura2026';
 
 let api: RouteApi;
 beforeEach(() => {
