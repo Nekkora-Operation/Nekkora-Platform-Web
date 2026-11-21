@@ -179,7 +179,7 @@ test('J05: troca de senha e novos códigos com step-up; recuperação de senha p
   await page.goto('/conta');
 
   // troca de senha (step-up)
-  const newPassword = 'Ensaio-Front-V1-001-nova-senha';
+  const newPassword = 'Ensaio#Nova-2026';
   await page.getByLabel(/^Senha atual/).fill(person.password);
   await page.getByLabel(/^Senha nova/).fill(newPassword);
   await page.getByLabel(/^Confirmar senha nova/).fill(newPassword);
@@ -212,7 +212,7 @@ test('J05: troca de senha e novos códigos com step-up; recuperação de senha p
   await page.goto(`/recuperar-senha#token=${token}`);
   await expect(page.getByRole('heading', { name: 'Crie uma nova senha' })).toBeVisible();
   expect(page.url()).not.toContain(token);
-  const recovered = 'Ensaio-Front-V1-001-recuperada';
+  const recovered = 'Ensaio#Recup-2026';
   await page.getByLabel(/^Nova senha/).fill(recovered);
   await page.getByLabel(/^Confirmar nova senha/).fill(recovered);
   await page.getByRole('button', { name: 'Salvar nova senha' }).click();
@@ -228,8 +228,8 @@ test('J05: troca de senha e novos códigos com step-up; recuperação de senha p
   // o link de recuperação já usado não vale de novo
   await page.goto('about:blank');
   await page.goto(`/recuperar-senha#token=${token}`);
-  await page.getByLabel(/^Nova senha/).fill('Ensaio-Front-V1-001-de-novo');
-  await page.getByLabel(/^Confirmar nova senha/).fill('Ensaio-Front-V1-001-de-novo');
+  await page.getByLabel(/^Nova senha/).fill('Ensaio#DeNovo-2026');
+  await page.getByLabel(/^Confirmar nova senha/).fill('Ensaio#DeNovo-2026');
   await page.getByRole('button', { name: 'Salvar nova senha' }).click();
   await expect(page.getByRole('heading', { name: 'Este link não é mais válido' })).toBeVisible();
 });

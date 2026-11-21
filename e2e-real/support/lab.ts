@@ -6,7 +6,10 @@ import { Authenticator } from '../../mock/totp';
 
 export const LAB = process.env.FRONT_LAB_ID ?? 'frontlab-001';
 /** Senha sintética das contas de ensaio (só existe no laboratório descartável). */
-export const PASSWORD = 'Ensaio-Front-V1-001-senha';
+// PLATFORM-SENHA-001: cadastros novos seguem a política (12 a 20, maiúscula, minúscula, número e símbolo). As pessoas já
+// gravadas no laboratório guardam a própria senha (antiga, fora da regra) e continuam entrando com ela.
+export const PASSWORD = 'Ensaio#Front-2026';
+export const LEGACY_PASSWORD = 'Ensaio-Front-V1-001-senha';
 
 /** E-mail sintético único por execução (domínio .test, nunca entregue: a caixa é de homologação). */
 export const syntheticEmail = (journey: string) =>

@@ -20,7 +20,7 @@ describe('§49 — nada sensível em log, storage ou URL', () => {
 
   const SECRETS = {
     password: 'senha-muito-segura',
-    newPassword: 'uma frase longa e segura',
+    newPassword: 'Frase#Segura2026',
     totp: TOTP_OK,
     enroll: ENROLL_OK,
     recovery: 'ABCD-EFGH-IJKL-MNOP',

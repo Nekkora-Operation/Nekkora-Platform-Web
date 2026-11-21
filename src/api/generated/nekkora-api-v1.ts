@@ -5050,7 +5050,7 @@ export interface components {
             currentPassword: string;
             /**
              * Format: password
-             * @description 12 a 128 pontos de codigo
+             * @description politica de senha nova (PLATFORM-SENHA-001): 12 a 20 pontos de codigo Unicode com ao menos uma maiuscula (Lu), uma minuscula (Ll), um numero (Nd) e um simbolo (pontuacao P ou simbolo S; espaco nao conta); sem normalizacao (nada e cortado nem aparado). Fora dela: 400 invalid_request, sem consumir o token. O login nao aplica a politica: senhas existentes continuam valendo.
              */
             newPassword: string;
         };
@@ -5059,7 +5059,10 @@ export interface components {
         };
         RecoveryConfirmation: {
             token: string;
-            /** Format: password */
+            /**
+             * Format: password
+             * @description politica de senha nova (PLATFORM-SENHA-001): 12 a 20 pontos de codigo Unicode com ao menos uma maiuscula (Lu), uma minuscula (Ll), um numero (Nd) e um simbolo (pontuacao P ou simbolo S; espaco nao conta); sem normalizacao (nada e cortado nem aparado). Fora dela: 400 invalid_request, sem consumir o token. O login nao aplica a politica: senhas existentes continuam valendo.
+             */
             newPassword: string;
         };
         TokenBody: {
@@ -5080,7 +5083,7 @@ export interface components {
             /** @description nome vindo do convite; nulo = a pessoa escolhe */
             displayName: string | null;
         };
-        /** @description Conclusao do cadastro pela titular do e-mail: token recebido, senha pela politica atual (12-128 pontos de codigo, sem regras de composicao) e nome (ate 120 pontos de codigo, nao em branco, sem caracteres de controle). */
+        /** @description Conclusao do cadastro pela titular do e-mail: token recebido, senha pela politica de senha nova (PLATFORM-SENHA-001) (12 a 20 pontos de codigo com maiuscula, minuscula, numero e simbolo; ver PasswordChange.newPassword) e nome (ate 120 pontos de codigo, nao em branco, sem caracteres de controle). */
         SignupConfirmation: {
             token: string;
             /** Format: password */

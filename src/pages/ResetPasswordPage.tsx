@@ -1,12 +1,13 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router';
-import { Button, Input, Link, StateView } from 'nekkora-lib';
+import { Button, Link, StateView } from 'nekkora-lib';
 import { isApiError } from '../api/http';
 import { AuthScreen } from '../app/AuthScreen';
 import { useAuthFlow } from '../auth/flow';
 import { consumeInitialLinkToken } from '../auth/linkToken';
 import { commonMessage, type UserMessage } from '../auth/messages';
-import { meetsPasswordPolicy, PASSWORD_MAX, PASSWORD_MIN, passwordLength } from '../auth/passwordPolicy';
+import { passwordProblem } from '../auth/passwordPolicy';
+import { NewPasswordFields } from '../components/NewPasswordFields';
 import { ErrorAlert } from './ErrorAlert';
 
 type State = 'form' | 'success' | 'invalid';
@@ -34,7 +35,7 @@ export function ResetPasswordPage() {
     event.preventDefault();
     if (inFlight.current || !token) return;
     const next: typeof errors = {};
-    if (!meetsPasswordPolicy(password)) next.password = `A senha precisa ter entre ${PASSWORD_MIN} e ${PASSWORD_MAX} caracteres.`;
+    next.password = passwordProblem(password);
     if (confirmation !== password) next.confirmation = 'As senhas não coincidem.';
     setErrors(next);
     if (next.password || next.confirmation) return; // não envia o que é evidentemente inválido
@@ -47,7 +48,8 @@ export function ResetPasswordPage() {
       setConfirmation('');
       setState('success');
     } catch (e) {
-      // 400 = token inválido, expirado ou já usado (a política de senha já foi conferida acima)
+      // 400 = token inválido, expirado ou já usado: a política de senha já foi conferida acima com as MESMAS regras da API
+      // (PasswordPolicy, PLATFORM-SENHA-001), então um 400 aqui não é recusa de política
       if (isApiError(e, 'invalid_request')) setState('invalid');
       else setError(commonMessage(e));
     } finally {
@@ -90,15 +92,12 @@ export function ResetPasswordPage() {
     );
   }
 
-  const length = passwordLength(password);
-  const lengthOk = length >= PASSWORD_MIN && length <= PASSWORD_MAX;
-
   return (
     <AuthScreen
       org={org}
       icon="lock"
       title="Crie uma nova senha"
-      description="Escolha uma senha longa, que você não use em outros serviços."
+      description="Escolha uma senha que você não use em outros serviços."
       actions={
         <Link as={RouterLink} to={flow.paths.login} variant="subtle" leftIcon="arrow-left">
           Voltar para o login
@@ -106,33 +105,18 @@ export function ResetPasswordPage() {
       }
     >
       {error && <ErrorAlert message={error} />}
-      <form className="pw-form" onSubmit={submit}>
-        <Input
+      <form className="pw-form" onSubmit={submit} noValidate>
+        <NewPasswordFields
           label="Nova senha"
-          type="password"
-          name="new-password"
-          autoComplete="new-password"
-          required
-          fullWidth
-          autoFocus
+          confirmLabel="Confirmar nova senha"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={setPassword}
+          confirmation={confirmation}
+          onConfirmationChange={setConfirmation}
           error={errors.password}
-          hint={`Entre ${PASSWORD_MIN} e ${PASSWORD_MAX} caracteres. Frases longas são mais seguras e fáceis de lembrar.`}
-          success={!errors.password && lengthOk ? `Entre ${PASSWORD_MIN} e ${PASSWORD_MAX} caracteres — atendido.` : undefined}
+          confirmationError={errors.confirmation}
           readOnly={pending}
-        />
-        <Input
-          label="Confirmar nova senha"
-          type="password"
-          name="confirm-password"
-          autoComplete="new-password"
-          required
-          fullWidth
-          value={confirmation}
-          onChange={(e) => setConfirmation(e.target.value)}
-          error={errors.confirmation}
-          readOnly={pending}
+          autoFocus
         />
         <Button type="submit" fullWidth size="lg" loading={pending}>
           {pending ? 'Salvando…' : 'Salvar nova senha'}

@@ -14,7 +14,7 @@ import { RouteApi } from '../test/routeApi';
  */
 const ORG_A = '0a6e1f9c-3b2d-4c5e-8f71-2a9b3c4d5e6f';
 const TOKEN = 'A'.repeat(43);
-const PASSWORD = 'senha-muito-segura-123';
+const PASSWORD = 'Senha#Segura2026';
 
 let api: RouteApi;
 beforeEach(() => {
@@ -99,7 +99,7 @@ describe('cadastro', () => {
     await user().type(screen.getByLabelText(lbl('Senha')), 'curta');
     await user().type(screen.getByLabelText(lbl('Confirmar senha')), 'curta');
     await user().click(screen.getByRole('button', { name: 'Concluir cadastro' }));
-    expect(await screen.findByText(/A senha precisa ter entre 12 e 128 caracteres/)).toBeInTheDocument();
+    expect(await screen.findByText(/A senha ainda não atende aos requisitos/)).toBeInTheDocument();
     expect(api.sent('POST', '/api/v1/signup/confirm')).toEqual([]);
   });
 });
