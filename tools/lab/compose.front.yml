@@ -45,6 +45,11 @@ services:
       - caixa:/caixa
   portal:
     mem_limit: 512m
+    # PLATFORM-FLUXO-002 (070): a area do cliente baixa os arquivos de resultado concedidos; o Portal so LE a pasta
+    environment:
+      NEKKORA_RESULTADOS_DIR: /var/lib/nekkora/resultados
+    volumes:
+      - resultados:/var/lib/nekkora/resultados:ro
   agent-gateway:
     mem_limit: 640m
     environment:
