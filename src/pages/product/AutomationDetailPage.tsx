@@ -12,6 +12,7 @@ import { useSession } from '../../area/session';
 import { useCursorList } from '../../hooks/useCursorList';
 import { useResource } from '../../hooks/useResource';
 import { LocalRunAuthorizations } from '../agents/LocalRunAuthorizations';
+import { ShareAutomationPanel } from '../access/ShareRequests';
 import { RuntimeRequirements } from './RuntimeRequirements';
 import { DateTimeText, errorOf, errorText, isMissing, isSubordinateGone, LoadErrorState, NotFoundState, PageHeader, ResourceStatusBadge, RouteLink, useBackTarget, useExpiresOn } from './shared';
 
@@ -29,7 +30,7 @@ export function AutomationDetailPage() {
  * ele (automation.manage no workspace).
  */
 function AutomationDetail({ automationId }: { automationId: string }) {
-  const { org } = useSession();
+  const { org, expired } = useSession();
   const { workspaces } = useInternalArea();
   const navigate = useNavigate();
   const [refresh, setRefresh] = useState(0);
@@ -43,6 +44,8 @@ function AutomationDetail({ automationId }: { automationId: string }) {
   const perms = useWorkspacePermissions(workspaceId);
   const canManage = perms.status === 'ready' && perms.has('automation.manage');
   const canExecute = perms.status === 'ready' && perms.has('automation.execute');
+  // 071: membro com client_share.request no ambiente pede o compartilhamento com pessoa externa (outra pessoa aprova)
+  const canShare = perms.status === 'ready' && perms.has('client_share.request');
   const back = useBackTarget(workspaceId ? orgPath.workspace(org, workspaceId) : orgPath.workspaces(org));
 
   useExpiresOn(errorOf(automation), versions.error);
@@ -171,6 +174,8 @@ function AutomationDetail({ automationId }: { automationId: string }) {
 
       {/* AGENT-PYTHON-001 (030): monitoramento de um Python externo disparado pelo agendador do cliente */}
       <LocalRunAuthorizations workspaceId={a.workspaceId} automation={{ automationId: a.automationId, name: a.name }} canExecute={canExecute} />
+
+      {canShare && a.status === 'active' && <ShareAutomationPanel org={org} automationId={a.automationId} automationName={a.name} onUnauthenticated={expired} />}
     </Stack>
   );
 }

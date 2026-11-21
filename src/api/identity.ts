@@ -39,9 +39,17 @@ async function preAuth<T>(operationId: OperationId, path: string, body: unknown)
 
 // ------------------------------------------------------------------ cadastro (chave nekkora.cadastro.enabled)
 
-/** Sempre 202, sem corpo e sem revelar se o e-mail existe. 404 = cadastro indisponível. */
-export async function signup(email: string): Promise<void> {
-  await preAuth('signup', '/api/v1/signup', { email });
+/**
+ * Sempre 202, sem corpo e sem revelar se o e-mail existe. 404 = cadastro indisponível. 071: `invitation` = o convite aberto de onde a
+ * pessoa veio; para o mesmo e-mail, o nome informado no convite vira o nome sugerido na confirmação.
+ */
+export async function signup(email: string, invitation?: { organizationId: string; token: string }): Promise<void> {
+  await preAuth('signup', '/api/v1/signup', invitation ? { email, invitation } : { email });
+}
+
+/** 071: o que a confirmação já sabe pelo token do link (e-mail e o nome vindo do convite). 400 = link inválido. */
+export function signupPreview(token: string): Promise<S['SignupPreview']> {
+  return preAuth<S['SignupPreview']>('signupPreview', '/api/v1/signup/preview', { token });
 }
 
 /** Conclui com o token do link, a senha e o nome. 400 = link inválido (vencido, usado, revogado, substituído) ou dados fora da política. */
@@ -324,12 +332,22 @@ export async function confirmAccountLink(organizationId: string): Promise<void> 
 
 // ------------------------------------------------------------------ convites (chave nekkora.convites.enabled)
 
+export type InvitationPreview = S['InvitationPreview'];
+
+/**
+ * 071: primeiro acesso pelo link do convite (pré-autenticação). Organização, nome e e-mail do convite aberto, para o cadastro não
+ * pedi-los de novo. 404 = convite inválido (vencido, revogado, substituído, aceito). Não confirma identidade.
+ */
+export function invitationPreview(organizationId: string, token: string): Promise<InvitationPreview> {
+  return preAuth<InvitationPreview>('invitationPreview', '/api/v1/invitations/preview', { organizationId, token });
+}
+
 /** Aceite pela identidade (step-up). 404 único = convite inválido para esta identidade; 409 = already_member, account_exists, account_unavailable. */
-export async function acceptInvitation(organizationId: string, token: string): Promise<string> {
-  const data = await send<S['InvitationAccepted']>('acceptInvitation', '/api/v1/invitations/accept', {
+/** 070: `audience` diz se a pessoa entrou como membro (troca de sessão) ou como cliente (área do cliente, pelo Portal). */
+export async function acceptInvitation(organizationId: string, token: string): Promise<S['InvitationAccepted']> {
+  return send<S['InvitationAccepted']>('acceptInvitation', '/api/v1/invitations/accept', {
     method: 'POST',
     body: { organizationId, token },
     csrf: await identityCsrf(),
   });
-  return data.organizationId;
 }

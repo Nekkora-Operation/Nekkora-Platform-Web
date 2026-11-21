@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { Alert, Badge, Button, Card, Input, Select, Stack, StateView, StatusRegion, Table, Text, type TableColumn } from 'nekkora-lib';
+import { Alert, Badge, Button, Card, Input, Link, RadioGroup, Select, Stack, StateView, StatusRegion, Table, Text, type TableColumn } from 'nekkora-lib';
+import { Link as RouterLink } from 'react-router';
 import { isApiError } from '../../api/http';
 import {
   issueInvitation,
@@ -15,6 +16,8 @@ import {
   type RoleCode,
 } from '../../api/access';
 import type { Member } from '../../api/v1';
+import { inviteClient, type PersonClient } from '../../api/clientAccess';
+import { orgPath } from '../../auth/organization';
 import { useInternalArea } from '../../area/InternalShell';
 import { useSession } from '../../area/session';
 import {
@@ -34,12 +37,24 @@ import {
 } from '../../admin/writeStore';
 import { StepUpDialog } from '../../components/StepUpDialog';
 import { useCursorList } from '../../hooks/useCursorList';
-import { DateTimeText, LoadErrorState, PageHeader, useExpiresOn } from '../product/shared';
+import { DateTimeText, LoadErrorState, useExpiresOn } from '../product/shared';
 import { ACTION_LABEL, effectiveStatus, findMember, MEMBER_UNCERTAIN_COPY, MemberActionDialog, type ActionDialogState } from '../admin/memberActions';
 import { effectiveMfaConfigured, findMfa, MFA_UNCERTAIN_COPY, MfaResetDialog, mfaTarget, type MfaResetDialogState } from '../admin/mfaResetActions';
 import { UncertainPanel, type UncertainCopy } from '../admin/uncertainPanel';
 import { ADMIN_PAGE, AccountStatusBadge, AdminLoadMore, ForbiddenState, StatusFilter, useAccessDenied, useUrlFilters } from '../admin/shared';
+import type { PageFrame } from './PeopleAccessPage';
 import { MemberAccessDialog, type AccessSaved, type AccessTarget } from './MemberAccessDialog';
+import { ClientAccessDialog, type ClientAccessSaved } from './ClientAccessDialog';
+import {
+  ClientInviteFields,
+  draftErrors,
+  EMPTY_CLIENT_DRAFT,
+  resolveDraft,
+  type ClientInviteDraft,
+  type ClientInviteOptions,
+  type ClientInviteResolved,
+} from './ClientInviteFields';
+import { clientRefusal, inviteSummary, machineScopeText, permissionsText } from './clientShared';
 import { accessRefusal, isWorkspaceRole, orgStepUp, REVOKE_REASON_LABEL, ROLE_LABEL, ROLE_OPTIONS } from './shared';
 import '../admin/admin.css';
 import '../../identity/identity.css';
@@ -54,6 +69,9 @@ export const SITUATION_ORDER: readonly PersonSituation[] = [
   'member_suspended',
   'member_pending',
   'member_revoked',
+  'client_active',
+  'client_suspended',
+  'client_revoked',
   'invitation_expired',
   'invitation_revoked',
   'invitation_accepted',
@@ -67,6 +85,15 @@ export const SITUATION_LABEL: Record<PersonSituation, string> = {
   member_active: 'Membro ativo',
   member_suspended: 'Membro suspenso',
   member_revoked: 'Retirado da organização',
+  client_active: 'Cliente ativo',
+  client_suspended: 'Cliente suspenso',
+  client_revoked: 'Cliente retirado',
+};
+const CLIENT_SITUATION: Record<PersonClient['status'], { label: string; tone: 'success' | 'neutral' | 'warning' | 'info' }> = {
+  active: { label: 'Cliente ativo', tone: 'success' },
+  pending: { label: 'Cliente com vínculo pendente', tone: 'info' },
+  suspended: { label: 'Cliente suspenso', tone: 'warning' },
+  revoked: { label: 'Cliente retirado', tone: 'neutral' },
 };
 const MEMBERSHIP_SITUATION: Record<PersonMember['membershipStatus'], { label: string; tone: 'success' | 'neutral' | 'warning' | 'info' }> = {
   active: { label: 'Membro ativo', tone: 'success' },
@@ -95,7 +122,10 @@ const asMember = (m: PersonMember): Member => ({
   createdAt: m.joinedAt,
 });
 
-type InvitationAct = { kind: 'issue'; email: string; role: RoleCode | ''; workspaceId: string } | { kind: 'resend' | 'revoke'; invitation: PersonInvitation };
+type InvitationAct =
+  | { kind: 'issue'; email: string; role: RoleCode | ''; workspaceId: string }
+  | { kind: 'issue-client'; email: string; draft: ClientInviteDraft; resolved: ClientInviteResolved }
+  | { kind: 'resend' | 'revoke'; invitation: PersonInvitation };
 
 /**
  * /o/{org}/administracao/pessoas — "Pessoas e acessos" (PLATFORM-FLUXO-002): substitui Membros e Convites. No topo, o
@@ -109,10 +139,11 @@ type InvitationAct = { kind: 'issue'; email: string; role: RoleCode | ''; worksp
  * página de Membros, com o mesmo registro de escritas incertas). Formulário e ações só para quem tem a permissão; a API
  * continua decidindo.
  */
-export function PeoplePage() {
+/** A aba "Pessoas" de "Pessoas e acessos" (o título, as abas e o "Atualizar" ficam na página: PeopleAccessPage). */
+export function PeoplePage({ frame }: { frame: PageFrame }) {
   const { org, expired } = useSession();
   const { permissions, workspaces } = useInternalArea();
-  const filters = useUrlFilters<PersonSituation>({ statuses: SITUATION_ORDER, ids: ['acessos'], texts: ['q'] });
+  const filters = useUrlFilters<PersonSituation>({ statuses: SITUATION_ORDER, ids: ['acessos', 'cliente'], texts: ['q'] });
   const search = filters.ids.q ?? '';
   const [searchDraft, setSearchDraft] = useState(search);
   const [refresh, setRefresh] = useState(0);
@@ -147,9 +178,16 @@ export function PeoplePage() {
   const [patched, setPatched] = useState<Map<string, PersonMember>>(new Map());
   useEffect(() => setPatched(new Map()), [org, filters.statuses.join(','), search, refresh]);
   const memberOf = (p: PersonItem): PersonMember | null => (p.member ? (patched.get(p.member.membershipId) ?? p.member) : null);
+  // o mesmo para as pessoas de cliente (070)
+  const [patchedClients, setPatchedClients] = useState<Map<string, PersonClient>>(new Map());
+  useEffect(() => setPatchedClients(new Map()), [org, filters.statuses.join(','), search, refresh]);
+  const clientOf = (p: PersonItem): PersonClient | null => (p.client ? (patchedClients.get(p.client.clientMembershipId) ?? p.client) : null);
 
   const orgPermissions = permissions.status === 'ready' ? permissions.data.organization.permissions : [];
   const canManage = orgPermissions.includes('org.manage');
+  // 070: convite de Cliente só por quem administra a organização E o acesso de clientes (a exceção da D-GRANT-1)
+  const canExternal = orgPermissions.includes('external_access.manage');
+  const canInviteClient = canManage && canExternal;
   const canReset = orgPermissions.includes('identity.mfa.reset');
   const self = permissions.status === 'ready' ? permissions.data.membershipId : null;
 
@@ -272,7 +310,42 @@ export function PeoplePage() {
     closeAccess();
   };
 
+  // ------------------------------------------------------------------ acessos de cliente (?cliente=<vínculo>)
+  const clientMembership = filters.ids.cliente;
+  const clientRow = clientMembership ? list.items.find((p) => p.client?.clientMembershipId === clientMembership) : undefined;
+  const clientTarget = canManage && clientRow ? clientOf(clientRow) : null;
+  const openClientAccess = (c: PersonClient) => {
+    focusTarget.current = c.clientMembershipId;
+    filters.setId('cliente', c.clientMembershipId);
+  };
+  const closeClientAccess = () => {
+    filters.setId('cliente', null);
+    const id = focusTarget.current;
+    window.setTimeout(() => (id ? document.querySelector<HTMLElement>(`[data-cliente="${id}"]`)?.focus() : null), 0);
+  };
+  const onClientSaved = (membershipId: string, saved: ClientAccessSaved) => {
+    const row = list.items.find((p) => p.client?.clientMembershipId === membershipId);
+    if (row) {
+      const current = clientOf(row)!;
+      setPatchedClients((m) => new Map(m).set(membershipId, { ...current, status: saved.status, grants: saved.grants ?? current.grants }));
+    }
+    const name = row?.client?.displayName ?? 'a pessoa';
+    if (saved.partial) setNotice({ tone: 'warning', text: `Parte dos acessos de ${name} foi salva. Ficou de fora: ${saved.partial}` });
+    else
+      setNotice({
+        tone: 'success',
+        text: saved.requested
+          ? `Acessos de ${name} salvos. O novo compartilhamento aguarda a aprovação de outra pessoa em Acessos e histórico.`
+          : `Acessos de ${name} salvos.`,
+      });
+    closeClientAccess();
+  };
+
   // ------------------------------------------------------------------ convites
+  const [inviteType, setInviteType] = useState<'internal' | 'client'>('internal');
+  const [clientDraft, setClientDraft] = useState<ClientInviteDraft>(EMPTY_CLIENT_DRAFT);
+  const [clientOptions, setClientOptions] = useState<ClientInviteOptions | null>(null);
+  const [clientErrors, setClientErrors] = useState<{ name?: string; automation?: string; content?: string }>({});
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<RoleCode | ''>('');
   const [workspaceId, setWorkspaceId] = useState('');
@@ -281,8 +354,22 @@ export function PeoplePage() {
   const workspaceOptions = workspaces.items.filter((w) => w.status === 'active').map((w) => ({ value: w.workspaceId, label: w.name }));
   const workspaceName = (id: string | null, fallback?: string | null) =>
     id ? (fallback ?? workspaces.items.find((w) => w.workspaceId === id)?.name ?? `ambiente de trabalho ${id.slice(0, 8)}…`) : null;
+  // a pessoa já é membro interno (na lista carregada): o convite de Cliente não reduziria os acessos dela
+  const internalMatch =
+    inviteType === 'client' && email.trim() ? members.find((p) => p.member.email.toLowerCase() === email.trim().toLowerCase()) : undefined;
   const submit = (e: FormEvent) => {
     e.preventDefault();
+    if (inviteType === 'client') {
+      const emailError = /^[^\s@]+@[^\s@]+$/.test(email.trim()) ? undefined : 'Informe um e-mail válido.';
+      const cErrors = draftErrors(clientDraft);
+      setFormError({ email: emailError });
+      setClientErrors(cErrors);
+      const resolved = clientOptions ? resolveDraft(clientDraft, clientOptions) : null;
+      if (emailError || cErrors.name || cErrors.automation || cErrors.content || !resolved) return;
+      setNotice(null);
+      setAct({ kind: 'issue-client', email: email.trim(), draft: clientDraft, resolved });
+      return;
+    }
     const errors = {
       email: /^[^\s@]+@[^\s@]+$/.test(email.trim()) ? undefined : 'Informe um e-mail válido.',
       workspace: isWorkspaceRole(role) && !workspaceId ? 'Escolha o ambiente de trabalho do perfil.' : undefined,
@@ -344,6 +431,17 @@ export function PeoplePage() {
     );
   };
 
+  const clientActions = (c: PersonClient) =>
+    canManage && c.status !== 'revoked' ? (
+      <span className="pw-admin__row-actions pw-people__actions">
+        <Button size="sm" variant="secondary" data-cliente={c.clientMembershipId} aria-label={`Gerenciar acessos de ${c.displayName}`} onClick={() => openClientAccess(c)}>
+          Gerenciar acessos
+        </Button>
+      </span>
+    ) : (
+      <span className="pw-prod__muted">—</span>
+    );
+
   const invitationActions = (i: PersonInvitation) => {
     if (!canManage || (i.state !== 'PENDENTE' && i.state !== 'EXPIRADO')) return <span className="pw-prod__muted">—</span>;
     return (
@@ -368,15 +466,20 @@ export function PeoplePage() {
       header: 'Pessoa/e-mail',
       render: (p) => {
         const m = memberOf(p);
-        return m ? (
-          <span className="pw-admin__person">
-            <span>{m.displayName}</span>
-            <span className="pw-prod__muted pw-break">{m.email}</span>
-          </span>
-        ) : (
+        const c = clientOf(p);
+        if (m || c)
+          return (
+            <span className="pw-admin__person">
+              <span>{(m ?? c)!.displayName}</span>
+              <span className="pw-prod__muted pw-break">{(m ?? c)!.email}</span>
+            </span>
+          );
+        return (
           <span className="pw-admin__person">
             <span className="pw-break">{p.invitation!.email}</span>
-            <span className="pw-prod__muted">Convidada(o), ainda sem conta nesta organização</span>
+            <span className="pw-prod__muted">
+              {p.invitation!.audience === 'client' ? 'Convidada(o) como cliente, ainda sem acesso' : 'Convidada(o), ainda sem conta nesta organização'}
+            </span>
           </span>
         );
       },
@@ -385,8 +488,43 @@ export function PeoplePage() {
       key: 'perfil',
       header: 'Perfil',
       render: (p) => {
+        const c = clientOf(p);
+        if (c)
+          return (
+            <span className="pw-admin__person">
+              <span>Cliente · {c.clientName}</span>
+              {c.grants.length === 0 ? (
+                <span className="pw-prod__muted">Nenhuma automação compartilhada</span>
+              ) : (
+                <ul className="pw-people__roles" aria-label={`Automações compartilhadas com ${c.displayName}`}>
+                  {c.grants.map((g) => (
+                    <li key={g.grantId}>
+                      {g.kind === 'workspace' ? `Ambiente ${g.workspace.name} inteiro` : `Acompanha ${g.automation?.name}`}
+                      {g.kind === 'automation' && <span className="pw-prod__muted"> · {g.machine ? `máquina ${g.machine.name}` : 'todas as máquinas'}</span>}
+                      {g.situation === 'pending' && <span className="pw-prod__muted"> · aguardando aprovação</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </span>
+          );
         const m = memberOf(p);
-        if (!m) return roleText(p.invitation!);
+        if (!m) {
+          const sc = p.invitation!.clientScope;
+          if (sc)
+            return (
+              <span className="pw-admin__person">
+                <span>
+                  {sc.recipientName ? `${sc.recipientName} · ` : ''}Cliente · {sc.clientName}
+                </span>
+                <span className="pw-prod__muted">
+                  {sc.automationName} ({sc.workspaceName}) · {sc.workerName ? `máquina ${sc.workerName}` : 'todas as máquinas'}
+                </span>
+                <span className="pw-prod__muted">{permissionsText(sc.canViewDashboard, sc.canDownloadResults)}</span>
+              </span>
+            );
+          return roleText(p.invitation!);
+        }
         if (m.roles.length === 0) return <span className="pw-prod__muted">Sem perfil</span>;
         return (
           <ul className="pw-people__roles" aria-label={`Perfis de ${m.displayName}`}>
@@ -401,6 +539,18 @@ export function PeoplePage() {
       key: 'situacao',
       header: 'Situação',
       render: (p) => {
+        const c = clientOf(p);
+        if (c) {
+          const s = CLIENT_SITUATION[c.status];
+          return (
+            <span className="pw-admin__person">
+              <Badge tone={s.tone} dot>
+                {s.label}
+              </Badge>
+              {!c.linkedToIdentity && <span className="pw-prod__muted">Conta antiga, sem identidade Nekkora</span>}
+            </span>
+          );
+        }
         const m = memberOf(p);
         if (m) {
           const s = MEMBERSHIP_SITUATION[m.membershipStatus];
@@ -422,7 +572,7 @@ export function PeoplePage() {
         return (
           <span className="pw-admin__person">
             <Badge tone={s.tone} variant="outline">
-              {s.label}
+              {i.audience === 'client' ? s.label.replace('Convite', 'Convite de cliente') : s.label}
             </Badge>
             {i.revokeReason && <span className="pw-prod__muted">{REVOKE_REASON_LABEL[i.revokeReason]}</span>}
           </span>
@@ -433,7 +583,7 @@ export function PeoplePage() {
       key: 'data',
       header: 'Data',
       render: (p) => {
-        const m = memberOf(p);
+        const m = memberOf(p) ?? clientOf(p);
         if (m)
           return (
             <span className="pw-admin__person">
@@ -456,7 +606,14 @@ export function PeoplePage() {
       },
     },
     ...(canManage || canReset
-      ? [{ key: 'acoes', header: 'Ações', align: 'right' as const, render: (p: PersonItem) => (p.member ? memberActions(memberOf(p)!) : invitationActions(p.invitation!)) }]
+      ? [
+          {
+            key: 'acoes',
+            header: 'Ações',
+            align: 'right' as const,
+            render: (p: PersonItem) => (p.member ? memberActions(memberOf(p)!) : p.client ? clientActions(clientOf(p)!) : invitationActions(p.invitation!)),
+          },
+        ]
       : []),
   ];
 
@@ -465,18 +622,18 @@ export function PeoplePage() {
   const listRegion = () => document.querySelector<HTMLElement>('[aria-label="Lista de pessoas e convites"]');
   const filtered = filters.statuses.length > 0 || !!search;
 
-  return (
+  return frame({
+    onRefresh: forbidden ? undefined : () => setRefresh((n) => n + 1),
+    refreshing: list.status === 'loading' && refresh > 0,
+    children: (
     <Stack gap={5}>
-      <PageHeader
-        title="Pessoas e acessos"
-        subtitle={
-          canManage
-            ? 'Convide pessoas e gerencie os acessos de quem já está na organização. Convites pendentes aparecem primeiro.'
-            : 'Pessoas da organização e convites. Somente consulta.'
-        }
-        onRefresh={forbidden ? undefined : () => setRefresh((n) => n + 1)}
-        refreshing={list.status === 'loading' && refresh > 0}
-      />
+      {(canManage || canExternal) && (
+        <nav className="pw-people__shortcuts" aria-label="Cadastro de clientes">
+          <Link as={RouterLink} to={orgPath.clientsManage(org)} arrow>
+            Gerenciar clientes
+          </Link>
+        </nav>
+      )}
       <StatusRegion aria-label="Resultado das ações" message={announce?.text} announceKey={announce?.n} />
       {notice && (
         <Alert tone={notice.tone} role={notice.tone === 'success' ? 'status' : 'alert'}>
@@ -515,32 +672,86 @@ export function PeoplePage() {
                 <Text as="h2" variant="h4">
                   Convidar pessoa
                 </Text>
-                <div className="pw-people__invite-fields">
-                  <Input label="E-mail da pessoa" type="email" required fullWidth value={email} onChange={(e) => setEmail(e.target.value)} error={formError.email} maxLength={254} />
-                  <Select
-                    label="Perfil (opcional)"
-                    fullWidth
-                    value={role}
-                    onChange={(e) => {
-                      setRole(e.target.value as RoleCode | '');
-                      setWorkspaceId('');
+                {canInviteClient && (
+                  <RadioGroup
+                    className="pw-invite__type"
+                    legend="Convidar como"
+                    orientation="horizontal"
+                    value={inviteType}
+                    onChange={(v) => {
+                      setInviteType(v as 'internal' | 'client');
+                      setFormError({});
+                      setClientErrors({});
                     }}
-                    options={[{ value: '', label: 'Sem perfil (só o vínculo)' }, ...ROLE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))]}
+                    options={[
+                      { value: 'internal', label: 'Pessoa da equipe', description: 'Membro da organização, com perfil opcional.' },
+                      {
+                        value: 'client',
+                        label: 'Pessoa externa (cliente)',
+                        description: 'Vê o dashboard e/ou os arquivos de retorno de uma automação, sem criar nem operar nada.',
+                      },
+                    ]}
                   />
-                  {isWorkspaceRole(role) && (
+                )}
+                {inviteType === 'client' ? (
+                  <ClientInviteFields
+                    org={org}
+                    draft={clientDraft}
+                    onChange={setClientDraft}
+                    errors={clientErrors}
+                    onOptions={setClientOptions}
+                    onUnauthenticated={expired}
+                    lead={
+                      <>
+                        <Input
+                          label="Nome da pessoa"
+                          required
+                          fullWidth
+                          autoComplete="off"
+                          value={clientDraft.name}
+                          onChange={(e) => setClientDraft({ ...clientDraft, name: e.target.value })}
+                          error={clientErrors.name}
+                          maxLength={200}
+                          hint="Aparece no primeiro acesso dela: não é pedido de novo."
+                        />
+                        <Input label="E-mail da pessoa" type="email" required fullWidth value={email} onChange={(e) => setEmail(e.target.value)} error={formError.email} maxLength={254} />
+                      </>
+                    }
+                  />
+                ) : (
+                  <div className="pw-invite__fields">
+                    <Input label="E-mail da pessoa" type="email" required fullWidth value={email} onChange={(e) => setEmail(e.target.value)} error={formError.email} maxLength={254} />
                     <Select
-                      label="Ambiente de trabalho do perfil"
+                      label="Perfil (opcional)"
                       fullWidth
-                      required
-                      value={workspaceId}
-                      placeholder="Escolha um ambiente de trabalho"
-                      onChange={(e) => setWorkspaceId(e.target.value)}
-                      options={workspaceOptions}
-                      error={formError.workspace}
-                      hint={workspaces.status === 'ready' && !workspaces.complete ? 'A lista mostra os ambientes de trabalho já carregados.' : undefined}
+                      value={role}
+                      onChange={(e) => {
+                        setRole(e.target.value as RoleCode | '');
+                        setWorkspaceId('');
+                      }}
+                      options={[{ value: '', label: 'Sem perfil (só o vínculo)' }, ...ROLE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))]}
                     />
-                  )}
-                </div>
+                    {isWorkspaceRole(role) && (
+                      <Select
+                        label="Ambiente de trabalho do perfil"
+                        fullWidth
+                        required
+                        value={workspaceId}
+                        placeholder="Escolha um ambiente de trabalho"
+                        onChange={(e) => setWorkspaceId(e.target.value)}
+                        options={workspaceOptions}
+                        error={formError.workspace}
+                        hint={workspaces.status === 'ready' && !workspaces.complete ? 'A lista mostra os ambientes de trabalho já carregados.' : undefined}
+                      />
+                    )}
+                  </div>
+                )}
+                {internalMatch && (
+                  <Alert tone="warning">
+                    {internalMatch.member.displayName} já é membro interno desta organização. Um convite de Cliente não reduziria os acessos atuais
+                    (o servidor recusa). Para mudar o que essa pessoa vê, use Gerenciar acessos na linha dela.
+                  </Alert>
+                )}
                 <Text variant="body-sm" color="secondary">
                   O link vai só por e-mail e vale 7 dias. A pessoa aceita entrando com a identidade Nekkora do MESMO e-mail; quem ainda não tem cadastro é levado ao cadastro.
                 </Text>
@@ -612,6 +823,71 @@ export function PeoplePage() {
         </>
       )}
 
+      <ClientAccessDialog
+        org={org}
+        target={forbidden ? null : clientTarget}
+        onClose={closeClientAccess}
+        onSaved={onClientSaved}
+        onUnauthenticated={expired}
+      />
+
+      <StepUpDialog
+        open={act?.kind === 'issue-client'}
+        title={act?.kind === 'issue-client' ? `Compartilhar ${act.resolved.automationName} com ${act.draft.name.trim()}?` : ''}
+        guard={{ operation: 'invitation.issue.client', target: act?.kind === 'issue-client' ? act.email.trim().toLowerCase() : undefined }}
+        confirmLabel="Compartilhar e enviar convite"
+        stepUp={orgStepUp(org)}
+        action={() =>
+          act?.kind === 'issue-client'
+            ? inviteClient(org, {
+                email: act.email,
+                name: act.draft.name.trim(),
+                clientId: act.draft.clientId || null,
+                automationId: act.draft.automationId,
+                workerId: act.draft.workerId || null,
+                canViewDashboard: act.draft.canViewDashboard,
+                canDownloadResults: act.draft.canDownloadResults,
+              })
+            : Promise.reject()
+        }
+        onDone={() => {
+          setEmail('');
+          setClientDraft(EMPTY_CLIENT_DRAFT);
+          actDone('Compartilhamento enviado por convite. O acesso só começa quando a pessoa aceitar.');
+        }}
+        onClose={() => setAct(null)}
+        refusalText={(e) => clientRefusal(e, 'Já existe um convite aberto para este e-mail (use Reenviar).')}
+        uncertainText="Não foi possível confirmar se o convite foi emitido. Feche e confira a lista antes de tentar de novo."
+        onUnauthenticated={expired}
+        onOutcome={(k) => k === 'uncertain' && uncertain('O resultado do último convite não foi confirmado. Confira a lista antes de convidar de novo.')}
+      >
+        {act?.kind === 'issue-client' && (
+          <Stack gap={2}>
+            <Text>{inviteSummary(act.resolved.automationName, act.resolved.workspaceName, act.resolved.machineName, act.draft.name.trim())}</Text>
+            <dl className="pw-people__confirm">
+              <dt>Pessoa</dt>
+              <dd>
+                {act.draft.name.trim()} ({act.email})
+              </dd>
+              <dt>Automação</dt>
+              <dd>{act.resolved.automationName}</dd>
+              <dt>Ambiente de trabalho</dt>
+              <dd>{act.resolved.workspaceName}</dd>
+              <dt>Máquinas</dt>
+              <dd>{act.resolved.machineName ?? 'Todas as máquinas desta automação'}</dd>
+              <dt>Conteúdos</dt>
+              <dd>{permissionsText(act.draft.canViewDashboard, act.draft.canDownloadResults)}</dd>
+              <dt>Cliente (cadastro interno)</dt>
+              <dd>{act.resolved.clientName ?? 'Criado ou reutilizado com o nome da pessoa'}</dd>
+            </dl>
+            <Text variant="body-sm" color="secondary">
+              Compartilhamento aprovado por você (exceção registrada na auditoria). Nada é concedido antes do aceite; no aceite o servidor
+              confere tudo de novo. Sem registros técnicos, execução, publicação ou administração.
+            </Text>
+          </Stack>
+        )}
+      </StepUpDialog>
+
       <MemberAccessDialog
         org={org}
         target={forbidden ? null : accessTarget}
@@ -659,6 +935,11 @@ export function PeoplePage() {
         onOutcome={(k) => k === 'uncertain' && uncertain('O resultado do último reenvio não foi confirmado. Confira a lista.')}
       >
         <Text>Um convite novo, com link e prazo novos, substitui este. O link anterior deixa de valer.</Text>
+        {act?.kind === 'resend' && act.invitation.clientScope && (
+          <Text variant="body-sm" color="secondary">
+            O escopo confirmado não muda: {act.invitation.clientScope.automationName}, {machineScopeText(act.invitation.clientScope.workerName)}.
+          </Text>
+        )}
       </StepUpDialog>
 
       <StepUpDialog
@@ -707,5 +988,6 @@ export function PeoplePage() {
         }}
       />
     </Stack>
-  );
+    ),
+  });
 }

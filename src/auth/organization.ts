@@ -62,8 +62,26 @@ export const orgPath = {
   people: (org: string) => `/o/${org}/administracao/pessoas`,
   /** O modal "Gerenciar acessos" de um membro, aberto pelo endereço (vale depois de recarregar). */
   personAccess: (org: string, userId: string) => `/o/${org}/administracao/pessoas?acessos=${encodeURIComponent(userId)}`,
+  /** O modal de acessos de um cliente (vínculo de cliente), aberto pelo endereço. */
+  personClientAccess: (org: string, clientMembershipId: string) =>
+    `/o/${org}/administracao/pessoas?cliente=${encodeURIComponent(clientMembershipId)}`,
+  /** PLATFORM-FLUXO-002 (070): cadastro de clientes dentro de "Pessoas e acessos" ("Gerenciar clientes"). */
+  clientsManage: (org: string, clientId?: string) =>
+    `/o/${org}/administracao/pessoas/clientes${clientId ? `?cliente=${encodeURIComponent(clientId)}` : ''}`,
+  /**
+   * "Pessoas e acessos", abas Compartilhamentos (padrão) ou Histórico (`aba: 'historico'`), com os filtros no endereço. O
+   * endereço antigo /administracao/pessoas/acessos redireciona para cá.
+   */
+  accessHistory: (org: string, params?: Record<string, string | undefined>) => {
+    const q = new URLSearchParams({ aba: params?.aba === 'historico' ? 'historico' : 'compartilhamentos' });
+    for (const [k, v] of Object.entries(params ?? {})) if (v && k !== 'aba') q.set(k, v);
+    return `/o/${org}/administracao/pessoas?${q.toString()}`;
+  },
+  /** As concessões por ambiente inteiro (modelo anterior), com as decisões de antes (aprovar, renovar, revisar, revogar). */
+  workspaceGrants: (org: string) => `/o/${org}/administracao/pessoas/acessos/ambientes`,
   /** Endereço antigo (redireciona para "Pessoas e acessos"). */
   members: (org: string) => `/o/${org}/administracao/membros`,
+  /** Endereços antigos (redirecionam para "Gerenciar clientes" e "Acessos e histórico"). */
   clients: (org: string) => `/o/${org}/administracao/clientes`,
   grants: (org: string) => `/o/${org}/administracao/concessoes`,
   /** M2: acessos (convites, papéis, vínculo, auditoria) e convite recebido. */
@@ -75,6 +93,19 @@ export const orgPath = {
   organizationRequests: (org: string) => `/o/${org}/administracao/pedidos-de-organizacao`,
   licenseOperator: (org: string) => `/o/${org}/operador-de-licencas`,
   invitation: (org: string) => `/o/${org}/convite`,
+};
+
+/**
+ * PLATFORM-FLUXO-002 (070): área do cliente, fora da sessão de organização (lê só o Portal, pela identidade Nekkora). A
+ * organização vai no caminho; a pessoa só vê o que aquela organização compartilhou com ela.
+ */
+export const clientPath = {
+  home: () => '/cliente',
+  organization: (org: string) => `/cliente/o/${encodeURIComponent(org)}`,
+  automation: (org: string, automationId: string) => `/cliente/o/${encodeURIComponent(org)}/automacoes/${encodeURIComponent(automationId)}`,
+  /** 071: arquivos de retorno autorizados (opcionalmente de uma automação). */
+  files: (org: string, automationId?: string) =>
+    `/cliente/o/${encodeURIComponent(org)}/arquivos${automationId ? `?automacao=${encodeURIComponent(automationId)}` : ''}`,
 };
 
 /**

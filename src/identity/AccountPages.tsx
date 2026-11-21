@@ -233,8 +233,7 @@ export function AccountPage() {
         </Card>
         <PasswordSection />
         <AppearanceSection />
-        <AppearanceSection />
-      <AboutVersion />
+        <AboutVersion />
       </Stack>
     );
   return (
@@ -253,6 +252,7 @@ export function AccountPage() {
           </div>
         </Stack>
       </Card>
+      <AppearanceSection />
       <AboutVersion />
     </Stack>
   );

@@ -73,9 +73,17 @@ export interface GrantRow {
   createdAt: number;
 }
 
-const ROUTES = [/^\/members$/, /^\/client-grants$/, /^\/clients$/, /^\/people$/];
+const ROUTES = [
+  /^\/members$/, /^\/client-grants$/, /^\/clients$/, /^\/people$/,
+  // PLATFORM-FLUXO-002 (070): leituras de "Clientes e acessos" (o simulador não tem concessões por automação nem convites de cliente)
+  /^\/access-grants$/, /^\/access-history$/, /^\/client-share-options$/, /^\/clients\/[^/]+$/, /^\/client-share-requests$/,
+];
 /** PLATFORM-FLUXO-002: situações de "Pessoas e acessos". O simulador não tem convites (a funcionalidade fica desligada). */
-const PERSON_SITUATIONS = ['invitation_pending', 'invitation_expired', 'invitation_revoked', 'invitation_accepted', 'member_pending', 'member_active', 'member_suspended', 'member_revoked'] as const;
+const PERSON_SITUATIONS = [
+  'invitation_pending', 'invitation_expired', 'invitation_revoked', 'invitation_accepted', 'member_pending', 'member_active', 'member_suspended',
+  'member_revoked', 'client_active', 'client_suspended', 'client_revoked',
+] as const;
+const ACCESS_GRANT_SITUATIONS = ['pending', 'active', 'suspended', 'revoked'] as const;
 
 export class AdminData {
   grants = new Map<string, GrantRow>();
@@ -137,7 +145,7 @@ export class AdminData {
     if (req.route === '/people') {
       // a mesma semântica da API (PeopleController): sem situação, pendentes e membros; membros da entrada mais recente
       const limit = parseLimit(q);
-      const situation = parseStatus(q, [...PERSON_SITUATIONS], 8, 'situation');
+      const situation = parseStatus(q, [...PERSON_SITUATIONS], 11, 'situation');
       const text = q.get('q');
       if (text !== null && (text.trim() === '' || text.trim().length > 120)) throw new BadRequest('q');
       const needle = text?.trim().toLowerCase() ?? null;
@@ -153,6 +161,63 @@ export class AdminData {
       return {
         ...page(rows, limit, (last) => this.product.cursors.encode(sc, [1, last.createdAt, last.membershipId]), (m) => this.personJson(m)),
         invitationsEnabled: false,
+      };
+    }
+
+    if (req.route === '/access-grants') {
+      // as concessões por ambiente inteiro do simulador, na forma unificada (070)
+      const limit = parseLimit(q);
+      const situation = parseStatus(q, [...ACCESS_GRANT_SITUATIONS], 4, 'situation');
+      const clientId = q.get('clientId') !== null ? parseUuid(q.get('clientId')!).toLowerCase() : null;
+      const workspaceId = q.get('workspaceId') !== null ? parseUuid(q.get('workspaceId')!).toLowerCase() : null;
+      const personId = q.get('personId') !== null ? parseUuid(q.get('personId')!).toLowerCase() : null;
+      const automationId = q.get('automationId') !== null ? parseUuid(q.get('automationId')!).toLowerCase() : null;
+      const workerId = q.get('workerId') !== null ? parseUuid(q.get('workerId')!).toLowerCase() : null;
+      const sc = scope('listAccessGrants', canonical({ situation, clientId, workspaceId, personId, automationId, workerId }), 'createdAt.desc+id.desc');
+      const after = q.get('cursor') !== null ? this.product.cursors.decode(q.get('cursor')!, sc) : null;
+      authorize('external_access.manage');
+      const rows = [...this.grants.values()]
+        .filter(
+          (g) =>
+            g.org === req.org &&
+            !automationId &&
+            !workerId &&
+            (!situation || situation.includes(g.status)) &&
+            (!clientId || g.clientId === clientId) &&
+            (!workspaceId || g.workspaceId === workspaceId) &&
+            (!personId || g.externalAccount.userId === personId),
+        )
+        .sort((a, b) => b.createdAt - a.createdAt || cmp(b.grantId, a.grantId))
+        .filter((g) => !after || g.createdAt < (after[0] as number) || (g.createdAt === after[0] && g.grantId < (after[1] as string)));
+      return page(rows, limit, (last) => this.product.cursors.encode(sc, [last.createdAt, last.grantId]), (g) => this.accessGrantJson(g));
+    }
+
+    if (req.route === '/access-history') {
+      parseLimit(q);
+      const m = this.product.memberships.get(p.membershipId);
+      authorize('org.manage', 'external_access.manage');
+      const all = !!m && m.orgRoles.flatMap((r) => ROLE_PERMISSIONS[r]).includes('org.manage');
+      return { items: [], nextCursor: null, scope: all ? 'all' : 'client_access' };
+    }
+
+    if (req.route === '/client-share-options') {
+      authorize('external_access.manage');
+      return { automations: [], mode: 'invite' };
+    }
+
+    // 071: pedidos de compartilhamento de membros (o simulador não tem pedidos)
+    if (req.route === '/client-share-requests') {
+      return { items: [] };
+    }
+
+    if (req.route.startsWith('/clients/')) {
+      authorize('org.manage', 'external_access.manage');
+      const id = req.route.slice('/clients/'.length).toLowerCase();
+      const c = this.product.clients.get(id);
+      if (!c || c.org !== req.org) throw new NotFound();
+      return {
+        clientId: c.clientId, name: c.name, status: c.status, createdAt: iso(c.createdAt), updatedAt: iso(c.updatedAt),
+        people: [], pendingInvitations: [], sharedAutomations: [],
       };
     }
 
@@ -213,7 +278,21 @@ export class AdminData {
       ),
     ];
     const { organizationRoles: _o, createdAt, ...rest } = base;
-    return { kind: 'member', id: m.membershipId, member: { ...rest, joinedAt: createdAt, roles }, invitation: null };
+    return { kind: 'member', id: m.membershipId, member: { ...rest, joinedAt: createdAt, roles }, invitation: null, client: null };
+  }
+
+  private accessGrantJson(g: GrantRow) {
+    const c = this.product.clients.get(g.clientId)!;
+    const w = this.product.workspaces.get(g.workspaceId)!;
+    return {
+      kind: 'workspace', grantId: g.grantId, situation: g.status,
+      person: { userId: g.externalAccount.userId, name: g.externalAccount.displayName, email: g.externalAccount.email },
+      clientMembershipId: g.externalAccount.clientMembershipId, membershipStatus: g.externalAccount.membershipStatus,
+      client: { clientId: c.clientId, name: c.name }, workspace: { workspaceId: w.workspaceId, name: w.name },
+      automation: null, machine: null, canViewDashboard: true, canDownloadResults: false, basis: 'second_person', requestedBy: null, approvedBy: null,
+      createdAt: iso(g.createdAt), approvedAt: iso(g.approvedAt), revokedAt: iso(g.revokedAt), revokeReason: null, replacesGrantId: null,
+      expiresAt: iso(g.expiresAt), nextReviewAt: iso(g.nextReviewAt),
+    };
   }
 
   private grantJson(g: GrantRow) {

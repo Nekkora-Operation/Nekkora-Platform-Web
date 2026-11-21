@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "ac9bff02aece8df09fff569fd6385244c153f807581debfdc1d1b31bf56aa6f3",
+  "openapiSha256": "2f1a9f5501e6d5a1187a8f19c45dec805e69f479bdc2728b3fa1c79df264b681",
   "schemas": {
     "Error": {
       "type": "object",
@@ -99,7 +99,13 @@
             "activation_worker_not_in_workspace",
             "activation_automation_inactive",
             "activation_without_workers",
-            "activation_renewal_not_applicable"
+            "activation_renewal_not_applicable",
+            "client_invitation_internal_member",
+            "client_invitation_legacy_account",
+            "client_invitation_other_client",
+            "client_grant_exists",
+            "client_scope_unavailable",
+            "client_grant_widening_requires_request"
           ]
         }
       }
@@ -114,6 +120,7 @@
         "logs.read",
         "automation.manage",
         "automation.publish",
+        "client_share.request",
         "workspace_parameter.read",
         "workspace_parameter.manage",
         "workspace_secret.read",
@@ -266,7 +273,7 @@
             "permissions": {
               "type": "array",
               "uniqueItems": true,
-              "maxItems": 23,
+              "maxItems": 24,
               "items": {
                 "$ref": "#/components/schemas/PermissionCode"
               }
@@ -282,7 +289,7 @@
             "permissions": {
               "type": "array",
               "uniqueItems": true,
-              "maxItems": 13,
+              "maxItems": 14,
               "items": {
                 "$ref": "#/components/schemas/WorkspacePermissionCode"
               }
@@ -317,7 +324,7 @@
         "permissions": {
           "type": "array",
           "uniqueItems": true,
-          "maxItems": 13,
+          "maxItems": 14,
           "items": {
             "$ref": "#/components/schemas/WorkspacePermissionCode"
           }
@@ -399,6 +406,1788 @@
         }
       }
     },
+    "ClientInvitationRequest": {
+      "type": "object",
+      "required": [
+        "email",
+        "name",
+        "automationId",
+        "canViewDashboard",
+        "canDownloadResults"
+      ],
+      "properties": {
+        "email": {
+          "type": "string",
+          "maxLength": 254
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "clientId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workerId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "canViewDashboard": {
+          "type": "boolean"
+        },
+        "canDownloadResults": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ClientInvitationCreated": {
+      "type": "object",
+      "required": [
+        "invitationId",
+        "email",
+        "recipientName",
+        "clientId",
+        "workspaceId",
+        "automationId",
+        "workerId",
+        "canViewDashboard",
+        "canDownloadResults",
+        "shareRequestId",
+        "expiresAt"
+      ],
+      "properties": {
+        "invitationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "email": {
+          "type": "string"
+        },
+        "recipientName": {
+          "type": "string"
+        },
+        "clientId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workerId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "canViewDashboard": {
+          "type": "boolean"
+        },
+        "canDownloadResults": {
+          "type": "boolean"
+        },
+        "shareRequestId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "ClientShareRequestBody": {
+      "type": "object",
+      "required": [
+        "email",
+        "name",
+        "automationId",
+        "canViewDashboard",
+        "canDownloadResults"
+      ],
+      "properties": {
+        "email": {
+          "type": "string",
+          "maxLength": 254
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workerId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "canViewDashboard": {
+          "type": "boolean"
+        },
+        "canDownloadResults": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ClientShareRequestStatus": {
+      "type": "string",
+      "enum": [
+        "PENDENTE",
+        "APROVADO",
+        "RECUSADO",
+        "CANCELADO"
+      ]
+    },
+    "ClientShareRequestState": {
+      "type": "object",
+      "required": [
+        "shareRequestId",
+        "status",
+        "recipientName",
+        "email",
+        "workspaceId",
+        "automationId",
+        "workerId",
+        "canViewDashboard",
+        "canDownloadResults",
+        "requestedByMembershipId",
+        "createdAt",
+        "decidedAt",
+        "invitationId"
+      ],
+      "properties": {
+        "shareRequestId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "status": {
+          "$ref": "#/components/schemas/ClientShareRequestStatus"
+        },
+        "recipientName": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workerId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "canViewDashboard": {
+          "type": "boolean"
+        },
+        "canDownloadResults": {
+          "type": "boolean"
+        },
+        "requestedByMembershipId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "decidedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "invitationId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        }
+      }
+    },
+    "ClientShareRequest": {
+      "$ref": "#/components/schemas/ClientShareRequestState"
+    },
+    "ClientShareRequestItem": {
+      "type": "object",
+      "required": [
+        "shareRequestId",
+        "status",
+        "recipientName",
+        "email",
+        "automation",
+        "workspace",
+        "machine",
+        "requestedBy",
+        "decidedBy",
+        "canViewDashboard",
+        "canDownloadResults",
+        "requestedByMembershipId",
+        "createdAt",
+        "decidedAt",
+        "invitationId"
+      ],
+      "properties": {
+        "shareRequestId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "status": {
+          "$ref": "#/components/schemas/ClientShareRequestStatus"
+        },
+        "recipientName": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "automation": {
+          "$ref": "#/components/schemas/AutomationRef"
+        },
+        "workspace": {
+          "$ref": "#/components/schemas/WorkspaceRef"
+        },
+        "machine": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/MachineRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requestedBy": {
+          "type": "string"
+        },
+        "decidedBy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "canViewDashboard": {
+          "type": "boolean"
+        },
+        "canDownloadResults": {
+          "type": "boolean"
+        },
+        "requestedByMembershipId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "decidedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "invitationId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        }
+      }
+    },
+    "ClientShareRequestList": {
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/ClientShareRequestItem"
+          }
+        }
+      }
+    },
+    "ClientCreateRequest": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      }
+    },
+    "ClientUpdateRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "status": {
+          "$ref": "#/components/schemas/ResourceStatus"
+        }
+      }
+    },
+    "ClientAutomationGrantRequest": {
+      "type": "object",
+      "required": [
+        "clientMembershipId",
+        "automationId",
+        "canViewDashboard",
+        "canDownloadResults"
+      ],
+      "properties": {
+        "clientMembershipId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workerId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "canViewDashboard": {
+          "type": "boolean"
+        },
+        "canDownloadResults": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ClientAutomationGrantReduceRequest": {
+      "type": "object",
+      "required": [
+        "canViewDashboard",
+        "canDownloadResults"
+      ],
+      "properties": {
+        "canViewDashboard": {
+          "type": "boolean"
+        },
+        "canDownloadResults": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ClientAutomationGrant": {
+      "type": "object",
+      "required": [
+        "grantId",
+        "status",
+        "basis",
+        "clientId",
+        "clientMembershipId",
+        "workspaceId",
+        "automationId",
+        "workerId",
+        "canViewDashboard",
+        "canDownloadResults",
+        "replacesGrantId"
+      ],
+      "properties": {
+        "grantId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "PENDENTE",
+            "ATIVA",
+            "REVOGADA"
+          ]
+        },
+        "basis": {
+          "type": "string",
+          "enum": [
+            "SEGUNDA_PESSOA",
+            "CONVITE_DE_CLIENTE"
+          ]
+        },
+        "clientId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "clientMembershipId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workerId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "canViewDashboard": {
+          "type": "boolean"
+        },
+        "canDownloadResults": {
+          "type": "boolean"
+        },
+        "replacesGrantId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        }
+      }
+    },
+    "ClientMembershipState": {
+      "type": "object",
+      "required": [
+        "clientMembershipId",
+        "clientId",
+        "userId",
+        "status"
+      ],
+      "properties": {
+        "clientMembershipId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "clientId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "userId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "status": {
+          "$ref": "#/components/schemas/ClientMembershipStatus"
+        }
+      }
+    },
+    "ClientMembershipStatus": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "active",
+        "suspended",
+        "revoked"
+      ]
+    },
+    "ShareMachine": {
+      "type": "object",
+      "required": [
+        "workerId",
+        "name"
+      ],
+      "properties": {
+        "workerId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "ClientShareOption": {
+      "type": "object",
+      "required": [
+        "automationId",
+        "name",
+        "workspaceId",
+        "workspaceName",
+        "machines",
+        "canShareDashboard",
+        "canShareFiles"
+      ],
+      "properties": {
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workspaceName": {
+          "type": "string"
+        },
+        "machines": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/ShareMachine"
+          }
+        },
+        "canShareDashboard": {
+          "type": "boolean"
+        },
+        "canShareFiles": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ClientShareOptions": {
+      "type": "object",
+      "required": [
+        "automations",
+        "mode"
+      ],
+      "properties": {
+        "automations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/ClientShareOption"
+          }
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "invite",
+            "request"
+          ]
+        }
+      }
+    },
+    "AccessPerson": {
+      "type": "object",
+      "required": [
+        "userId",
+        "name",
+        "email"
+      ],
+      "properties": {
+        "userId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "email": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "AutomationRef": {
+      "type": "object",
+      "required": [
+        "automationId",
+        "name"
+      ],
+      "properties": {
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "MachineRef": {
+      "type": "object",
+      "required": [
+        "workerId",
+        "name"
+      ],
+      "properties": {
+        "workerId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "AccessGrantSituation": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "active",
+        "suspended",
+        "revoked"
+      ]
+    },
+    "AccessGrant": {
+      "type": "object",
+      "required": [
+        "kind",
+        "grantId",
+        "situation",
+        "person",
+        "clientMembershipId",
+        "membershipStatus",
+        "client",
+        "workspace",
+        "automation",
+        "machine",
+        "canViewDashboard",
+        "canDownloadResults",
+        "basis",
+        "requestedBy",
+        "approvedBy",
+        "createdAt",
+        "approvedAt",
+        "revokedAt",
+        "revokeReason",
+        "replacesGrantId",
+        "expiresAt",
+        "nextReviewAt"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "automation",
+            "workspace"
+          ]
+        },
+        "grantId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "situation": {
+          "$ref": "#/components/schemas/AccessGrantSituation"
+        },
+        "person": {
+          "$ref": "#/components/schemas/AccessPerson"
+        },
+        "clientMembershipId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "membershipStatus": {
+          "$ref": "#/components/schemas/ClientMembershipStatus"
+        },
+        "client": {
+          "$ref": "#/components/schemas/ClientRef"
+        },
+        "workspace": {
+          "$ref": "#/components/schemas/WorkspaceRef"
+        },
+        "automation": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/AutomationRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "machine": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/MachineRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "canViewDashboard": {
+          "type": "boolean"
+        },
+        "canDownloadResults": {
+          "type": "boolean"
+        },
+        "basis": {
+          "type": "string",
+          "enum": [
+            "second_person",
+            "client_invitation"
+          ]
+        },
+        "requestedBy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "approvedBy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "approvedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "revokedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "revokeReason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "revoked",
+            "replaced",
+            "link_retired",
+            "request_cancelled",
+            null
+          ]
+        },
+        "replacesGrantId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "expiresAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "nextReviewAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    },
+    "AccessGrantPage": {
+      "type": "object",
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AccessGrant"
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "AccessHistoryCategory": {
+      "type": "string",
+      "enum": [
+        "invitations",
+        "roles",
+        "grants",
+        "client_links",
+        "clients",
+        "share_requests"
+      ]
+    },
+    "AccessHistoryEvent": {
+      "type": "object",
+      "required": [
+        "eventId",
+        "type",
+        "category",
+        "createdAt",
+        "actor",
+        "byInvitee",
+        "target",
+        "role",
+        "previousRole",
+        "workspace",
+        "client",
+        "automation",
+        "machine",
+        "grant",
+        "invitationId",
+        "decision",
+        "technicalLogs",
+        "canViewDashboard",
+        "canDownloadResults",
+        "shareRequestId",
+        "grantException",
+        "correlationId"
+      ],
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "CONVITE_EMITIDO",
+            "CONVITE_REVOGADO",
+            "CONVITE_REENVIADO",
+            "CONVITE_ACEITO",
+            "PAPEL_ATRIBUIDO",
+            "PAPEL_REVOGADO",
+            "PAPEL_ALTERADO",
+            "VINCULO_RETIRADO",
+            "CONCESSAO_CRIADA",
+            "CONCESSAO_APROVADA",
+            "CONCESSAO_RENOVADA",
+            "CONCESSAO_REVISADA",
+            "CONCESSAO_REVOGADA",
+            "CONCESSAO_RENOVACAO_SOLICITADA",
+            "CLIENTE_CONCESSAO_SOLICITADA",
+            "CLIENTE_CONCESSAO_APROVADA",
+            "CLIENTE_CONCESSAO_APLICADA_NO_ACEITE",
+            "CLIENTE_CONCESSAO_REDUZIDA",
+            "CLIENTE_CONCESSAO_REVOGADA",
+            "VINCULO_CLIENTE_SUSPENSO",
+            "VINCULO_CLIENTE_REATIVADO",
+            "VINCULO_CLIENTE_RETIRADO",
+            "CLIENTE_CADASTRADO",
+            "CLIENTE_ALTERADO",
+            "CLIENTE_REGISTROS_TECNICOS_RETIRADOS",
+            "COMPARTILHAMENTO_SOLICITADO",
+            "COMPARTILHAMENTO_APROVADO",
+            "COMPARTILHAMENTO_RECUSADO",
+            "COMPARTILHAMENTO_CANCELADO"
+          ]
+        },
+        "category": {
+          "$ref": "#/components/schemas/AccessHistoryCategory"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "actor": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/AccessPerson"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "byInvitee": {
+          "type": "boolean"
+        },
+        "target": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/AccessPerson"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "role": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "previousRole": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "workspace": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/WorkspaceRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "client": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/ClientRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "automation": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/AutomationRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "machine": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/MachineRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "grant": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": [
+                "kind",
+                "grantId"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "automation",
+                    "workspace"
+                  ]
+                },
+                "grantId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "invitationId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "decision": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "KEEP",
+            "SUSPEND",
+            "REVOKE",
+            null
+          ]
+        },
+        "technicalLogs": {
+          "type": "boolean"
+        },
+        "canViewDashboard": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "canDownloadResults": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "shareRequestId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "grantException": {
+          "type": "boolean"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "AccessHistoryPage": {
+      "type": "object",
+      "required": [
+        "items",
+        "nextCursor",
+        "scope"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AccessHistoryEvent"
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "all",
+            "client_access"
+          ]
+        }
+      }
+    },
+    "ClientGrantSummary": {
+      "type": "object",
+      "required": [
+        "kind",
+        "grantId",
+        "situation",
+        "automation",
+        "workspace",
+        "machine",
+        "canViewDashboard",
+        "canDownloadResults",
+        "basis",
+        "createdAt"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "automation",
+            "workspace"
+          ]
+        },
+        "grantId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "situation": {
+          "$ref": "#/components/schemas/AccessGrantSituation"
+        },
+        "automation": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/AutomationRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "workspace": {
+          "$ref": "#/components/schemas/WorkspaceRef"
+        },
+        "machine": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/MachineRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "canViewDashboard": {
+          "type": "boolean"
+        },
+        "canDownloadResults": {
+          "type": "boolean"
+        },
+        "basis": {
+          "type": "string",
+          "enum": [
+            "second_person",
+            "client_invitation"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "ClientDetailPerson": {
+      "type": "object",
+      "required": [
+        "clientMembershipId",
+        "person",
+        "status",
+        "joinedAt",
+        "linkedToIdentity",
+        "grants"
+      ],
+      "properties": {
+        "clientMembershipId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "person": {
+          "$ref": "#/components/schemas/AccessPerson"
+        },
+        "status": {
+          "$ref": "#/components/schemas/ClientMembershipStatus"
+        },
+        "joinedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "linkedToIdentity": {
+          "type": "boolean"
+        },
+        "grants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AccessGrant"
+          }
+        }
+      }
+    },
+    "ClientDetail": {
+      "type": "object",
+      "required": [
+        "clientId",
+        "name",
+        "status",
+        "createdAt",
+        "updatedAt",
+        "people",
+        "pendingInvitations",
+        "sharedAutomations"
+      ],
+      "properties": {
+        "clientId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/components/schemas/ResourceStatus"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "people": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/ClientDetailPerson"
+          }
+        },
+        "pendingInvitations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "invitationId",
+              "email",
+              "automationName",
+              "createdAt",
+              "expiresAt"
+            ],
+            "properties": {
+              "invitationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "email": {
+                "type": "string"
+              },
+              "automationName": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        },
+        "sharedAutomations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "automation",
+              "workspace",
+              "people"
+            ],
+            "properties": {
+              "automation": {
+                "$ref": "#/components/schemas/AutomationRef"
+              },
+              "workspace": {
+                "$ref": "#/components/schemas/WorkspaceRef"
+              },
+              "people": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      }
+    },
+    "PersonClient": {
+      "type": "object",
+      "required": [
+        "clientMembershipId",
+        "userId",
+        "displayName",
+        "email",
+        "status",
+        "joinedAt",
+        "clientId",
+        "clientName",
+        "linkedToIdentity",
+        "grants"
+      ],
+      "properties": {
+        "clientMembershipId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "userId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/components/schemas/ClientMembershipStatus"
+        },
+        "joinedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "clientId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "clientName": {
+          "type": "string"
+        },
+        "linkedToIdentity": {
+          "type": "boolean"
+        },
+        "grants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AccessGrant"
+          }
+        }
+      }
+    },
+    "PersonClientScope": {
+      "type": "object",
+      "required": [
+        "clientId",
+        "clientName",
+        "automationId",
+        "automationName",
+        "workspaceId",
+        "workspaceName",
+        "workerId",
+        "workerName",
+        "canViewDashboard",
+        "canDownloadResults",
+        "recipientName",
+        "shareRequestId"
+      ],
+      "properties": {
+        "clientId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "clientName": {
+          "type": "string"
+        },
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "automationName": {
+          "type": "string"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workspaceName": {
+          "type": "string"
+        },
+        "workerId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "workerName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "canViewDashboard": {
+          "type": "boolean"
+        },
+        "canDownloadResults": {
+          "type": "boolean"
+        },
+        "recipientName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "shareRequestId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        }
+      }
+    },
+    "PortalClientOrganization": {
+      "type": "object",
+      "required": [
+        "organizationId",
+        "organizationName",
+        "clientName",
+        "sharedAutomations"
+      ],
+      "properties": {
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationName": {
+          "type": "string"
+        },
+        "clientName": {
+          "type": "string"
+        },
+        "sharedAutomations": {
+          "type": "integer"
+        }
+      }
+    },
+    "PortalClientOrganizationList": {
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/PortalClientOrganization"
+          }
+        }
+      }
+    },
+    "PortalSharedDashboard": {
+      "type": "object",
+      "required": [
+        "executionsLast30Days",
+        "succeededLast30Days",
+        "failedLast30Days",
+        "inProgress",
+        "lastRequestedAt",
+        "lastOutcome"
+      ],
+      "properties": {
+        "executionsLast30Days": {
+          "type": "integer"
+        },
+        "succeededLast30Days": {
+          "type": "integer"
+        },
+        "failedLast30Days": {
+          "type": "integer"
+        },
+        "inProgress": {
+          "type": "integer"
+        },
+        "lastRequestedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "lastOutcome": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/PortalOutcome"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "PortalOutcome": {
+      "type": "string",
+      "enum": [
+        "succeeded",
+        "failed",
+        "in_progress",
+        "cancelled",
+        "not_started",
+        "unconfirmed",
+        "no_error_signaled"
+      ]
+    },
+    "PortalSharedAutomation": {
+      "type": "object",
+      "required": [
+        "automationId",
+        "name",
+        "canViewDashboard",
+        "canDownloadResults",
+        "dashboard",
+        "filesAvailable",
+        "clientName"
+      ],
+      "properties": {
+        "automationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "canViewDashboard": {
+          "type": "boolean"
+        },
+        "canDownloadResults": {
+          "type": "boolean"
+        },
+        "dashboard": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/PortalSharedDashboard"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "filesAvailable": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "clientName": {
+          "type": "string"
+        }
+      }
+    },
+    "PortalSharedAutomationList": {
+      "type": "object",
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/PortalSharedAutomation"
+          }
+        }
+      }
+    },
+    "PortalSharedSummary": {
+      "type": "object",
+      "required": [
+        "from",
+        "to",
+        "total",
+        "succeeded",
+        "failed",
+        "inProgress",
+        "notStarted",
+        "cancelled",
+        "unconfirmed",
+        "noErrorSignaled",
+        "lastRequestedAt",
+        "lastOutcome"
+      ],
+      "properties": {
+        "from": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "to": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "total": {
+          "type": "integer"
+        },
+        "succeeded": {
+          "type": "integer"
+        },
+        "failed": {
+          "type": "integer"
+        },
+        "inProgress": {
+          "type": "integer"
+        },
+        "notStarted": {
+          "type": "integer"
+        },
+        "cancelled": {
+          "type": "integer"
+        },
+        "unconfirmed": {
+          "type": "integer"
+        },
+        "noErrorSignaled": {
+          "type": "integer"
+        },
+        "lastRequestedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "lastOutcome": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/PortalOutcome"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "PortalSharedExecution": {
+      "type": "object",
+      "required": [
+        "id",
+        "requestedAt",
+        "startedAt",
+        "endedAt",
+        "outcome",
+        "files"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "requestedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "startedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "endedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "outcome": {
+          "$ref": "#/components/schemas/PortalOutcome"
+        },
+        "files": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    },
+    "PortalSharedExecutionPage": {
+      "type": "object",
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/PortalSharedExecution"
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "PortalSharedFile": {
+      "type": "object",
+      "required": [
+        "attemptId",
+        "number",
+        "automation",
+        "executionRequestedAt",
+        "fileName",
+        "sizeBytes",
+        "receivedAt",
+        "available"
+      ],
+      "properties": {
+        "attemptId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "number": {
+          "type": "integer"
+        },
+        "automation": {
+          "$ref": "#/components/schemas/AutomationRef"
+        },
+        "executionRequestedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "fileName": {
+          "type": "string"
+        },
+        "sizeBytes": {
+          "type": "integer"
+        },
+        "receivedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "available": {
+          "type": "boolean"
+        }
+      }
+    },
+    "PortalSharedFilePage": {
+      "type": "object",
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/PortalSharedFile"
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
     "PersonSituation": {
       "type": "string",
       "enum": [
@@ -409,7 +2198,10 @@
         "member_pending",
         "member_active",
         "member_suspended",
-        "member_revoked"
+        "member_revoked",
+        "client_active",
+        "client_suspended",
+        "client_revoked"
       ]
     },
     "PersonRole": {
@@ -505,7 +2297,9 @@
         "acceptedAt",
         "revokedAt",
         "revokeReason",
-        "acceptedUserId"
+        "acceptedUserId",
+        "audience",
+        "clientScope"
       ],
       "properties": {
         "invitationId": {
@@ -584,6 +2378,23 @@
             "null"
           ],
           "format": "uuid"
+        },
+        "audience": {
+          "type": "string",
+          "enum": [
+            "internal",
+            "client"
+          ]
+        },
+        "clientScope": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/PersonClientScope"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -593,14 +2404,16 @@
         "kind",
         "id",
         "member",
-        "invitation"
+        "invitation",
+        "client"
       ],
       "properties": {
         "kind": {
           "type": "string",
           "enum": [
             "member",
-            "invitation"
+            "invitation",
+            "client"
           ]
         },
         "id": {
@@ -621,6 +2434,16 @@
           "oneOf": [
             {
               "$ref": "#/components/schemas/PersonInvitation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "client": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/PersonClient"
             },
             {
               "type": "null"
@@ -3552,6 +5375,40 @@
         "email": {
           "type": "string",
           "maxLength": 254
+        },
+        "invitation": {
+          "type": "object",
+          "required": [
+            "organizationId",
+            "token"
+          ],
+          "properties": {
+            "organizationId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "token": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "SignupPreview": {
+      "type": "object",
+      "required": [
+        "email",
+        "displayName"
+      ],
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     },
@@ -4285,15 +6142,58 @@
         }
       }
     },
-    "InvitationAccepted": {
+    "InvitationPreview": {
       "type": "object",
       "required": [
-        "organizationId"
+        "organizationId",
+        "organizationName",
+        "email",
+        "recipientName",
+        "audience"
       ],
       "properties": {
         "organizationId": {
           "type": "string",
           "format": "uuid"
+        },
+        "organizationName": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "recipientName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "audience": {
+          "type": "string",
+          "enum": [
+            "internal",
+            "client"
+          ]
+        }
+      }
+    },
+    "InvitationAccepted": {
+      "type": "object",
+      "required": [
+        "organizationId",
+        "audience"
+      ],
+      "properties": {
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "audience": {
+          "type": "string",
+          "enum": [
+            "internal",
+            "client"
+          ]
         }
       }
     },
@@ -8318,6 +10218,42 @@
         }
       }
     },
+    "signupPreview": {
+      "method": "POST",
+      "path": "/api/v1/signup/preview",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/SignupPreview"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
     "resendSignupConfirmation": {
       "method": "POST",
       "path": "/api/v1/signup/confirmation/resend",
@@ -10042,6 +11978,42 @@
         }
       }
     },
+    "invitationPreview": {
+      "method": "POST",
+      "path": "/api/v1/invitations/preview",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/InvitationPreview"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
     "acceptInvitation": {
       "method": "POST",
       "path": "/api/v1/invitations/accept",
@@ -11346,6 +13318,778 @@
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/ClientPage"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "500": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "createClient": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/clients",
+      "responses": {
+        "201": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Client"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "inviteClient": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/client-invitations",
+      "responses": {
+        "201": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ClientInvitationCreated"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "getClientDetail": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/clients/{client}",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ClientDetail"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "updateClient": {
+      "method": "PATCH",
+      "path": "/api/v1/o/{org}/clients/{client}",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Client"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "listClientShareOptions": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/client-share-options",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ClientShareOptions"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "listClientShareRequests": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/client-share-requests",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ClientShareRequestList"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "requestClientShare": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/client-share-requests",
+      "responses": {
+        "201": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ClientShareRequest"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "approveClientShare": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/client-share-requests/{request}/approve",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ClientShareRequestState"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "refuseClientShare": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/client-share-requests/{request}/refuse",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ClientShareRequestState"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "cancelClientShare": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/client-share-requests/{request}/cancel",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ClientShareRequestState"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "requestClientAutomationGrant": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/client-automation-grants",
+      "responses": {
+        "201": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ClientAutomationGrant"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "approveClientAutomationGrant": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/client-automation-grants/{grant}/approve",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ClientAutomationGrant"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "reduceClientAutomationGrant": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/client-automation-grants/{grant}/reduce",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ClientAutomationGrant"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "revokeClientAutomationGrant": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/client-automation-grants/{grant}/revoke",
+      "responses": {
+        "204": {
+          "contentType": null,
+          "schema": null
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "suspendClientMembership": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/client-memberships/{membership}/suspend",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ClientMembershipState"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "reactivateClientMembership": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/client-memberships/{membership}/reactivate",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ClientMembershipState"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "retireClientMembership": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/client-memberships/{membership}/retire",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ClientMembershipState"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "listAccessGrants": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/access-grants",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/AccessGrantPage"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "500": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "listAccessHistory": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/access-history",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/AccessHistoryPage"
           }
         },
         "400": {
@@ -13578,6 +16322,235 @@
           }
         },
         "500": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "portalClientOrganizations": {
+      "method": "GET",
+      "path": "/portal/api/v1/me/client-organizations",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/PortalClientOrganizationList"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "portalSharedAutomations": {
+      "method": "GET",
+      "path": "/portal/api/v1/o/{org}/shared-automations",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/PortalSharedAutomationList"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "portalSharedSummary": {
+      "method": "GET",
+      "path": "/portal/api/v1/o/{org}/shared-automations/{automation}/summary",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/PortalSharedSummary"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "portalSharedExecutions": {
+      "method": "GET",
+      "path": "/portal/api/v1/o/{org}/shared-automations/{automation}/executions",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/PortalSharedExecutionPage"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "portalSharedFiles": {
+      "method": "GET",
+      "path": "/portal/api/v1/o/{org}/shared-files",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/PortalSharedFilePage"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "portalSharedFileContent": {
+      "method": "GET",
+      "path": "/portal/api/v1/o/{org}/shared-files/{attempt}/{number}/content",
+      "responses": {
+        "200": {
+          "contentType": "application/octet-stream",
+          "schema": {
+            "type": "string",
+            "format": "binary"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/Error"

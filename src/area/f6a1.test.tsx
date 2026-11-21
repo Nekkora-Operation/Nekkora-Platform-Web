@@ -17,8 +17,11 @@ const base = `/o/${DEV_ORG}`;
 const members = `${base}/administracao/membros`;
 /** PLATFORM-FLUXO-002: Membros e Convites viraram "Pessoas e acessos"; o endereço antigo redireciona para cá. */
 const people = `${base}/administracao/pessoas`;
-const clients = `${base}/administracao/clientes`;
-const grants = `${base}/administracao/concessoes`;
+// PLATFORM-FLUXO-002 (070): Clientes e Concessões ficam dentro de "Pessoas e acessos" (os endereços antigos redirecionam)
+const clients = `${base}/administracao/pessoas/clientes`;
+const grants = `${base}/administracao/pessoas/acessos/ambientes`;
+const legacyClients = `${base}/administracao/clientes`;
+const legacyGrants = `${base}/administracao/concessoes`;
 const client = (k: string, key = 'dev') => stableUuid(`${key}:client:${k}`);
 
 let api: MockApi;
@@ -99,7 +102,7 @@ afterEach(() => {
 });
 
 describe('navegação pela P01', () => {
-  it('ORG_ADMIN: grupo Administração com Pessoas e acessos, Clientes e Concessões; item ativo; título do topo', async () => {
+  it('ORG_ADMIN: grupo Administração com Pessoas e acessos (Clientes, Concessões e Auditoria saíram do menu); item ativo; título do topo', async () => {
     sessionFor('ana@nekkora.dev');
     renderAt(members);
     await screen.findByRole('region', { name: 'Lista de pessoas e convites' });
@@ -109,8 +112,14 @@ describe('navegação pela P01', () => {
     // Membros e Convites saíram do menu
     expect(within(nav()).queryByRole('link', { name: 'Membros' })).toBeNull();
     expect(within(nav()).queryByRole('link', { name: 'Convites' })).toBeNull();
-    expect(within(nav()).getByRole('link', { name: 'Clientes' })).toHaveAttribute('href', clients);
-    expect(within(nav()).getByRole('link', { name: 'Concessões' })).toHaveAttribute('href', grants);
+    expect(within(nav()).queryByRole('link', { name: 'Clientes' })).toBeNull();
+    expect(within(nav()).queryByRole('link', { name: 'Concessões' })).toBeNull();
+    expect(within(nav()).queryByRole('link', { name: 'Auditoria de acessos' })).toBeNull();
+    // os atalhos ficam na própria página
+    expect(screen.getByRole('link', { name: /Gerenciar clientes/ })).toHaveAttribute('href', clients);
+    // Compartilhamentos e Histórico são abas da própria página (como Execuções)
+    expect(screen.getByRole('tab', { name: 'Compartilhamentos' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Histórico' })).toBeInTheDocument();
     expect(within(nav()).getByText('Administração')).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: 'Pessoas e acessos' })).toBeInTheDocument();
   });
@@ -275,9 +284,13 @@ describe('Membros', () => {
 });
 
 describe('Clientes', () => {
-  it('ordem por ponto de código, estados, filtro na URL e atalho para as concessões do cliente', async () => {
+  it('ordem por ponto de código, estados, filtro na URL, detalhes do cliente e atalho para as concessões dele; o endereço antigo redireciona', async () => {
     sessionFor('ana@nekkora.dev');
-    renderAt(clients);
+    const legacy = renderAt(`${legacyClients}?estado=active`);
+    await waitFor(() => expect(location).toBe(`${clients}?estado=active`));
+    await screen.findByRole('region', { name: 'Lista de clientes' });
+    legacy.unmount();
+    const view = renderAt(clients);
     await screen.findByRole('region', { name: 'Lista de clientes' });
     expect(firstCells('Lista de clientes')).toEqual(['ACME Logística', 'Banco Exemplo S.A.', 'Clínica Exemplo', 'Ômega Indústria']);
     fireEvent.click(screen.getByRole('checkbox', { name: 'Arquivado' }));
@@ -285,12 +298,20 @@ describe('Clientes', () => {
     await waitFor(() => expect(firstCells('Lista de clientes')).toEqual(['Ômega Indústria']));
     fireEvent.click(screen.getByRole('checkbox', { name: 'Arquivado' }));
     await waitFor(() => expect(firstCells('Lista de clientes')).toHaveLength(4));
-    const link = await screen.findByRole('link', { name: 'Ver concessões de ACME Logística' });
-    expect(link).toHaveAttribute('href', `${grants}?cliente=${client('acme')}`);
-    fireEvent.click(link);
-    await screen.findByRole('region', { name: 'Lista de concessões' });
-    expect(rows('Lista de concessões')).toHaveLength(3);
-    expect(screen.getByRole('combobox', { name: 'Cliente' })).toHaveValue(client('acme'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Ver detalhes de ACME Logística' }));
+    await waitFor(() => expect(location).toBe(`${clients}?cliente=${client('acme')}`));
+    expect(await screen.findByRole('heading', { level: 2, name: 'ACME Logística' })).toBeInTheDocument();
+    const link = await screen.findByRole('link', { name: /Ver concessões e histórico deste cliente/ });
+    expect(link).toHaveAttribute('href', `${base}/administracao/pessoas?aba=compartilhamentos&cliente=${client('acme')}`);
+    // o endereço antigo de Concessões leva às concessões unificadas, com os filtros
+    view.unmount();
+    renderAt(`${legacyGrants}?cliente=${client('acme')}&estado=active`);
+    await waitFor(() => {
+      const u = new URL(location, 'http://x');
+      expect(u.pathname).toBe(`${base}/administracao/pessoas`);
+      expect([u.searchParams.get('aba'), u.searchParams.getAll('estado'), u.searchParams.get('cliente')]).toEqual(['compartilhamentos', ['active'], client('acme')]);
+    });
+    await screen.findByRole('region', { name: 'Lista de concessões de clientes' });
   });
 });
 

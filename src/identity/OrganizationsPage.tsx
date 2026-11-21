@@ -9,6 +9,7 @@ import { orgPath } from '../auth/organization';
 import { ErrorAlert } from '../pages/ErrorAlert';
 import { pendingInvitation } from './AcceptInvitationPage';
 import { OrganizationCreationPanel } from './OrganizationCreationPanel';
+import { SharedWithYouSection } from '../client/ClientArea';
 import { useIdentityArea } from './IdentityArea';
 import { activationLabel, ROLE_LABEL } from './labels';
 import './identity.css';
@@ -197,6 +198,9 @@ export function OrganizationsPage() {
           })}
         </ul>
       )}
+
+      {/* PLATFORM-FLUXO-002 (070): o que organizações compartilharam com a pessoa como cliente (some se não houver) */}
+      <SharedWithYouSection />
 
       {/* PLATFORM-LICENCIAMENTO-001: por que a pessoa cria, solicita ou não cria; pedidos; desativar e reativar */}
       <OrganizationCreationPanel organizations={organizations} onChanged={() => void load()} />

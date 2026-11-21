@@ -1,10 +1,10 @@
 import { Navigate, Outlet, Route, Routes, useParams, useSearchParams } from "react-router";
 import { features } from "../config";
 import { PlatformThemeProvider } from "./theme";
-import { orgPath } from "../auth/organization";
+import { clientPath, orgPath } from "../auth/organization";
 import { IdentityFlowProvider } from "../auth/flow";
 import { AcceptInvitationPage } from "../identity/AcceptInvitationPage";
-import { AccessEventsPage } from "../pages/access/AccessEventsPage";
+import { ClientAutomationPage, ClientFilesPage, ClientHomePage, ClientOrganizationPage } from "../client/ClientArea";
 import {
   AccountPage,
   ActivateMfaPage,
@@ -28,7 +28,7 @@ import {
 import { AuthenticatedArea } from "../area/AuthenticatedArea";
 import { ClientsPage } from "../pages/admin/ClientsPage";
 import { GrantsPage } from "../pages/admin/GrantsPage";
-import { PeoplePage } from "../pages/access/PeoplePage";
+import { PeopleAccessPage } from "../pages/access/PeopleAccessPage";
 import { ExecutionsPage } from "../pages/ExecutionsPage";
 import { AutomationDetailPage } from "../pages/product/AutomationDetailPage";
 import { NewVersionPage } from "../pages/product/NewVersionPage";
@@ -98,6 +98,50 @@ function LegacyMemberAccessRedirect() {
   return <Navigate to={orgPath.personAccess(orgId!, userId!)} replace />;
 }
 
+/**
+ * PLATFORM-FLUXO-002 (070): endereços antigos de Clientes, Concessões e Auditoria de acessos. Os filtros que existiam
+ * continuam (situação, cliente e ambiente de trabalho); o resto do endereço é descartado.
+ */
+/** 071: /cliente/o/:org/execucoes/... (detalhe técnico removido) → o dashboard da organização. */
+function LegacyClientExecutionRedirect() {
+  const { orgId = "" } = useParams();
+  return <Navigate to={clientPath.organization(orgId)} replace />;
+}
+
+/** Endereço anterior de "Acessos e histórico" → as abas Compartilhamentos ou Histórico de "Pessoas e acessos", com os filtros. */
+function LegacyAccessHistoryRedirect() {
+  const { orgId = "" } = useParams();
+  const [sp] = useSearchParams();
+  const params = Object.fromEntries([...sp.keys()].filter((k) => k !== "estado").map((k) => [k, sp.get(k) ?? undefined]));
+  const estado = sp.getAll("estado").map((e) => `&estado=${encodeURIComponent(e)}`).join("");
+  return <Navigate to={`${orgPath.accessHistory(orgId, params)}${estado}`} replace />;
+}
+
+function LegacyClientsRedirect() {
+  const { orgId = "" } = useParams();
+  const [sp] = useSearchParams();
+  const q = new URLSearchParams();
+  for (const s of sp.getAll("estado")) q.append("estado", s);
+  const rest = q.toString();
+  return <Navigate to={`${orgPath.clientsManage(orgId)}${rest ? `?${rest}` : ""}`} replace />;
+}
+
+function LegacyGrantsRedirect() {
+  const { orgId = "" } = useParams();
+  const [sp] = useSearchParams();
+  const q = new URLSearchParams();
+  for (const s of sp.getAll("estado")) q.append("estado", s);
+  if (sp.get("cliente")) q.set("cliente", sp.get("cliente")!);
+  if (sp.get("workspace")) q.set("workspace", sp.get("workspace")!);
+  const rest = q.toString();
+  return <Navigate to={`${orgPath.accessHistory(orgId)}${rest ? `&${rest}` : ""}`} replace />;
+}
+
+function LegacyAuditRedirect() {
+  const { orgId = "" } = useParams();
+  return <Navigate to={orgPath.accessHistory(orgId, { aba: "historico" })} replace />;
+}
+
 function IdentityFlowOutlet() {
   return (
     <IdentityFlowProvider>
@@ -150,6 +194,13 @@ export function AppRoutes() {
           />
           <Route path="/conta/proteger" element={<ProtectAccountPage />} />
           <Route path="/vincular-conta" element={<LinkAccountPage />} />
+          {/* PLATFORM-FLUXO-002 (070): área do cliente, pela identidade (lê só o Portal) */}
+          <Route path="/cliente" element={<ClientHomePage />} />
+          <Route path="/cliente/o/:orgId" element={<ClientOrganizationPage />} />
+          <Route path="/cliente/o/:orgId/automacoes/:automationId" element={<ClientAutomationPage />} />
+          <Route path="/cliente/o/:orgId/arquivos" element={<ClientFilesPage />} />
+          {/* 071: o detalhe técnico da execução saiu da área do cliente; endereço antigo volta ao dashboard */}
+          <Route path="/cliente/o/:orgId/execucoes/*" element={<LegacyClientExecutionRedirect />} />
         </Route>
         <Route path="/o/:orgId" element={<OrganizationRoute />}>
           {/* área autenticada: o portão carrega /me e só monta as rotas internas para conta interna */}
@@ -193,17 +244,19 @@ export function AppRoutes() {
             <Route path="supervisao/:runId" element={<LegacyAgentRunRedirect />} />
             {/* F6a-1: administração, só leitura; o acesso de cada tela é decidido pela API (403 → estado próprio) */}
             {/* PLATFORM-FLUXO-002: "Pessoas e acessos" (membros e convites); os endereços antigos redirecionam */}
-            <Route path="administracao/pessoas" element={<PeoplePage />} />
+            <Route path="administracao/pessoas" element={<PeopleAccessPage />} />
             <Route path="administracao/membros" element={<LegacyMembersRedirect />} />
-            <Route path="administracao/clientes" element={<ClientsPage />} />
-            <Route path="administracao/concessoes" element={<GrantsPage />} />
+            {/* PLATFORM-FLUXO-002 (070): Clientes, Concessões e Auditoria de acessos ficam em "Pessoas e acessos"; os endereços
+                antigos redirecionam, conservando os filtros. As concessões por ambiente inteiro mantêm a página das decisões. */}
+            <Route path="administracao/pessoas/clientes" element={<ClientsPage />} />
+            <Route path="administracao/pessoas/acessos" element={<LegacyAccessHistoryRedirect />} />
+            <Route path="administracao/pessoas/acessos/ambientes" element={<GrantsPage />} />
+            <Route path="administracao/clientes" element={<LegacyClientsRedirect />} />
+            <Route path="administracao/concessoes" element={<LegacyGrantsRedirect />} />
             {/* M2: acessos */}
             <Route path="administracao/membros/:userId" element={<LegacyMemberAccessRedirect />} />
             <Route path="administracao/convites" element={<LegacyInvitationsRedirect />} />
-            <Route
-              path="administracao/auditoria"
-              element={<AccessEventsPage />}
-            />
+            <Route path="administracao/auditoria" element={<LegacyAuditRedirect />} />
             <Route path="administracao/licencas" element={<LicensesPage />} />
             <Route
               path="administracao/pedidos-de-organizacao"

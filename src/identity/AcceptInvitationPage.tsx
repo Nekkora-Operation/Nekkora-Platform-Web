@@ -3,13 +3,14 @@ import { Link as RouterLink, useLocation, useNavigate } from 'react-router';
 import { Alert, Button, Link, StateView, Text } from 'nekkora-lib';
 import { csrfStore } from '../api/csrf';
 import { ApiError, isApiError } from '../api/http';
-import { acceptInvitation, enterOrganization, identitySession, identityStepUp } from '../api/identity';
+import { acceptInvitation, enterOrganization, identitySession, identityStepUp, invitationPreview, type InvitationPreview } from '../api/identity';
 import { AuthScreen } from '../app/AuthScreen';
 import { useOrganization } from '../app/organization';
 import { identityPath } from '../auth/flow';
 import { consumeInitialLinkToken } from '../auth/linkToken';
 import { commonMessage, type UserMessage } from '../auth/messages';
-import { orgPath } from '../auth/organization';
+import { clientPath, orgPath } from '../auth/organization';
+import { hasReason } from '../api/http';
 import { StepUpDialog } from '../components/StepUpDialog';
 import { ErrorAlert } from '../pages/ErrorAlert';
 
@@ -31,7 +32,16 @@ csrfStore.onSessionEnd(() => {
 });
 
 type Probe = 'loading' | 'session' | 'restricted' | 'none' | 'unavailable' | { error: UserMessage };
-type Result = 'accepted' | 'invalid' | 'already_member' | 'account_exists' | 'account_unavailable';
+type Result =
+  | 'accepted'
+  | 'invalid'
+  | 'already_member'
+  | 'account_exists'
+  | 'account_unavailable'
+  | 'internal_member'
+  | 'other_client'
+  | 'grant_exists'
+  | 'scope_unavailable';
 
 /**
  * /o/{org}/convite#token=… — aceite pela identidade Nekkora (step-up). Nunca vincula por coincidência de e-mail: o
@@ -49,9 +59,29 @@ export function AcceptInvitationPage() {
   const [probe, setProbe] = useState<Probe>('loading');
   const [confirming, setConfirming] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
+  // 070: convite de Cliente aceito — a pessoa segue para a área do cliente (sem sessão da organização)
+  const [audience, setAudience] = useState<'internal' | 'client'>('internal');
   const [entering, setEntering] = useState(false);
   const [enterError, setEnterError] = useState<UserMessage | 'no_access' | null>(null);
   const [uncertain, setUncertain] = useState(false);
+  // 071: sem sessão, o convite aberto mostra a organização, o nome e o e-mail (o cadastro não os pede de novo)
+  const [preview, setPreview] = useState<InvitationPreview | 'invalid' | null>(null);
+  useEffect(() => {
+    if (probe !== 'none' || !token) return;
+    let alive = true;
+    invitationPreview(org, token).then(
+      (p) => alive && setPreview(p),
+      (e: unknown) => alive && isApiError(e, 'not_found') && setPreview('invalid'),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [probe, org, token]);
+  const startSignup = () => {
+    // o e-mail (não secreto) vai pela navegação; o token do convite continua só na memória da aba (pendingInvitation)
+    if (preview && preview !== 'invalid') navigate(identityPath.signup, { state: { inviteEmail: preview.email } });
+    else navigate(identityPath.signup);
+  };
 
   useEffect(() => {
     let alive = true;
@@ -89,6 +119,20 @@ export function AcceptInvitationPage() {
     );
   }
 
+  if (result === 'accepted' && audience === 'client') {
+    return (
+      <AuthScreen org={org} icon="check-circle" title="Convite aceito" focusTitle>
+        <Text>Você já pode acompanhar o que esta organização compartilhou com você, com a sua conta Nekkora.</Text>
+        <Button fullWidth size="lg" onClick={() => navigate(clientPath.organization(org), { replace: true })}>
+          Ver o que foi compartilhado
+        </Button>
+        <Link as={RouterLink} to={clientPath.home()} variant="subtle">
+          Tudo o que foi compartilhado comigo
+        </Link>
+      </AuthScreen>
+    );
+  }
+
   if (result === 'accepted') {
     return (
       <AuthScreen org={org} icon="check-circle" title="Convite aceito" focusTitle>
@@ -116,6 +160,16 @@ export function AcceptInvitationPage() {
       text: 'Já existe uma conta antiga desta organização com o seu e-mail. Para usá-la pela sua identidade, faça a vinculação da conta antiga (ela pede a senha e o código daquela conta).',
     },
     account_unavailable: { tone: 'warning', text: 'A sua conta nesta organização está indisponível (suspensa ou com o vínculo inativo). Procure quem administra a organização.' },
+    internal_member: {
+      tone: 'info',
+      text: 'Você já é membro desta organização. Um convite de Cliente não muda os seus acessos; entre pela organização normalmente.',
+    },
+    other_client: { tone: 'warning', text: 'Você já acompanha esta organização por outro cliente. Procure quem enviou o convite.' },
+    grant_exists: { tone: 'info', text: 'Essa automação já está compartilhada com você nesta organização.' },
+    scope_unavailable: {
+      tone: 'warning',
+      text: 'O que foi compartilhado neste convite não está mais disponível (a automação, a máquina ou o cliente mudou). Nada foi aplicado. Peça um convite novo.',
+    },
   };
 
   return (
@@ -130,12 +184,24 @@ export function AcceptInvitationPage() {
       )}
       {probe === 'none' && (
         <>
-          <Text>Para aceitar, entre com a identidade Nekkora do e-mail que recebeu o convite. Se ainda não tem cadastro, crie com esse mesmo e-mail.</Text>
+          {preview === 'invalid' && (
+            <Alert tone="warning">Este convite não está mais aberto (pode ter vencido, sido revogado ou substituído). Peça um convite novo a quem enviou.</Alert>
+          )}
+          {preview && preview !== 'invalid' && (
+            <Text>
+              {preview.recipientName ? `${preview.recipientName}, ` : ''}
+              {preview.audience === 'client'
+                ? `${preview.organizationName} compartilhou com você o acompanhamento de uma automação.`
+                : `${preview.organizationName} convidou você para participar da organização.`}{' '}
+              O convite é para {preview.email}.
+            </Text>
+          )}
+          <Text>Para aceitar, entre com a identidade Nekkora desse e-mail. Se ainda não tem, crie o seu acesso: só falta a senha (e, se quiser, a verificação em duas etapas).</Text>
           <Button fullWidth size="lg" onClick={() => navigate(identityPath.login)}>
             Entrar
           </Button>
-          <Button fullWidth variant="secondary" onClick={() => navigate(identityPath.signup)}>
-            Criar cadastro
+          <Button fullWidth variant="secondary" onClick={startSignup}>
+            Criar meu acesso
           </Button>
           <Text variant="body-sm" color="secondary">
             Depois de entrar, você volta a este convite pelo aviso na lista das suas organizações (nesta aba) ou abrindo de novo o link do e-mail.
@@ -158,7 +224,10 @@ export function AcceptInvitationPage() {
           {uncertain && <Alert tone="warning">Não foi possível confirmar o aceite. Confira a lista das suas organizações antes de tentar de novo.</Alert>}
           {!result && (
             <>
-              <Text>Ao aceitar, você passa a participar desta organização com o papel definido por quem convidou.</Text>
+              <Text>
+                Ao aceitar, você passa a participar desta organização com o que foi definido por quem convidou: um perfil de membro, ou, no
+                convite de Cliente, o acompanhamento de uma automação.
+              </Text>
               <Button fullWidth size="lg" disabled={uncertain} onClick={() => setConfirming(true)}>
                 Aceitar convite
               </Button>
@@ -167,16 +236,17 @@ export function AcceptInvitationPage() {
         </>
       )}
 
-      <StepUpDialog<string>
+      <StepUpDialog<Awaited<ReturnType<typeof acceptInvitation>>>
         open={confirming}
         title="Aceitar o convite?"
         guard={{ operation: 'invitation.accept', target: org }}
         confirmLabel="Aceitar"
         stepUp={identityStepUp}
         action={() => acceptInvitation(org, token)}
-        onDone={() => {
+        onDone={(r) => {
           pendingInvitation.clear();
           setConfirming(false);
+          setAudience(r.audience);
           setResult('accepted');
         }}
         onClose={() => setConfirming(false)}
@@ -189,7 +259,15 @@ export function AcceptInvitationPage() {
                 ? 'account_exists'
                 : isApiError(e, 'account_unavailable')
                   ? 'account_unavailable'
-                  : null;
+                  : hasReason(e, 'conflict', 'client_invitation_internal_member')
+                    ? 'internal_member'
+                    : hasReason(e, 'conflict', 'client_invitation_other_client')
+                      ? 'other_client'
+                      : hasReason(e, 'conflict', 'client_grant_exists')
+                        ? 'grant_exists'
+                        : hasReason(e, 'conflict', 'client_scope_unavailable')
+                          ? 'scope_unavailable'
+                          : null;
           if (r) {
             pendingInvitation.clear();
             setResult(r);

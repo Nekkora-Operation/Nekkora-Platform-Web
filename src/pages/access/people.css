@@ -1,9 +1,49 @@
 /* PLATFORM-FLUXO-002 — "Pessoas e acessos": só arranjo; cores, tipografia e espaçamentos vêm dos tokens da Nekkora-Lib. */
-.pw-people__invite-fields {
+/*
+ * Formulário "Convidar pessoa" (e o pedido de compartilhamento): usa toda a largura do card e se arranja pela largura DO
+ * PRÓPRIO FORMULÁRIO (container query) — assim o menu lateral, a tela estreita e o zoom de 200% dão o mesmo resultado.
+ * Tipo de pessoa lado a lado; campos em até 4 colunas (2 em larguras intermediárias, 1 no celular); conteúdos e opções
+ * adicionais em 2 colunas.
+ */
+.pw-people__invite {
+  max-width: none;
+  container-type: inline-size;
+}
+.pw-invite__type .nk-radio-group__options {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-  gap: var(--nk-space-3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--nk-space-3) var(--nk-space-5);
+}
+.pw-invite__fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--nk-space-3) var(--nk-space-4);
   align-items: start;
+}
+.pw-invite__panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--nk-space-4) var(--nk-space-5);
+  align-items: start;
+}
+.pw-invite__panels > * {
+  min-width: 0;
+}
+@container (max-width: 60rem) {
+  .pw-invite__fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container (max-width: 44rem) {
+  .pw-invite__panels {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@container (max-width: 34rem) {
+  .pw-invite__fields,
+  .pw-invite__type .nk-radio-group__options {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .pw-people__filters {
   display: grid;
@@ -61,4 +101,89 @@
     grid-template-columns: 1fr;
     align-items: start;
   }
+}
+
+/* PLATFORM-FLUXO-002 (070): clientes e acessos de cliente — só arranjo, com os tokens da Nekkora-Lib. */
+.pw-people__shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nk-space-4);
+}
+.pw-people__client-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--nk-space-2);
+  align-items: end;
+}
+.pw-people__details > summary {
+  cursor: pointer;
+  padding: var(--nk-space-1) 0;
+}
+.pw-people__details[open] > summary {
+  margin-bottom: var(--nk-space-2);
+}
+.pw-people__confirm {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--nk-space-1) var(--nk-space-3);
+  margin: 0;
+}
+.pw-people__confirm dt {
+  font-weight: 600;
+}
+.pw-people__confirm dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.pw-access__item--stack {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+.pw-access__item--stack .pw-access__perms {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nk-space-4);
+}
+.pw-access-history__filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--nk-space-3);
+  align-items: end;
+}
+.pw-access-history__filters > fieldset,
+.pw-access-history__filters > div[role='alert'],
+.pw-access-history__filters > div:last-child {
+  grid-column: 1 / -1;
+}
+.pw-clients__detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nk-space-3);
+  align-items: center;
+}
+.pw-clients__list,
+.pw-clients__sublist {
+  margin: 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: var(--nk-space-1);
+}
+@media (max-width: 40rem) {
+  .pw-people__client-row,
+  .pw-access__item--stack {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* "Opções adicionais": um respiro entre os campos; "Cadastrar cliente" abaixo do seletor (alinhado a ele, não à ajuda) */
+.pw-people__details-body {
+  display: grid;
+  gap: var(--nk-space-3);
+}
+.pw-invite__panels .pw-people__client-row {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
+}
+.pw-invite__panels .pw-people__client-row > :first-child {
+  width: 100%;
 }

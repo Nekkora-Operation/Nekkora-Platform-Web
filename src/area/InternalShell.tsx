@@ -43,20 +43,24 @@ export function useInternalArea(): InternalArea {
 const MAIN_ID = 'conteudo';
 
 /** Seção da área interna a que o endereço pertence (menu ativo e título do topo). */
-function sectionOf(pathname: string, org: string): 'inicio' | 'conta' | 'execucoes' | 'workspaces' | 'pessoas' | 'clientes' | 'concessoes' | 'auditoria' | 'workers' | 'operador' | 'licencas' | 'pedidos' | null {
+function sectionOf(pathname: string, org: string): 'inicio' | 'conta' | 'execucoes' | 'workspaces' | 'pessoas' | 'workers' | 'operador' | 'licencas' | 'pedidos' | null {
   if (pathname === orgPath.home(org)) return 'inicio';
   const rest = pathname.slice(orgPath.home(org).length);
   if (rest === '/execucoes' || rest.startsWith('/execucoes/') || rest.startsWith('/execucoes-remotas/') || rest.startsWith('/execucoes-locais/')) return 'execucoes';
   if (rest === '/workspaces' || rest.startsWith('/workspaces/') || rest.startsWith('/automacoes/') || rest.startsWith('/versoes/')) return 'workspaces';
-  // PLATFORM-FLUXO-002: Membros e Convites viraram "Pessoas e acessos" (os endereços antigos redirecionam)
-  if (rest === '/administracao/pessoas' || rest.startsWith('/administracao/membros') || rest === '/administracao/convites') return 'pessoas';
+  // PLATFORM-FLUXO-002: Membros, Convites, Clientes, Concessões e Auditoria de acessos ficam em "Pessoas e acessos"
+  // (os endereços antigos redirecionam)
+  if (
+    rest === '/administracao/pessoas' ||
+    rest.startsWith('/administracao/pessoas/') ||
+    rest.startsWith('/administracao/membros') ||
+    ['/administracao/convites', '/administracao/clientes', '/administracao/concessoes', '/administracao/auditoria'].includes(rest)
+  )
+    return 'pessoas';
   if (rest === '/workers') return 'workers';
-  if (rest === '/administracao/auditoria') return 'auditoria';
   if (rest === '/administracao/licencas') return 'licencas';
   if (rest === '/administracao/pedidos-de-organizacao') return 'pedidos';
   if (rest === '/operador-de-licencas') return 'operador';
-  if (rest === '/administracao/clientes') return 'clientes';
-  if (rest === '/administracao/concessoes') return 'concessoes';
   if (rest === '/conta') return 'conta';
   return null;
 }
@@ -72,14 +76,13 @@ function titleFor(pathname: string, org: string): string {
   if (rest === '/workspaces') return 'Ambientes de trabalho';
   if (rest.startsWith('/automacoes/')) return 'Automação';
   if (rest.startsWith('/versoes/')) return 'Versão';
+  if (rest === '/administracao/pessoas/clientes' || rest === '/administracao/clientes') return 'Clientes';
+  if (rest === '/administracao/pessoas/acessos' || rest === '/administracao/concessoes' || rest === '/administracao/auditoria') return 'Acessos e histórico';
   if (rest === '/administracao/pessoas' || rest.startsWith('/administracao/membros') || rest === '/administracao/convites') return 'Pessoas e acessos';
   if (rest === '/workers') return 'Máquinas';
-  if (rest === '/administracao/auditoria') return 'Auditoria de acessos';
   if (rest === '/administracao/licencas') return 'Licenças e automações';
   if (rest === '/administracao/pedidos-de-organizacao') return 'Pedidos de organização';
   if (rest === '/operador-de-licencas') return 'Operador de licenças';
-  if (rest === '/administracao/clientes') return 'Clientes';
-  if (rest === '/administracao/concessoes') return 'Concessões';
   if (rest === '/conta') return 'Minha conta';
   return 'Início';
 }
@@ -215,13 +218,16 @@ export function InternalShell() {
   if (permissions.status === 'ready') {
     const has = (p: PermissionCode) => permissions.data.organization.permissions.includes(p);
     const admin: AppNavGroup['items'] = [];
-    if (has('org.manage')) admin.push({ id: 'pessoas', label: 'Pessoas e acessos', href: orgPath.people(org), icon: 'users', active: section === 'pessoas' });
+    // PLATFORM-FLUXO-002: Clientes, Concessões e Auditoria de acessos saíram do menu; ficam em "Pessoas e acessos"
+    // ("Gerenciar clientes" e "Acessos e histórico"). Quem só gerencia acesso de clientes também chega por aqui.
     if (has('org.manage') || has('external_access.manage'))
-      admin.push({ id: 'clientes', label: 'Clientes', href: orgPath.clients(org), icon: 'building', active: section === 'clientes' });
-    if (has('external_access.manage'))
-      admin.push({ id: 'concessoes', label: 'Concessões', href: orgPath.grants(org), icon: 'key', active: section === 'concessoes' });
-    if (has('org.manage'))
-      admin.push({ id: 'auditoria', label: 'Auditoria de acessos', href: orgPath.accessEvents(org), icon: 'file', active: section === 'auditoria' });
+      admin.push({
+        id: 'pessoas',
+        label: 'Pessoas e acessos',
+        href: has('org.manage') ? orgPath.people(org) : orgPath.accessHistory(org),
+        icon: 'users',
+        active: section === 'pessoas',
+      });
     // PLATFORM-LICENCIAMENTO-001: licenças e capacidade, e os pedidos de criação de organização feitos a esta
     if (has('org.manage'))
       admin.push({ id: 'licencas', label: 'Licenças e automações', href: orgPath.licenses(org), icon: 'key', active: section === 'licencas' });

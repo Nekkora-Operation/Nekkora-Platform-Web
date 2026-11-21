@@ -95,8 +95,11 @@ test('J17/J18: telas reais com teclado, zoom 200%, viewports, recarga, links dir
     ['versão', versionUrl.replace(/^https?:\/\/[^/]+/, ''), /Biografias da Wikipédia — versão 1/],
     ['workers', `/o/${org}/workers`, 'Máquinas'],
     ['execuções (o endereço antigo de Supervisão)', `/o/${org}/supervisao`, 'Execuções'],
-    ['convites', `/o/${org}/administracao/convites`, 'Convites'],
-    ['concessões', `/o/${org}/administracao/concessoes`, 'Concessões'],
+    // PLATFORM-FLUXO-002: Convites, Concessões e Auditoria viraram abas de "Pessoas e acessos" (os endereços antigos redirecionam)
+    ['pessoas e acessos — Pessoas', `/o/${org}/administracao/pessoas`, 'Pessoas e acessos'],
+    ['pessoas e acessos — Compartilhamentos', `/o/${org}/administracao/pessoas?aba=compartilhamentos`, 'Pessoas e acessos'],
+    ['pessoas e acessos — Histórico', `/o/${org}/administracao/pessoas?aba=historico`, 'Pessoas e acessos'],
+    ['concessões por ambiente inteiro', `/o/${org}/administracao/pessoas/acessos/ambientes`, 'Concessões'],
     ['conta', '/conta', 'Segurança da conta'],
   ];
   const report = (line: string) => appendFileSync(`tools/lab/saidas/${LAB}/a11y-telas.txt`, `${new Date().toISOString()} ${line}\n`);
