@@ -19,10 +19,11 @@ import { useSession } from '../../area/session';
 import { orgPath } from '../../auth/organization';
 import { StepUpDialog } from '../../components/StepUpDialog';
 import { useCursorList } from '../../hooks/useCursorList';
-import { DateTimeText, LoadErrorState, PageHeader, useExpiresOn } from '../product/shared';
+import { DateTimeText, LoadErrorState, useExpiresOn } from '../product/shared';
 import { ADMIN_PAGE, AdminLoadMore, ForbiddenState, useAccessDenied, useUrlFilters } from '../admin/shared';
 import { clientRefusal, machineScopeText, permissionsText } from './clientShared';
 import { ShareRequestsPanel } from './ShareRequests';
+import type { PageFrame } from './PeopleAccessPage';
 import { orgStepUp, ROLE_LABEL } from './shared';
 import './people.css';
 
@@ -91,15 +92,23 @@ const dayAfter = (d: string) => {
  * - Histórico: somente consulta — responsável, data, alvo e mudanças, inclusive o uso da exceção do convite de Cliente.
  *   Quem só gerencia acesso de clientes vê só os atos de cliente; a auditoria inteira continua com quem administra.
  */
-export function AccessHistoryPage() {
+export function AccessHistoryPage({
+  tab: shown,
+  frame,
+}: {
+  tab: 'compartilhamentos' | 'historico';
+  frame: PageFrame;
+}) {
   const { org, expired } = useSession();
   const { workspaces, permissions } = useInternalArea();
   const filters = useUrlFilters<FilterKey>({
     statuses: [...SITUATIONS, ...CATEGORIES],
     ids: ['pessoa', 'cliente', 'workspace', 'automacao', 'maquina', 'concessao'],
     texts: ['aba', 'de', 'ate'],
+    keep: ['aba'],
   });
-  const tab = filters.ids.aba === 'historico' ? 'historico' : 'concessoes';
+  // a aba vem da página "Pessoas e acessos" (?aba=); aqui só se escolhe o conteúdo
+  const tab = shown === 'historico' ? 'historico' : 'concessoes';
   const situations = filters.statuses.filter((s): s is AccessGrantSituation => (SITUATIONS as string[]).includes(s));
   const categories = filters.statuses.filter((s): s is AccessHistoryCategory => (CATEGORIES as string[]).includes(s));
   const [refresh, setRefresh] = useState(0);
@@ -173,9 +182,6 @@ export function AccessHistoryPage() {
 
   const [act, setAct] = useState<Act | null>(null);
   const [notice, setNotice] = useState<{ tone: 'success' | 'warning'; text: string } | null>(null);
-  const setTab = (t: 'concessoes' | 'historico') => {
-    filters.setText('aba', t === 'historico' ? 'historico' : '');
-  };
   const showHistoryOf = (g: AccessGrant) => {
     filters.setMany({ concessao: g.grantId, aba: 'historico' });
     requestAnimationFrame(() => document.getElementById('aba-historico')?.focus());
@@ -357,59 +363,24 @@ export function AccessHistoryPage() {
     </Card>
   );
 
-  const tabs: { id: 'concessoes' | 'historico'; label: string }[] = [
-    { id: 'concessoes', label: 'Concessões' },
-    { id: 'historico', label: 'Histórico' },
-  ];
-
-  return (
+  return frame({
+    onRefresh: forbidden ? undefined : () => setRefresh((n) => n + 1),
+    refreshing: list.status === 'loading' && refresh > 0,
+    children: (
     <Stack gap={5}>
-      <PageHeader
-        title="Acessos e histórico"
-        subtitle="Acessos concedidos a clientes e o histórico de cada concessão, alteração e revogação."
-        onRefresh={forbidden ? undefined : () => setRefresh((n) => n + 1)}
-        refreshing={list.status === 'loading' && refresh > 0}
-      />
-      <nav aria-label="Voltar" className="pw-people__shortcuts">
-        <Link as={RouterLink} to={orgPath.people(org)}>
-          ← Pessoas e acessos
-        </Link>
-        {canAct && (
+      {canAct && tab === 'concessoes' && (
+        <nav aria-label="Outros acessos" className="pw-people__shortcuts">
           <Link as={RouterLink} to={orgPath.workspaceGrants(org)} arrow>
             Concessões por ambiente inteiro (modelo anterior)
           </Link>
-        )}
-      </nav>
+        </nav>
+      )}
       {notice && (
         <Alert tone={notice.tone} role={notice.tone === 'success' ? 'status' : 'alert'}>
           {notice.text}
         </Alert>
       )}
-      <div className="pw-exec__tabs" role="tablist" aria-label="Acessos e histórico">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            id={`aba-${t.id}`}
-            aria-selected={tab === t.id}
-            aria-controls="painel-acessos"
-            tabIndex={tab === t.id ? 0 : -1}
-            className={`pw-exec__tab${tab === t.id ? ' pw-exec__tab--active' : ''}`}
-            onClick={() => setTab(t.id)}
-            onKeyDown={(ev) => {
-              if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') {
-                const other = t.id === 'concessoes' ? 'historico' : 'concessoes';
-                setTab(other);
-                requestAnimationFrame(() => document.getElementById(`aba-${other}`)?.focus());
-              }
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-      <div id="painel-acessos" role="tabpanel" aria-labelledby={`aba-${tab}`}>
+      <div>
         {forbidden ? (
           <ForbiddenState area={tab === 'concessoes' ? 'as concessões desta organização' : 'o histórico de acessos desta organização'} onRetry={list.reload} />
         ) : (
@@ -500,5 +471,6 @@ export function AccessHistoryPage() {
         <Text>Remove só este acesso; vale na próxima consulta da pessoa, mesmo com a sessão dela aberta.</Text>
       </StepUpDialog>
     </Stack>
-  );
+    ),
+  });
 }

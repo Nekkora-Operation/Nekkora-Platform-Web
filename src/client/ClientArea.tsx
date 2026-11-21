@@ -85,15 +85,19 @@ function ClientError({ error, onRetry, forbidden }: { error: unknown; onRetry?: 
   );
 }
 
-/** O estado da execução em linguagem simples, sempre com texto (a cor nunca fala sozinha). */
+/**
+ * O estado da execução em linguagem simples, sempre com texto (a cor nunca fala sozinha), SEM mudar o significado do estado
+ * interno: "Concluída" é só o sucesso confirmado; código de saída zero sem confirmação de sucesso (no_error_signaled) continua
+ * separado, assim como o resultado desconhecido (unconfirmed: não se sabe como terminou).
+ */
 export const CLIENT_OUTCOME: Record<SharedOutcome, { label: string; tone: 'neutral' | 'info' | 'success' | 'danger' | 'warning' }> = {
   succeeded: { label: 'Concluída', tone: 'success' },
-  failed: { label: 'Não concluída', tone: 'danger' },
+  failed: { label: 'Terminou com erro', tone: 'danger' },
   in_progress: { label: 'Em andamento', tone: 'info' },
   cancelled: { label: 'Cancelada', tone: 'neutral' },
   not_started: { label: 'Não iniciada', tone: 'neutral' },
-  unconfirmed: { label: 'Aguardando confirmação', tone: 'warning' },
-  no_error_signaled: { label: 'Terminou sem aviso de erro', tone: 'neutral' },
+  unconfirmed: { label: 'Resultado desconhecido', tone: 'warning' },
+  no_error_signaled: { label: 'Terminou sem confirmação de sucesso', tone: 'neutral' },
 };
 
 function OutcomeBadge({ outcome }: { outcome: SharedOutcome | null }) {
@@ -265,7 +269,7 @@ function AutomationCard({ org, a }: { org: string; a: SharedAutomation }) {
             <div className="pw-client__stats" aria-label={`Indicadores de ${a.name} nos últimos 30 dias`} role="group">
               <Stat value={d.executionsLast30Days} label="execuções" />
               <Stat value={d.succeededLast30Days} label="concluídas" />
-              <Stat value={d.failedLast30Days} label="não concluídas" />
+              <Stat value={d.failedLast30Days} label="com erro" />
               <Stat value={d.inProgress} label="em andamento" />
             </div>
             <Link as={RouterLink} to={clientPath.automation(org, a.automationId)} arrow aria-label={`Ver o dashboard de ${a.name}`}>
@@ -345,9 +349,11 @@ export function ClientAutomationPage() {
               <div className="pw-client__stats pw-client__stats--wide" role="group" aria-label="Indicadores do período">
                 <Stat value={summary.data.total} label="execuções" />
                 <Stat value={summary.data.succeeded} label="concluídas" />
-                <Stat value={summary.data.failed} label="não concluídas" />
+                <Stat value={summary.data.failed} label="com erro" />
                 <Stat value={summary.data.inProgress} label="em andamento" />
-                <Stat value={summary.data.notStarted + summary.data.cancelled + summary.data.other} label="outras" />
+                <Stat value={summary.data.noErrorSignaled} label="sem confirmação de sucesso" />
+                <Stat value={summary.data.unconfirmed} label="resultado desconhecido" />
+                <Stat value={summary.data.notStarted + summary.data.cancelled} label="não iniciadas ou canceladas" />
               </div>
             </Card>
           )}

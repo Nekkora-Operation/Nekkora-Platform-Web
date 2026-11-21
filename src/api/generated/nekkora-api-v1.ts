@@ -4094,8 +4094,10 @@ export interface components {
             inProgress: number;
             notStarted: number;
             cancelled: number;
-            /** @description sem confirmacao ou concluida sem sinal de erro */
-            other: number;
+            /** @description resultado desconhecido (nao se sabe como terminou) */
+            unconfirmed: number;
+            /** @description terminou com codigo 0 sem confirmacao de sucesso (nunca conta como concluida) */
+            noErrorSignaled: number;
             /** Format: date-time */
             lastRequestedAt: string | null;
             lastOutcome: components["schemas"]["PortalOutcome"] | null;

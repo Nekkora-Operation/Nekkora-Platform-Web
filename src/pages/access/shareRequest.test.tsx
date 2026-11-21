@@ -7,6 +7,7 @@ import { createOperationRegistry, setOperationRegistryForTest } from '../../api/
 import { OperationScopeProvider } from '../../components/operationScope';
 import { fakeLocks } from '../../test/fakeLocks';
 import { RouteApi } from '../../test/routeApi';
+import { confirmWhenReady } from '../../test/dialog';
 import { ShareAutomationPanel } from './ShareRequests';
 
 /**
@@ -71,7 +72,7 @@ describe('pedido de compartilhamento do membro', () => {
     expect(screen.getByLabelText(/^Nome da pessoa/)).toHaveValue('Pedro');
     fireEvent.click(screen.getByRole('button', { name: 'Revisar pedido' }));
     const d = await screen.findByRole('alertdialog', { name: 'Pedir o compartilhamento de Robô de notas com Pedro?' });
-    fireEvent.click(within(d).getByRole('button', { name: 'Enviar pedido' }));
+    await confirmWhenReady(d, 'Enviar pedido');
     expect(await screen.findByText('Pedido enviado para aprovação. Nada foi enviado à pessoa ainda.')).toBeInTheDocument();
     expect(api.sent('POST', `/api/v1/o/${ORG}/client-share-requests`)[0].body).toEqual({
       email: 'pedro@cliente.com', name: 'Pedro', automationId: A1, workerId: null, canViewDashboard: true, canDownloadResults: false,

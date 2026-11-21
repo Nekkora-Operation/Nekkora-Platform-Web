@@ -62,7 +62,7 @@ describe('área do cliente', () => {
     expect(cards.getAllByRole('listitem')).toHaveLength(2);
     const ind = within(cards.getByRole('group', { name: 'Indicadores de Conciliação nos últimos 30 dias' }));
     expect(ind.getByText('4')).toBeInTheDocument();
-    expect(ind.getByText('não concluídas')).toBeInTheDocument();
+    expect(ind.getByText('com erro')).toBeInTheDocument();
     expect(cards.getByText('Concluída')).toBeInTheDocument();
     expect(cards.getByText('O dashboard desta automação não foi compartilhado com você.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Ver arquivos de retorno' })).toBeInTheDocument();
@@ -74,17 +74,31 @@ describe('área do cliente', () => {
     api.on('GET', `${P}/shared-automations`, 'portalSharedAutomations', { status: 200, body: { items: [withDashboard] } });
     api.on('GET', new RegExp(`^${P}/shared-automations/${A1}/summary`), 'portalSharedSummary', {
       status: 200,
-      body: { from: T, to: T, total: 4, succeeded: 3, failed: 1, inProgress: 0, notStarted: 0, cancelled: 0, other: 0, lastRequestedAt: T, lastOutcome: 'succeeded' },
+      body: { from: T, to: T, total: 6, succeeded: 3, failed: 1, inProgress: 0, notStarted: 0, cancelled: 0, unconfirmed: 1, noErrorSignaled: 1, lastRequestedAt: T, lastOutcome: 'succeeded' },
     });
     api.on('GET', new RegExp(`^${P}/shared-automations/${A1}/executions`), 'portalSharedExecutions', {
       status: 200,
-      body: { items: [{ id: EX, requestedAt: T, startedAt: T, endedAt: T, outcome: 'failed', files: 1 }], nextCursor: null },
+      body: {
+        items: [
+          { id: EX, requestedAt: T, startedAt: T, endedAt: T, outcome: 'failed', files: 1 },
+          { id: ID(73), requestedAt: T, startedAt: T, endedAt: T, outcome: 'no_error_signaled', files: null },
+          { id: ID(74), requestedAt: T, startedAt: T, endedAt: null, outcome: 'unconfirmed', files: null },
+        ],
+        nextCursor: null,
+      },
     });
     renderApp(`/cliente/o/${ORG}/automacoes/${A1}`);
     const stats = within(await screen.findByRole('group', { name: 'Indicadores do período' }));
-    expect(stats.getByText('3')).toBeInTheDocument();
+    // código zero sem confirmação e resultado desconhecido não entram em "concluídas" e continuam distinguíveis
+    const tile = (label: string) => stats.getByText(label).previousElementSibling?.textContent;
+    expect(tile('concluídas')).toBe('3');
+    expect(tile('sem confirmação de sucesso')).toBe('1');
+    expect(tile('resultado desconhecido')).toBe('1');
     const list = within(await screen.findByRole('list', { name: 'Execuções' }));
-    expect(list.getByText('Não concluída')).toBeInTheDocument();
+    expect(list.getByText('Terminou com erro')).toBeInTheDocument();
+    expect(list.getByText('Terminou sem confirmação de sucesso')).toBeInTheDocument();
+    expect(list.getByText('Resultado desconhecido')).toBeInTheDocument();
+    expect(list.queryAllByText('Concluída')).toHaveLength(0);
     expect(list.getByRole('link', { name: '1 arquivo de retorno' })).toBeInTheDocument();
     // o período escolhido vai para o Portal (que aplica o escopo de automação e máquina)
     expect(api.calls.filter((c) => /\/summary\?from=.*&to=/.test(c.url)).length).toBeGreaterThan(0);

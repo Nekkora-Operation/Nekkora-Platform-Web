@@ -37,11 +37,12 @@ import {
 } from '../../admin/writeStore';
 import { StepUpDialog } from '../../components/StepUpDialog';
 import { useCursorList } from '../../hooks/useCursorList';
-import { DateTimeText, LoadErrorState, PageHeader, useExpiresOn } from '../product/shared';
+import { DateTimeText, LoadErrorState, useExpiresOn } from '../product/shared';
 import { ACTION_LABEL, effectiveStatus, findMember, MEMBER_UNCERTAIN_COPY, MemberActionDialog, type ActionDialogState } from '../admin/memberActions';
 import { effectiveMfaConfigured, findMfa, MFA_UNCERTAIN_COPY, MfaResetDialog, mfaTarget, type MfaResetDialogState } from '../admin/mfaResetActions';
 import { UncertainPanel, type UncertainCopy } from '../admin/uncertainPanel';
 import { ADMIN_PAGE, AccountStatusBadge, AdminLoadMore, ForbiddenState, StatusFilter, useAccessDenied, useUrlFilters } from '../admin/shared';
+import type { PageFrame } from './PeopleAccessPage';
 import { MemberAccessDialog, type AccessSaved, type AccessTarget } from './MemberAccessDialog';
 import { ClientAccessDialog, type ClientAccessSaved } from './ClientAccessDialog';
 import {
@@ -138,7 +139,8 @@ type InvitationAct =
  * página de Membros, com o mesmo registro de escritas incertas). Formulário e ações só para quem tem a permissão; a API
  * continua decidindo.
  */
-export function PeoplePage() {
+/** A aba "Pessoas" de "Pessoas e acessos" (o título, as abas e o "Atualizar" ficam na página: PeopleAccessPage). */
+export function PeoplePage({ frame }: { frame: PageFrame }) {
   const { org, expired } = useSession();
   const { permissions, workspaces } = useInternalArea();
   const filters = useUrlFilters<PersonSituation>({ statuses: SITUATION_ORDER, ids: ['acessos', 'cliente'], texts: ['q'] });
@@ -620,28 +622,16 @@ export function PeoplePage() {
   const listRegion = () => document.querySelector<HTMLElement>('[aria-label="Lista de pessoas e convites"]');
   const filtered = filters.statuses.length > 0 || !!search;
 
-  return (
+  return frame({
+    onRefresh: forbidden ? undefined : () => setRefresh((n) => n + 1),
+    refreshing: list.status === 'loading' && refresh > 0,
+    children: (
     <Stack gap={5}>
-      <PageHeader
-        title="Pessoas e acessos"
-        subtitle={
-          canManage
-            ? 'Convide pessoas e gerencie os acessos de quem já está na organização. Convites pendentes aparecem primeiro.'
-            : 'Pessoas da organização e convites. Somente consulta.'
-        }
-        onRefresh={forbidden ? undefined : () => setRefresh((n) => n + 1)}
-        refreshing={list.status === 'loading' && refresh > 0}
-      />
       {(canManage || canExternal) && (
-        <nav className="pw-people__shortcuts" aria-label="Clientes e histórico de acessos">
+        <nav className="pw-people__shortcuts" aria-label="Cadastro de clientes">
           <Link as={RouterLink} to={orgPath.clientsManage(org)} arrow>
             Gerenciar clientes
           </Link>
-          {canExternal && (
-            <Link as={RouterLink} to={orgPath.accessHistory(org)} arrow>
-              Acessos e histórico
-            </Link>
-          )}
         </nav>
       )}
       <StatusRegion aria-label="Resultado das ações" message={announce?.text} announceKey={announce?.n} />
@@ -996,5 +986,6 @@ export function PeoplePage() {
         }}
       />
     </Stack>
-  );
+    ),
+  });
 }

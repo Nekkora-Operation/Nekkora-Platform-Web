@@ -6,6 +6,7 @@ import { sessionMemory } from '../../app/notices';
 import { fakeLocks } from '../../test/fakeLocks';
 import { renderApp } from '../../test/render';
 import { RouteApi } from '../../test/routeApi';
+import { confirmWhenReady } from '../../test/dialog';
 
 /**
  * PLATFORM-FLUXO-002 (070/071) — clientes e acessos de cliente, contra respostas conferidas pelo contrato: o compartilhamento
@@ -178,7 +179,7 @@ describe('compartilhamento por pessoa (convite de Cliente)', () => {
     const d = await screen.findByRole('alertdialog', { name: 'Compartilhar Conciliação com Nova Pessoa?' });
     for (const t of ['Nova Pessoa (nova@cliente.com)', 'Conciliação', 'Fiscal', 'Estação fiscal', 'Dashboard de execução e arquivos de retorno', 'Criado ou reutilizado com o nome da pessoa'])
       expect(d).toHaveTextContent(t);
-    fireEvent.click(within(d).getByRole('button', { name: 'Compartilhar e enviar convite' }));
+    await confirmWhenReady(d, 'Compartilhar e enviar convite');
     expect(await screen.findByText('Compartilhamento enviado por convite. O acesso só começa quando a pessoa aceitar.', {}, { timeout: 5000 })).toBeInTheDocument();
     expect(api.sent('POST', `/api/v1/o/${ORG}/client-invitations`).map((c) => c.body)).toEqual([
       { email: 'nova@cliente.com', name: 'Nova Pessoa', clientId: null, automationId: A1, workerId: W1, canViewDashboard: true, canDownloadResults: true },
@@ -206,7 +207,7 @@ describe('compartilhamento por pessoa (convite de Cliente)', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /Dashboard de execução/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Convidar' }));
     const d = await screen.findByRole('alertdialog', { name: /Compartilhar Folha interna com Ana\?/ });
-    fireEvent.click(within(d).getByRole('button', { name: 'Compartilhar e enviar convite' }));
+    await confirmWhenReady(d, 'Compartilhar e enviar convite');
     expect(await within(d).findByText(/já é membro interno da organização. Um convite de Cliente não reduziria/, {}, { timeout: 5000 })).toBeInTheDocument();
   });
 
@@ -263,7 +264,7 @@ describe('pessoa de cliente na tabela e o modal', () => {
     const changes = within(d).getByRole('list', { name: 'Mudanças a salvar' });
     expect(changes).toHaveTextContent('Revogar: Conciliação');
     expect(changes).toHaveTextContent('Reduzir Folha interna');
-    fireEvent.click(within(d).getByRole('button', { name: 'Salvar acessos' }));
+    await confirmWhenReady(d, 'Salvar acessos');
     expect(await screen.findByText('Acessos de Carla Cliente salvos.')).toBeInTheDocument();
     expect(api.sent('POST', /client-automation-grants/).map((c) => new URL(c.url, 'http://x').pathname)).toEqual([
       `/api/v1/o/${ORG}/client-automation-grants/${G1}/revoke`,
@@ -286,7 +287,7 @@ describe('pessoa de cliente na tabela e o modal', () => {
     fireEvent.change(within(d).getByLabelText(/^Máquina/), { target: { value: W2 } });
     fireEvent.click(within(d).getByRole('checkbox', { name: 'Ver e baixar os arquivos de retorno' }));
     expect(within(d).getByRole('list', { name: 'Mudanças a salvar' })).toHaveTextContent('fica pendente até outra pessoa aprovar');
-    fireEvent.click(within(d).getByRole('button', { name: 'Salvar acessos' }));
+    await confirmWhenReady(d, 'Salvar acessos');
     expect(await screen.findByText(/O novo compartilhamento aguarda a aprovação de outra pessoa/)).toBeInTheDocument();
     expect(api.sent('POST', `/api/v1/o/${ORG}/client-automation-grants`)[0].body).toEqual({
       clientMembershipId: CM, automationId: A2, workerId: W2, canViewDashboard: true, canDownloadResults: true,
@@ -294,7 +295,7 @@ describe('pessoa de cliente na tabela e o modal', () => {
   });
 });
 
-describe('Acessos e histórico', () => {
+describe('Pessoas e acessos: abas Compartilhamentos e Histórico', () => {
   beforeEach(() => {
     api.on('GET', `/api/v1/o/${ORG}/access-grants`, 'listAccessGrants', {
       status: 200,
@@ -326,9 +327,10 @@ describe('Acessos e histórico', () => {
       body: { grantId: G2, status: 'ATIVA', basis: 'SEGUNDA_PESSOA', clientId: CLIENT, clientMembershipId: CM, workspaceId: WS, automationId: A2, workerId: null, canViewDashboard: true, canDownloadResults: false, replacesGrantId: null },
     });
     api.on('POST', `/api/v1/o/${ORG}/auth/mfa/step-up`, 'mfaStepUp', { status: 204 });
-    renderApp(`/o/${ORG}/administracao/pessoas/acessos`);
+    renderApp(`/o/${ORG}/administracao/pessoas/acessos`); // endereço anterior: redireciona para a aba Compartilhamentos
+    await waitFor(() => expect(location()).toBe(`/o/${ORG}/administracao/pessoas`));
     const list = within(await screen.findByRole('region', { name: 'Lista de concessões de clientes' }));
-    expect(screen.getByRole('tab', { name: 'Concessões' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Compartilhamentos' })).toHaveAttribute('aria-selected', 'true');
     const rows = list.getAllByRole('row').slice(1);
     expect(rows[0]).toHaveTextContent('Aguardando aprovação');
     expect(rows[1]).toHaveTextContent('Pelo convite de cliente (exceção registrada)');
@@ -380,7 +382,7 @@ describe('Acessos e histórico', () => {
       },
     });
     api.on('POST', `/api/v1/o/${ORG}/auth/mfa/step-up`, 'mfaStepUp', { status: 204 });
-    renderApp(`/o/${ORG}/administracao/pessoas/acessos`);
+    renderApp(`/o/${ORG}/administracao/pessoas?aba=compartilhamentos`);
     const panel = within(await screen.findByRole('list', { name: 'Pedidos de compartilhamento aguardando decisão' }));
     expect(panel.getByText('Pedro Pedido (pedro@cliente.com)')).toBeInTheDocument();
     expect(panel.getByText(/Só o dashboard de execução/)).toBeInTheDocument();
@@ -392,7 +394,7 @@ describe('Acessos e histórico', () => {
 
   it('endereços antigos: Auditoria abre o Histórico; Clientes e Concessões conservam os filtros', async () => {
     renderApp(`/o/${ORG}/administracao/auditoria`);
-    await waitFor(() => expect(location()).toBe(`/o/${ORG}/administracao/pessoas/acessos`));
+    await waitFor(() => expect(location()).toBe(`/o/${ORG}/administracao/pessoas`)); // ?aba=historico (o probe mostra só o caminho)
     expect(await screen.findByRole('region', { name: 'Histórico de acessos' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Histórico' })).toHaveAttribute('aria-selected', 'true');
   });

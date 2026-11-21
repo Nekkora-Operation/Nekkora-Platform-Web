@@ -59,11 +59,11 @@ async function setup(page: Page) {
 
 /**
  * PLATFORM-FLUXO-002 (070): as concessões por ambiente inteiro (com as decisões de antes) ficam em Pessoas e acessos →
- * Acessos e histórico → "Concessões por ambiente inteiro"; a navegação continua dentro da mesma página (sem recarregar).
+ * aba Compartilhamentos → "Concessões por ambiente inteiro"; a navegação continua dentro da mesma página (sem recarregar).
  */
 async function goGrants(page: Page) {
   await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Pessoas e acessos' }).click();
-  await page.getByRole('link', { name: 'Acessos e histórico' }).click();
+  await page.getByRole('tab', { name: 'Compartilhamentos' }).click();
   await page.getByRole('link', { name: /Concessões por ambiente inteiro/ }).click();
   await page.getByRole('region', { name: 'Lista de concessões' }).waitFor();
 }

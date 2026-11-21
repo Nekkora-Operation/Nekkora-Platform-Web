@@ -304,7 +304,7 @@ test('Compartilhamento por pessoa: dashboard e arquivos de retorno, sem registro
   await expect(pagW.getByRole('region', { name: 'Pedidos de compartilhamento de Robô de notas' })).toContainText('Aguardando aprovação');
   expect(messages('ORG_INVITATION', pedro.email), 'nada enviado antes da aprovação').toBe(0);
   const convidarDireto = await pagW.evaluate(async (o) => (await fetch(`/api/v1/o/${o}/client-invitations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, org);
-  await go(page, `/o/${org}/administracao/pessoas/acessos`);
+  await go(page, `/o/${org}/administracao/pessoas?aba=compartilhamentos`);
   const painel = page.getByRole('list', { name: 'Pedidos de compartilhamento aguardando decisão' });
   await expect(painel).toContainText(pedro.name);
   await shot(page, '4-pedido-para-aprovar');
@@ -346,7 +346,7 @@ test('Compartilhamento por pessoa: dashboard e arquivos de retorno, sem registro
   log('5_arquivos_de_retorno', pedroApi);
 
   // ------------------------------------------------ 6. revogar com a sessão aberta; histórico preservado
-  await go(page, `/o/${org}/administracao/pessoas/acessos?cliente=${evaClienteId}`);
+  await go(page, `/o/${org}/administracao/pessoas?aba=compartilhamentos&cliente=${evaClienteId}`);
   await page.getByRole('region', { name: 'Lista de concessões de clientes' }).locator('tbody tr').filter({ hasText: 'Ativa' }).getByRole('button', { name: /^Revogar Robô de notas/ }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Revogar' }).click();
   await expect(page.getByText('Acesso revogado. Os demais acessos da pessoa continuam valendo.')).toBeVisible();
@@ -356,7 +356,7 @@ test('Compartilhamento por pessoa: dashboard e arquivos de retorno, sem registro
   const atos = hist.body.items.map((e: any) => `${e.type}${e.grantException ? '*' : ''}`);
   for (const t of ['COMPARTILHAMENTO_SOLICITADO', 'COMPARTILHAMENTO_APROVADO', 'CONVITE_EMITIDO*', 'CLIENTE_CONCESSAO_APLICADA_NO_ACEITE*', 'CLIENTE_CONCESSAO_REVOGADA'])
     expect(atos, t).toContain(t);
-  await go(page, `/o/${org}/administracao/pessoas/acessos?aba=historico`);
+  await go(page, `/o/${org}/administracao/pessoas?aba=historico`);
   await expect(page.getByRole('region', { name: 'Histórico de acessos' })).toContainText('Pedido de compartilhamento aprovado');
   await shot(page, '6-historico');
   log('6_revogacao_e_historico', { revogada_na_proxima_consulta: revogada, atos: atos.slice(0, 15) });
@@ -376,9 +376,9 @@ test('Compartilhamento por pessoa: dashboard e arquivos de retorno, sem registro
     await page.getByText('Opções adicionais', { exact: true }).click();
     await audit(page, `pessoas-compartilhar-${tema}`);
     await shot(page, `7-pessoas-compartilhar-${tema}`);
-    await go(page, `/o/${org}/administracao/pessoas/acessos`);
+    await go(page, `/o/${org}/administracao/pessoas?aba=compartilhamentos`);
     await audit(page, `acessos-${tema}`);
-    await go(page, `/o/${org}/administracao/pessoas/acessos?aba=historico`);
+    await go(page, `/o/${org}/administracao/pessoas?aba=historico`);
     await audit(page, `historico-${tema}`);
   }
   await go(page, `/o/${org}/conta`);

@@ -6,6 +6,7 @@ import { sessionMemory } from '../../app/notices';
 import { fakeLocks } from '../../test/fakeLocks';
 import { renderApp } from '../../test/render';
 import { RouteApi } from '../../test/routeApi';
+import { confirmWhenReady } from '../../test/dialog';
 
 /**
  * PLATFORM-FLUXO-002 — "Pessoas e acessos": membros e convites numa tabela só (ordem da API: pendentes primeiro, depois
@@ -119,10 +120,15 @@ const peopleCalls = () => api.sent('GET', `/api/v1/o/${ORG}/people`);
 const query = (i = -1) => new URL(peopleCalls().at(i)!.url, 'http://x').searchParams;
 
 describe('Pessoas e acessos: a tabela', () => {
-  it('uma tabela, sem abas: convite pendente primeiro, depois membros; colunas e diferenciação de convite e membro; ações pelo tipo', async () => {
+  it('uma tabela, sem abas internas: convite pendente primeiro, depois membros; colunas e diferenciação de convite e membro; ações pelo tipo', async () => {
     renderApp(`/o/${ORG}/administracao/pessoas`);
     const t = await table();
-    expect(screen.queryByRole('tablist')).toBeNull();
+    // as abas são as da página (como Execuções); dentro da aba Pessoas, membros e convites ficam na mesma tabela, sem outras abas
+    const tabs = screen.getByRole('tablist', { name: 'Pessoas e acessos' });
+    // sem external_access.manage, a aba Compartilhamentos não aparece
+    expect(within(tabs).getAllByRole('tab').map((x) => x.textContent)).toEqual(['Pessoas', 'Histórico']);
+    expect(within(tabs).getByRole('tab', { name: 'Pessoas' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(screen.getByRole('tabpanel')).queryByRole('tablist')).toBeNull();
     expect(t.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Pessoa/e-mail', 'Perfil', 'Situação', 'Data', 'Ações']);
     const rows = t.getAllByRole('row').slice(1);
     expect(rows.map((r) => within(r).getAllByRole('cell')[0].textContent)).toEqual([
@@ -168,13 +174,13 @@ describe('Pessoas e acessos: a tabela', () => {
     const before = peopleCalls().length;
     fireEvent.change(screen.getByLabelText(/^E-mail da pessoa/), { target: { value: 'outra@empresa.com' } });
     fireEvent.change(screen.getByLabelText(/^Perfil \(opcional\)/), { target: { value: 'OPERATOR' } });
-    fireEvent.change(await screen.findByLabelText(/^Ambiente de trabalho do perfil/, {}, { timeout: 5000 }), { target: { value: WS } });
+    fireEvent.change(await screen.findByLabelText(/^Ambiente de trabalho do perfil/), { target: { value: WS } });
     fireEvent.click(screen.getByRole('button', { name: 'Convidar' }));
-    const d = await screen.findByRole('alertdialog', { name: 'Convidar outra@empresa.com?' }, { timeout: 5000 });
-    fireEvent.click(within(d).getByRole('button', { name: 'Enviar convite' }));
-    expect(await screen.findByText('Convite enviado. A pessoa recebe o link por e-mail.', {}, { timeout: 10000 })).toBeInTheDocument();
+    const d = await screen.findByRole('alertdialog', { name: 'Convidar outra@empresa.com?' });
+    await confirmWhenReady(d, 'Enviar convite');
+    expect(await screen.findByText('Convite enviado. A pessoa recebe o link por e-mail.', {}, { timeout: 5000 })).toBeInTheDocument();
     expect(api.sent('POST', `/api/v1/o/${ORG}/invitations`)[0].body).toEqual({ email: 'outra@empresa.com', role: 'OPERATOR', workspaceId: WS });
-    await waitFor(() => expect(peopleCalls().length).toBeGreaterThan(before), { timeout: 5000 });
+    await waitFor(() => expect(peopleCalls().length).toBeGreaterThan(before));
   });
 
   it('sem org.manage: a API recusa (403) e a tela não mostra formulário, dados nem ações', async () => {
@@ -235,7 +241,7 @@ describe('Gerenciar acessos (modal)', () => {
     fireEvent.change(within(d).getByLabelText('Ambiente de trabalho'), { target: { value: ID(12) } });
     fireEvent.click(within(d).getByRole('button', { name: 'Acrescentar' }));
     expect(within(d).getByRole('list', { name: 'Acessos a acrescentar' })).toHaveTextContent('Operação · Compras');
-    fireEvent.click(within(d).getByRole('button', { name: 'Salvar acessos' }));
+    await confirmWhenReady(d, 'Salvar acessos');
     expect(await screen.findByText('Acessos de Bruno Lima salvos.')).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
     expect(api.sent('POST', `/api/v1/o/${ORG}/role-assignments/${ID(40)}/replace`)[0].body).toEqual({ role: 'VIEWER' });
@@ -259,7 +265,7 @@ describe('Gerenciar acessos (modal)', () => {
     fireEvent.change(within(d).getByLabelText('Perfil em Fiscal'), { target: { value: 'VIEWER' } });
     fireEvent.change(within(d).getByLabelText('Perfil'), { target: { value: 'ORG_ADMIN' } });
     fireEvent.click(within(d).getByRole('button', { name: 'Acrescentar' }));
-    fireEvent.click(within(d).getByRole('button', { name: 'Salvar acessos' }));
+    await confirmWhenReady(d, 'Salvar acessos');
     expect(await screen.findByText(/Parte dos acessos de .* foi salva\. Ficou de fora: atribuir Administração da organização/)).toBeInTheDocument();
   });
 
@@ -269,7 +275,7 @@ describe('Gerenciar acessos (modal)', () => {
     const d = await screen.findByRole('alertdialog', { name: /Gerenciar acessos de/ });
     await within(d).findByRole('list', { name: 'Acessos atuais' });
     fireEvent.click(within(d).getByRole('button', { name: 'Revogar Operação · Fiscal' }));
-    fireEvent.click(within(d).getByRole('button', { name: 'Salvar acessos' }));
+    await confirmWhenReady(d, 'Salvar acessos');
     expect(await within(d).findByText(/Nada foi alterado\./)).toBeInTheDocument();
     expect(screen.getByRole('alertdialog')).toBeInTheDocument();
   });

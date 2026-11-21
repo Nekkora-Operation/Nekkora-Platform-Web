@@ -68,12 +68,14 @@ export const orgPath = {
   /** PLATFORM-FLUXO-002 (070): cadastro de clientes dentro de "Pessoas e acessos" ("Gerenciar clientes"). */
   clientsManage: (org: string, clientId?: string) =>
     `/o/${org}/administracao/pessoas/clientes${clientId ? `?cliente=${encodeURIComponent(clientId)}` : ''}`,
-  /** PLATFORM-FLUXO-002 (070): "Acessos e histórico" (abas Concessões e Histórico), com os filtros no endereço. */
+  /**
+   * "Pessoas e acessos", abas Compartilhamentos (padrão) ou Histórico (`aba: 'historico'`), com os filtros no endereço. O
+   * endereço antigo /administracao/pessoas/acessos redireciona para cá.
+   */
   accessHistory: (org: string, params?: Record<string, string | undefined>) => {
-    const q = new URLSearchParams();
-    for (const [k, v] of Object.entries(params ?? {})) if (v) q.set(k, v);
-    const s = q.toString();
-    return `/o/${org}/administracao/pessoas/acessos${s ? `?${s}` : ''}`;
+    const q = new URLSearchParams({ aba: params?.aba === 'historico' ? 'historico' : 'compartilhamentos' });
+    for (const [k, v] of Object.entries(params ?? {})) if (v && k !== 'aba') q.set(k, v);
+    return `/o/${org}/administracao/pessoas?${q.toString()}`;
   },
   /** As concessões por ambiente inteiro (modelo anterior), com as decisões de antes (aprovar, renovar, revisar, revogar). */
   workspaceGrants: (org: string) => `/o/${org}/administracao/pessoas/acessos/ambientes`,

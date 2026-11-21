@@ -93,7 +93,8 @@ test('ORG_ADMIN: menu Administração → Membros (paginação e filtro na URL, 
   await audit(page, 'f6a1-clientes');
   await page.getByRole('button', { name: 'Ver detalhes de Banco Exemplo S.A.' }).click();
   await page.getByRole('link', { name: /Ver concessões e histórico deste cliente/ }).click();
-  await expect(page).toHaveURL(org(`/administracao/pessoas/acessos?cliente=${stableUuid('dev:client:banco')}`));
+  await expect(page).toHaveURL(org(`/administracao/pessoas?aba=compartilhamentos&cliente=${stableUuid('dev:client:banco')}`));
+  await expect(page.getByRole('tab', { name: 'Compartilhamentos' })).toHaveAttribute('aria-selected', 'true');
   await expect(rows(page, 'Lista de concessões de clientes')).toHaveCount(3);
   await expect(page.getByRole('combobox', { name: 'Cliente' })).toHaveValue(stableUuid('dev:client:banco'));
   await audit(page, 'f6a1-concessoes');

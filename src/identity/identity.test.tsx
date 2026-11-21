@@ -259,6 +259,8 @@ describe('rodapé do menu e "Vincular conta antiga" (PLATFORM-INICIO-001)', () =
     expect(screen.getByText('Platform Web')).toBeInTheDocument();
     expect(screen.getByText('Platform API')).toBeInTheDocument();
     expect(screen.getByText('Nekkora-lib')).toBeInTheDocument();
+    // com a verificação em duas etapas ativa, o tema também se escolhe aqui (um seletor só) — inclusive para quem é só cliente
+    expect(screen.getAllByRole('group', { name: 'Tema' })).toHaveLength(1);
   });
 });
 

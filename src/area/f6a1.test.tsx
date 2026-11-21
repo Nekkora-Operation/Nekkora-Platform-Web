@@ -117,7 +117,9 @@ describe('navegação pela P01', () => {
     expect(within(nav()).queryByRole('link', { name: 'Auditoria de acessos' })).toBeNull();
     // os atalhos ficam na própria página
     expect(screen.getByRole('link', { name: /Gerenciar clientes/ })).toHaveAttribute('href', clients);
-    expect(screen.getByRole('link', { name: /Acessos e histórico/ })).toHaveAttribute('href', `${base}/administracao/pessoas/acessos`);
+    // Compartilhamentos e Histórico são abas da própria página (como Execuções)
+    expect(screen.getByRole('tab', { name: 'Compartilhamentos' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Histórico' })).toBeInTheDocument();
     expect(within(nav()).getByText('Administração')).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: 'Pessoas e acessos' })).toBeInTheDocument();
   });
@@ -300,11 +302,15 @@ describe('Clientes', () => {
     await waitFor(() => expect(location).toBe(`${clients}?cliente=${client('acme')}`));
     expect(await screen.findByRole('heading', { level: 2, name: 'ACME Logística' })).toBeInTheDocument();
     const link = await screen.findByRole('link', { name: /Ver concessões e histórico deste cliente/ });
-    expect(link).toHaveAttribute('href', `${base}/administracao/pessoas/acessos?cliente=${client('acme')}`);
+    expect(link).toHaveAttribute('href', `${base}/administracao/pessoas?aba=compartilhamentos&cliente=${client('acme')}`);
     // o endereço antigo de Concessões leva às concessões unificadas, com os filtros
     view.unmount();
     renderAt(`${legacyGrants}?cliente=${client('acme')}&estado=active`);
-    await waitFor(() => expect(location).toBe(`${base}/administracao/pessoas/acessos?estado=active&cliente=${client('acme')}`));
+    await waitFor(() => {
+      const u = new URL(location, 'http://x');
+      expect(u.pathname).toBe(`${base}/administracao/pessoas`);
+      expect([u.searchParams.get('aba'), u.searchParams.getAll('estado'), u.searchParams.get('cliente')]).toEqual(['compartilhamentos', ['active'], client('acme')]);
+    });
     await screen.findByRole('region', { name: 'Lista de concessões de clientes' });
   });
 });

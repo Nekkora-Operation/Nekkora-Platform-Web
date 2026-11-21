@@ -4,7 +4,6 @@ import { PlatformThemeProvider } from "./theme";
 import { clientPath, orgPath } from "../auth/organization";
 import { IdentityFlowProvider } from "../auth/flow";
 import { AcceptInvitationPage } from "../identity/AcceptInvitationPage";
-import { AccessHistoryPage } from "../pages/access/AccessHistoryPage";
 import { ClientAutomationPage, ClientFilesPage, ClientHomePage, ClientOrganizationPage } from "../client/ClientArea";
 import {
   AccountPage,
@@ -29,7 +28,7 @@ import {
 import { AuthenticatedArea } from "../area/AuthenticatedArea";
 import { ClientsPage } from "../pages/admin/ClientsPage";
 import { GrantsPage } from "../pages/admin/GrantsPage";
-import { PeoplePage } from "../pages/access/PeoplePage";
+import { PeopleAccessPage } from "../pages/access/PeopleAccessPage";
 import { ExecutionsPage } from "../pages/ExecutionsPage";
 import { AutomationDetailPage } from "../pages/product/AutomationDetailPage";
 import { NewVersionPage } from "../pages/product/NewVersionPage";
@@ -109,6 +108,15 @@ function LegacyClientExecutionRedirect() {
   return <Navigate to={clientPath.organization(orgId)} replace />;
 }
 
+/** Endereço anterior de "Acessos e histórico" → as abas Compartilhamentos ou Histórico de "Pessoas e acessos", com os filtros. */
+function LegacyAccessHistoryRedirect() {
+  const { orgId = "" } = useParams();
+  const [sp] = useSearchParams();
+  const params = Object.fromEntries([...sp.keys()].filter((k) => k !== "estado").map((k) => [k, sp.get(k) ?? undefined]));
+  const estado = sp.getAll("estado").map((e) => `&estado=${encodeURIComponent(e)}`).join("");
+  return <Navigate to={`${orgPath.accessHistory(orgId, params)}${estado}`} replace />;
+}
+
 function LegacyClientsRedirect() {
   const { orgId = "" } = useParams();
   const [sp] = useSearchParams();
@@ -126,7 +134,7 @@ function LegacyGrantsRedirect() {
   if (sp.get("cliente")) q.set("cliente", sp.get("cliente")!);
   if (sp.get("workspace")) q.set("workspace", sp.get("workspace")!);
   const rest = q.toString();
-  return <Navigate to={`${orgPath.accessHistory(orgId)}${rest ? `?${rest}` : ""}`} replace />;
+  return <Navigate to={`${orgPath.accessHistory(orgId)}${rest ? `&${rest}` : ""}`} replace />;
 }
 
 function LegacyAuditRedirect() {
@@ -236,12 +244,12 @@ export function AppRoutes() {
             <Route path="supervisao/:runId" element={<LegacyAgentRunRedirect />} />
             {/* F6a-1: administração, só leitura; o acesso de cada tela é decidido pela API (403 → estado próprio) */}
             {/* PLATFORM-FLUXO-002: "Pessoas e acessos" (membros e convites); os endereços antigos redirecionam */}
-            <Route path="administracao/pessoas" element={<PeoplePage />} />
+            <Route path="administracao/pessoas" element={<PeopleAccessPage />} />
             <Route path="administracao/membros" element={<LegacyMembersRedirect />} />
             {/* PLATFORM-FLUXO-002 (070): Clientes, Concessões e Auditoria de acessos ficam em "Pessoas e acessos"; os endereços
                 antigos redirecionam, conservando os filtros. As concessões por ambiente inteiro mantêm a página das decisões. */}
             <Route path="administracao/pessoas/clientes" element={<ClientsPage />} />
-            <Route path="administracao/pessoas/acessos" element={<AccessHistoryPage />} />
+            <Route path="administracao/pessoas/acessos" element={<LegacyAccessHistoryRedirect />} />
             <Route path="administracao/pessoas/acessos/ambientes" element={<GrantsPage />} />
             <Route path="administracao/clientes" element={<LegacyClientsRedirect />} />
             <Route path="administracao/concessoes" element={<LegacyGrantsRedirect />} />

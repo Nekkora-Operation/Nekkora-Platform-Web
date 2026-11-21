@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "85c85d5b4aa3397d97c8be7500f5eb6dc91044ac42efd4587ecbbe0d24f54232",
+  "openapiSha256": "2f1a9f5501e6d5a1187a8f19c45dec805e69f479bdc2728b3fa1c79df264b681",
   "schemas": {
     "Error": {
       "type": "object",
@@ -2003,7 +2003,8 @@
         "inProgress",
         "notStarted",
         "cancelled",
-        "other",
+        "unconfirmed",
+        "noErrorSignaled",
         "lastRequestedAt",
         "lastOutcome"
       ],
@@ -2034,7 +2035,10 @@
         "cancelled": {
           "type": "integer"
         },
-        "other": {
+        "unconfirmed": {
+          "type": "integer"
+        },
+        "noErrorSignaled": {
           "type": "integer"
         },
         "lastRequestedAt": {
