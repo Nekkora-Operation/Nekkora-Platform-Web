@@ -1,12 +1,10 @@
-import { Navigate, Outlet, Route, Routes, useParams } from "react-router";
+import { Navigate, Outlet, Route, Routes, useParams, useSearchParams } from "react-router";
 import { features } from "../config";
 import { PlatformThemeProvider } from "./theme";
 import { orgPath } from "../auth/organization";
 import { IdentityFlowProvider } from "../auth/flow";
 import { AcceptInvitationPage } from "../identity/AcceptInvitationPage";
 import { AccessEventsPage } from "../pages/access/AccessEventsPage";
-import { InvitationsPage } from "../pages/access/InvitationsPage";
-import { MemberAccessPage } from "../pages/access/MemberAccessPage";
 import {
   AccountPage,
   ActivateMfaPage,
@@ -30,7 +28,7 @@ import {
 import { AuthenticatedArea } from "../area/AuthenticatedArea";
 import { ClientsPage } from "../pages/admin/ClientsPage";
 import { GrantsPage } from "../pages/admin/GrantsPage";
-import { MembersPage } from "../pages/admin/MembersPage";
+import { PeoplePage } from "../pages/access/PeoplePage";
 import { ExecutionsPage } from "../pages/ExecutionsPage";
 import { AutomationDetailPage } from "../pages/product/AutomationDetailPage";
 import { NewVersionPage } from "../pages/product/NewVersionPage";
@@ -76,6 +74,28 @@ function LegacyExecutionsRedirect() {
 function LegacyAgentRunRedirect() {
   const { orgId, runId } = useParams();
   return <Navigate to={orgPath.agentRun(orgId!, runId!)} replace />;
+}
+
+/**
+ * PLATFORM-FLUXO-002: Membros e Convites viraram "Pessoas e acessos". O filtro de vínculo de Membros (?estado=active…)
+ * vira a situação equivalente; Convites abre a mesma página (os pendentes vêm primeiro).
+ */
+function LegacyMembersRedirect() {
+  const { orgId } = useParams();
+  const [sp] = useSearchParams();
+  const out = new URLSearchParams();
+  for (const e of sp.getAll('estado')) if (['pending', 'active', 'suspended', 'revoked'].includes(e)) out.append('estado', `member_${e}`);
+  const q = out.toString();
+  return <Navigate to={`${orgPath.people(orgId!)}${q ? `?${q}` : ''}`} replace />;
+}
+function LegacyInvitationsRedirect() {
+  const { orgId } = useParams();
+  return <Navigate to={orgPath.people(orgId!)} replace />;
+}
+/** Acessos de um membro (endereço antigo): a página nova com o modal "Gerenciar acessos" dele aberto. */
+function LegacyMemberAccessRedirect() {
+  const { orgId, userId } = useParams();
+  return <Navigate to={orgPath.personAccess(orgId!, userId!)} replace />;
 }
 
 function IdentityFlowOutlet() {
@@ -172,18 +192,14 @@ export function AppRoutes() {
             <Route path="supervisao" element={<LegacyExecutionsRedirect />} />
             <Route path="supervisao/:runId" element={<LegacyAgentRunRedirect />} />
             {/* F6a-1: administração, só leitura; o acesso de cada tela é decidido pela API (403 → estado próprio) */}
-            <Route path="administracao/membros" element={<MembersPage />} />
+            {/* PLATFORM-FLUXO-002: "Pessoas e acessos" (membros e convites); os endereços antigos redirecionam */}
+            <Route path="administracao/pessoas" element={<PeoplePage />} />
+            <Route path="administracao/membros" element={<LegacyMembersRedirect />} />
             <Route path="administracao/clientes" element={<ClientsPage />} />
             <Route path="administracao/concessoes" element={<GrantsPage />} />
             {/* M2: acessos */}
-            <Route
-              path="administracao/membros/:userId"
-              element={<MemberAccessPage />}
-            />
-            <Route
-              path="administracao/convites"
-              element={<InvitationsPage />}
-            />
+            <Route path="administracao/membros/:userId" element={<LegacyMemberAccessRedirect />} />
+            <Route path="administracao/convites" element={<LegacyInvitationsRedirect />} />
             <Route
               path="administracao/auditoria"
               element={<AccessEventsPage />}

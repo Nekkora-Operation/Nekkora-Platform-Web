@@ -28,7 +28,7 @@ async function createOrganizationAndEnter(page: Page, person: Person, name: stri
 async function inviteAndAccept(admin: Page, ana: Person, guest: Page, person: Person, org: string, role: '' | 'ORG_ADMIN') {
   await admin.goto(`/o/${org}/administracao/convites`);
   await admin.getByLabel(/^E-mail da pessoa/).fill(person.email);
-  await admin.getByLabel(/^Papel/).selectOption(role);
+  await admin.getByLabel(/^(Papel|Perfil)/).selectOption(role);
   await admin.getByRole('button', { name: 'Convidar' }).click();
   await confirmStepUp(admin, ana, 'Enviar convite');
   await expect(admin.getByText('Convite enviado.')).toBeVisible();

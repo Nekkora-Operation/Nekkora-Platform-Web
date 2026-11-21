@@ -589,8 +589,8 @@ test('1. preparo: organização por licença, máquinas reais (Agent Client e Ag
     }
     await go(anaPage, `/o/${org}/administracao/convites`);
     await anaPage.getByLabel(/^E-mail da pessoa/).fill(bruno.email);
-    await anaPage.getByLabel(/^Papel/).selectOption('VIEWER');
-    await anaPage.getByLabel(/^Ambiente de trabalho do papel/).selectOption(ambientes.Fiscal);
+    await anaPage.getByLabel(/^(Papel|Perfil)/).selectOption('VIEWER');
+    await anaPage.getByLabel(/^Ambiente de trabalho do (papel|perfil)/).selectOption(ambientes.Fiscal);
     await anaPage.getByRole('button', { name: 'Convidar' }).click();
     await confirmStepUp(anaPage, ana, 'Enviar convite');
     await settle(anaPage);
@@ -880,7 +880,7 @@ test('3. convite para o aceite manual (ACEITE_EMAIL)', async ({ browser }) => {
   const ana = await signedIn(browser, anaPessoa, exato(s.orgName));
   await go(ana, `/o/${s.org}/administracao/convites`);
   await ana.getByLabel(/^E-mail da pessoa/).fill(process.env.ACEITE_EMAIL!);
-  await ana.getByLabel(/^Papel/).selectOption('ORG_ADMIN');
+  await ana.getByLabel(/^(Papel|Perfil)/).selectOption('ORG_ADMIN');
   await ana.getByRole('button', { name: 'Convidar' }).click();
   try {
     await confirmStepUp(ana, anaPessoa, 'Enviar convite');

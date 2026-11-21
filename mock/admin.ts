@@ -73,7 +73,9 @@ export interface GrantRow {
   createdAt: number;
 }
 
-const ROUTES = [/^\/members$/, /^\/client-grants$/, /^\/clients$/];
+const ROUTES = [/^\/members$/, /^\/client-grants$/, /^\/clients$/, /^\/people$/];
+/** PLATFORM-FLUXO-002: situações de "Pessoas e acessos". O simulador não tem convites (a funcionalidade fica desligada). */
+const PERSON_SITUATIONS = ['invitation_pending', 'invitation_expired', 'invitation_revoked', 'invitation_accepted', 'member_pending', 'member_active', 'member_suspended', 'member_revoked'] as const;
 
 export class AdminData {
   grants = new Map<string, GrantRow>();
@@ -132,6 +134,28 @@ export class AdminData {
       return page(rows, limit, (last) => this.product.cursors.encode(sc, [last.createdAt, last.membershipId]), (m) => this.memberJson(m));
     }
 
+    if (req.route === '/people') {
+      // a mesma semântica da API (PeopleController): sem situação, pendentes e membros; membros da entrada mais recente
+      const limit = parseLimit(q);
+      const situation = parseStatus(q, [...PERSON_SITUATIONS], 8, 'situation');
+      const text = q.get('q');
+      if (text !== null && (text.trim() === '' || text.trim().length > 120)) throw new BadRequest('q');
+      const needle = text?.trim().toLowerCase() ?? null;
+      const sc = scope('listPeople', canonical({ situation, q: needle }), 'group.asc+at.desc+id.desc');
+      const after = q.get('cursor') !== null ? this.product.cursors.decode(q.get('cursor')!, sc) : null;
+      authorize('org.manage');
+      const wanted = situation ?? ['invitation_pending', 'member_pending', 'member_active', 'member_suspended', 'member_revoked'];
+      const rows = [...this.members()]
+        .filter((m) => m.org === req.org && m.accountType === 'internal' && wanted.includes(`member_${m.membershipStatus}`))
+        .filter((m) => !needle || m.email.toLowerCase().includes(needle) || m.displayName.toLowerCase().includes(needle))
+        .sort((a, b) => b.createdAt - a.createdAt || cmp(b.membershipId, a.membershipId))
+        .filter((m) => !after || m.createdAt < (after[1] as number) || (m.createdAt === after[1] && m.membershipId < (after[2] as string)));
+      return {
+        ...page(rows, limit, (last) => this.product.cursors.encode(sc, [1, last.createdAt, last.membershipId]), (m) => this.personJson(m)),
+        invitationsEnabled: false,
+      };
+    }
+
     if (req.route === '/client-grants') {
       const limit = parseLimit(q);
       const status = parseStatus(q, GRANT_STATUS, 4);
@@ -177,6 +201,19 @@ export class AdminData {
       accountStatus, membershipStatus: m.membershipStatus, mfaConfigured: m.mfaConfigured,
       organizationRoles: [...roles].sort(cmp), createdAt: iso(m.createdAt),
     };
+  }
+
+  private personJson(m: MemberSource) {
+    const base = this.memberJson(m);
+    const ms = this.product.memberships.get(m.membershipId);
+    const roles = [
+      ...(ms?.orgRoles ?? []).map((role) => ({ role, workspaceId: null, workspaceName: null })),
+      ...[...(ms?.workspaceRoles ?? new Map<string, string[]>())].flatMap(([w, rs]) =>
+        rs.map((role) => ({ role, workspaceId: w, workspaceName: this.product.workspaces.get(w)?.name ?? null })),
+      ),
+    ];
+    const { organizationRoles: _o, createdAt, ...rest } = base;
+    return { kind: 'member', id: m.membershipId, member: { ...rest, joinedAt: createdAt, roles }, invitation: null };
   }
 
   private grantJson(g: GrantRow) {

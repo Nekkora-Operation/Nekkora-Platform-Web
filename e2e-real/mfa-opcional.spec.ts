@@ -72,8 +72,8 @@ test('MFA opcional: conta sem MFA, ação sensível com senha, convite e papel, 
   // convite (ação sensível na organização): o diálogo pede a SENHA
   await admin.goto(`/o/${org}/administracao/convites`);
   await admin.getByLabel(/^E-mail da pessoa/).fill(bia.email);
-  await admin.getByLabel(/^Papel/).selectOption('OPERATOR');
-  await admin.getByLabel(/^Ambiente de trabalho do papel/).selectOption(workspaceId);
+  await admin.getByLabel(/^(Papel|Perfil)/).selectOption('OPERATOR');
+  await admin.getByLabel(/^Ambiente de trabalho do (papel|perfil)/).selectOption(workspaceId);
   await admin.getByRole('button', { name: 'Convidar' }).click();
   await confirmPassword(admin, ana.password, 'Enviar convite');
   await expect(admin.getByText('Convite enviado.')).toBeVisible();

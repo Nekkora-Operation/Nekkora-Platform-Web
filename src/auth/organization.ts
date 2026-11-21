@@ -58,6 +58,11 @@ export const orgPath = {
   /** Execuções de uma máquina ("Ver atividade"). */
   machineActivity: (org: string, workerId: string) => `/o/${org}/execucoes?maquina=${encodeURIComponent(workerId)}`,
   /** F6a-1: administração (só leitura). */
+  /** PLATFORM-FLUXO-002: membros e convites numa página só ("Pessoas e acessos"). */
+  people: (org: string) => `/o/${org}/administracao/pessoas`,
+  /** O modal "Gerenciar acessos" de um membro, aberto pelo endereço (vale depois de recarregar). */
+  personAccess: (org: string, userId: string) => `/o/${org}/administracao/pessoas?acessos=${encodeURIComponent(userId)}`,
+  /** Endereço antigo (redireciona para "Pessoas e acessos"). */
   members: (org: string) => `/o/${org}/administracao/membros`,
   clients: (org: string) => `/o/${org}/administracao/clientes`,
   grants: (org: string) => `/o/${org}/administracao/concessoes`,

@@ -119,15 +119,30 @@ afterEach(() => {
 });
 
 const posts = (action?: 'suspend' | 'reactivate') => requests.filter((r) => r.method === 'POST' && /\/users\/[^/]+\/(suspend|reactivate)$/.test(r.path) && (!action || r.path.endsWith(action)));
-const row = (name: string) => within(screen.getByRole('region', { name: 'Lista de membros' })).getAllByRole('row').find((r) => r.textContent!.includes(name))!;
+const row = (name: string) => within(screen.getByRole('region', { name: 'Lista de pessoas e convites' })).getAllByRole('row').find((r) => r.textContent!.includes(name))!;
 const panel = () => screen.queryByRole('region', { name: 'Ações sem resultado confirmado' });
 const isSuspendPost = (m: string, p: string) => m === 'POST' && p.endsWith('/suspend');
 
+/**
+ * PLATFORM-FLUXO-002: em "Pessoas e acessos" os membros vêm da entrada mais recente para a mais antiga; a equipe sintética
+ * (24 pessoas mais novas) ocupa a primeira página. Carrega a lista inteira antes de procurar uma linha.
+ */
+async function loadAllPeople() {
+  for (let i = 0; i < 10; i++) {
+    const more = screen.queryByRole('button', { name: /Carregar mais/ });
+    if (!more) return;
+    fireEvent.click(more);
+    await waitFor(() => expect(screen.queryByRole('button', { name: /Carregar mais/, busy: true })).toBeNull());
+    await new Promise((r) => setTimeout(r, 30));
+  }
+}
+
 async function openMembers() {
   renderAt(members);
-  await screen.findByRole('region', { name: 'Lista de membros' });
+  await screen.findByRole('region', { name: 'Lista de pessoas e convites' });
+  await loadAllPeople();
   // as ações dependem da P01
-  await screen.findByRole('button', { name: 'Suspender Caio Mendes' });
+  await findAcrossPages('Suspender Caio Mendes');
 }
 
 async function confirmSuspend(name = 'Caio Mendes') {
@@ -137,6 +152,24 @@ async function confirmSuspend(name = 'Caio Mendes') {
   const dialog = await screen.findByRole('alertdialog', { name: `Suspender ${name}?` });
   fireEvent.click(within(dialog).getByRole('button', { name: 'Suspender' }));
   return dialog;
+}
+
+
+/**
+ * PLATFORM-FLUXO-002: em "Pessoas e acessos" os membros vêm da entrada mais recente para a mais antiga (a equipe sintética,
+ * mais nova, ocupa a primeira página). Procura o botão e, se ele não estiver na tela, carrega a página seguinte.
+ */
+async function findAcrossPages(name: string) {
+  await screen.findByRole('region', { name: 'Lista de pessoas e convites' }, { timeout: 5000 });
+  for (let i = 0; i < 10; i++) {
+    const found = screen.queryByRole('button', { name });
+    if (found) return found;
+    const more = screen.queryByRole('button', { name: /Carregar mais/ });
+    if (!more) return screen.findByRole('button', { name });
+    if (!(more as HTMLButtonElement).disabled) fireEvent.click(more);
+    await new Promise((r) => setTimeout(r, 60));
+  }
+  return screen.findByRole('button', { name });
 }
 
 describe('suspender e reativar: sucesso', () => {
@@ -178,15 +211,18 @@ describe('suspender e reativar: sucesso', () => {
   it('ações conforme identidade e estado: a própria conta sem ação; pendente e encerrada sem ação; P01 em erro → sem coluna de ações', async () => {
     sessionFor('ana@nekkora.dev');
     const v = renderAt(members);
-    await screen.findByRole('button', { name: 'Suspender Caio Mendes' });
+    await findAcrossPages('Suspender Caio Mendes');
     expect(row('Ana Souza')).toHaveTextContent('Sua conta');
     expect(within(row('Ana Souza')).queryByRole('button')).toBeNull();
-    expect(within(row('Helena Convidada')).queryByRole('button')).toBeNull();
-    expect(within(row('Íris Encerrada')).queryByRole('button')).toBeNull();
+    // vínculo pendente e conta encerrada: sem suspender, reativar nem redefinir; "Gerenciar acessos" continua (retirar)
+    const conta = { name: /^(Suspender|Reativar|Redefinir)/ };
+    expect(within(row('Helena Convidada')).queryByRole('button', conta)).toBeNull();
+    expect(within(row('Íris Encerrada')).queryByRole('button', conta)).toBeNull();
+    expect(within(row('Helena Convidada')).getByRole('button', { name: 'Gerenciar acessos de Helena Convidada' })).toBeInTheDocument();
     v.unmount();
     transport = (m, p) => (m === 'GET' && p.endsWith('/me/permissions') ? { kind: 'status', status: 500, body: { error: 'internal_error' } } : null);
     renderAt(members);
-    await screen.findByRole('region', { name: 'Lista de membros' });
+    await screen.findByRole('region', { name: 'Lista de pessoas e convites' });
     expect(screen.queryByRole('columnheader', { name: 'Ações' })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Suspender / })).toBeNull();
   });
@@ -299,8 +335,8 @@ describe('resultado incerto (falhas de TRANSPORTE injetadas)', () => {
     await within(dialog).findByRole('alert');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
     // filtro na tela que NÃO inclui o alvo depois da suspensão… a conferência ignora o filtro
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Revogado' }));
-    await waitFor(() => expect(location).toContain('estado=revoked'));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Retirado da organização' }));
+    await waitFor(() => expect(location).toContain('estado=member_revoked'));
     requests = [];
     // muitos membros: o alvo fica além da primeira página de 100
     for (let i = 0; i < 120; i++) api.createAccount({ org: DEV_ORG, displayName: `Extra ${i}`, createdAt: NOW - 500 * 86_400_000 });
@@ -337,12 +373,12 @@ describe('resultado incerto (falhas de TRANSPORTE injetadas)', () => {
     api.product.revokeOrganizationRoles(ana.membershipId);
     conferir();
     // R1: conferência recusada (403) = acesso perdido: a tela passa a acesso negado, sem aviso, nomes nem ações
-    expect(await screen.findByText('Você não tem permissão para ver os membros desta organização.')).toBeInTheDocument();
+    expect(await screen.findByText('Você não tem permissão para ver as pessoas e os convites desta organização.')).toBeInTheDocument();
     expect(panel()).toBeNull();
     expect(screen.queryByText(/Caio Mendes/)).toBeNull();
     api.product.memberships.get(ana.membershipId)!.orgRoles = ['ORG_ADMIN'];
     fireEvent.click(screen.getByRole('button', { name: 'Verificar novamente' }));
-    await screen.findByRole('region', { name: 'Lista de membros' });
+    await screen.findByRole('region', { name: 'Lista de pessoas e convites' });
     // só a nova leitura autorizada devolve o aviso — a incerteza continua registrada
     expect(panel()).toHaveTextContent('Suspensão de Caio Mendes: resultado não confirmado.');
 
@@ -385,7 +421,7 @@ describe('resultado incerto (falhas de TRANSPORTE injetadas)', () => {
     sessionFor('ana@nekkora.dev');
     transport = (m, p) => (isSuspendPost(m, p) ? { kind: 'network-before' } : null);
     let view = renderAt(members);
-    await screen.findByRole('button', { name: 'Suspender Caio Mendes' });
+    await findAcrossPages('Suspender Caio Mendes');
     const dialog = await confirmSuspend();
     await within(dialog).findByRole('alert');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
@@ -394,20 +430,20 @@ describe('resultado incerto (falhas de TRANSPORTE injetadas)', () => {
     await screen.findByRole('region', { name: 'Lista de clientes' });
     view.unmount();
     view = renderAt(members);
-    await screen.findByRole('region', { name: 'Lista de membros' });
+    await screen.findByRole('region', { name: 'Lista de pessoas e convites' });
     expect(panel()).toHaveTextContent('Suspensão de Caio Mendes: resultado não confirmado.');
 
     // sai durante o envio de outra ação
     let release!: () => void;
     const until = new Promise<void>((r) => (release = r));
     transport = (m, p) => (m === 'POST' && p.endsWith('/reactivate') ? { kind: 'delay', until, then: { kind: 'network-before' } } : null);
-    fireEvent.click(await screen.findByRole('button', { name: 'Reativar Flávia Suspensa' }));
+    fireEvent.click(await findAcrossPages('Reativar Flávia Suspensa'));
     fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Reativar' }));
     await waitFor(() => expect(posts('reactivate')).toHaveLength(1));
     view.unmount();
     await act(async () => release());
     renderAt(members);
-    await screen.findByRole('region', { name: 'Lista de membros' });
+    await screen.findByRole('region', { name: 'Lista de pessoas e convites' });
     expect(panel()).toHaveTextContent('Reativação de Flávia Suspensa: resultado não confirmado.');
     expect(panel()).toHaveTextContent('Suspensão de Caio Mendes: resultado não confirmado.');
   });
@@ -439,7 +475,7 @@ describe('isolamento entre organizações no registro de escritas', () => {
     sessionFor('ana@nekkora.dev');
     transport = (m, p) => (isSuspendPost(m, p) ? { kind: 'network-before' } : null);
     const v = renderAt(members);
-    await screen.findByRole('button', { name: 'Suspender Caio Mendes' });
+    await findAcrossPages('Suspender Caio Mendes');
     const dialog = await confirmSuspend();
     await within(dialog).findByRole('alert');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
@@ -447,7 +483,7 @@ describe('isolamento entre organizações no registro de escritas', () => {
     v.unmount();
     sessionFor('vizinha@nekkora.dev', OTHER_ORG);
     renderAt(`/o/${OTHER_ORG}/administracao/membros`);
-    await screen.findByRole('region', { name: 'Lista de membros' });
+    await screen.findByRole('region', { name: 'Lista de pessoas e convites' });
     expect(panel()).toBeNull();
   });
 });

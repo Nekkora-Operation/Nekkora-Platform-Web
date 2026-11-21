@@ -43,13 +43,13 @@ export function useInternalArea(): InternalArea {
 const MAIN_ID = 'conteudo';
 
 /** Seção da área interna a que o endereço pertence (menu ativo e título do topo). */
-function sectionOf(pathname: string, org: string): 'inicio' | 'conta' | 'execucoes' | 'workspaces' | 'membros' | 'clientes' | 'concessoes' | 'convites' | 'auditoria' | 'workers' | 'operador' | 'licencas' | 'pedidos' | null {
+function sectionOf(pathname: string, org: string): 'inicio' | 'conta' | 'execucoes' | 'workspaces' | 'pessoas' | 'clientes' | 'concessoes' | 'auditoria' | 'workers' | 'operador' | 'licencas' | 'pedidos' | null {
   if (pathname === orgPath.home(org)) return 'inicio';
   const rest = pathname.slice(orgPath.home(org).length);
   if (rest === '/execucoes' || rest.startsWith('/execucoes/') || rest.startsWith('/execucoes-remotas/') || rest.startsWith('/execucoes-locais/')) return 'execucoes';
   if (rest === '/workspaces' || rest.startsWith('/workspaces/') || rest.startsWith('/automacoes/') || rest.startsWith('/versoes/')) return 'workspaces';
-  if (rest === '/administracao/membros' || rest.startsWith('/administracao/membros/')) return 'membros';
-  if (rest === '/administracao/convites') return 'convites';
+  // PLATFORM-FLUXO-002: Membros e Convites viraram "Pessoas e acessos" (os endereços antigos redirecionam)
+  if (rest === '/administracao/pessoas' || rest.startsWith('/administracao/membros') || rest === '/administracao/convites') return 'pessoas';
   if (rest === '/workers') return 'workers';
   if (rest === '/administracao/auditoria') return 'auditoria';
   if (rest === '/administracao/licencas') return 'licencas';
@@ -72,9 +72,7 @@ function titleFor(pathname: string, org: string): string {
   if (rest === '/workspaces') return 'Ambientes de trabalho';
   if (rest.startsWith('/automacoes/')) return 'Automação';
   if (rest.startsWith('/versoes/')) return 'Versão';
-  if (rest === '/administracao/membros') return 'Membros';
-  if (rest.startsWith('/administracao/membros/')) return 'Acessos do membro';
-  if (rest === '/administracao/convites') return 'Convites';
+  if (rest === '/administracao/pessoas' || rest.startsWith('/administracao/membros') || rest === '/administracao/convites') return 'Pessoas e acessos';
   if (rest === '/workers') return 'Máquinas';
   if (rest === '/administracao/auditoria') return 'Auditoria de acessos';
   if (rest === '/administracao/licencas') return 'Licenças e automações';
@@ -217,8 +215,7 @@ export function InternalShell() {
   if (permissions.status === 'ready') {
     const has = (p: PermissionCode) => permissions.data.organization.permissions.includes(p);
     const admin: AppNavGroup['items'] = [];
-    if (has('org.manage')) admin.push({ id: 'membros', label: 'Membros', href: orgPath.members(org), icon: 'users', active: section === 'membros' });
-    if (has('org.manage')) admin.push({ id: 'convites', label: 'Convites', href: orgPath.invitations(org), icon: 'mail', active: section === 'convites' });
+    if (has('org.manage')) admin.push({ id: 'pessoas', label: 'Pessoas e acessos', href: orgPath.people(org), icon: 'users', active: section === 'pessoas' });
     if (has('org.manage') || has('external_access.manage'))
       admin.push({ id: 'clientes', label: 'Clientes', href: orgPath.clients(org), icon: 'building', active: section === 'clientes' });
     if (has('external_access.manage'))

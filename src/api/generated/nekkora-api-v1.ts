@@ -1548,6 +1548,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/people": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pessoas e acessos: membros e convites de conta interna numa lista so (exige org.manage)
+         * @description So leitura. Ordem da lista inteira (com cursor): convites pendentes (criacao, do mais recente), depois membros (entrada, do mais recente), depois convites encerrados (so com o filtro). Sem `situation`: pendentes e todos os membros; o convite aceito nao aparece ao lado do membro que criou. Convites so entram com a funcionalidade ligada (`invitationsEnabled` na resposta).
+         */
+        get: operations["listPeople"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/clients": {
         parameters: {
             query?: never;
@@ -3192,6 +3212,76 @@ export interface components {
             organizationRoles: components["schemas"]["OrganizationRoleCode"][];
             /** Format: date-time */
             createdAt: string;
+        };
+        /** @enum {string} */
+        PersonSituation: "invitation_pending" | "invitation_expired" | "invitation_revoked" | "invitation_accepted" | "member_pending" | "member_active" | "member_suspended" | "member_revoked";
+        PersonRole: {
+            role: components["schemas"]["RoleCode"];
+            /** Format: uuid */
+            workspaceId: string | null;
+            workspaceName: string | null;
+        };
+        PersonMember: {
+            /** Format: uuid */
+            membershipId: string;
+            /** Format: uuid */
+            userId: string;
+            displayName: string;
+            email: string;
+            emailVerified: boolean;
+            accountStatus: components["schemas"]["AccountStatus"];
+            membershipStatus: components["schemas"]["MembershipStatus"];
+            mfaConfigured: boolean;
+            /**
+             * Format: date-time
+             * @description entrada no vinculo
+             */
+            joinedAt: string;
+            /** @description papeis ativos: os da organizacao e os de ambiente */
+            roles: components["schemas"]["PersonRole"][];
+        };
+        PersonInvitation: {
+            /** Format: uuid */
+            invitationId: string;
+            email: string;
+            role: string | null;
+            /** Format: uuid */
+            workspaceId: string | null;
+            workspaceName: string | null;
+            /** @enum {string} */
+            state: "PENDENTE" | "EXPIRADO" | "ACEITO" | "REVOGADO";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            acceptedAt: string | null;
+            /** Format: date-time */
+            revokedAt: string | null;
+            /** @enum {string|null} */
+            revokeReason: "REVOGADO" | "REENVIADO" | "EXPIRADO" | "EMISSOR_SEM_AUTORIDADE" | null;
+            /**
+             * Format: uuid
+             * @description conta criada pelo aceite (o membro)
+             */
+            acceptedUserId: string | null;
+        };
+        PersonItem: {
+            /** @enum {string} */
+            kind: "member" | "invitation";
+            /**
+             * Format: uuid
+             * @description membershipId ou invitationId, conforme kind
+             */
+            id: string;
+            member: components["schemas"]["PersonMember"] | null;
+            invitation: components["schemas"]["PersonInvitation"] | null;
+        };
+        PeoplePage: {
+            items: components["schemas"]["PersonItem"][];
+            nextCursor: string | null;
+            /** @description convites ligados nesta Platform (emitir e listar) */
+            invitationsEnabled: boolean;
         };
         MemberPage: {
             items: components["schemas"]["Member"][];
@@ -8320,6 +8410,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MemberPage"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["CatalogInconsistent"];
+        };
+    };
+    listPeople: {
+        parameters: {
+            query?: {
+                situation?: components["schemas"]["PersonSituation"][];
+                /** @description busca por nome ou e-mail (contem, sem diferenciar maiusculas) */
+                q?: string;
+                /** @description Opaco e assinado: base64url(payload) "." base64url(HMAC-SHA256). Vinculado a rota, organizacao, vinculo da sessao, recurso pai, filtros (impressao canonica; limit fora) e ordenacao. Posicao = chave de ordenacao de tamanho limitado (prefixo de 48 pontos de codigo + id, ou campos de tamanho fixo); id da chave como impressao de 11 caracteres. O servidor nunca emite cursor maior que 872 caracteres (pior caso calculado, documento secao 1.5.1); aceita ate 1024. Nao e autoridade: autorizacao reaplicada a cada pagina. Malformado, adulterado, de outra rota/organizacao/vinculo/pai, com filtros ou ordenacao diferentes, ou de chave desconhecida (inclusive apos rotacao da chave) -> 400. Sem expiracao por tempo. Chave: decisao DC-15 (subchave derivada; a rotacao invalida os cursores). */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description fora de 1-100 ou nao inteiro -> 400; pode mudar entre paginas */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pagina de pessoas */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PeoplePage"];
                 };
             };
             400: components["responses"]["InvalidRequest"];
