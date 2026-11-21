@@ -674,6 +674,7 @@ export function PeoplePage({ frame }: { frame: PageFrame }) {
                 </Text>
                 {canInviteClient && (
                   <RadioGroup
+                    className="pw-invite__type"
                     legend="Convidar como"
                     orientation="horizontal"
                     value={inviteType}
@@ -692,58 +693,59 @@ export function PeoplePage({ frame }: { frame: PageFrame }) {
                     ]}
                   />
                 )}
-                <div className="pw-people__invite-fields">
-                  {inviteType === 'client' && (
-                    <Input
-                      label="Nome da pessoa"
-                      required
-                      fullWidth
-                      autoComplete="off"
-                      value={clientDraft.name}
-                      onChange={(e) => setClientDraft({ ...clientDraft, name: e.target.value })}
-                      error={clientErrors.name}
-                      maxLength={200}
-                      hint="Aparece no primeiro acesso dela: não é pedido de novo."
-                    />
-                  )}
-                  <Input label="E-mail da pessoa" type="email" required fullWidth value={email} onChange={(e) => setEmail(e.target.value)} error={formError.email} maxLength={254} />
-                  {inviteType === 'client' ? (
-                    <ClientInviteFields
-                      org={org}
-                      draft={clientDraft}
-                      onChange={setClientDraft}
-                      errors={clientErrors}
-                      onOptions={setClientOptions}
-                      onUnauthenticated={expired}
-                    />
-                  ) : (
-                  <>
-                  <Select
-                    label="Perfil (opcional)"
-                    fullWidth
-                    value={role}
-                    onChange={(e) => {
-                      setRole(e.target.value as RoleCode | '');
-                      setWorkspaceId('');
-                    }}
-                    options={[{ value: '', label: 'Sem perfil (só o vínculo)' }, ...ROLE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))]}
+                {inviteType === 'client' ? (
+                  <ClientInviteFields
+                    org={org}
+                    draft={clientDraft}
+                    onChange={setClientDraft}
+                    errors={clientErrors}
+                    onOptions={setClientOptions}
+                    onUnauthenticated={expired}
+                    lead={
+                      <>
+                        <Input
+                          label="Nome da pessoa"
+                          required
+                          fullWidth
+                          autoComplete="off"
+                          value={clientDraft.name}
+                          onChange={(e) => setClientDraft({ ...clientDraft, name: e.target.value })}
+                          error={clientErrors.name}
+                          maxLength={200}
+                          hint="Aparece no primeiro acesso dela: não é pedido de novo."
+                        />
+                        <Input label="E-mail da pessoa" type="email" required fullWidth value={email} onChange={(e) => setEmail(e.target.value)} error={formError.email} maxLength={254} />
+                      </>
+                    }
                   />
-                  {isWorkspaceRole(role) && (
+                ) : (
+                  <div className="pw-invite__fields">
+                    <Input label="E-mail da pessoa" type="email" required fullWidth value={email} onChange={(e) => setEmail(e.target.value)} error={formError.email} maxLength={254} />
                     <Select
-                      label="Ambiente de trabalho do perfil"
+                      label="Perfil (opcional)"
                       fullWidth
-                      required
-                      value={workspaceId}
-                      placeholder="Escolha um ambiente de trabalho"
-                      onChange={(e) => setWorkspaceId(e.target.value)}
-                      options={workspaceOptions}
-                      error={formError.workspace}
-                      hint={workspaces.status === 'ready' && !workspaces.complete ? 'A lista mostra os ambientes de trabalho já carregados.' : undefined}
+                      value={role}
+                      onChange={(e) => {
+                        setRole(e.target.value as RoleCode | '');
+                        setWorkspaceId('');
+                      }}
+                      options={[{ value: '', label: 'Sem perfil (só o vínculo)' }, ...ROLE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))]}
                     />
-                  )}
-                  </>
-                  )}
-                </div>
+                    {isWorkspaceRole(role) && (
+                      <Select
+                        label="Ambiente de trabalho do perfil"
+                        fullWidth
+                        required
+                        value={workspaceId}
+                        placeholder="Escolha um ambiente de trabalho"
+                        onChange={(e) => setWorkspaceId(e.target.value)}
+                        options={workspaceOptions}
+                        error={formError.workspace}
+                        hint={workspaces.status === 'ready' && !workspaces.complete ? 'A lista mostra os ambientes de trabalho já carregados.' : undefined}
+                      />
+                    )}
+                  </div>
+                )}
                 {internalMatch && (
                   <Alert tone="warning">
                     {internalMatch.member.displayName} já é membro interno desta organização. Um convite de Cliente não reduziria os acessos atuais

@@ -227,10 +227,14 @@ export function ShareAutomationPanel({
             </Button>
           </div>
         ) : (
-          <form className="pw-identity__form" onSubmit={submit} noValidate aria-label="Pedir compartilhamento">
-            <Input label="Nome da pessoa" required fullWidth value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} error={errors.name} maxLength={200} />
-            <Input label="E-mail da pessoa" type="email" required fullWidth value={email} onChange={(e) => setEmail(e.target.value)} error={errors.email} maxLength={254} />
+          <form className="pw-identity__form pw-people__invite" onSubmit={submit} noValidate aria-label="Pedir compartilhamento">
             <ClientInviteFields
+              lead={
+                <>
+                  <Input label="Nome da pessoa" required fullWidth value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} error={errors.name} maxLength={200} />
+                  <Input label="E-mail da pessoa" type="email" required fullWidth value={email} onChange={(e) => setEmail(e.target.value)} error={errors.email} maxLength={254} />
+                </>
+              }
               org={org}
               draft={draft}
               onChange={setDraft}

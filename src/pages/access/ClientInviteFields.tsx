@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, Checkbox, Fieldset, Select, Text } from 'nekkora-lib';
 import { listClients } from '../../api/admin';
 import { listClientShareOptions, type ClientRecord, type ClientShareOption } from '../../api/clientAccess';
@@ -77,6 +77,7 @@ export function ClientInviteFields({
   onOptions,
   onUnauthenticated,
   lockAutomationId,
+  lead,
 }: {
   org: string;
   draft: ClientInviteDraft;
@@ -86,6 +87,8 @@ export function ClientInviteFields({
   onUnauthenticated: () => void;
   /** Compartilhar a partir da página da automação: ela já vem escolhida. */
   lockAutomationId?: string;
+  /** Campos da pessoa (nome e e-mail), na mesma linha do ambiente e da automação. */
+  lead?: ReactNode;
 }) {
   const [options, setOptions] = useState<ClientInviteOptions | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -143,14 +146,23 @@ export function ClientInviteFields({
 
   if (loadError)
     return (
-      <Alert tone="warning">
+      <>
+        {lead && <div className="pw-invite__fields">{lead}</div>}
+        <Alert tone="warning">
         Não foi possível carregar as automações que você pode compartilhar.{' '}
         <Button size="sm" variant="ghost" onClick={() => setReload((n) => n + 1)}>
           Tentar de novo
         </Button>
-      </Alert>
+        </Alert>
+      </>
     );
-  if (!options) return <Text color="secondary">Carregando automações…</Text>;
+  if (!options)
+    return (
+      <>
+        {lead && <div className="pw-invite__fields">{lead}</div>}
+        <Text color="secondary">Carregando automações…</Text>
+      </>
+    );
 
   const pick = (automationId: string) => {
     const a = inWorkspace.find((x) => x.automationId === automationId);
@@ -164,6 +176,8 @@ export function ClientInviteFields({
 
   return (
     <>
+      <div className="pw-invite__fields">
+      {lead}
       {!lockAutomationId && (
         <>
           <Select
@@ -189,6 +203,8 @@ export function ClientInviteFields({
           />
         </>
       )}
+      </div>
+      <div className="pw-invite__panels">
       <Fieldset legend="O que a pessoa poderá ver" description="Cada conteúdo é escolhido separadamente. Registros técnicos não são compartilhados.">
         <Checkbox
           label="Dashboard de execução"
@@ -251,6 +267,7 @@ export function ClientInviteFields({
           )}
         </div>
       </details>
+      </div>
       {resolved && (
         <Alert tone="info" role="status">
           {inviteSummary(resolved.automationName, resolved.workspaceName, resolved.machineName, draft.name.trim() || undefined)}
