@@ -1,4 +1,4 @@
-import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { execFileSync, spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -57,6 +57,10 @@ const A_REMOTA = 'Robô de notas';
 const A_LOCAL = 'Rotina local';
 const A_LONGA = 'Rotina longa';
 const A_COMPRAS = 'Compras diária';
+const A_MONITORADA = 'Relatório CSV';
+// o exemplo de Python externo do repositório do Agent (só os arquivos são copiados para a pasta de laboratório)
+const EXEMPLO = resolve(process.cwd(), '../../Nekkora-Agent/tools/external-package/exemplo-relatorio');
+const CLIENTE = resolve(process.cwd(), '../exe-agent/cliente');
 
 const sql = (q: string) => (compose(LAB, ['exec', '-T', 'postgres', 'psql', '-X', '-At', '-v', 'ON_ERROR_STOP=1', '-U', 'nekkora', '-d', 'nekkora', '-c', q]) as string).trim();
 const log = (k: string, v: unknown) => {
@@ -621,7 +625,15 @@ test('1. preparo: organização por licença, máquinas reais (Agent Client e Ag
 /** Entra (senha + TOTP) e abre a organização pelo botão "Entrar em …" (a sessão é por organização). */
 async function signedIn(browser: Browser, person: Person, orgName: RegExp): Promise<Page> {
   const page = await (await browser.newContext()).newPage();
-  await signInWithTotp(page, person);
+  try {
+    await signInWithTotp(page, person);
+  } catch (e) {
+    // o código do intervalo atual já foi usado (outra passada há menos de 30 s): espera o próximo, como a pessoa
+    if (!page.url().includes('/entrar/verificacao')) throw e;
+    await page.waitForTimeout(31_000);
+    await page.getByLabel('Código de autenticação').fill(await person.auth.next());
+    await expect(page).toHaveURL(/\/organizacoes$/);
+  }
   await settle(page);
   const entrar = page.getByRole('button', { name: orgName }).first();
   for (let vez = 0; vez < 4 && !(await entrar.isVisible().catch(() => false)); vez++) {
@@ -897,4 +909,148 @@ test('4. Em andamento aberta antes: o pedido novo aparece sem recarregar nem "At
   await expect(tableRows(lista)).toHaveCount(antes + 1, { timeout: 75_000 });
   expect(lista.url(), 'sem navegar nem recarregar').toBe(url);
   log('v4_atualiza_sozinha', { linhas_antes: antes, depois: antes + 1, segundos_ate_aparecer: Math.round((Date.now() - pedidoEm) / 1000) });
+});
+
+// ==================================================================================================== 5. lançador e pedido convertido
+/** Executável de console da cópia do Agent (nekkora-console / nekkora-lancar), com a mesma pasta de dados da cópia. */
+function consoleDaCopia(exe: 'nekkora-console' | 'nekkora-lancar', args: string[], input?: string, cwd?: string) {
+  const cfg = resolve(AGENT, `app/app/${exe}.cfg`);
+  const t = readFileSync(cfg, 'utf8');
+  const dataDir = `java-options=-Dnekkora.agent.dataDir=${resolve(AGENT, 'dados')}`;
+  if (!t.includes('nekkora.agent.dataDir')) writeFileSync(cfg, t.replace('[JavaOptions]', `[JavaOptions]\r\n${dataDir}`));
+  return spawnSync(resolve(AGENT, `app/${exe}.exe`), args, { input, encoding: 'utf8', timeout: 600_000, cwd });
+}
+
+test('5. Python externo monitorado pelo lançador e pedido ao Agent anterior que vira execução (lista sem duplicar, detalhe preservado)', async ({ browser }) => {
+  test.setTimeout(2_400_000);
+  const s = JSON.parse(readFileSync(ESTADO, 'utf8')) as Estado;
+  const { org } = s;
+  const anaPessoa = reviver(s.ana);
+  const naraPessoa = reviver(s.nara);
+  const ana = await signedIn(browser, anaPessoa, exato(s.orgName));
+  const nara = await signedIn(browser, naraPessoa, /^Entrar em Nekkora Suporte/);
+  try {
+    // ------------------------------------------------ automação só monitorada (sem versão), com uma licença nova e a Estação Agent
+    let monitorada = sql(`SELECT automation_id FROM automations WHERE organization_id = '${org}' AND name = '${A_MONITORADA}'`);
+    if (!monitorada) {
+      await go(ana, `/o/${org}/workspaces/${s.fiscal}`);
+      await ana.getByRole('button', { name: 'Criar automação' }).click();
+      await settle(ana);
+      await ana.getByLabel(/^Nome da automação/).fill(A_MONITORADA);
+      await ana.getByRole('radio', { name: /Só o nome, como rascunho/ }).check();
+      await ana.getByRole('button', { name: 'Salvar rascunho' }).click();
+      await settle(ana);
+      await expect(ana.getByRole('heading', { name: A_MONITORADA })).toBeVisible();
+      monitorada = /automacoes\/([0-9a-f-]{36})/.exec(ana.url())![1];
+      await go(nara, `/o/${s.orgN}/operador-de-licencas`);
+      await nara.getByLabel('Identificador da organização').fill(org);
+      await nara.getByRole('button', { name: 'Abrir' }).click();
+      await nara.getByRole('button', { name: 'Conceder licenças' }).click();
+      const grant = nara.getByRole('alertdialog');
+      await grant.getByLabel('Quantidade').fill('1');
+      await grant.getByLabel('Início da validade').fill(day(0));
+      await grant.getByLabel('Fim da validade').fill(day(30));
+      await grant.getByLabel('Justificativa').fill('roteiro FLUXO-002 acompanhamento: licenca de teste para o monitoramento');
+      await confirmStepUp(nara, naraPessoa, 'Conceder');
+      await settle(nara);
+      await activateAutomation(ana, anaPessoa, org, { workspace: 'Fiscal', automation: A_MONITORADA, workers: [W_AGENT] });
+    }
+    log('5_monitorada', { automacao: monitorada, licenca: 'nova (operadora, pela tela)', maquina: W_AGENT });
+
+    // ------------------------------------------------ PEDIDO → EXECUÇÃO: o pacote da Rotina local aprovado NA máquina (com a cópia fechada)
+    const pendentes = sql(`SELECT string_agg(run_request_id::text, ',') FROM run_requests WHERE organization_id = '${org}' AND agent_run_id IS NULL AND state IN (1, 2)`).split(',').filter(Boolean);
+    expect(pendentes.length, 'há pedidos aguardando a máquina').toBeGreaterThan(0);
+    mkdirSync(resolve(AGENT, 'saida/pedidos'), { recursive: true });
+    const instalar = consoleDaCopia('nekkora-console', ['pacote', 'instalar', RAPIDO, '--python', PYTHON, '--saida', resolve(AGENT, 'saida/pedidos')], 'SIM\n');
+    log('5_pacote_aprovado_na_maquina', { codigo: instalar.status, saida: (instalar.stdout || instalar.stderr).replace(/\s+/g, ' ').slice(0, 220), confirmacao: 'SIM pela entrada padrao do console (ato da pessoa na maquina, feito pelo operador do laboratorio)' });
+    expect(instalar.status, instalar.stderr).toBe(0);
+
+    // a lista aberta ANTES (Em andamento): os pedidos aparecem como pedidos
+    await go(ana, `/o/${org}/execucoes`);
+    await expect(tableRows(ana).filter({ hasText: 'Pedido ao Agent anterior' })).toHaveCount(pendentes.length);
+    const linhasAntes = await tableRows(ana).count();
+    const url = ana.url();
+
+    // a máquina volta: a cópia do Agent recebe os pedidos e executa
+    const l = await agent.abrir();
+    expect(l.vinculo).toBe('PAIRED');
+    await expect
+      .poll(async () => {
+        await agent.comando('estado');
+        return Number(sql(`SELECT count(*) FROM run_requests WHERE run_request_id IN (${pendentes.map((x) => `'${x}'`).join(',')}) AND agent_run_id IS NOT NULL`));
+      }, { timeout: 600_000, intervals: [10_000] })
+      .toBe(pendentes.length);
+    const convertidas = sql(`SELECT string_agg(agent_run_id::text, ',') FROM run_requests WHERE run_request_id IN (${pendentes.map((x) => `'${x}'`).join(',')})`).split(',');
+    await expect
+      .poll(() => sql(`SELECT count(*) FROM agent_runs WHERE agent_run_id IN (${convertidas.map((x) => `'${x}'`).join(',')}) AND supervisor_state NOT IN (1, 2, 3)`), { timeout: 600_000, intervals: [10_000] })
+      .toBe(String(convertidas.length));
+    log('5_pedidos_convertidos', sql(`SELECT string_agg(q.run_request_id || ' -> ' || r.agent_run_id || ' estado=' || r.supervisor_state || ' codigo=' || coalesce(r.supervisor_code, '-'), ' ; ') FROM run_requests q JOIN agent_runs r ON r.agent_run_id = q.agent_run_id WHERE q.run_request_id IN (${pendentes.map((x) => `'${x}'`).join(',')})`));
+
+    // a mesma lista, SEM recarregar: os pedidos saíram de "Em andamento" (já terminaram) e nada ficou repetido
+    await expect(tableRows(ana).filter({ hasText: 'Pedido ao Agent anterior' })).toHaveCount(0, { timeout: 90_000 });
+    expect(ana.url(), 'sem navegar nem recarregar').toBe(url);
+    const andamento = await activityAll(ana, org, 'in_progress');
+    const historico = await activityAll(ana, org, 'history');
+    const todos = [...andamento, ...historico];
+    for (const pedido of pendentes) expect(todos.some((e) => e.kind === 'local_request' && e.id === pedido), `o pedido ${pedido} não aparece mais como pedido`).toBe(false);
+    for (const run of convertidas) expect(historico.filter((e) => e.kind === 'local_agent' && e.id === run), `a execução ${run} aparece uma vez`).toHaveLength(1);
+    for (const aba of [andamento, historico]) expect(new Set(aba.map((e) => `${e.kind}:${e.id}`)).size, 'sem chave repetida na aba').toBe(aba.length);
+    log('5_lista_sem_duplicar', { linhas_em_andamento_antes: linhasAntes, depois: await tableRows(ana).count(), pedidos_na_api: 0, execucoes_dos_pedidos_no_historico: convertidas.length });
+    // o acesso ao detalhe: a linha da execução leva ao detalhe, com a origem do pedido
+    await go(ana, `/o/${org}/execucoes?aba=historico`);
+    const linhaRun = tableRows(ana).filter({ has: ana.locator(`a[href$="/execucoes-locais/${convertidas[0]}"]`) });
+    await expect(linhaRun).toHaveCount(1);
+    await linhaRun.getByRole('link', { name: /^Execução de / }).click();
+    await expect(ana).toHaveURL(new RegExp(`/execucoes-locais/${convertidas[0]}$`));
+    await expect(ana.locator('main')).toContainText('Pedido pela Platform');
+    await shot(ana, 'v5-pedido-convertido-detalhe');
+
+    // ------------------------------------------------ PYTHON EXTERNO MONITORADO pelo lançador
+    await agent.comando('autorizacoes');
+    const authFile = resolve(AGENT, 'dados/plataforma/autorizacoes.json');
+    await expect
+      .poll(async () => { await agent.comando('autorizacoes'); return existsSync(authFile) ? readFileSync(authFile, 'utf8') : ''; }, { timeout: 420_000, intervals: [10_000] })
+      .toContain('EXTERNAL_MONITORED');
+    rmSync(CLIENTE, { recursive: true, force: true });
+    mkdirSync(CLIENTE, { recursive: true });
+    copyFileSync(resolve(EXEMPLO, 'relatorio.py'), resolve(CLIENTE, 'relatorio.py'));
+    copyFileSync(resolve(EXEMPLO, 'vendas-exemplo.csv'), resolve(CLIENTE, 'vendas.csv'));
+    const vinculo = consoleDaCopia('nekkora-console', ['vincular', '--nome', 'relatorio-csv', '--automacao', monitorada, '--python', PYTHON, '--script', resolve(CLIENTE, 'relatorio.py'), '--pasta', CLIENTE], 'SIM\n');
+    log('5_vinculo', { codigo: vinculo.status, saida: (vinculo.stdout || vinculo.stderr).replace(/\s+/g, ' ').slice(0, 200), confirmacao: 'SIM pela entrada padrao do console' });
+    expect(vinculo.status, vinculo.stderr).toBe(0);
+    const lancar = (extra: string[]) =>
+      consoleDaCopia('nekkora-lancar', ['--vinculo', 'relatorio-csv', '--', PYTHON, resolve(CLIENTE, 'relatorio.py'), '--entrada', 'vendas.csv', '--saida', 'resumo.txt', '--efeitos', 'efeitos.txt', ...extra], undefined, CLIENTE);
+    const ok = lancar([]);
+    const erro = lancar(['--falhar']);
+    log('5_lancador', { codigo_sem_erro: ok.status, codigo_com_erro: erro.status, efeitos: existsSync(resolve(CLIENTE, 'efeitos.txt')) ? readFileSync(resolve(CLIENTE, 'efeitos.txt'), 'utf8').trim().split(/\r?\n/).length : 0 });
+    expect(ok.status, ok.stderr).toBe(0);
+    expect(erro.status, 'o código do script chega a quem chamou o lançador').toBe(3);
+    await expect
+      .poll(async () => {
+        await agent.comando('estado');
+        return sql(`SELECT count(*) FROM agent_runs WHERE organization_id = '${org}' AND automation_id = '${monitorada}' AND source_kind = 3 AND supervisor_state NOT IN (1, 2, 3)`);
+      }, { timeout: 600_000, intervals: [10_000] })
+      .toBe('2');
+    log('5_monitoradas_na_api', sql(`SELECT string_agg(agent_run_id || ' estado=' || supervisor_state || ' codigo=' || coalesce(supervisor_code, '-') || ' saida=' || coalesce(exit_code::text, '-'), ' ; ' ORDER BY registered_at) FROM agent_runs WHERE automation_id = '${monitorada}'`));
+    // na lista: automação, máquina e desfecho; código 0 sem sinal NÃO é sucesso; o erro com o código no detalhe
+    await go(ana, `/o/${org}/execucoes?aba=historico&automacao=${monitorada}`);
+    await expect(tableRows(ana)).toHaveCount(2);
+    for (const t of await tableRows(ana).allInnerTexts()) {
+      expect(t).toContain(A_MONITORADA);
+      expect(t).toContain(W_AGENT);
+      expect(t).not.toContain('Concluída com sucesso');
+    }
+    await expect(tableRows(ana).filter({ hasText: 'Terminou sem erro sinalizado' })).toHaveCount(1);
+    await expect(tableRows(ana).filter({ hasText: 'Falhou' })).toHaveCount(1);
+    await shot(ana, 'v5-monitoradas-lista');
+    await tableRows(ana).filter({ hasText: 'Falhou' }).getByRole('link', { name: /^Execução de / }).click();
+    await expect(ana.getByText(/Terminou com erro \(código de saída 3\)/)).toBeVisible({ timeout: 60_000 });
+    await expect(ana.locator('main')).toContainText(/sem versão \(Python externo monitorado/);
+    await shot(ana, 'v5-monitorada-erro-detalhe');
+    log('5_fim', 'lancador e pedido convertido verificados na tela e na API');
+  } finally {
+    agent.guardarJanelas('agent-parte5');
+    await agent.fechar().catch(() => agent.derrubar());
+    if (existsSync(agent.saida)) copyFileSync(agent.saida, join(EVID, 'aplicativo-agent-parte5.jsonl'));
+  }
 });
