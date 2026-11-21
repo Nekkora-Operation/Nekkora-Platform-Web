@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { countPasswordResetTokens, createAccount, createOrganization, issuePasswordResetToken } from './support/mock';
 import { leakGuard, path, signIn } from './support/app';
 
-const NEW_PASSWORD = 'Nova-Senha-E2E-muito-longa';
+const NEW_PASSWORD = 'Nova#Senha-E2E1';
 const GENERIC = 'Se existir uma conta elegível para esse endereço, enviaremos as instruções para redefinição da senha.';
 
 test('DoD 2 — esqueci a senha → e-mail (simulado) → link → nova senha → login', async ({ page }) => {
@@ -37,8 +37,8 @@ test('DoD 2 — esqueci a senha → e-mail (simulado) → link → nova senha �
 
   await test.step('o mesmo link não funciona de novo', async () => {
     await page.goto(path.reset(account.org, token));
-    await page.getByLabel(/^Nova senha/).fill('Outra-Senha-E2E-12345');
-    await page.getByLabel(/^Confirmar nova senha/).fill('Outra-Senha-E2E-12345');
+    await page.getByLabel(/^Nova senha/).fill('Outra#Senha-E2E2');
+    await page.getByLabel(/^Confirmar nova senha/).fill('Outra#Senha-E2E2');
     await page.getByRole('button', { name: 'Salvar nova senha' }).click();
     await expect(page.getByRole('heading', { name: 'Este link não é mais válido' })).toBeVisible();
   });
