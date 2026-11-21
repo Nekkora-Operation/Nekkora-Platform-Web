@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "5ee7f5764722592e6fca24c7660735b7414ae65381176ccac176d7945bd59d48",
+  "openapiSha256": "709b2f01d50774734043056f8a4f8576f8ab43d3b8dbae7f9d6bb2af3c479a00",
   "schemas": {
     "Error": {
       "type": "object",
@@ -6617,6 +6617,9 @@
         },
         "stepUpMethod": {
           "$ref": "#/components/schemas/StepUpMethod"
+        },
+        "remoteExecutionAvailable": {
+          "type": "boolean"
         }
       }
     },

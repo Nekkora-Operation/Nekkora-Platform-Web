@@ -14,6 +14,7 @@ import { useResource } from '../../hooks/useResource';
 import { LocalRunAuthorizations } from '../agents/LocalRunAuthorizations';
 import { ShareAutomationPanel } from '../access/ShareRequests';
 import { RuntimeRequirements } from './RuntimeRequirements';
+import { RemoteUnavailableNotice, useRemoteExecutionAvailable } from '../../components/RemoteUnavailable';
 import { DateTimeText, errorOf, errorText, isMissing, isSubordinateGone, LoadErrorState, NotFoundState, PageHeader, ResourceStatusBadge, RouteLink, useBackTarget, useExpiresOn } from './shared';
 
 const PAGE = 25;
@@ -31,6 +32,7 @@ export function AutomationDetailPage() {
  */
 function AutomationDetail({ automationId }: { automationId: string }) {
   const { org, expired } = useSession();
+  const remoteAvailable = useRemoteExecutionAvailable();
   const { workspaces } = useInternalArea();
   const navigate = useNavigate();
   const [refresh, setRefresh] = useState(0);
@@ -170,7 +172,11 @@ function AutomationDetail({ automationId }: { automationId: string }) {
       </section>
 
       {/* EXECUCAO-REMOTA-001 (T01c): dependências declaradas na Platform; não mudam o pacote publicado */}
-      <RuntimeRequirements automationId={a.automationId} canManage={canManage} />
+      {remoteAvailable ? (
+        <RuntimeRequirements automationId={a.automationId} canManage={canManage} />
+      ) : (
+        <RemoteUnavailableNotice detail="Por isso, as dependências de execução (o que a máquina precisa ter para executar a pedido da Platform) não aparecem aqui." />
+      )}
 
       {/* AGENT-PYTHON-001 (030): monitoramento de um Python externo disparado pelo agendador do cliente */}
       <LocalRunAuthorizations workspaceId={a.workspaceId} automation={{ automationId: a.automationId, name: a.name }} canExecute={canExecute} />

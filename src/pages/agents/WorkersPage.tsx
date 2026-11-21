@@ -17,6 +17,7 @@ import { LinkedAgentsView } from './linkedAgents';
 import { ResponsiveTable } from './ResponsiveTable';
 import { CommunicationCell, FreshnessNotice, LinkBadge, PRESENCE_TEXT, useLiveList } from './presence';
 import { MachineStateBadge } from './machine';
+import { ActivationNotice } from '../HomeNextStep';
 
 const STATUS: Record<NonNullable<Worker['status']>, { label: string; tone: 'success' | 'warning' | 'neutral' }> = {
   ACTIVE: { label: 'Ativo', tone: 'success' },
@@ -275,6 +276,8 @@ function WorkersManagement() {
           ) : undefined
         }
       />
+      {/* RELEASE-2.2: a organização aguardando ativação já sabe, antes de tentar, que não pode cadastrar máquina */}
+      <ActivationNotice onlyPending />
       {notice && <Alert tone={notice.tone}>{notice.text}</Alert>}
       {list.status === 'ready' && <FreshnessNotice freshness={freshness} onRetry={() => void refresh()} />}
       {code && (

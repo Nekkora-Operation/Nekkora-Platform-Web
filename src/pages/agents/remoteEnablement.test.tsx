@@ -6,7 +6,7 @@ import { sessionMemory } from '../../app/notices';
 import { fakeLocks } from '../../test/fakeLocks';
 import { renderApp } from '../../test/render';
 import { RouteApi } from '../../test/routeApi';
-import { CLIENT_CONFIRMATION_REQUIRED, REMOTE_UNAVAILABLE_TEXT } from './agentDialogs';
+import { AGENT_AVAILABLE_DESCRIPTION, CLIENT_CONFIRMATION_REQUIRED, CLIENT_UNAVAILABLE_DESCRIPTION, REMOTE_UNAVAILABLE_TEXT } from './agentDialogs';
 
 /**
  * PLATFORM-CLIENT-EXECUCAO-REMOTA-001, T01a — habilitar uma máquina para execução remota a partir da tela de Workers (o
@@ -85,7 +85,7 @@ beforeEach(() => {
   csrfStore.setSession(ORG, 'ses');
   api.on('GET', `/api/v1/o/${ORG}/me`, 'getMe', {
     status: 200,
-    body: { accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: ORG, organizationActivationState: 'ATIVADA', stepUpMethod: 'totp' },
+    body: { accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: ORG, organizationActivationState: 'ATIVADA', remoteExecutionAvailable: true, stepUpMethod: 'totp' },
   });
   setup(['automation.read', 'automation.execute']);
   api.on('GET', `/api/v1/o/${ORG}/workspaces`, 'listWorkspaces', { status: 200, body: { items: [], nextCursor: null } });
@@ -304,5 +304,44 @@ describe('Workspace: máquinas habilitadas para execução remota (T01a)', () =>
     fail = false;
     fireEvent.click(screen.getByRole('button', { name: /Tentar/ }));
     expect(await screen.findByText('Disponível')).toBeInTheDocument();
+  });
+});
+
+describe('RELEASE-2.2: Platform sem execução remota e organização aguardando ativação', () => {
+  const me = (over: Record<string, unknown> = {}) =>
+    api.on('GET', `/api/v1/o/${ORG}/me`, 'getMe', { status: 200, body: { ...{ accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: ORG, organizationActivationState: 'ATIVADA', stepUpMethod: 'totp' }, ...over } });
+
+  it('Vincular Agent: o Agent disponível vem marcado; o Client fica desabilitado dizendo por quê; o pedido é o de sempre', async () => {
+    me();
+    api.on('POST', PAIRING, 'createAgentPairingCode', issued());
+    await openPairing();
+    const agent = within(dialog()).getByRole('radio', { name: /^Nekkora Agent anterior/ }) as HTMLInputElement;
+    const client = within(dialog()).getByRole('radio', { name: /^Nekkora Agent Client/ }) as HTMLInputElement;
+    expect(agent.checked).toBe(true);
+    expect(client.checked).toBe(false);
+    expect(client).toBeDisabled();
+    expect(within(dialog()).getByText(CLIENT_UNAVAILABLE_DESCRIPTION)).toBeInTheDocument();
+    expect(within(dialog()).getByText(AGENT_AVAILABLE_DESCRIPTION)).toBeInTheDocument();
+    expect(within(dialog()).queryByLabelText('Habilitar esta máquina para execução remota')).toBeNull();
+    await confirm();
+    await waitFor(() => expect(pairingPosts()).toHaveLength(1));
+    expect(pairingPosts()[0].body).not.toHaveProperty('remoteExecution');
+  });
+
+  it('Máquinas: aguardando ativação (modelo anterior), o aviso aparece antes de qualquer tentativa', async () => {
+    me({ organizationActivationState: 'AGUARDANDO_ATIVACAO', organizationLicenseModel: 'legacy' });
+    renderApp(`/o/${ORG}/workers`);
+    await screen.findByRole('heading', { name: 'Máquinas', level: 1 });
+    expect(await screen.findByText('Organização aguardando ativação')).toBeInTheDocument();
+    expect(screen.getByText(/nenhuma máquina pode ser registrada/)).toBeInTheDocument();
+    expect(screen.getByText(/A ativação é feita pela operação da Nekkora/)).toBeInTheDocument();
+  });
+
+  it('Máquinas: ativada, ou no modelo por licença, não há aviso de ativação', async () => {
+    me({ organizationActivationState: 'ATIVADA', organizationLicenseModel: 'legacy' });
+    renderApp(`/o/${ORG}/workers`);
+    await screen.findByRole('heading', { name: 'Máquinas', level: 1 });
+    await screen.findByRole('button', { name: 'Vincular Agent a Worker financeiro' });
+    expect(screen.queryByText('Organização aguardando ativação')).toBeNull();
   });
 });

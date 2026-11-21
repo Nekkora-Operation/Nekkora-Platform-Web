@@ -20,6 +20,8 @@ export interface Me {
   organizationActivationState?: 'AGUARDANDO_ATIVACAO' | 'ATIVADA';
   /** PLATFORM-LICENCIAMENTO-001: modelo de habilitação; ausente numa API anterior ao campo (tratado como o anterior). */
   organizationLicenseModel?: 'legacy' | 'licensed';
+  /** RELEASE-2.2: se esta Platform aceita execução remota; ausente (API anterior ao campo) = indisponível. */
+  remoteExecutionAvailable?: boolean;
 }
 
 // ------------------------------------------------------------------ CSRF de pré-autenticação

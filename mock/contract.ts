@@ -568,6 +568,8 @@ export class MockApi {
           organizationId: a.org,
           // 022: a simulação só tem organizações já ativadas pela operação
           organizationActivationState: 'ATIVADA',
+          // RELEASE-2.2: a simulação representa a Platform com a execução remota ligada (os roteiros e2e dela)
+          remoteExecutionAvailable: true,
           // 029: a simulação só tem contas com MFA (login por organização): o step-up é o código
           stepUpMethod: 'totp',
         });

@@ -23,6 +23,7 @@ import { useResource } from '../../hooks/useResource';
 import { orgStepUp } from '../access/shared';
 import { LocalRunAuthorizations } from '../agents/LocalRunAuthorizations';
 import { RemoteExecutions } from '../agents/RemoteExecutions';
+import { RemoteUnavailableNotice, useRemoteExecutionAvailable } from '../../components/RemoteUnavailable';
 import { DateTimeText, LoadErrorState, NotFoundState, PageHeader, isMissing } from './shared';
 import { compareTechnical, PublishSummary, type Reviewed } from './PublishSummary';
 import { DownloadPackage } from './DownloadPackage';
@@ -53,6 +54,7 @@ function Hash({ value }: { value: string | null | undefined }) {
  */
 export function VersionPage() {
   const { org, expired } = useSession();
+  const remoteAvailable = useRemoteExecutionAvailable();
   const { versionId = '' } = useParams();
   const version = useResource(() => getAutomationVersion(org, versionId), [org, versionId]);
   const v = version.status === 'ready' ? version.data : undefined;
@@ -483,7 +485,10 @@ export function VersionPage() {
       )}
 
       {/* EXECUCAO-REMOTA-001 (T02): solicitar a execução desta versão numa máquina habilitada */}
-      {!draft && data.automationId && (
+      {!draft && data.automationId && !remoteAvailable && (
+        <RemoteUnavailableNotice detail="Esta versão não pode ser solicitada a uma máquina pela Platform." />
+      )}
+      {!draft && data.automationId && remoteAvailable && (
         <RemoteExecutions
           workspaceId={data.workspaceId!}
           automationId={data.automationId}
