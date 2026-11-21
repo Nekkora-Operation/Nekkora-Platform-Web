@@ -374,8 +374,8 @@ test('PLATFORM-FLUXO-002: ativação unificada (um passo, sem saldo, sem consumo
   const bruno = await signUpAndEnroll(brunoPage, 'flx-b');
   await go(anaPage, `/o/${org}/administracao/convites`);
   await anaPage.getByLabel(/^E-mail da pessoa/).fill(bruno.email);
-  await anaPage.getByLabel(/^Papel/).selectOption('OPERATOR');
-  await anaPage.getByLabel(/^Ambiente de trabalho do papel/).selectOption(workspaceId);
+  await anaPage.getByLabel(/^(Papel|Perfil)/).selectOption('OPERATOR');
+  await anaPage.getByLabel(/^Ambiente de trabalho do (papel|perfil)/).selectOption(workspaceId);
   await anaPage.getByRole('button', { name: 'Convidar' }).click();
   await confirmStepUp(anaPage, ana, 'Enviar convite');
   await settle(anaPage);

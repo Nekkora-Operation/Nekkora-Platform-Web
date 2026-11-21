@@ -89,15 +89,30 @@ afterEach(() => {
 });
 
 const panel = () => screen.queryByRole('region', { name: 'Ações sem resultado confirmado' });
-const row = (name: string) => within(screen.getByRole('region', { name: 'Lista de membros' })).getAllByRole('row').find((r) => r.textContent!.includes(name))!;
+const row = (name: string) => within(screen.getByRole('region', { name: 'Lista de pessoas e convites' })).getAllByRole('row').find((r) => r.textContent!.includes(name))!;
 const isSuspend = (m: string, p: string) => m === 'POST' && p.endsWith('/suspend');
 const membersGets = () => requests.filter((r) => r.method === 'GET' && r.path.includes('/members?') && r.path.includes('limit=100'));
 
 /** `actions`: espera a coluna de ações (P01) pelo botão de Caio, quando ele está na primeira página e sem incerteza. */
+/**
+ * PLATFORM-FLUXO-002: em "Pessoas e acessos" os membros vêm da entrada mais recente para a mais antiga; a equipe sintética
+ * (24 pessoas mais novas) ocupa a primeira página. Carrega a lista inteira antes de procurar uma linha.
+ */
+async function loadAllPeople() {
+  for (let i = 0; i < 10; i++) {
+    const more = screen.queryByRole('button', { name: /Carregar mais/ });
+    if (!more) return;
+    fireEvent.click(more);
+    await waitFor(() => expect(screen.queryByRole('button', { name: /Carregar mais/, busy: true })).toBeNull());
+    await new Promise((r) => setTimeout(r, 30));
+  }
+}
+
 async function openMembers({ actions = true } = {}) {
   const view = renderAt(members);
-  await screen.findByRole('region', { name: 'Lista de membros' });
-  if (actions) await screen.findByRole('button', { name: 'Suspender Caio Mendes' });
+  await screen.findByRole('region', { name: 'Lista de pessoas e convites' });
+  await loadAllPeople();
+  if (actions) await findAcrossPages('Suspender Caio Mendes');
   else await screen.findByRole('columnheader', { name: 'Ações' });
   return view;
 }
@@ -111,6 +126,24 @@ async function uncertainSuspend(name = 'Caio Mendes') {
   fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
   await waitFor(() => expect(panel()).toHaveTextContent(`Suspensão de ${name}: resultado não confirmado.`));
   transport = null;
+}
+
+
+/**
+ * PLATFORM-FLUXO-002: em "Pessoas e acessos" os membros vêm da entrada mais recente para a mais antiga (a equipe sintética,
+ * mais nova, ocupa a primeira página). Procura o botão e, se ele não estiver na tela, carrega a página seguinte.
+ */
+async function findAcrossPages(name: string) {
+  await screen.findByRole('region', { name: 'Lista de pessoas e convites' }, { timeout: 5000 });
+  for (let i = 0; i < 10; i++) {
+    const found = screen.queryByRole('button', { name });
+    if (found) return found;
+    const more = screen.queryByRole('button', { name: /Carregar mais/ });
+    if (!more) return screen.findByRole('button', { name });
+    if (!(more as HTMLButtonElement).disabled) fireEvent.click(more);
+    await new Promise((r) => setTimeout(r, 60));
+  }
+  return screen.findByRole('button', { name });
 }
 
 describe('isolamento por sessão', () => {
@@ -142,7 +175,8 @@ describe('isolamento por sessão', () => {
     view.unmount();
     sessionFor('ana@nekkora.dev');
     csrfStore.beginSession(DEV_ORG, 'sessao-nova'); // o login emite sessão nova (MfaPage → verifyMfa)
-    await openMembers();
+    // a linha do alvo mostra "Resultado não confirmado" (sem botão): espera só a coluna de ações
+    await openMembers({ actions: false });
     await waitFor(() => expect(panel()).not.toBeNull());
     expect(requests.filter((r) => isSuspend(r.method, r.path)).length).toBe(sent);
   });
@@ -208,34 +242,36 @@ describe('acesso negado esconde aviso e diálogo', () => {
     await uncertainSuspend();
     api.product.revokeOrganizationRoles(ana.membershipId);
     fireEvent.click(screen.getByRole('button', { name: 'Atualizar' }));
-    expect(await screen.findByText('Você não tem permissão para ver os membros desta organização.')).toBeInTheDocument();
+    expect(await screen.findByText('Você não tem permissão para ver as pessoas e os convites desta organização.')).toBeInTheDocument();
     expect(panel()).toBeNull();
     expect(screen.queryByText(/Caio Mendes/)).toBeNull();
     expect(screen.queryByRole('button', { name: /Conferir estado atual|Tentar de novo|Dispensar aviso/ })).toBeNull();
     // nova leitura ainda sem permissão: continua negado
     fireEvent.click(screen.getByRole('button', { name: 'Verificar novamente' }));
-    expect(await screen.findByText('Você não tem permissão para ver os membros desta organização.')).toBeInTheDocument();
+    expect(await screen.findByText('Você não tem permissão para ver as pessoas e os convites desta organização.')).toBeInTheDocument();
     expect(panel()).toBeNull();
     api.product.memberships.get(ana.membershipId)!.orgRoles = ['ORG_ADMIN'];
     fireEvent.click(screen.getByRole('button', { name: 'Verificar novamente' }));
-    await screen.findByRole('region', { name: 'Lista de membros' });
+    await screen.findByRole('region', { name: 'Lista de pessoas e convites' });
     expect(panel()).toHaveTextContent('Suspensão de Caio Mendes: resultado não confirmado.');
   });
 
   it('403 na continuação com o diálogo aberto: o diálogo fecha e nada do alvo fica visível', async () => {
     const ana = sessionFor('ana@nekkora.dev');
-    await openMembers();
+    // alvo na PRIMEIRA página (a mais recente): a página seguinte continua por carregar
+    renderAt(members);
+    await screen.findByRole('button', { name: 'Suspender Pessoa da Equipe 24' });
     let release!: () => void;
     const until = new Promise<void>((r) => (release = r));
-    transport = (m, p) => (m === 'GET' && p.includes('/members?') && p.includes('cursor=') ? { kind: 'delay', until } : null);
+    transport = (m, p) => (m === 'GET' && p.includes('/people?') && p.includes('cursor=') ? { kind: 'delay', until } : null);
     fireEvent.click(screen.getByRole('button', { name: 'Carregar mais' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Suspender Dani Rocha' }));
-    expect(await screen.findByRole('alertdialog', { name: 'Suspender Dani Rocha?' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Suspender Pessoa da Equipe 24' }));
+    expect(await screen.findByRole('alertdialog', { name: 'Suspender Pessoa da Equipe 24?' })).toBeInTheDocument();
     api.product.revokeOrganizationRoles(ana.membershipId);
     await act(async () => release());
-    expect(await screen.findByText('Você não tem permissão para ver os membros desta organização.')).toBeInTheDocument();
+    expect(await screen.findByText('Você não tem permissão para ver as pessoas e os convites desta organização.')).toBeInTheDocument();
     expect(screen.queryByRole('alertdialog')).toBeNull();
-    expect(screen.queryByText(/Dani Rocha/)).toBeNull();
+    expect(screen.queryByText(/Pessoa da Equipe 24/)).toBeNull();
     expect(requests.filter((r) => r.method === 'POST')).toHaveLength(0);
   });
 });
@@ -259,7 +295,7 @@ describe('nova tentativa recusada depois de resultado incerto', () => {
     expect(panel()).toHaveTextContent('Nova tentativa recusada: Este membro não foi encontrado nesta organização.');
     view.unmount();
     view = renderAt(members);
-    await screen.findByRole('region', { name: 'Lista de membros' });
+    await screen.findByRole('region', { name: 'Lista de pessoas e convites' });
     expect(panel()).toHaveTextContent('Suspensão de Caio Mendes: resultado não confirmado.');
     expect(requests.filter((r) => isSuspend(r.method, r.path))).toHaveLength(2);
   });

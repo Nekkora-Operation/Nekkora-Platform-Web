@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "47445900931c9128bac06d6f871ee7b7ff945aebb504bb22c93d337b4ef86741",
+  "openapiSha256": "ac9bff02aece8df09fff569fd6385244c153f807581debfdc1d1b31bf56aa6f3",
   "schemas": {
     "Error": {
       "type": "object",
@@ -396,6 +396,261 @@
         "createdAt": {
           "type": "string",
           "format": "date-time"
+        }
+      }
+    },
+    "PersonSituation": {
+      "type": "string",
+      "enum": [
+        "invitation_pending",
+        "invitation_expired",
+        "invitation_revoked",
+        "invitation_accepted",
+        "member_pending",
+        "member_active",
+        "member_suspended",
+        "member_revoked"
+      ]
+    },
+    "PersonRole": {
+      "type": "object",
+      "required": [
+        "role",
+        "workspaceId",
+        "workspaceName"
+      ],
+      "properties": {
+        "role": {
+          "$ref": "#/components/schemas/RoleCode"
+        },
+        "workspaceId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "workspaceName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "PersonMember": {
+      "type": "object",
+      "required": [
+        "membershipId",
+        "userId",
+        "displayName",
+        "email",
+        "emailVerified",
+        "accountStatus",
+        "membershipStatus",
+        "mfaConfigured",
+        "joinedAt",
+        "roles"
+      ],
+      "properties": {
+        "membershipId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "userId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "emailVerified": {
+          "type": "boolean"
+        },
+        "accountStatus": {
+          "$ref": "#/components/schemas/AccountStatus"
+        },
+        "membershipStatus": {
+          "$ref": "#/components/schemas/MembershipStatus"
+        },
+        "mfaConfigured": {
+          "type": "boolean"
+        },
+        "joinedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/PersonRole"
+          }
+        }
+      }
+    },
+    "PersonInvitation": {
+      "type": "object",
+      "required": [
+        "invitationId",
+        "email",
+        "role",
+        "workspaceId",
+        "workspaceName",
+        "state",
+        "createdAt",
+        "expiresAt",
+        "acceptedAt",
+        "revokedAt",
+        "revokeReason",
+        "acceptedUserId"
+      ],
+      "properties": {
+        "invitationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "email": {
+          "type": "string"
+        },
+        "role": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "workspaceId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "workspaceName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "PENDENTE",
+            "EXPIRADO",
+            "ACEITO",
+            "REVOGADO"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "acceptedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "revokedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "revokeReason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "REVOGADO",
+            "REENVIADO",
+            "EXPIRADO",
+            "EMISSOR_SEM_AUTORIDADE",
+            null
+          ]
+        },
+        "acceptedUserId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        }
+      }
+    },
+    "PersonItem": {
+      "type": "object",
+      "required": [
+        "kind",
+        "id",
+        "member",
+        "invitation"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "member",
+            "invitation"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "member": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/PersonMember"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "invitation": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/PersonInvitation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "PeoplePage": {
+      "type": "object",
+      "required": [
+        "items",
+        "nextCursor",
+        "invitationsEnabled"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/PersonItem"
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "invitationsEnabled": {
+          "type": "boolean"
         }
       }
     },
@@ -11007,6 +11262,48 @@
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/MemberPage"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "500": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "listPeople": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/people",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/PeoplePage"
           }
         },
         "400": {

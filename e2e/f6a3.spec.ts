@@ -204,7 +204,7 @@ test('membros e concessões não colidem: cada tela mostra só a sua incerteza',
   await dialog.getByRole('button', { name: 'Cancelar' }).click();
 
   const nav = page.getByRole('navigation', { name: 'Navegação principal' });
-  await nav.getByRole('link', { name: 'Membros' }).click();
+  await nav.getByRole('link', { name: 'Pessoas e acessos' }).click();
   await expect(page.getByRole('button', { name: 'Suspender Alvo F6a3' })).toBeVisible();
   await expect(panel(page)).toHaveCount(0);
   await page.getByRole('button', { name: 'Suspender Alvo F6a3' }).click();

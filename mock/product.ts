@@ -777,11 +777,11 @@ export function parseLimit(q: URLSearchParams): number {
   return n;
 }
 
-export function parseStatus<T extends string>(q: URLSearchParams, allowed: T[], max: number): T[] | null {
-  if (!q.has('status')) return null;
-  const values = q.getAll('status');
-  if (values.length === 0 || values.length > max || new Set(values).size !== values.length) throw new BadRequest('status');
-  for (const v of values) if (!allowed.includes(v as T)) throw new BadRequest('status');
+export function parseStatus<T extends string>(q: URLSearchParams, allowed: T[], max: number, name = 'status'): T[] | null {
+  if (!q.has(name)) return null;
+  const values = q.getAll(name);
+  if (values.length === 0 || values.length > max || new Set(values).size !== values.length) throw new BadRequest(name);
+  for (const v of values) if (!allowed.includes(v as T)) throw new BadRequest(name);
   return values as T[];
 }
 

@@ -244,8 +244,8 @@ test('PLATFORM-LICENCIAMENTO-001: organizações por perfil, licenças pelo oper
   const bruno = await signUpAndEnroll(brunoPage, 'lic-b');
   await go(anaPage, `/o/${matriz}/administracao/convites`);
   await anaPage.getByLabel(/^E-mail da pessoa/).fill(bruno.email);
-  await anaPage.getByLabel(/^Papel/).selectOption('OPERATOR');
-  await anaPage.getByLabel(/^Ambiente de trabalho do papel/).selectOption(workspaceId);
+  await anaPage.getByLabel(/^(Papel|Perfil)/).selectOption('OPERATOR');
+  await anaPage.getByLabel(/^Ambiente de trabalho do (papel|perfil)/).selectOption(workspaceId);
   await anaPage.getByRole('button', { name: 'Convidar' }).click();
   await confirmStepUp(anaPage, ana, 'Enviar convite');
   await settle(anaPage);

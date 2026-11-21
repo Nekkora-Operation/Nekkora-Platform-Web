@@ -34,7 +34,7 @@ async function setup(page: Page) {
   await expect(page).toHaveURL(`/o/${org}/mfa`);
   await page.getByLabel(/Código de autenticação/).fill(await new Authenticator(admin.totpSecret).next());
   await expect(page.getByRole('heading', { name: 'Olá, Admin F6a2' })).toBeVisible();
-  await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Membros' }).click();
+  await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Pessoas e acessos' }).click();
   await expect(page.getByRole('button', { name: 'Suspender Alvo F6a2' })).toBeVisible();
   return { org, admin, alvo };
 }
@@ -132,7 +132,7 @@ test('transporte: rede cai DEPOIS de o servidor aplicar → incerto; conferir in
   const nav = page.getByRole('navigation', { name: 'Navegação principal' });
   await nav.getByRole('link', { name: 'Clientes' }).click();
   await expect(page).toHaveURL(`/o/${org}/administracao/clientes`);
-  await nav.getByRole('link', { name: 'Membros' }).click();
+  await nav.getByRole('link', { name: 'Pessoas e acessos' }).click();
   await expect(panel(page)).toContainText('Suspensão de Alvo F6a2: resultado não confirmado.');
   expect(sent.length).toBe(1);
 });
@@ -181,7 +181,7 @@ test('R1: logout e outra conta da mesma organização na mesma aba: a incerteza 
   await expect(page).toHaveURL(`/o/${org}/mfa`);
   await page.getByLabel(/Código de autenticação/).fill(await new Authenticator(outra.totpSecret).next());
   await expect(page.getByRole('heading', { name: 'Olá, Outra Admin' })).toBeVisible();
-  await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Membros' }).click();
+  await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Pessoas e acessos' }).click();
   await expect(page.getByRole('button', { name: 'Suspender Alvo F6a2' })).toBeVisible();
   await expect(panel(page)).toHaveCount(0);
   await expect(page.getByText('Resultado não confirmado')).toHaveCount(0);
@@ -227,7 +227,7 @@ test('R2: duas abas no mesmo navegador — outra aba entra com outra conta: a ab
   expect(checks.length).toBe(1);
 
   // a outra aba segue normal, sem nada da sessão anterior
-  await other.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Membros' }).click();
+  await other.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Pessoas e acessos' }).click();
   await expect(other.getByRole('button', { name: 'Suspender Alvo F6a2' })).toBeVisible();
   await expect(panel(other)).toHaveCount(0);
 });

@@ -42,8 +42,8 @@ test('J07/J08: ambiente de trabalho, convite com papel, aceite pela caixa, visã
   // convite como OPERATOR do workspace (step-up)
   await admin.goto(`/o/${org}/administracao/convites`);
   await admin.getByLabel(/^E-mail da pessoa/).fill(bia.email);
-  await admin.getByLabel(/^Papel/).selectOption('OPERATOR');
-  await admin.getByLabel(/^Ambiente de trabalho do papel/).selectOption(workspaceId);
+  await admin.getByLabel(/^(Papel|Perfil)/).selectOption('OPERATOR');
+  await admin.getByLabel(/^Ambiente de trabalho do (papel|perfil)/).selectOption(workspaceId);
   await admin.getByRole('button', { name: 'Convidar' }).click();
   await confirmStepUp(admin, ana, 'Enviar convite');
   await expect(admin.getByText('Convite enviado.')).toBeVisible();

@@ -159,6 +159,24 @@ async function uncertainRevoke(t: Transport = { kind: 'network-before' }) {
   transport = null;
 }
 
+
+/**
+ * PLATFORM-FLUXO-002: em "Pessoas e acessos" os membros vêm da entrada mais recente para a mais antiga (a equipe sintética,
+ * mais nova, ocupa a primeira página). Procura o botão e, se ele não estiver na tela, carrega a página seguinte.
+ */
+async function findAcrossPages(name: string) {
+  await screen.findByRole('region', { name: 'Lista de pessoas e convites' }, { timeout: 5000 });
+  for (let i = 0; i < 10; i++) {
+    const found = screen.queryByRole('button', { name });
+    if (found) return found;
+    const more = screen.queryByRole('button', { name: /Carregar mais/ });
+    if (!more) return screen.findByRole('button', { name });
+    if (!(more as HTMLButtonElement).disabled) fireEvent.click(more);
+    await new Promise((r) => setTimeout(r, 60));
+  }
+  return screen.findByRole('button', { name });
+}
+
 describe('revogar: sucesso', () => {
   it('a confirmação identifica cliente e ambiente de trabalho e explica o efeito; um POST; anúncio; linha revogada; foco na linha', async () => {
     sessionFor('ana@nekkora.dev');
@@ -472,14 +490,14 @@ describe('R1: "Exibindo N" do AdminLoadMore nas telas administrativas (compatibi
     // linhas da tabela (sem o cabeçalho) = itens exibidos; no padrão, = itens carregados
     const rows = (region: string) => within(screen.getByRole('region', { name: region })).getAllByRole('row').length - 1;
     let view = renderAt(members);
-    await screen.findByRole('region', { name: 'Lista de membros' });
-    expect(await screen.findByText('Exibindo 25 membros')).toBeInTheDocument();
-    expect(rows('Lista de membros')).toBe(25);
+    await screen.findByRole('region', { name: 'Lista de pessoas e convites' });
+    expect(await screen.findByText('Exibindo 25 linhas')).toBeInTheDocument();
+    expect(rows('Lista de pessoas e convites')).toBe(25);
     fireEvent.click(screen.getByRole('button', { name: 'Carregar mais' }));
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Carregar mais' })).toBeNull());
-    const n = rows('Lista de membros');
+    const n = rows('Lista de pessoas e convites');
     expect(n).toBeGreaterThan(25);
-    expect(screen.getByText(`Exibindo ${n} membros · lista completa`)).toBeInTheDocument();
+    expect(screen.getByText(`Exibindo ${n} linhas · lista completa`)).toBeInTheDocument();
     view.unmount();
 
     view = renderAt(`/o/${DEV_ORG}/administracao/clientes`);
@@ -797,7 +815,7 @@ describe('membros e concessões não colidem', () => {
     view.unmount();
 
     view = renderAt(members);
-    await screen.findByRole('button', { name: 'Suspender Caio Mendes' });
+    await findAcrossPages('Suspender Caio Mendes');
     expect(panel()).toBeNull();
     transport = (m, p) => (m === 'POST' && p.endsWith('/suspend') ? { kind: 'network-before' } : null);
     fireEvent.click(screen.getByRole('button', { name: 'Suspender Caio Mendes' }));
