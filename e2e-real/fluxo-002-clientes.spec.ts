@@ -105,9 +105,6 @@ async function audit(page: Page, name: string) {
 const rows = (page: Page) => page.getByRole('region', { name: 'Lista de pessoas e convites' }).locator('tbody tr');
 const rowOf = (page: Page, text: string) => rows(page).filter({ hasText: text });
 
-/** Preenche o convite de Cliente (sem enviar). */
-async function fillClientInvite(page: Page, email: string, client: string, workspace: string, machine: string | null, automation: string, logs: boolean, results: boolean) {
-  await page.getByRole('radio', { name: /^Cliente/ }).check();
 
 /** Preenche o compartilhamento por pessoa (sem enviar). `machine` fica em "Opções adicionais". */
 async function fillShare(page: Page, name: string, email: string, workspace: string, automation: string, machine: string | null, dashboard: boolean, files: boolean) {
@@ -250,7 +247,8 @@ test('Compartilhamento por pessoa: dashboard e arquivos de retorno, sem registro
   await expect(pagE.getByRole('group', { name: 'Indicadores do período' })).toBeVisible();
   await shot(pagE, '3-dashboard-da-automacao');
   const resumo = await apiGet(pagE, `/portal/api/v1/o/${org}/shared-automations/${robo}/summary`);
-  const esperado = sql(`SELECT count(*) FROM remote_executions x JOIN LATERAL (SELECT worker_id FROM remote_attempts z WHERE z.remote_execution_id = x.remote_execution_id ORDER BY attempt_number DESC LIMIT 1) t ON true WHERE x.organization_id = '${org}' AND x.automation_id = '${robo}' AND t.worker_id = '${client}' AND x.requested_at >= now() - interval '30 days'`);
+  // as quatro origens (mesma regra do Portal), só desta organização, desta automação e da Estação Client, nos últimos 30 dias
+  const esperado = sql(`SELECT (SELECT count(*) FROM executions WHERE organization_id = '${org}' AND automation_id = '${robo}' AND worker_id = '${client}' AND created_at >= now() - interval '30 days') + (SELECT count(*) FROM agent_runs WHERE organization_id = '${org}' AND automation_id = '${robo}' AND worker_id = '${client}' AND platform_execution_id IS NULL AND registered_at >= now() - interval '30 days') + (SELECT count(*) FROM run_requests WHERE organization_id = '${org}' AND automation_id = '${robo}' AND worker_id = '${client}' AND state <> 6 AND agent_run_id IS NULL AND requested_at >= now() - interval '30 days') + (SELECT count(*) FROM remote_executions x WHERE x.organization_id = '${org}' AND x.automation_id = '${robo}' AND x.requested_at >= now() - interval '30 days' AND (SELECT z.worker_id FROM remote_attempts z WHERE z.remote_execution_id = x.remote_execution_id ORDER BY z.attempt_number DESC LIMIT 1) = '${client}')`);
   const execs = await apiGet(pagE, `/portal/api/v1/o/${org}/shared-automations/${robo}/executions`);
   const escopo = {
     resumo_total: resumo.body.total,

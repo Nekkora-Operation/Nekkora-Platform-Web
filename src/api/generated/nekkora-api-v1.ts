@@ -3599,7 +3599,7 @@ export interface components {
          * @enum {string}
          */
         OrganizationOnlyPermissionCode: "org.manage" | "workspace.lifecycle" | "role.assign_admin_roles" | "external_access.manage" | "worker.manage" | "agent.manage" | "agent_credential.manage" | "worker_agent.assign" | "worker_workspace.authorize" | "identity.mfa.reset";
-        /** @description Catalogo completo de public.permissions (migrations 003, 004, 005, 008, 009, 014): 23 codigos. */
+        /** @description Catalogo completo de public.permissions (migrations 003, 004, 005, 008, 009, 014, 071): 24 codigos. */
         PermissionCode: components["schemas"]["WorkspacePermissionCode"] | components["schemas"]["OrganizationOnlyPermissionCode"];
         /** @enum {string} */
         RoleCode: "ORG_ADMIN" | "WORKSPACE_ADMIN" | "OPERATOR" | "VIEWER";

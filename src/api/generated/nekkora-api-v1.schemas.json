@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "ada748b0190e7d0725172e4265e49a82b26b29c1ceb9c75ae38d54a18b00bdd1",
+  "openapiSha256": "85c85d5b4aa3397d97c8be7500f5eb6dc91044ac42efd4587ecbbe0d24f54232",
   "schemas": {
     "Error": {
       "type": "object",
@@ -273,7 +273,7 @@
             "permissions": {
               "type": "array",
               "uniqueItems": true,
-              "maxItems": 23,
+              "maxItems": 24,
               "items": {
                 "$ref": "#/components/schemas/PermissionCode"
               }
@@ -289,7 +289,7 @@
             "permissions": {
               "type": "array",
               "uniqueItems": true,
-              "maxItems": 13,
+              "maxItems": 14,
               "items": {
                 "$ref": "#/components/schemas/WorkspacePermissionCode"
               }
@@ -324,7 +324,7 @@
         "permissions": {
           "type": "array",
           "uniqueItems": true,
-          "maxItems": 13,
+          "maxItems": 14,
           "items": {
             "$ref": "#/components/schemas/WorkspacePermissionCode"
           }
