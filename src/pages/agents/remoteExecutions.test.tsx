@@ -151,7 +151,7 @@ beforeEach(() => {
   packageKind = 'EXTERNAL_PYTHON';
   api.on('GET', `/api/v1/o/${ORG}/me`, 'getMe', {
     status: 200,
-    body: { accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: ORG, organizationActivationState: 'ATIVADA', stepUpMethod: 'totp' },
+    body: { accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: ORG, organizationActivationState: 'ATIVADA', remoteExecutionAvailable: true, stepUpMethod: 'totp' },
   });
   permissions(['automation.read', 'automation.manage', 'automation.execute']);
   api.on('GET', `/api/v1/o/${ORG}/workspaces`, 'listWorkspaces', { status: 200, body: { items: [], nextCursor: null } });
@@ -1094,5 +1094,16 @@ describe('Versão: execução remota (T02)', () => {
     await waitFor(() => expect(api.sent('GET', new RegExp(`^${CANDIDATES}`)).length).toBeGreaterThan(0));
     expect(screen.queryByRole('heading', { name: 'Execução remota' })).toBeNull();
     expect(screen.getByRole('heading', { name: /Autorizações de execução local/ })).toBeInTheDocument();
+  });
+});
+
+describe('RELEASE-2.2: Platform sem execução remota', () => {
+  it('a versão não oferece solicitar a uma máquina: diz que está indisponível e não lê candidatas', async () => {
+    api.on('GET', `/api/v1/o/${ORG}/me`, 'getMe', { status: 200, body: { accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: ORG, organizationActivationState: 'ATIVADA', stepUpMethod: 'totp' } });
+    await open();
+    expect(await screen.findByText('Execução pela Platform indisponível nesta versão')).toBeInTheDocument();
+    expect(screen.getByText(/Esta versão não pode ser solicitada a uma máquina pela Platform/)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Execução remota' })).toBeNull();
+    expect(api.sent('GET', new RegExp(`^${CANDIDATES}`))).toEqual([]);
   });
 });

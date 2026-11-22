@@ -3,6 +3,7 @@ import { Alert, Button, Checkbox, Fieldset, Select, Text } from 'nekkora-lib';
 import { listClients } from '../../api/admin';
 import { listClientShareOptions, type ClientRecord, type ClientShareOption } from '../../api/clientAccess';
 import { CLIENT_SEES, ClientFormDialog, inviteSummary } from './clientShared';
+import { useRemoteExecutionAvailable } from '../../components/RemoteUnavailable';
 
 /**
  * O compartilhamento como o formulário o guarda (071). `workerId` vazio = todas as máquinas desta automação; `clientId` vazio = o
@@ -90,6 +91,7 @@ export function ClientInviteFields({
   /** Campos da pessoa (nome e e-mail), na mesma linha do ambiente e da automação. */
   lead?: ReactNode;
 }) {
+  const remoteAvailable = useRemoteExecutionAvailable();
   const [options, setOptions] = useState<ClientInviteOptions | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -215,7 +217,13 @@ export function ClientInviteFields({
         />
         <Checkbox
           label="Arquivos de retorno"
-          hint={canFiles ? 'Ver e baixar os resultados, identificados pela automação e pela data da execução.' : undefined}
+          hint={
+            canFiles
+              ? remoteAvailable
+                ? 'Ver e baixar os resultados, identificados pela automação e pela data da execução.'
+                : 'Ver e baixar os resultados. Nesta versão não há arquivos: eles vêm da execução pela Platform, ainda indisponível.'
+              : undefined
+          }
           checked={draft.canDownloadResults}
           disabled={!canFiles}
           onChange={(e) => onChange({ ...draft, canDownloadResults: e.target.checked })}

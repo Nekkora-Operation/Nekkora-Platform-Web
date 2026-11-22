@@ -121,6 +121,10 @@ export const PAIRING_APP: Record<PairingApp, { label: string; description: strin
     description: 'O código de pareamento de sempre, sem execução remota. O fluxo dele não muda.',
   },
 };
+/** RELEASE-2.2: onde a execução remota não está disponível, o Client aparece desabilitado com o motivo. */
+export const CLIENT_UNAVAILABLE_DESCRIPTION =
+  'Indisponível nesta versão: o novo Nekkora Agent Client ainda não foi publicado e a execução pela Platform não está ligada.';
+export const AGENT_AVAILABLE_DESCRIPTION = 'O aplicativo disponível hoje. O código de pareamento de sempre, para executar no próprio computador.';
 export const CLIENT_CONFIRMATION_REQUIRED = 'Marque a confirmação para gerar o código deste vínculo. Sem ela, nenhum código é gerado.';
 
 /**
@@ -132,19 +136,22 @@ export const CLIENT_CONFIRMATION_REQUIRED = 'Marque a confirmação para gerar o
  */
 export function PairAgentDialog({ worker, onDone, onClose }: { worker: FreeWorker | null; onDone: (code: AgentCode) => void; onClose: () => void }) {
   const { org, expired, me } = useSession();
+  // RELEASE-2.2: o aplicativo que vem marcado é o que esta Platform aceita (sem execução remota, o Agent)
+  const clientAvailable = me.remoteExecutionAvailable === true;
+  const defaultApp: PairingApp = clientAvailable ? 'client' : 'agent';
   const [agentName, setAgentName] = useState('');
   const [minutes, setMinutes] = useState('15');
-  const [app, setApp] = useState<PairingApp>('client');
+  const [app, setApp] = useState<PairingApp>(defaultApp);
   const [remote, setRemote] = useState(false);
   const workerId = worker?.workerId;
   useEffect(() => {
     if (!worker) return;
     setAgentName(worker.name);
     setMinutes('15');
-    setApp('client');
+    setApp(defaultApp);
     setRemote(false);
     // só ao abrir para um Worker (o nome digitado não é sobrescrito enquanto o diálogo está aberto)
-  }, [workerId]);
+  }, [workerId, defaultApp]);
   const fieldsOk = agentName.trim().length > 0 && agentName.trim().length <= 80 && Number(minutes) >= 5 && Number(minutes) <= 60;
   // vínculo do Client: a confirmação de execução remota é obrigatória (o Agent anterior não tem essa opção)
   const forClient = app === 'client';
@@ -207,7 +214,13 @@ export function PairAgentDialog({ worker, onDone, onClose }: { worker: FreeWorke
           setApp(v as PairingApp);
           setRemote(false);
         }}
-        options={(Object.keys(PAIRING_APP) as PairingApp[]).map((k) => ({ value: k, label: PAIRING_APP[k].label, description: PAIRING_APP[k].description }))}
+        options={(Object.keys(PAIRING_APP) as PairingApp[]).map((k) =>
+          clientAvailable
+            ? { value: k, label: PAIRING_APP[k].label, description: PAIRING_APP[k].description }
+            : k === 'client'
+              ? { value: k, label: PAIRING_APP[k].label, description: CLIENT_UNAVAILABLE_DESCRIPTION, disabled: true }
+              : { value: k, label: PAIRING_APP[k].label, description: AGENT_AVAILABLE_DESCRIPTION },
+        )}
       />
       {forClient && (
         <>

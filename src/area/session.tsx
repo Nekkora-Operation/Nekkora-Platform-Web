@@ -32,6 +32,11 @@ export interface Session {
 const SessionContext = createContext<Session | null>(null);
 export const SessionProvider = SessionContext.Provider;
 
+/** Sessão da área autenticada, ou null fora dela (para indicações que não exigem sessão). */
+export function useOptionalSession(): Session | null {
+  return useContext(SessionContext);
+}
+
 /** Sessão da área autenticada (só existe dentro dela). */
 export function useSession(): Session {
   const s = useContext(SessionContext);

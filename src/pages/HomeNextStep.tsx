@@ -47,11 +47,15 @@ function useActivity(workspaces: Workspace[] | null) {
   return { automations };
 }
 
-/** Estado de ativação (022): o que significa, o que impede e quem ativa. Ausente (API anterior ao campo): nada. */
-export function ActivationNotice() {
+/**
+ * Estado de ativação (022): o que significa, o que impede e quem ativa. Ausente (API anterior ao campo): nada. `onlyPending`
+ * (Máquinas): só o aviso de "aguardando ativação", no modelo anterior; nada quando a organização já pode cadastrar máquinas.
+ */
+export function ActivationNotice({ onlyPending = false }: { onlyPending?: boolean } = {}) {
   const { me } = useSession();
   const state = me.organizationActivationState;
   if (!state) return null;
+  if (onlyPending && (state === 'ATIVADA' || me.organizationLicenseModel === 'licensed')) return null;
   const a = activationLabel(state, me.organizationLicenseModel);
   if (me.organizationLicenseModel === 'licensed') {
     // modelo por licença: não há ativação a esperar. O aviso de "aguardando ativação" seria falso aqui

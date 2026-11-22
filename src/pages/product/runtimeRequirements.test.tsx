@@ -52,7 +52,7 @@ beforeEach(() => {
   csrfStore.setSession(ORG, 'ses');
   api.on('GET', `/api/v1/o/${ORG}/me`, 'getMe', {
     status: 200,
-    body: { accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: ORG, organizationActivationState: 'ATIVADA', stepUpMethod: 'totp' },
+    body: { accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: ORG, organizationActivationState: 'ATIVADA', remoteExecutionAvailable: true, stepUpMethod: 'totp' },
   });
   permissions(['automation.read', 'automation.manage']);
   api.on('GET', `/api/v1/o/${ORG}/workspaces`, 'listWorkspaces', { status: 200, body: { items: [], nextCursor: null } });
@@ -205,5 +205,17 @@ describe('Automação: dependências de execução (T01c)', () => {
     await open();
     await waitFor(() => expect(api.sent('GET', REQ).length).toBeGreaterThan(0));
     expect(screen.queryByRole('heading', { name: 'Dependências de execução' })).toBeNull();
+  });
+});
+
+describe('RELEASE-2.2: Platform sem execução remota', () => {
+  it('a página da automação diz que a execução pela Platform está indisponível e não mostra nem lê as dependências', async () => {
+    api.on('GET', `/api/v1/o/${ORG}/me`, 'getMe', { status: 200, body: { accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: ORG, organizationActivationState: 'ATIVADA', stepUpMethod: 'totp' } });
+    await open();
+    expect(await screen.findByText('Execução pela Platform indisponível nesta versão')).toBeInTheDocument();
+    expect(screen.getByText(/as dependências de execução .* não aparecem aqui/)).toBeInTheDocument();
+    expect(screen.getByText(/Executar pelo Nekkora Agent, no próprio computador, continua como hoje/)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Dependências de execução' })).toBeNull();
+    expect(api.sent('GET', REQ)).toEqual([]);
   });
 });

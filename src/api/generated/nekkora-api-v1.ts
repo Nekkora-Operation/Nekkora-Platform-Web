@@ -5474,6 +5474,8 @@ export interface components {
             organizationActivationState: components["schemas"]["OrganizationActivationState"];
             organizationLicenseModel?: components["schemas"]["OrganizationLicenseModel"];
             stepUpMethod: components["schemas"]["StepUpMethod"];
+            /** @description RELEASE-2.2: se esta Platform aceita execucao remota (chave nekkora.remote-execution.enabled; padrao false). So indicacao para a tela; cada rota continua recusando com 409 remote_execution_unavailable. Ausente (API anterior): tratar como indisponivel. */
+            remoteExecutionAvailable?: boolean;
         };
         /**
          * @description PLATFORM-LICENCIAMENTO-001. licensed: a organizacao esta no modelo por licenca - a capacidade e tecnica (limites iguais para todas) e NAO depende da ativacao pela operacao; o que habilita uma automacao e a licenca. legacy: modelo anterior, em que a ativacao libera a capacidade. A tela usa para nao dizer "aguardando ativacao: nenhum Worker pode ser registrado" a quem ja pode registrar.
