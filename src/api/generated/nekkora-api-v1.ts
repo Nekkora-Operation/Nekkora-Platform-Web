@@ -5685,6 +5685,25 @@ export interface components {
                 /** @description Linhas que tinham texto quando venceu */
                 items: number;
             } | null;
+            /** @description LICENCIAMENTO-002: ate quando o texto dos registros desta tentativa fica(m) disponivel(is) na Platform, pela retencao do servidor. O prazo conta do fim da entrega calculado pelo banco (deliveryEnd/startsAt). EXPIRED = venceu (ver expiration); SCHEDULED = a entrega terminou e o prazo corre ate availableUntil (a remocao acontece no primeiro ciclo depois dessa data); INCOMPLETE_DELIVERY = a tentativa terminou sem a maquina fechar o envio: se nada mais chegar, vence em availableUntil (teto sem progresso; um novo item adia a data); WAITING_DELIVERY = a tentativa nao terminou, o prazo comeca quando a entrega terminar; UNCERTAIN = resultado nao confirmado sem reconciliacao, nao vence enquanto for incerta; NO_RETENTION = a retencao nao esta ligada neste ambiente, nada e removido automaticamente. */
+            availability: {
+                /** @enum {string} */
+                state: "EXPIRED" | "SCHEDULED" | "INCOMPLETE_DELIVERY" | "WAITING_DELIVERY" | "UNCERTAIN" | "NO_RETENTION";
+                /** @description O prazo, em dias, que vale para este caso (o aplicado, quando EXPIRED) */
+                days: number;
+                /**
+                 * Format: date-time
+                 * @description Inicio da contagem: o fim da entrega. null = ainda nao comecou
+                 */
+                startsAt: string | null;
+                /** @enum {string|null} */
+                deliveryEnd: "CLOSED" | "LOSS_NOTICE" | "LINK_ENDED" | "NO_PROGRESS" | null;
+                /**
+                 * Format: date-time
+                 * @description startsAt + days. null = sem data (ver state)
+                 */
+                availableUntil: string | null;
+            };
         };
         RemoteAttemptResults: {
             /** Format: uuid */
@@ -5741,6 +5760,25 @@ export interface components {
                 /** @description Arquivos que estavam guardados quando venceu */
                 items: number;
             } | null;
+            /** @description LICENCIAMENTO-002: ate quando os arquivos desta tentativa fica(m) disponivel(is) na Platform, pela retencao do servidor. O prazo conta do fim da entrega calculado pelo banco (deliveryEnd/startsAt). EXPIRED = venceu (ver expiration); SCHEDULED = a entrega terminou e o prazo corre ate availableUntil (a remocao acontece no primeiro ciclo depois dessa data); INCOMPLETE_DELIVERY = a tentativa terminou sem a maquina fechar o envio: se nada mais chegar, vence em availableUntil (teto sem progresso; um novo item adia a data); WAITING_DELIVERY = a tentativa nao terminou, o prazo comeca quando a entrega terminar; UNCERTAIN = resultado nao confirmado sem reconciliacao, nao vence enquanto for incerta; NO_RETENTION = a retencao nao esta ligada neste ambiente, nada e removido automaticamente. */
+            availability: {
+                /** @enum {string} */
+                state: "EXPIRED" | "SCHEDULED" | "INCOMPLETE_DELIVERY" | "WAITING_DELIVERY" | "UNCERTAIN" | "NO_RETENTION";
+                /** @description O prazo, em dias, que vale para este caso (o aplicado, quando EXPIRED) */
+                days: number;
+                /**
+                 * Format: date-time
+                 * @description Inicio da contagem: o fim da entrega. null = ainda nao comecou
+                 */
+                startsAt: string | null;
+                /** @enum {string|null} */
+                deliveryEnd: "CLOSED" | "LOSS_NOTICE" | "LINK_ENDED" | "NO_PROGRESS" | null;
+                /**
+                 * Format: date-time
+                 * @description startsAt + days. null = sem data (ver state)
+                 */
+                availableUntil: string | null;
+            };
         };
         RemoteExecution: {
             /** Format: uuid */

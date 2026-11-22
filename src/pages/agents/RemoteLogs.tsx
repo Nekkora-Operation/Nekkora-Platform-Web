@@ -24,6 +24,7 @@ function counts(page: RemoteAttemptLogs) {
     closure: page.closure,
     retentionLoss: page.retentionLoss,
     expiration: page.expiration,
+    availability: page.availability,
   };
 }
 
@@ -51,6 +52,38 @@ const DELIVERY_END: Record<string, string> = {
   LINK_ENDED: 'o vínculo da máquina foi encerrado',
 };
 
+type Availability = RemoteAttemptLogs['availability'];
+/** Data e hora no calendário de quem lê (a data limite é um instante, não só um dia). */
+const moment = (iso: string) => new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+
+/**
+ * LICENCIAMENTO-002 — até quando o conteúdo fica disponível na Platform, ANTES de vencer. A contagem começa no fim da entrega
+ * (calculado pelo servidor). Vencido, quem fala é o texto do vencimento ({@link logsExpiredText}/resultsExpiredText): aqui, nulo.
+ * {@code what}: "Os registros" ou "Os arquivos de resultado".
+ */
+export function availabilityText(a: Availability | undefined, what: string): string | null {
+  if (!a || a.state === 'EXPIRED') return null;
+  const days = a.days === 1 ? '1 dia' : `${n(a.days)} dias`;
+  switch (a.state) {
+    case 'WAITING_DELIVERY':
+      return `${what} ficam disponíveis na Platform por ${days} depois do fim da entrega. A contagem ainda não começou: a execução não terminou.`;
+    case 'SCHEDULED':
+      return a.availableUntil && a.startsAt
+        ? `Disponível até ${moment(a.availableUntil)}: a Platform guarda ${what.toLowerCase()} por ${days} contados do fim da entrega (${DELIVERY_END[a.deliveryEnd ?? ''] ?? a.deliveryEnd} em ${moment(a.startsAt)}). Depois disso, o conteúdo é removido.`
+        : null;
+    case 'INCOMPLETE_DELIVERY':
+      return a.availableUntil && a.startsAt
+        ? `A máquina ainda não concluiu o envio. Se nada mais chegar, ${what.toLowerCase()} ficam disponíveis até ${moment(a.availableUntil)} (${days} sem progresso desde ${moment(a.startsAt)}); um novo envio adia essa data.`
+        : null;
+    case 'UNCERTAIN':
+      return `O resultado desta execução não foi confirmado. Enquanto não for reconciliado, ${what.toLowerCase()} não expiram.`;
+    case 'NO_RETENTION':
+      return `Neste ambiente a Platform não remove ${what.toLowerCase()} automaticamente.`;
+    default:
+      return null;
+  }
+}
+
 type Expiration = NonNullable<RemoteAttemptLogs['expiration']>;
 const expirationDay = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 
@@ -70,7 +103,7 @@ export function logsExpiredText(x: Expiration): string {
 
 export function RemoteLogs({ org, executionId, attemptId, attemptNumber }: { org: string; executionId: string; attemptId: string; attemptNumber: number }) {
   const [state, setState] = useState<
-    { status: 'closed' } | { status: 'loading' } | { status: 'error'; text: string } | { status: 'ready'; lines: Line[]; total: number; automationLines: number; systemLines: number; nextAfter: number | null; closure: RemoteAttemptLogs['closure']; retentionLoss: RemoteAttemptLogs['retentionLoss']; expiration: RemoteAttemptLogs['expiration'] }
+    { status: 'closed' } | { status: 'loading' } | { status: 'error'; text: string } | { status: 'ready'; lines: Line[]; total: number; automationLines: number; systemLines: number; nextAfter: number | null; closure: RemoteAttemptLogs['closure']; retentionLoss: RemoteAttemptLogs['retentionLoss']; expiration: RemoteAttemptLogs['expiration']; availability: Availability | undefined }
   >({ status: 'closed' });
   const [more, setMore] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -123,7 +156,8 @@ export function RemoteLogs({ org, executionId, attemptId, attemptNumber }: { org
       </Stack>
     );
   }
-  const { lines, total, automationLines, systemLines, nextAfter, closure, retentionLoss, expiration } = state;
+  const { lines, total, automationLines, systemLines, nextAfter, closure, retentionLoss, expiration, availability } = state;
+  const until = availabilityText(availability, 'Os registros');
   const pending = total - lines.length;
   return (
     <Stack gap={2}>
@@ -169,6 +203,11 @@ export function RemoteLogs({ org, executionId, attemptId, attemptNumber }: { org
         </Alert>
       )}
       {expiration && <Alert tone="info">{logsExpiredText(expiration)}</Alert>}
+      {until && (
+        <Text variant="body-sm" color="secondary">
+          {until}
+        </Text>
+      )}
       {retentionLoss && (
         <Alert tone="warning">
           A máquina avisou, em {day(retentionLoss.reportedAt)}, que removeu os registros que ainda guardava desta execução: venceu o prazo de guarda dela sem a

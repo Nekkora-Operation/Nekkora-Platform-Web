@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "709b2f01d50774734043056f8a4f8576f8ab43d3b8dbae7f9d6bb2af3c479a00",
+  "openapiSha256": "841d5de4140df87efd00ac787281554ab2f215908b3b50bdf700bb3763654ab0",
   "schemas": {
     "Error": {
       "type": "object",
@@ -7084,7 +7084,8 @@
         "nextAfter",
         "closure",
         "retentionLoss",
-        "expiration"
+        "expiration",
+        "availability"
       ],
       "properties": {
         "attemptId": {
@@ -7254,6 +7255,61 @@
               "minimum": 0
             }
           }
+        },
+        "availability": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "days",
+            "startsAt",
+            "deliveryEnd",
+            "availableUntil"
+          ],
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "EXPIRED",
+                "SCHEDULED",
+                "INCOMPLETE_DELIVERY",
+                "WAITING_DELIVERY",
+                "UNCERTAIN",
+                "NO_RETENTION"
+              ]
+            },
+            "days": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "startsAt": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            },
+            "deliveryEnd": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "CLOSED",
+                "LOSS_NOTICE",
+                "LINK_ENDED",
+                "NO_PROGRESS",
+                null
+              ]
+            },
+            "availableUntil": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            }
+          }
         }
       }
     },
@@ -7265,7 +7321,8 @@
         "items",
         "closure",
         "retentionLoss",
-        "expiration"
+        "expiration",
+        "availability"
       ],
       "properties": {
         "attemptId": {
@@ -7405,6 +7462,61 @@
             "items": {
               "type": "integer",
               "minimum": 0
+            }
+          }
+        },
+        "availability": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "days",
+            "startsAt",
+            "deliveryEnd",
+            "availableUntil"
+          ],
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "EXPIRED",
+                "SCHEDULED",
+                "INCOMPLETE_DELIVERY",
+                "WAITING_DELIVERY",
+                "UNCERTAIN",
+                "NO_RETENTION"
+              ]
+            },
+            "days": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "startsAt": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            },
+            "deliveryEnd": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "CLOSED",
+                "LOSS_NOTICE",
+                "LINK_ENDED",
+                "NO_PROGRESS",
+                null
+              ]
+            },
+            "availableUntil": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
             }
           }
         }

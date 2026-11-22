@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Alert, Button, Stack, Text } from 'nekkora-lib';
 import { downloadRemoteAttemptResult, listRemoteAttemptResults, type RemoteAttemptResults } from '../../api/remoteExecutions';
 import { isApiError } from '../../api/http';
-import { expiredPeriodText } from './RemoteLogs';
+import { availabilityText, expiredPeriodText } from './RemoteLogs';
 
 /**
  * PLATFORM-CLIENT-EXECUCAO-REMOTA-001, T03 parte b — os arquivos de resultado de UMA tentativa: o que a automação gravou na
@@ -70,7 +70,8 @@ export function RemoteResults({ org, executionId, attemptId, attemptNumber }: { 
       </Stack>
     );
   }
-  const { items, closure, retentionLoss, expiration } = state.data;
+  const { items, closure, retentionLoss, expiration, availability } = state.data;
+  const until = items.length > 0 ? availabilityText(availability, 'Os arquivos de resultado') : null;
   return (
     <Stack gap={2}>
       {items.length === 0 ? (
@@ -107,6 +108,11 @@ export function RemoteResults({ org, executionId, attemptId, attemptNumber }: { 
         </Alert>
       )}
       {expiration && <Alert tone="info">{resultsExpiredText(expiration)}</Alert>}
+      {until && (
+        <Text variant="body-sm" color="secondary">
+          {until}
+        </Text>
+      )}
       {retentionLoss && (
         <Alert tone="warning">
           A máquina avisou, em {day(retentionLoss.reportedAt)}, que removeu a pasta de saída desta execução: venceu o prazo de guarda dela sem a Platform ter
