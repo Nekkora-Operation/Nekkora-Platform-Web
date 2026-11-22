@@ -154,32 +154,4 @@ describe('supervisão (fixtures de contrato)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Atualizar' }));
     await waitFor(() => expect(events()).toBe(e0 + 1));
   });
-
-  it('lista vazia continua sendo consultada: a execução iniciada depois no Agent aparece sem "Atualizar"', async () => {
-    let items: unknown[] = [];
-    api.on('GET', `/api/v1/o/${ORG}/agent-runs`, 'listAgentRuns', () => ({ status: 200, body: { items, nextCursor: null } }));
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'], shouldAdvanceTime: true });
-    try {
-      renderApp(`/o/${ORG}/supervisao`);
-      expect(await screen.findByText('Nenhuma execução local registrada.')).toBeInTheDocument();
-      expect(screen.getByText(/Atualiza a cada 30 s\./)).toBeInTheDocument();
-      items = [run({ supervisor: { ...run().supervisor, state: 'RUNNING', code: null }, process: 'RUNNING', outcome: 'PENDING' })];
-      await vi.advanceTimersByTimeAsync(31_000);
-      await waitFor(() => expect(screen.queryByText('Nenhuma execução local registrada.')).toBeNull());
-      expect(screen.getByRole('region', { name: 'Execuções locais' })).toHaveTextContent('Em execução');
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('falha da consulta não vira lista vazia; 403 é recusa', async () => {
-    api.on('GET', `/api/v1/o/${ORG}/agent-runs`, 'listAgentRuns', { status: 503, body: { error: 'service_unavailable' } });
-    const view = renderApp(`/o/${ORG}/supervisao`);
-    expect(await screen.findByText('Serviço temporariamente indisponível.')).toBeInTheDocument();
-    expect(screen.queryByText('Nenhuma execução local registrada.')).toBeNull();
-    view.unmount();
-    api.on('GET', `/api/v1/o/${ORG}/agent-runs`, 'listAgentRuns', { status: 403, body: { error: 'forbidden' } });
-    renderApp(`/o/${ORG}/supervisao`);
-    expect(await screen.findByText('Você não tem permissão para ver estas execuções.')).toBeInTheDocument();
-  });
 });

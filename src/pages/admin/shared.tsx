@@ -65,7 +65,16 @@ const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0
 export interface UrlFilterSpec<S extends string> {
   statuses: readonly S[];
   ids?: readonly string[];
+  /** Textos livres (ex.: busca), aparados e com até 120 caracteres; vazio = ausente. */
+  texts?: readonly string[];
+  /** Chaves (de ids/texts) que "Limpar filtros" mantém — por exemplo, a aba da página. */
+  keep?: readonly string[];
 }
+
+const textValue = (v: string | null) => {
+  const t = (v ?? '').trim().slice(0, 120);
+  return t ? t : null;
+};
 
 /** Endereço canônico dos filtros: só estados da lista (na ordem dela, sem repetição) e UUIDs válidos. */
 function normalize<S extends string>(spec: UrlFilterSpec<S>, raw: string) {
@@ -76,6 +85,7 @@ function normalize<S extends string>(spec: UrlFilterSpec<S>, raw: string) {
     const v = p.get(k);
     values[k] = v && UUID_RE.test(v) ? v.toLowerCase() : null;
   }
+  for (const k of spec.texts ?? []) values[k] = textValue(p.get(k));
   return encode(spec, chosen, values);
 }
 
@@ -83,6 +93,7 @@ function encode<S extends string>(spec: UrlFilterSpec<S>, statuses: readonly S[]
   const out = new URLSearchParams();
   for (const s of spec.statuses) if (statuses.includes(s)) out.append('estado', s);
   for (const k of spec.ids ?? []) if (ids[k]) out.set(k, ids[k]!);
+  for (const k of spec.texts ?? []) if (ids[k]) out.set(k, ids[k]!);
   return out.toString();
 }
 
@@ -117,7 +128,7 @@ export function useUrlFilters<S extends string>(spec: UrlFilterSpec<S>) {
   const { statuses, ids } = useMemo(() => {
     const p = new URLSearchParams(current);
     const values: Record<string, string | null> = {};
-    for (const k of spec.ids ?? []) values[k] = p.get(k);
+    for (const k of [...(spec.ids ?? []), ...(spec.texts ?? [])]) values[k] = p.get(k);
     return { statuses: spec.statuses.filter((s) => p.getAll('estado').includes(s)), ids: values };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current]);
@@ -132,7 +143,16 @@ export function useUrlFilters<S extends string>(spec: UrlFilterSpec<S>) {
     key: normalized,
     toggleStatus: (s: S, on: boolean) => write(on ? [...statuses, s] : statuses.filter((x) => x !== s), ids),
     setId: (k: string, v: string | null) => write(statuses, { ...ids, [k]: v }),
-    clear: () => write([], {}),
+    /** Vários identificadores/textos de uma vez (uma só escrita no endereço). */
+    setMany: (values: Record<string, string | null>) =>
+      write(statuses, {
+        ...ids,
+        ...Object.fromEntries(Object.entries(values).map(([k, v]) => [k, (spec.texts ?? []).includes(k) ? textValue(v) : v])),
+      }),
+    /** Texto livre (spec.texts): aparado; vazio remove do endereço. */
+    setText: (k: string, v: string) => write(statuses, { ...ids, [k]: textValue(v) }),
+    /** Limpa os filtros; as chaves de `spec.keep` (por exemplo, a aba da página) ficam. */
+    clear: () => write([], Object.fromEntries((spec.keep ?? []).map((k) => [k, ids[k] ?? null]))),
   };
 }
 
@@ -143,15 +163,17 @@ export function StatusFilter<S extends string>({
   labels,
   selected,
   onToggle,
+  description = 'Nenhum marcado = todos os estados.',
 }: {
   legend: string;
   order: readonly S[];
   labels: Record<S, string>;
   selected: readonly S[];
   onToggle: (s: S, on: boolean) => void;
+  description?: string;
 }) {
   return (
-    <Fieldset legend={legend} variant="plain" description="Nenhum marcado = todos os estados." columns={4}>
+    <Fieldset legend={legend} variant="plain" description={description} columns={4}>
       {order.map((s) => (
         <Checkbox key={s} label={labels[s]} checked={selected.includes(s)} onChange={(e) => onToggle(s, e.target.checked)} />
       ))}

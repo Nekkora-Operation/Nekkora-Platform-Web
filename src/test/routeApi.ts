@@ -9,6 +9,8 @@ import { responseViolations, type OperationId } from '../api/validate';
 export interface Call {
   method: string;
   path: string;
+  /** O endereço completo, com a query (para conferir os parâmetros enviados). */
+  url: string;
   body?: unknown;
   csrf?: string;
 }
@@ -56,6 +58,7 @@ export class RouteApi {
     const call: Call = {
       method,
       path,
+      url,
       body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined,
       csrf: headers.get('X-CSRF-Token') ?? undefined,
     };

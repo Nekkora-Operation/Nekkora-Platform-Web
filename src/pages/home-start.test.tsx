@@ -1,8 +1,11 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { StrictMode } from 'react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, useNavigate, type NavigateFunction } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { csrfStore } from '../api/csrf';
 import { sessionMemory } from '../app/notices';
 import { channelOf, versionLine } from '../app/version';
+import { AppRoutes } from '../app/AppRoutes';
 import { location, user } from '../test/helpers';
 import { renderApp } from '../test/render';
 import { RouteApi } from '../test/routeApi';
@@ -52,23 +55,31 @@ function area(opts: { activation?: 'AGUARDANDO_ATIVACAO' | 'ATIVADA'; perms?: st
     status: 200,
     body: { organizations: [{ organizationId: ORG, name: 'Acme', roles: ['ORG_ADMIN'], activationState: opts.activation ?? 'ATIVADA', handle: 'acme' }], canCreateOrganization: true },
   });
+  // painel do Início (PLATFORM-INICIO-001): por padrão, período sem execuções e nenhuma automação
+  api.on('GET', `/api/v1/o/${ORG}/execution-summary`, 'getExecutionSummary', { status: 200, body: summary() });
+  api.on('GET', `/api/v1/o/${ORG}/automations`, 'listOrganizationAutomations', { status: 200, body: { items: [], nextCursor: null } });
 }
 
-const automation = { automationId: AUT, workspaceId: WS, name: 'Conciliação diária', description: null, status: 'active', latestPublishedVersion: null, createdAt: T, updatedAt: T };
-const execution = {
-  executionId: EXE,
-  workspaceId: WS,
-  automation: { automationId: AUT, name: 'Conciliação diária' },
-  automationVersion: { automationVersionId: VER, versionNumber: 1 },
-  origin: 'manual',
-  status: 'succeeded',
-  statusReason: null,
-  createdAt: T,
-  startedAt: T,
-  finishedAt: T,
-  durationMs: 0,
-  cancelRequestedAt: null,
+type Counts = { succeeded?: number; failed?: number; inProgress?: number; cancelled?: number; notStarted?: number; unconfirmed?: number };
+const counts = (c: Counts = {}) => {
+  const full = { succeeded: 0, failed: 0, inProgress: 0, cancelled: 0, notStarted: 0, unconfirmed: 0, ...c };
+  return { total: full.succeeded + full.failed + full.inProgress + full.cancelled + full.notStarted + full.unconfirmed, ...full };
 };
+/** Resumo do período com as contas por origem coerentes (tudo na origem "platform", para simplificar). */
+const summary = (c: Counts = {}) => ({ from: '2026-10-03T12:00:00Z', to: T, ...counts(c), sources: { platform: counts(c), localAgent: counts(), remote: counts() } });
+const card = (over: Record<string, unknown> = {}) => ({
+  automationId: AUT,
+  workspaceId: WS,
+  workspaceName: 'Financeiro',
+  name: 'Conciliação diária',
+  description: 'Confere o extrato com o razão.',
+  status: 'active',
+  latestPublishedVersion: { automationVersionId: VER, versionNumber: 3, publishedAt: T },
+  lastExecution: { source: 'remote', id: EXE, outcome: 'succeeded', requestedAt: T },
+  ...over,
+});
+
+const automation = { automationId: AUT, workspaceId: WS, name: 'Conciliação diária', description: null, status: 'active', latestPublishedVersion: null, createdAt: T, updatedAt: T };
 
 describe('entrada geral (área da identidade)', () => {
   const session = () => api.on('GET', '/api/v1/me/session', 'identitySessionState', { status: 200, body: { restricted: false, csrfToken: 'id-csrf', mfaEnabled: true, stepUpMethod: 'totp' } });
@@ -102,39 +113,39 @@ describe('página inicial da organização: próximo passo', () => {
     area({ activation: 'AGUARDANDO_ATIVACAO', perms: ['workspace.lifecycle'] });
     renderApp(`/o/${ORG}`);
     expect(await screen.findByText('Organização aguardando ativação')).toBeInTheDocument();
-    expect(screen.getByText(/nenhum Worker pode ser registrado e nenhuma automação executa/)).toBeInTheDocument();
+    expect(screen.getByText(/nenhuma máquina pode ser registrada e nenhuma automação executa/)).toBeInTheDocument();
     expect(screen.getByText(/A ativação é feita pela operação da Nekkora/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /ativar/i })).toBeNull();
     const main = screen.getByRole('main');
     expect(main.textContent).not.toContain('ana@empresa.com');
     expect(main.textContent).not.toContain(ORG);
-    expect(await screen.findByText('Acme', { selector: '.pw-start__org' })).toBeInTheDocument();
+    expect(await screen.findByText('Acme', { selector: '.pw-dash__org' })).toBeInTheDocument();
   });
 
-  it('ativa sem workspace, com permissão: "Criar primeiro workspace" abre o diálogo de criação', async () => {
+  it('ativa sem ambiente de trabalho, com permissão: "Criar primeiro ambiente de trabalho" abre o diálogo de criação', async () => {
     area({ perms: ['workspace.lifecycle'] });
     renderApp(`/o/${ORG}`);
-    await user().click(await screen.findByRole('button', { name: 'Criar primeiro workspace' }));
+    await user().click(await screen.findByRole('button', { name: 'Criar primeiro ambiente de trabalho' }));
     await waitFor(() => expect(location()).toBe(`/o/${ORG}/workspaces`));
-    expect(await screen.findByRole('alertdialog', { name: 'Criar workspace' })).toBeInTheDocument();
+    expect(await screen.findByRole('alertdialog', { name: 'Criar ambiente de trabalho' })).toBeInTheDocument();
   });
 
-  it('ativa sem workspace e sem permissão: diz que está vazio e quem pode criar, sem botão', async () => {
+  it('ativa sem ambiente de trabalho e sem permissão: diz que está vazio e quem pode criar, sem botão', async () => {
     area();
     renderApp(`/o/${ORG}`);
-    expect(await screen.findByRole('heading', { name: 'Nenhum workspace ainda' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Criar primeiro workspace' })).toBeNull();
+    expect(await screen.findByRole('heading', { name: 'Nenhum ambiente de trabalho ainda' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Criar primeiro ambiente de trabalho' })).toBeNull();
   });
 
-  it('lista de workspaces que falhou: "não foi possível carregar", nunca zero', async () => {
+  it('lista de ambientes de trabalho que falhou: "não foi possível carregar", nunca zero', async () => {
     area({ workspaces: 'error' });
     renderApp(`/o/${ORG}`);
-    expect(await screen.findByText('Não foi possível carregar os seus workspaces.')).toBeInTheDocument();
-    expect(screen.queryByText('Nenhum workspace ainda')).toBeNull();
+    expect(await screen.findByText('Não foi possível carregar os seus ambientes de trabalho.')).toBeInTheDocument();
+    expect(screen.queryByText('Nenhum ambiente de trabalho ainda')).toBeNull();
     expect(screen.queryByText(/^0 /)).toBeNull();
   });
 
-  it('workspace sem automações, com permissão: "Criar primeira automação" leva à criação no workspace (T04)', async () => {
+  it('ambiente de trabalho sem automações, com permissão: "Criar primeira automação" leva à criação no ambiente de trabalho (T04)', async () => {
     area({ perms: ['workspace.lifecycle', 'automation.manage', 'automation.read'], workspaces: [workspace()] });
     api.on('GET', `/api/v1/o/${ORG}/workspaces/${WS}/automations`, 'listAutomations', { status: 200, body: { items: [], nextCursor: null } });
     api.on('GET', `/api/v1/o/${ORG}/executions`, 'listExecutions', { status: 200, body: { items: [], nextCursor: null } });
@@ -148,36 +159,20 @@ describe('página inicial da organização: próximo passo', () => {
   it('automações que falharam ao carregar: diz que não carregou (não oferece criar a "primeira")', async () => {
     area({ perms: ['automation.manage'], workspaces: [workspace()] });
     api.on('GET', `/api/v1/o/${ORG}/workspaces/${WS}/automations`, 'listAutomations', { status: 503, body: { error: 'service_unavailable' } });
-    api.on('GET', `/api/v1/o/${ORG}/executions`, 'listExecutions', { status: 200, body: { items: [], nextCursor: null } });
+    api.on('GET', `/api/v1/o/${ORG}/automations`, 'listOrganizationAutomations', { gateway: 503 });
     renderApp(`/o/${ORG}`);
-    expect(await screen.findByText('Não foi possível carregar as automações.')).toBeInTheDocument();
+    // uma mensagem só (a da seção de automações do painel), não duas
+    expect(await screen.findAllByText('Não foi possível carregar as automações.')).toHaveLength(1);
     expect(screen.queryByRole('button', { name: 'Criar primeira automação' })).toBeNull();
   });
 
-  it('com atividade: automações e execuções recentes com os estados da API; execuções vazias aparecem como vazias', async () => {
+  it('com automações: nenhum "próximo passo"; o painel é o conteúdo da página', async () => {
     area({ perms: ['automation.manage'], workspaces: [workspace()] });
     api.on('GET', `/api/v1/o/${ORG}/workspaces/${WS}/automations`, 'listAutomations', { status: 200, body: { items: [automation], nextCursor: null } });
-    api.on('GET', `/api/v1/o/${ORG}/executions`, 'listExecutions', { status: 200, body: { items: [execution], nextCursor: null } });
-    const view = renderApp(`/o/${ORG}`);
-    const autos = await screen.findByRole('list', { name: 'Automações' });
-    expect(within(autos).getByRole('link', { name: 'Conciliação diária' })).toHaveAttribute('href', `/o/${ORG}/automacoes/${AUT}`);
-    expect(within(autos).getByText('nenhuma versão publicada')).toBeInTheDocument();
-    const execs = await screen.findByRole('list', { name: 'Execuções recentes' });
-    expect(within(execs).getByText('Concluída')).toBeInTheDocument();
-    view.unmount();
-
-    api.on('GET', `/api/v1/o/${ORG}/executions`, 'listExecutions', { status: 200, body: { items: [], nextCursor: null } });
+    api.on('GET', `/api/v1/o/${ORG}/automations`, 'listOrganizationAutomations', { status: 200, body: { items: [card()], nextCursor: null } });
     renderApp(`/o/${ORG}`);
-    expect(await screen.findByText('Nenhuma execução ainda.')).toBeInTheDocument();
-  });
-
-  it('execuções que falharam: "não foi possível carregar", não "nenhuma"', async () => {
-    area({ perms: ['automation.manage'], workspaces: [workspace()] });
-    api.on('GET', `/api/v1/o/${ORG}/workspaces/${WS}/automations`, 'listAutomations', { status: 200, body: { items: [automation], nextCursor: null } });
-    api.on('GET', `/api/v1/o/${ORG}/executions`, 'listExecutions', { status: 503, body: { error: 'service_unavailable' } });
-    renderApp(`/o/${ORG}`);
-    expect(await screen.findByText('Não foi possível carregar as execuções recentes.')).toBeInTheDocument();
-    expect(screen.queryByText('Nenhuma execução ainda.')).toBeNull();
+    expect(await screen.findByRole('list', { name: 'Automações' })).toBeInTheDocument();
+    expect(screen.queryByText('Próximo passo')).toBeNull();
   });
 
   it('Minha conta: e-mail, identificador da organização e a versão em execução', async () => {
@@ -188,6 +183,333 @@ describe('página inicial da organização: próximo passo', () => {
     expect(screen.getByText(ORG)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Sobre esta versão' })).toBeInTheDocument();
     expect(screen.getByText('Nekkora-lib')).toBeInTheDocument();
+  });
+});
+
+describe('Início da organização como painel (PLATFORM-INICIO-001)', () => {
+  const ready = () => area({ perms: ['automation.read'], workspaces: [workspace()] });
+  const withAutomations = () => api.on('GET', `/api/v1/o/${ORG}/workspaces/${WS}/automations`, 'listAutomations', { status: 200, body: { items: [automation], nextCursor: null } });
+  const metric = (label: string) => screen.getByRole('heading', { level: 3, name: label }).parentElement!.querySelector('.pw-dash__metric-value')!.textContent;
+
+  it('cabeçalho: organização, título e período (padrão: últimos 30 dias), com o intervalo consultado e o fuso', async () => {
+    ready();
+    withAutomations();
+    renderApp(`/o/${ORG}`);
+    expect(await screen.findByRole('heading', { level: 1, name: 'Olá, Ana' })).toBeInTheDocument();
+    expect(await screen.findByText('Acme', { selector: '.pw-dash__org' })).toBeInTheDocument();
+    const period = screen.getByLabelText('Período') as HTMLSelectElement;
+    expect(period.value).toBe('30d');
+    expect([...period.options].map((o) => o.textContent)).toEqual(['Últimas 24 horas', 'Últimos 7 dias', 'Últimos 30 dias', 'Últimos 90 dias']);
+    const section = screen.getByRole('region', { name: 'Execuções no período' });
+    const times = [...section.querySelectorAll('time')].map((x) => Date.parse(x.getAttribute('datetime')!));
+    expect(times).toHaveLength(2);
+    expect(times[1] - times[0]).toBe(30 * 86_400_000);
+    expect(section.textContent).toMatch(/horários em UTC[+−-]\d{2}:\d{2}/);
+    // a ordem das áreas
+    expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual(['Execuções no período', 'Próximas execuções', 'Automações', 'Seu acesso']);
+  });
+
+  it('métricas: total, sucessos e erros; os demais estados fecham a conta e não entram em erro', async () => {
+    ready();
+    withAutomations();
+    api.on('GET', `/api/v1/o/${ORG}/execution-summary`, 'getExecutionSummary', {
+      status: 200,
+      body: summary({ succeeded: 1203, failed: 6, inProgress: 2, cancelled: 4, notStarted: 8, unconfirmed: 1 }),
+    });
+    renderApp(`/o/${ORG}`);
+    await screen.findByRole('heading', { level: 3, name: 'Total de execuções' });
+    expect(metric('Total de execuções')).toBe('1.224');
+    expect(metric('Sucessos')).toBe('1.203');
+    expect(metric('Erros')).toBe('6');
+    const others = screen.getByText('O total também inclui:').parentElement!;
+    expect(others.textContent).toContain('2 em andamento · 4 canceladas · 8 não iniciadas · 1 com resultado não confirmado');
+    expect(others.textContent).toContain('não contam como erro');
+    // 1.203 + 6 + (2 + 4 + 8 + 1) = 1.224: os números da tela fecham
+    expect(1203 + 6 + 2 + 4 + 8 + 1).toBe(1224);
+  });
+
+  it('ícones das métricas planos (traço, fundo suave) e "Ver execuções"/"Ver ambientes de trabalho" como links com aparência de botão secundário', async () => {
+    ready();
+    withAutomations();
+    api.on('GET', `/api/v1/o/${ORG}/execution-summary`, 'getExecutionSummary', { status: 200, body: summary({ succeeded: 2, failed: 1 }) });
+    renderApp(`/o/${ORG}`);
+    await waitFor(() => expect(metric('Total de execuções')).toBe('3'));
+    const icons = [...document.querySelectorAll('.pw-dash__metric .nk-iconbox')];
+    expect(icons).toHaveLength(3);
+    for (const icon of icons) {
+      expect(icon.classList.contains('nk-iconbox--soft'), 'fundo plano e suave, sem gradiente nem sombra').toBe(true);
+      expect(icon.classList.contains('nk-iconbox--solid')).toBe(false);
+      expect(icon.querySelector('.nk-icon--outline'), 'ícone só de traço').not.toBeNull();
+    }
+    expect(icons.map((i) => [...i.classList].find((c) => /--(accent|success|danger)$/.test(c)))).toEqual(['nk-iconbox--accent', 'nk-iconbox--success', 'nk-iconbox--danger']);
+    for (const [name, path] of [['Ver execuções', `/o/${ORG}/execucoes?aba=historico`], ['Ver ambientes de trabalho', `/o/${ORG}/workspaces`]] as const) {
+      const link = screen.getByRole('link', { name });
+      expect(link).toHaveAttribute('href', path);
+      expect(link.classList.contains('nk-button--secondary')).toBe(true);
+      expect(link.classList.contains('nk-button--lg'), 'texto de 16 px e 48 px de altura').toBe(true);
+    }
+    // continua navegando como link, sem recarregar a página
+    await user().click(screen.getByRole('link', { name: 'Ver ambientes de trabalho' }));
+    await waitFor(() => expect(location()).toBe(`/o/${ORG}/workspaces`));
+  });
+
+  it('período sem execuções: zero é zero (com a frase), sem linha de outras situações', async () => {
+    ready();
+    withAutomations();
+    renderApp(`/o/${ORG}`);
+    await screen.findByRole('heading', { level: 3, name: 'Total de execuções' });
+    expect(metric('Total de execuções')).toBe('0');
+    expect(screen.getByText('Nenhuma execução pedida no período.')).toBeInTheDocument();
+    expect(screen.queryByText('O total também inclui:')).toBeNull();
+  });
+
+  it('consulta do resumo que falhou: avisa e NÃO mostra número; "Tentar novamente" consulta de novo', async () => {
+    ready();
+    withAutomations();
+    let down = true; // (o StrictMode consulta duas vezes na montagem: a resposta depende do estado, não da ordem)
+    api.on('GET', `/api/v1/o/${ORG}/execution-summary`, 'getExecutionSummary', () => (down ? { gateway: 503 } : { status: 200, body: summary({ succeeded: 5 }) }));
+    renderApp(`/o/${ORG}`);
+    expect(await screen.findByText('Não foi possível carregar as execuções do período.')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 3, name: 'Total de execuções' })).toBeNull();
+    expect(document.querySelector('.pw-dash__metric-value')).toBeNull();
+    down = false;
+    await user().click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    await screen.findByRole('heading', { level: 3, name: 'Total de execuções' });
+    expect(metric('Sucessos')).toBe('5');
+  });
+
+  it('mudar o período consulta de novo e troca os números', async () => {
+    ready();
+    withAutomations();
+    let succeeded = 30;
+    api.on('GET', `/api/v1/o/${ORG}/execution-summary`, 'getExecutionSummary', () => ({ status: 200, body: summary({ succeeded }) }));
+    renderApp(`/o/${ORG}`);
+    await screen.findByRole('heading', { level: 3, name: 'Total de execuções' });
+    expect(metric('Sucessos')).toBe('30');
+    const before = api.sent('GET', `/api/v1/o/${ORG}/execution-summary`).length;
+    succeeded = 7;
+    await user().selectOptions(screen.getByLabelText('Período'), '7d');
+    await waitFor(() => expect(metric('Sucessos')).toBe('7'));
+    const times = [...screen.getByRole('region', { name: 'Execuções no período' }).querySelectorAll('time')].map((x) => Date.parse(x.getAttribute('datetime')!));
+    expect(times[1] - times[0]).toBe(7 * 86_400_000);
+    expect(api.sent('GET', `/api/v1/o/${ORG}/execution-summary`)).toHaveLength(before + 1);
+  });
+
+  it('próximas execuções: a funcionalidade ainda não existe - diz isso, não "nenhum agendamento"', async () => {
+    ready();
+    withAutomations();
+    renderApp(`/o/${ORG}`);
+    const section = await screen.findByRole('region', { name: 'Próximas execuções' });
+    expect(within(section).getByText('Agendamentos ainda não estão disponíveis')).toBeInTheDocument();
+    expect(within(section).queryByText(/Nenhum agendamento/)).toBeNull();
+  });
+
+  it('cards de automações: nome em destaque, ambiente de trabalho, versão, última execução e "Ver automação"', async () => {
+    ready();
+    withAutomations();
+    const OUTRA = 'b3c4d5e6-f708-4192-a3b4-c5d6e7f8091a';
+    api.on('GET', `/api/v1/o/${ORG}/automations`, 'listOrganizationAutomations', {
+      status: 200,
+      body: {
+        items: [
+          card(),
+          card({ automationId: OUTRA, workspaceName: 'Fiscal', description: null, status: 'suspended', latestPublishedVersion: null, lastExecution: null }),
+        ],
+        nextCursor: null,
+      },
+    });
+    api.on('GET', `/api/v1/o/${ORG}/automations/${AUT}`, 'getAutomation', { status: 200, body: automation });
+    api.on('GET', `/api/v1/o/${ORG}/automations/${AUT}/versions`, 'listAutomationVersions', { status: 200, body: { items: [], nextCursor: null } });
+    renderApp(`/o/${ORG}`);
+    const cards = within(await screen.findByRole('list', { name: 'Automações' })).getAllByRole('listitem');
+    expect(cards).toHaveLength(2);
+    // mesmo nome: o workspace distingue
+    expect(within(cards[0]).getByRole('heading', { level: 3, name: 'Conciliação diária' })).toBeInTheDocument();
+    expect(within(cards[0]).getByText('Ambiente de trabalho Financeiro')).toBeInTheDocument();
+    expect(within(cards[1]).getByText('Ambiente de trabalho Fiscal')).toBeInTheDocument();
+    expect(within(cards[0]).getByText('Confere o extrato com o razão.')).toBeInTheDocument();
+    expect(within(cards[0]).getByText('Versão 3')).toBeInTheDocument();
+    expect(within(cards[0]).getByText('Sucesso')).toBeInTheDocument();
+    expect(within(cards[0]).getByRole('link', { name: 'Abrir a última execução de Conciliação diária' })).toHaveAttribute('href', `/o/${ORG}/execucoes-remotas/${EXE}`);
+    expect(within(cards[1]).getByText('Suspenso')).toBeInTheDocument();
+    expect(within(cards[1]).getAllByText('Nenhuma ainda')).toHaveLength(2);
+    expect(within(cards[1]).queryByRole('link', { name: /última execução/ })).toBeNull();
+    // nenhuma ação de executar nos cards
+    expect(screen.queryByRole('button', { name: /executar|solicitar/i })).toBeNull();
+    await user().click(within(cards[0]).getByRole('button', { name: 'Ver automação Conciliação diária' }));
+    await waitFor(() => expect(location()).toBe(`/o/${ORG}/automacoes/${AUT}`));
+  });
+
+  it('última execução: cada origem abre o seu detalhe; resultado não confirmado não vira erro; pedido sem detalhe não tem link', async () => {
+    ready();
+    withAutomations();
+    const ids = ['c4d5e6f7-0819-42a3-b4c5-d6e7f8091a2b', 'd5e6f708-192a-43b4-85d6-e7f8091a2b3c', 'e6f70819-2a3b-44c5-96e7-f8091a2b3c4d'];
+    api.on('GET', `/api/v1/o/${ORG}/automations`, 'listOrganizationAutomations', {
+      status: 200,
+      body: {
+        items: [
+          card({ automationId: ids[0], name: 'A', lastExecution: { source: 'platform', id: EXE, outcome: 'failed', requestedAt: T } }),
+          card({ automationId: ids[1], name: 'B', lastExecution: { source: 'localAgent', id: EXE, outcome: 'unconfirmed', requestedAt: T } }),
+          card({ automationId: ids[2], name: 'C', lastExecution: { source: 'localAgent', id: null, outcome: 'notStarted', requestedAt: T } }),
+        ],
+        nextCursor: null,
+      },
+    });
+    renderApp(`/o/${ORG}`);
+    const cards = within(await screen.findByRole('list', { name: 'Automações' })).getAllByRole('listitem');
+    expect(within(cards[0]).getByText('Erro')).toBeInTheDocument();
+    expect(within(cards[0]).getByRole('link', { name: /última execução/ })).toHaveAttribute('href', `/o/${ORG}/execucoes/${EXE}`);
+    expect(within(cards[1]).getByText('Resultado não confirmado')).toBeInTheDocument();
+    expect(within(cards[1]).queryByText('Erro')).toBeNull();
+    expect(within(cards[1]).getByRole('link', { name: /última execução/ })).toHaveAttribute('href', `/o/${ORG}/execucoes-locais/${EXE}`);
+    expect(within(cards[2]).getByText('Não iniciada')).toBeInTheDocument();
+    expect(within(cards[2]).queryByRole('link', { name: /última execução/ })).toBeNull();
+  });
+
+  it('automações: falha não é lista vazia; vazio diz que está vazio; "Carregar mais" continua pelo cursor', async () => {
+    ready();
+    withAutomations();
+    api.on('GET', `/api/v1/o/${ORG}/automations`, 'listOrganizationAutomations', { gateway: 503 });
+    const first = renderApp(`/o/${ORG}`);
+    expect(await screen.findByText('Não foi possível carregar as automações.')).toBeInTheDocument();
+    expect(screen.queryByText('Nenhuma automação ainda')).toBeNull();
+    first.unmount();
+
+    const SEGUNDA = 'f7081920-3a4b-45d6-a7f8-091a2b3c4d5e';
+    let second = false;
+    api.on('GET', `/api/v1/o/${ORG}/automations`, 'listOrganizationAutomations', () =>
+      !second ? { status: 200, body: { items: [card()], nextCursor: 'proxima' } } : { status: 200, body: { items: [card({ automationId: SEGUNDA, name: 'Segunda' })], nextCursor: null } },
+    );
+    renderApp(`/o/${ORG}`);
+    const list = await screen.findByRole('list', { name: 'Automações' });
+    expect(within(list).getAllByRole('listitem')).toHaveLength(1);
+    second = true;
+    await user().click(screen.getByRole('button', { name: /mais/i }));
+    await waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(2));
+    expect(within(list).getByRole('heading', { level: 3, name: 'Segunda' })).toBeInTheDocument();
+  });
+
+  it('sem acesso a nenhum workspace: diz isso, sem métricas zeradas nem consulta de resumo', async () => {
+    area({ perms: [], workspaces: [] });
+    renderApp(`/o/${ORG}`);
+    expect(await screen.findByText('Você ainda não tem acesso a nenhum ambiente de trabalho')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 3, name: 'Total de execuções' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Automações' })).toBeNull();
+  });
+});
+
+describe('Início: troca de organização (PLATFORM-INICIO-001)', () => {
+  const BETA = '1b7f2a0d-4c3e-4d6f-9a82-3b0c4d5e6f70';
+  type Held = { status: number; body: unknown };
+  const metric = (label: string) => screen.getByRole('heading', { level: 3, name: label }).parentElement!.querySelector('.pw-dash__metric-value')!.textContent;
+
+  /** As leituras da área de UMA organização; o resumo e as automações são respondidos pelo teste (podem ficar pendentes). */
+  function organization(org: string, name: string, summaryReply: () => Held | { hold: Promise<Held> }, automationsReply: () => Held | { hold: Promise<Held> }) {
+    api.on('GET', `/api/v1/o/${org}/me`, 'getMe', {
+      status: 200,
+      body: { accountType: 'internal', displayName: 'Ana', email: 'ana@empresa.com', organizationId: org, organizationActivationState: 'ATIVADA', stepUpMethod: 'totp' },
+    });
+    api.on('GET', `/api/v1/o/${org}/me/permissions`, 'getMyPermissions', {
+      status: 200,
+      body: { organizationId: org, membershipId: org, organization: { roles: ['ORG_ADMIN'], permissions: ['automation.read'] }, allWorkspaces: { permissions: ['automation.read'] }, hasWorkspaceAssignments: false },
+    });
+    api.on('GET', `/api/v1/o/${org}/me/permissions/workspaces`, 'listMyWorkspacePermissions', { status: 200, body: { items: [], nextCursor: null } });
+    api.on('GET', `/api/v1/o/${org}/workspaces`, 'listWorkspaces', { status: 200, body: { items: [{ ...workspace(), name: `Ambiente de trabalho ${name}` }], nextCursor: null } });
+    api.on('GET', `/api/v1/o/${org}/workspaces/${WS}/automations`, 'listAutomations', { status: 200, body: { items: [automation], nextCursor: null } });
+    api.on('GET', `/api/v1/o/${org}/execution-summary`, 'getExecutionSummary', summaryReply);
+    api.on('GET', `/api/v1/o/${org}/automations`, 'listOrganizationAutomations', automationsReply);
+  }
+  const both = () =>
+    api.on('GET', '/api/v1/me/organizations', 'identityOrganizations', {
+      status: 200,
+      body: {
+        organizations: [
+          { organizationId: ORG, name: 'Acme', roles: ['ORG_ADMIN'], activationState: 'ATIVADA', handle: 'acme' },
+          { organizationId: BETA, name: 'Beta', roles: ['ORG_ADMIN'], activationState: 'ATIVADA', handle: 'beta' },
+        ],
+        canCreateOrganization: true,
+      },
+    });
+  const acmeSummary = { status: 200, body: summary({ succeeded: 71, failed: 6 }) };
+  const acmeCards = { status: 200, body: { items: [card({ name: 'Fechamento da Acme', workspaceName: 'Ambiente de trabalho Acme' })], nextCursor: null } };
+  const betaSummary = { status: 200, body: summary({ succeeded: 3, failed: 1 }) };
+  const betaCards = { status: 200, body: { items: [card({ name: 'Cobrança da Beta', workspaceName: 'Ambiente de trabalho Beta' })], nextCursor: null } };
+
+  /** A aplicação como em `renderApp`, com acesso à navegação: a troca acontece na MESMA árvore (o caso mais exigente). */
+  function renderWithNavigation(path: string) {
+    let go: NavigateFunction = () => undefined;
+    function Probe() {
+      go = useNavigate();
+      return null;
+    }
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={[path]}>
+          <AppRoutes />
+          <Probe />
+        </MemoryRouter>
+      </StrictMode>,
+    );
+    return (to: string) => act(() => void go(to));
+  }
+  /** Nada da Acme na tela: nem o nome, nem o card, nem o workspace, nem os números (77 no total, 71 sucessos). */
+  const nothingFromAcme = () => {
+    expect(screen.queryByText('Fechamento da Acme')).toBeNull();
+    expect(screen.queryByText(/Ambiente de trabalho Acme/)).toBeNull();
+    expect(screen.queryByText('Acme', { selector: '.pw-dash__org' })).toBeNull();
+    for (const value of document.querySelectorAll('.pw-dash__metric-value')) expect(['77', '71', '6']).not.toContain(value.textContent);
+  };
+
+  it('os dados da organização anterior saem na hora, antes de qualquer resposta da nova', async () => {
+    both();
+    organization(ORG, 'Acme', () => acmeSummary, () => acmeCards);
+    // a organização nova ainda não respondeu nada do painel: o que sair da tela sai pela troca, não pela resposta
+    const never = new Promise<Held>(() => undefined);
+    organization(BETA, 'Beta', () => ({ hold: never }), () => ({ hold: never }));
+    const go = renderWithNavigation(`/o/${ORG}`);
+    await waitFor(() => expect(metric('Total de execuções')).toBe('77'));
+    expect(await screen.findByRole('heading', { level: 3, name: 'Fechamento da Acme' })).toBeInTheDocument();
+    expect(await screen.findByText('Acme', { selector: '.pw-dash__org' })).toBeInTheDocument();
+
+    await go(`/o/${BETA}`);
+    nothingFromAcme(); // conferido logo depois da navegação, sem esperar nada
+    expect(screen.queryByRole('heading', { level: 3, name: 'Total de execuções' })).toBeNull();
+    // e continua assim enquanto a nova organização carrega
+    await screen.findByText('Carregando as execuções do período…');
+    nothingFromAcme();
+    expect(api.sent('GET', `/api/v1/o/${BETA}/execution-summary`).length).toBeGreaterThan(0);
+  });
+
+  it('resposta atrasada da organização anterior não preenche o painel da atual', async () => {
+    both();
+    let releaseSummary: (v: Held) => void = () => undefined;
+    let releaseCards: (v: Held) => void = () => undefined;
+    const lateSummary = new Promise<Held>((r) => (releaseSummary = r));
+    const lateCards = new Promise<Held>((r) => (releaseCards = r));
+    organization(ORG, 'Acme', () => ({ hold: lateSummary }), () => ({ hold: lateCards }));
+    organization(BETA, 'Beta', () => betaSummary, () => betaCards);
+    const go = renderWithNavigation(`/o/${ORG}`);
+    // a Acme pediu o resumo e as automações, e as respostas ainda não chegaram
+    await waitFor(() => expect(api.sent('GET', `/api/v1/o/${ORG}/execution-summary`).length).toBeGreaterThan(0));
+    await waitFor(() => expect(api.sent('GET', `/api/v1/o/${ORG}/automations`).length).toBeGreaterThan(0));
+
+    await go(`/o/${BETA}`);
+    await waitFor(() => expect(metric('Total de execuções')).toBe('4'));
+    expect(await screen.findByRole('heading', { level: 3, name: 'Cobrança da Beta' })).toBeInTheDocument();
+    expect(await screen.findByText('Beta', { selector: '.pw-dash__org' })).toBeInTheDocument();
+
+    // só agora as respostas da Acme chegam
+    await act(async () => {
+      releaseSummary(acmeSummary);
+      releaseCards(acmeCards);
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(metric('Total de execuções')).toBe('4');
+    expect(metric('Sucessos')).toBe('3');
+    expect(metric('Erros')).toBe('1');
+    expect(screen.getByRole('heading', { level: 3, name: 'Cobrança da Beta' })).toBeInTheDocument();
+    expect(within(screen.getByRole('list', { name: 'Automações' })).getAllByRole('listitem')).toHaveLength(1);
+    nothingFromAcme();
   });
 });
 

@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { ThemeCycleButton } from '../components/AppearanceSection';
 import { Link as RouterLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router';
 import { Alert, AppShell, Button, Logo, StateView, Text, type AppNavGroup } from 'nekkora-lib';
 import { csrfStore } from '../api/csrf';
@@ -7,7 +8,7 @@ import { identityLogout, identitySession } from '../api/identity';
 import { sessionMemory, type NavState } from '../app/notices';
 import { identityPath } from '../auth/flow';
 import { commonMessage, UNAVAILABLE, type UserMessage } from '../auth/messages';
-import { VersionFooter } from '../components/VersionInfo';
+import { ProductFooter, ProductFooterCompact } from '../components/VersionInfo';
 import '../area/InternalShell.css';
 import '../pages/HomePage.css';
 
@@ -42,6 +43,7 @@ const MAIN_ID = 'conteudo';
 
 function titleFor(pathname: string): string {
   if (pathname === identityPath.newOrganization) return 'Nova organização';
+  if (pathname === identityPath.requestOrganization) return 'Solicitar organização';
   if (pathname === identityPath.organizations) return 'Organizações';
   if (pathname === identityPath.replaceFactor) return 'Autenticador';
   if (pathname === identityPath.activateMfa) return 'Autenticação em duas etapas';
@@ -157,7 +159,6 @@ export function IdentityArea() {
           label: 'Conta',
           items: [
             { id: 'seguranca', label: 'Segurança da conta', href: identityPath.account, icon: 'shield', active: pathname.startsWith(identityPath.account) },
-            { id: 'vincular', label: 'Vincular conta antiga', href: identityPath.linkAccount, icon: 'key', active: pathname === identityPath.linkAccount },
           ],
         },
       ];
@@ -174,6 +175,7 @@ export function IdentityArea() {
   return (
     <Ctx.Provider value={context}>
       <AppShell
+        layout="header"
         className="pw-shell"
         brand={<Logo variant="full" size={24} />}
         brandHref={state.restricted ? identityPath.replaceFactor : identityPath.organizations}
@@ -187,18 +189,14 @@ export function IdentityArea() {
         }
         actions={
           <div className="pw-shell__account">
+            <ThemeCycleButton />
             <Button variant="ghost" size="sm" leftIcon="arrow-right" loading={signingOut} onClick={() => void signOut()}>
               Sair
             </Button>
           </div>
         }
-        sidebarFooter={
-          <div className="pw-shell__footer">
-            <span className="pw-shell__footer-name">Identidade Nekkora</span>
-            <span className="pw-shell__footer-access">{state.restricted ? 'Sessão restrita à troca do autenticador' : 'Sessão de identidade'}</span>
-            <VersionFooter />
-          </div>
-        }
+        sidebarFooterCompact={<ProductFooterCompact />}
+        sidebarFooter={<ProductFooter />}
       >
         {state.restricted && (
           <Alert tone="warning" title="Você entrou com um código de recuperação." className="pw-shell__alert">

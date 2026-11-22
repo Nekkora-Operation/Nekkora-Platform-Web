@@ -77,8 +77,8 @@ async function open(page: Page, withRemoval: boolean) {
   await page.getByLabel(/Código de autenticação/).fill(await auth.next());
   await expect(page.getByRole('heading', { name: 'Olá, Admin T14' })).toBeVisible();
   await page.goto(`/o/${org}/workers`);
-  await expect(page.getByRole('region', { name: 'Lista de Workers' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Retirar autorização de Teste1 do Worker Teste' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Lista de máquinas' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Retirar autorização de Teste1 da máquina Teste' })).toBeVisible();
   // fontes carregadas: a largura do texto é a final
   await page.evaluate(() => document.fonts.ready.then(() => undefined));
 }
@@ -130,7 +130,7 @@ function measure(page: Page): Promise<Pair[]> {
 }
 
 async function check(page: Page, mode: 'table' | 'cards', shot: string) {
-  const region = page.getByRole('region', { name: 'Lista de Workers' });
+  const region = page.getByRole('region', { name: 'Lista de máquinas' });
   if (mode === 'table') await expect(region.getByRole('table')).toBeVisible();
   else await expect(region.locator('.pw-rtable__cards')).toBeVisible();
   const pairs = await measure(page);
@@ -148,7 +148,7 @@ async function check(page: Page, mode: 'table' | 'cards', shot: string) {
     expect(p.textLeft, `cabe na célula (${tag})`).toBeGreaterThanOrEqual(p.cellLeft - 0.5);
     expect(p.btnRight, `cabe na célula (${tag})`).toBeLessThanOrEqual(p.cellRight + 0.5);
     // nome acessível identifica o workspace e o Worker do item
-    expect(p.label).toBe(`Retirar autorização de ${p.name} do Worker ${p.worker}`);
+    expect(p.label).toBe(`Retirar autorização de ${p.name} da máquina ${p.worker}`);
   }
   if (mode === 'table') {
     // o grupo fica centralizado na célula: com um workspace, o par inteiro (texto + botão)
@@ -172,9 +172,9 @@ async function check(page: Page, mode: 'table' | 'cards', shot: string) {
 }
 
 async function keyboardOpensRightDialog(page: Page) {
-  const target = page.getByRole('button', { name: `Retirar autorização de ${LONG} do Worker Mistura` });
+  const target = page.getByRole('button', { name: `Retirar autorização de ${LONG} da máquina Mistura` });
   // chega por Tab a partir do item anterior da mesma lista (ordem de leitura), sem clique
-  await page.getByRole('button', { name: 'Retirar autorização de Teste1 do Worker Mistura' }).focus();
+  await page.getByRole('button', { name: 'Retirar autorização de Teste1 da máquina Mistura' }).focus();
   await page.keyboard.press('Tab');
   await expect(target).toBeFocused();
   await page.keyboard.press('Enter');
@@ -186,7 +186,7 @@ async function keyboardOpensRightDialog(page: Page) {
 
 for (const withRemoval of [true, false]) {
   const profile = withRemoval ? 'com permissão de retirada' : 'sem permissão de retirada';
-  test.describe(`T14 Workers: nome do workspace + Retirar (${profile})`, () => {
+  test.describe(`T14 Workers: nome do ambiente de trabalho + Retirar (${profile})`, () => {
     test('tabela no desktop (1280 px)', async ({ page }) => {
       await page.setViewportSize({ width: 1280, height: 900 });
       await open(page, withRemoval);

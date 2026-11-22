@@ -8,7 +8,7 @@ import { fakeLocks } from '../../test/fakeLocks';
 import { location } from '../../test/helpers';
 import { renderApp } from '../../test/render';
 import { RouteApi } from '../../test/routeApi';
-import { WORKER_LIMIT_TEXT } from './WorkersPage';
+import { WORKER_LIMIT_TEXT, workerLimitText } from './WorkersPage';
 
 /**
  * PLATFORM-AGENT-V2-002, T07 — Workers como entrada única do fluxo diário: criar o Worker (sem Agent, sem código, sem
@@ -107,34 +107,34 @@ async function confirmIn(label: string) {
 
 async function openPage() {
   renderApp(`/o/${ORG}/workers`);
-  await screen.findByRole('heading', { name: 'Workers', level: 1 });
+  await screen.findByRole('heading', { name: 'Máquinas', level: 1 });
 }
 
 async function openCreate(name: string) {
-  fireEvent.click(await screen.findByRole('button', { name: 'Criar Worker' }));
-  fireEvent.change(within(dialog()).getByLabelText(/^Nome do Worker/), { target: { value: name } });
-  const confirm = within(dialog()).getByRole('button', { name: 'Criar Worker' });
+  fireEvent.click(await screen.findByRole('button', { name: 'Cadastrar máquina' }));
+  fireEvent.change(within(dialog()).getByLabelText(/^Nome da máquina/), { target: { value: name } });
+  const confirm = within(dialog()).getByRole('button', { name: 'Cadastrar máquina' });
   await waitFor(() => expect(confirm).toBeEnabled());
   fireEvent.click(confirm);
 }
 
-describe('Workers: criar Worker (T07)', () => {
-  it('sem Worker: o estado vazio orienta a Criar Worker; criar envia só o nome, sem Agent, código ou execução', async () => {
+describe('Workers: criar máquina (T07)', () => {
+  it('sem Worker: o estado vazio orienta a Cadastrar máquina; criar envia só o nome, sem Agent, código ou execução', async () => {
     api.on('POST', `/api/v1/o/${ORG}/workers`, 'createWorker', () => {
       workers = [free(W1, 'Worker financeiro')];
       return { status: 201, body: { workerId: W1, name: 'Worker financeiro', status: 'ACTIVE' } };
     });
     await openPage();
-    expect(await screen.findByText('Nenhum Worker criado.')).toBeInTheDocument();
-    expect(screen.getByText(/Use Criar Worker para registrar onde as automações vão rodar/)).toBeInTheDocument();
+    expect(await screen.findByText('Nenhuma máquina cadastrada.')).toBeInTheDocument();
+    expect(screen.getByText(/Use Cadastrar máquina para registrar onde as automações vão rodar/)).toBeInTheDocument();
     await openCreate('  Worker financeiro  ');
-    expect(await screen.findByText(/Worker Worker financeiro criado, sem Agent/)).toBeInTheDocument();
+    expect(await screen.findByText(/Máquina Worker financeiro cadastrada, sem computador vinculado/)).toBeInTheDocument();
     expect(workerPosts()).toHaveLength(1);
     expect(workerPosts()[0].body).toEqual({ name: 'Worker financeiro' });
     expect(workerPosts()[0].csrf).toBe('ses');
     const row = await waitFor(() => rowOf('Worker financeiro'));
     expect(within(row).getByText('Ativo')).toBeInTheDocument();
-    expect(within(row).getByText('Sem máquina vinculada')).toBeInTheDocument();
+    expect(within(row).getByText('Sem computador vinculado')).toBeInTheDocument();
     expect(within(row).getByText('—')).toBeInTheDocument();
     nothingElse();
   });
@@ -145,6 +145,10 @@ describe('Workers: criar Worker (T07)', () => {
     await openCreate('Worker financeiro');
     expect(await within(dialog()).findByText(WORKER_LIMIT_TEXT)).toBeInTheDocument();
     expect(WORKER_LIMIT_TEXT).toMatch(/aguarda ativação, o limite é zero; depois da ativação, ele é definido pela Nekkora/);
+    // PLATFORM-LICENCIAMENTO-001: no modelo por licença o limite é técnico; a recusa não fala em ativação nem em licença como causa
+    expect(workerLimitText('licensed')).toMatch(/limite técnico de máquinas cadastradas/);
+    expect(workerLimitText('licensed')).not.toMatch(/aguarda ativação|depois da ativação/);
+    expect(workerLimitText(undefined)).toBe(WORKER_LIMIT_TEXT);
     expect(workerPosts()).toHaveLength(1);
     nothingElse();
   });
@@ -153,36 +157,38 @@ describe('Workers: criar Worker (T07)', () => {
     api.on('POST', `/api/v1/o/${ORG}/workers`, 'createWorker', 'network');
     await openPage();
     await openCreate('Worker financeiro');
-    expect(await within(dialog()).findByText(/Não foi possível confirmar se o Worker foi criado. Feche e confira a lista de Workers antes de criar de novo/)).toBeInTheDocument();
+    expect(await within(dialog()).findByText(/Não foi possível confirmar se a máquina foi criada. Feche e confira a lista de máquinas antes de criar de novo/)).toBeInTheDocument();
     expect(within(dialog()).getByText('Resultado não confirmado')).toBeInTheDocument();
-    expect(within(dialog()).getByRole('button', { name: 'Criar Worker' })).toBeDisabled();
+    expect(within(dialog()).getByRole('button', { name: 'Cadastrar máquina' })).toBeDisabled();
     await new Promise((r) => setTimeout(r, 50));
     expect(workerPosts()).toHaveLength(1);
     // reabrir: o registro da operação continua bloqueando até a conferência explícita
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Cancelar' }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
-    fireEvent.click(screen.getByRole('button', { name: 'Criar Worker' }));
-    fireEvent.change(within(dialog()).getByLabelText(/^Nome do Worker/), { target: { value: 'Worker financeiro' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cadastrar máquina' }));
+    fireEvent.change(within(dialog()).getByLabelText(/^Nome da máquina/), { target: { value: 'Worker financeiro' } });
     expect(await within(dialog()).findByText(/ficou sem resposta confirmada/)).toBeInTheDocument();
-    expect(within(dialog()).getByRole('button', { name: 'Criar Worker' })).toBeDisabled();
+    expect(within(dialog()).getByRole('button', { name: 'Cadastrar máquina' })).toBeDisabled();
     expect(workerPosts()).toHaveLength(1);
   });
 });
 
 describe('Workers: vincular e gerenciar o Agent (T07)', () => {
-  it('Vincular Agent emite o código para ESTE Worker (workerId, sem workerName) e mostra o código uma vez; cancelar não cria máquina', async () => {
+  it('Vincular Agent emite o código para ESTE máquina (workerId, sem workerName) e mostra o código uma vez; cancelar não cria máquina', async () => {
     workers = [free()];
     api.on('POST', `/api/v1/o/${ORG}/agent-enrollments`, 'createAgentPairingCode', { status: 201, body: { enrollmentId: ENR, code: CODE, expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(), workerId: W1 } });
     api.on('POST', `/api/v1/o/${ORG}/agent-enrollments/${ENR}/cancel`, 'cancelAgentCode', { status: 204 });
     await openPage();
     const row = await waitFor(() => rowOf('Worker financeiro'));
     // livre: autorizar em workspace e vincular Agent lado a lado
-    expect(within(row).getByRole('button', { name: 'Autorizar Worker financeiro num workspace' })).toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: 'Autorizar Worker financeiro num ambiente de trabalho' })).toBeInTheDocument();
     fireEvent.click(within(row).getByRole('button', { name: 'Vincular Agent a Worker financeiro' }));
     const name = within(dialog()).getByLabelText(/^Nome da máquina/) as HTMLInputElement;
     expect(name.value).toBe('Worker financeiro');
     fireEvent.change(name, { target: { value: 'ESTACAO-01' } });
     expect(within(dialog()).getByLabelText(/^Validade do código/)).toHaveValue(15);
+    // este teste é do pareamento do Agent anterior (sem execução remota): escolhe-o no diálogo
+    fireEvent.click(within(dialog()).getByRole('radio', { name: /^Nekkora Agent anterior/ }));
     await confirmIn('Gerar código');
     expect(await screen.findByLabelText('Código de uso único')).toHaveTextContent(CODE);
     expect(screen.getAllByLabelText('Código de uso único')).toHaveLength(1);
@@ -191,7 +197,7 @@ describe('Workers: vincular e gerenciar o Agent (T07)', () => {
     expect(pairingPosts()[0].body).toEqual({ workerId: W1, agentName: 'ESTACAO-01', expiresInMinutes: 15 });
     expect(workerPosts()).toEqual([]);
     // nenhuma máquina fictícia: a linha continua sem Agent enquanto a lista do servidor não trouxer o vínculo
-    expect(within(rowOf('Worker financeiro')).getByText('Sem máquina vinculada')).toBeInTheDocument();
+    expect(within(rowOf('Worker financeiro')).getByText('Sem computador vinculado')).toBeInTheDocument();
     expect(screen.queryByText('ESTACAO-01')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar código' }));
@@ -201,7 +207,7 @@ describe('Workers: vincular e gerenciar o Agent (T07)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Concluir' }));
     await waitFor(() => expect(listGets()).toBeGreaterThan(before));
     expect(screen.queryByLabelText('Código de uso único')).toBeNull();
-    expect(within(await waitFor(() => rowOf('Worker financeiro'))).getByText('Sem máquina vinculada')).toBeInTheDocument();
+    expect(within(await waitFor(() => rowOf('Worker financeiro'))).getByText('Sem computador vinculado')).toBeInTheDocument();
     expect(screen.queryByText('ESTACAO-01')).toBeNull();
   });
 
@@ -211,6 +217,8 @@ describe('Workers: vincular e gerenciar o Agent (T07)', () => {
     await openPage();
     fireEvent.click(within(await waitFor(() => rowOf('Worker financeiro'))).getByRole('button', { name: 'Vincular Agent a Worker financeiro' }));
     fireEvent.change(within(dialog()).getByLabelText(/^Nome da máquina/), { target: { value: 'ESTACAO-01' } });
+    // este teste é do pareamento do Agent anterior (sem execução remota): escolhe-o no diálogo
+    fireEvent.click(within(dialog()).getByRole('radio', { name: /^Nekkora Agent anterior/ }));
     await confirmIn('Gerar código');
     await screen.findByLabelText('Código de uso único');
     // o Agent resgatou o código na máquina: a lista passa a trazer o vínculo
@@ -230,10 +238,10 @@ describe('Workers: vincular e gerenciar o Agent (T07)', () => {
 
   it('comunicação (T11): Online; Offline com último contato; ainda sem comunicação; sem máquina com "—"; nota sobre vínculo e comunicação', async () => {
     workers = [
-      withAgent({ workerId: W1, name: 'Worker A', agentName: 'MAQ-A', connectivity: 'CONNECTED' }),
-      withAgent({ workerId: W2, name: 'Worker B', agentName: 'MAQ-B', connectivity: 'DISCONNECTED', lastHeartbeatAt: '2026-11-09T08:30:00Z' }),
-      withAgent({ workerId: '77777777-7777-4777-8777-777777777777', name: 'Worker C', agentName: 'MAQ-C', connectivity: 'DISCONNECTED', lastHeartbeatAt: null, agentId: '88888888-8888-4888-8888-888888888888' }),
-      free('99999999-9999-4999-8999-999999999999', 'Worker D'),
+      withAgent({ workerId: W1, name: 'Máquina A', agentName: 'MAQ-A', connectivity: 'CONNECTED' }),
+      withAgent({ workerId: W2, name: 'Máquina B', agentName: 'MAQ-B', connectivity: 'DISCONNECTED', lastHeartbeatAt: '2026-11-09T08:30:00Z' }),
+      withAgent({ workerId: '77777777-7777-4777-8777-777777777777', name: 'Máquina C', agentName: 'MAQ-C', connectivity: 'DISCONNECTED', lastHeartbeatAt: null, agentId: '88888888-8888-4888-8888-888888888888' }),
+      free('99999999-9999-4999-8999-999999999999', 'Máquina D'),
     ];
     await openPage();
     const a = await waitFor(() => rowOf('MAQ-A'));
@@ -249,18 +257,18 @@ describe('Workers: vincular e gerenciar o Agent (T07)', () => {
     expect(within(c).getByText('Ainda sem comunicação')).toBeInTheDocument();
     expect(within(c).queryByText(/^(Online|Offline)$/)).toBeNull();
     expect(within(c).getByText(/Último contato:/)).toHaveTextContent('Último contato: nenhum');
-    const d = rowOf('Worker D');
-    expect(within(d).getByText('Sem máquina vinculada')).toBeInTheDocument();
+    const d = rowOf('Máquina D');
+    expect(within(d).getByText('Sem computador vinculado')).toBeInTheDocument();
     expect(within(d).getByText('—')).toBeInTheDocument();
     expect(within(d).queryByText(/^(Online|Offline|Ainda sem comunicação)$/)).toBeNull();
     // nunca diz que a máquina foi desligada; a falta de sinal não muda nada no servidor
     expect(document.body.textContent).not.toMatch(/Desligada|Desligado/);
     expect(
-      screen.getByText(/a falta de contato não revoga a credencial, não libera o Worker e não retira workspaces. Desvincular no Agent pede à Platform o encerramento do vínculo: quando ela confirma, o Worker fica sem máquina vinculada e pode ser vinculado de novo. Sem conexão \(ou com o Agent fechado\), o pedido espera na máquina e aqui ela aparece vinculada e offline; quem administra pode revogar o vínculo nesta tela. Agents de versões anteriores só desvinculam na máquina. A lista se atualiza sozinha a cada 30 segundos enquanto a página está aberta. Quando o contato voltar, a máquina aparece online de novo, sem novo pareamento./),
+      screen.getByText(/a falta de contato não revoga a credencial, não libera a máquina e não retira ambientes de trabalho. Desvincular no Agent pede à Platform o encerramento do vínculo: quando ela confirma, a máquina fica sem computador vinculado e pode ser vinculada a outro. Sem conexão \(ou com o Agent fechado\), o pedido espera na máquina e aqui ela aparece vinculada e offline; quem administra pode revogar o vínculo nesta tela. Agents de versões anteriores só desvinculam na máquina. A lista se atualiza sozinha a cada 30 segundos enquanto a página está aberta. Quando o contato voltar, a máquina aparece online de novo, sem novo pareamento./),
     ).toBeInTheDocument();
   });
 
-  it('Renovar credencial gera o código de rotação; Revogar vínculo explica que o Worker fica livre e envia o motivo', async () => {
+  it('Renovar credencial gera o código de rotação; Revogar vínculo explica que a máquina fica livre e envia o motivo', async () => {
     workers = [withAgent()];
     api.on('POST', `/api/v1/o/${ORG}/agents/${AG}/credential-rotations`, 'createAgentRotationCode', {
       status: 201,
@@ -279,12 +287,12 @@ describe('Workers: vincular e gerenciar o Agent (T07)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Concluir' }));
 
     fireEvent.click(within(await waitFor(() => rowOf('ESTACAO-01'))).getByRole('button', { name: 'Revogar vínculo de ESTACAO-01 com Worker financeiro' }));
-    expect(within(dialog()).getByText(/O Worker fica livre na Platform e continua existindo, com as autorizações de workspace e o histórico/)).toBeInTheDocument();
+    expect(within(dialog()).getByText(/A máquina fica livre na Platform e continua existindo, com as autorizações de ambiente de trabalho e o histórico/)).toBeInTheDocument();
     expect(within(dialog()).getByText(/A máquina em si não é contatada/)).toBeInTheDocument();
     await confirmIn('Revogar vínculo');
-    expect(await screen.findByText(/Vínculo revogado: o Worker Worker financeiro está livre/)).toBeInTheDocument();
+    expect(await screen.findByText(/Vínculo revogado: a máquina Worker financeiro está livre/)).toBeInTheDocument();
     expect(api.sent('POST', `/api/v1/o/${ORG}/agents/${AG}/revoke`)[0].body).toEqual({ reason: 'ADMINISTRATIVE' });
-    expect(within(await waitFor(() => rowOf('Worker financeiro'))).getByText('Sem máquina vinculada')).toBeInTheDocument();
+    expect(within(await waitFor(() => rowOf('Worker financeiro'))).getByText('Sem computador vinculado')).toBeInTheDocument();
   });
 
   it('sem agent_credential.manage: nem Vincular Agent nem Renovar credencial; Revogar vínculo continua com agent.manage', async () => {
@@ -321,9 +329,9 @@ describe('compatibilidade com Agents (T07)', () => {
   it('/o/{org}/agents leva a /o/{org}/workers; o menu não tem item separado de Agents', async () => {
     renderApp(`/o/${ORG}/agents`);
     await waitFor(() => expect(location()).toBe(`/o/${ORG}/workers`));
-    expect(await screen.findByRole('heading', { name: 'Workers', level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Máquinas', level: 1 })).toBeInTheDocument();
     const nav = await screen.findByRole('navigation', { name: 'Navegação principal' });
-    await waitFor(() => expect(within(nav).getByRole('link', { name: 'Workers' })).toHaveAttribute('aria-current', 'page'));
+    await waitFor(() => expect(within(nav).getByRole('link', { name: 'Máquinas' })).toHaveAttribute('aria-current', 'page'));
     expect(within(nav).queryByRole('link', { name: 'Agents' })).toBeNull();
     expect(api.sent('GET', `/api/v1/o/${ORG}/agents`)).toEqual([]);
   });
@@ -346,7 +354,7 @@ const agentItem = (over: W = {}): W => ({
   ...over,
 });
 
-describe('perfis de permissão em Workers (R1)', () => {
+describe('perfis de permissão em máquinas (R1)', () => {
   const AGENTS_ONLY = ['agent.manage', 'agent_credential.manage', 'worker_agent.assign'];
   let agents: W[];
   beforeEach(() => {
@@ -356,7 +364,7 @@ describe('perfis de permissão em Workers (R1)', () => {
     api.on('GET', `/api/v1/o/${ORG}/workers`, 'listWorkers', { status: 403, body: { error: 'forbidden' } });
   });
 
-  it('agent.manage + agent_credential.manage SEM worker.manage, por URL direta: máquinas vinculadas com Renovar e Revogar; sem Criar Worker; menu com Workers', async () => {
+  it('agent.manage + agent_credential.manage SEM worker.manage, por URL direta: máquinas vinculadas com Renovar e Revogar; sem Cadastrar máquina; menu com máquinas', async () => {
     permissions(AGENTS_ONLY);
     api.on('POST', `/api/v1/o/${ORG}/agents/${AG}/credential-rotations`, 'createAgentRotationCode', {
       status: 201,
@@ -368,13 +376,13 @@ describe('perfis de permissão em Workers (R1)', () => {
     });
     await openPage();
     const region = await screen.findByRole('region', { name: 'Máquinas vinculadas' });
-    expect(screen.getByText(/Você administra os Agents desta organização, mas não os Workers/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Criar Worker' })).toBeNull();
+    expect(screen.getByText(/Você administra os Agents \(os computadores vinculados\) desta organização, mas não as máquinas/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cadastrar máquina' })).toBeNull();
     const nav = await screen.findByRole('navigation', { name: 'Navegação principal' });
-    expect(within(nav).getByRole('link', { name: 'Workers' })).toBeInTheDocument();
+    expect(within(nav).getByRole('link', { name: 'Máquinas' })).toBeInTheDocument();
     expect(listGets()).toBe(0); // a lista que exige worker.manage nem é pedida
     const row = within(region).getAllByRole('row').find((r) => r.textContent?.includes('ESTACAO-01'))!;
-    expect(row).toHaveTextContent('Worker 11111111…');
+    expect(row).toHaveTextContent('Máquina 11111111…');
     expect(row).toHaveTextContent('Online');
     const revoked = within(region).getAllByRole('row').find((r) => r.textContent?.includes('ESTACAO-ANTIGA'))!;
     expect(within(revoked).queryByRole('button')).toBeNull();
@@ -384,9 +392,9 @@ describe('perfis de permissão em Workers (R1)', () => {
     expect(await screen.findByLabelText('Código de uso único')).toHaveTextContent(CODE);
     fireEvent.click(screen.getByRole('button', { name: 'Concluir' }));
     const again = await waitFor(() => within(screen.getByRole('region', { name: 'Máquinas vinculadas' })).getAllByRole('row').find((r) => r.textContent?.includes('ESTACAO-01'))!);
-    fireEvent.click(within(again).getByRole('button', { name: 'Revogar vínculo de ESTACAO-01 com Worker 11111111…' }));
+    fireEvent.click(within(again).getByRole('button', { name: 'Revogar vínculo de ESTACAO-01 com Máquina 11111111…' }));
     await confirmIn('Revogar vínculo');
-    expect(await screen.findByText(/Vínculo revogado: Worker 11111111… está livre/)).toBeInTheDocument();
+    expect(await screen.findByText(/Vínculo revogado: Máquina 11111111… está livre/)).toBeInTheDocument();
     expect(api.sent('POST', `/api/v1/o/${ORG}/agents/${AG}/revoke`)).toHaveLength(1);
     expect(workerPosts()).toEqual([]);
     nothingElse();
@@ -401,7 +409,7 @@ describe('perfis de permissão em Workers (R1)', () => {
     expect(within(row).queryByRole('button', { name: /Renovar credencial/ })).toBeNull();
   });
 
-  it('/o/{org}/agents (link antigo) com agent.manage sem worker.manage leva às máquinas vinculadas em Workers', async () => {
+  it('/o/{org}/agents (link antigo) com agent.manage sem worker.manage leva às máquinas vinculadas em máquinas', async () => {
     permissions(AGENTS_ONLY);
     renderApp(`/o/${ORG}/agents`);
     await waitFor(() => expect(location()).toBe(`/o/${ORG}/workers`));
@@ -414,7 +422,7 @@ describe('perfis de permissão em Workers (R1)', () => {
     api.on('GET', `/api/v1/o/${ORG}/workers`, 'listWorkers', () => ({ status: 200, body: { items: workers } }));
     await openPage();
     const linked = await waitFor(() => rowOf('ESTACAO-01'));
-    expect(screen.getByRole('button', { name: 'Criar Worker' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cadastrar máquina' })).toBeInTheDocument();
     expect(within(linked).queryByRole('button', { name: /Renovar credencial|Revogar vínculo/ })).toBeNull();
     expect(within(rowOf('Worker livre')).queryByRole('button', { name: /Vincular Agent/ })).toBeNull();
     expect(api.sent('GET', `/api/v1/o/${ORG}/agents`)).toEqual([]);
@@ -423,9 +431,9 @@ describe('perfis de permissão em Workers (R1)', () => {
   it('sem worker.manage nem agent.manage, por URL direta: sem item no menu e a API decide (sem permissão)', async () => {
     permissions(['agent_credential.manage']);
     await openPage();
-    expect(await screen.findByText(/Você não tem permissão para ver os Workers/)).toBeInTheDocument();
+    expect(await screen.findByText(/Você não tem permissão para ver as máquinas/)).toBeInTheDocument();
     const nav = await screen.findByRole('navigation', { name: 'Navegação principal' });
-    expect(within(nav).queryByRole('link', { name: 'Workers' })).toBeNull();
+    expect(within(nav).queryByRole('link', { name: 'Máquinas' })).toBeNull();
     expect(api.sent('GET', `/api/v1/o/${ORG}/agents`)).toEqual([]);
   });
 

@@ -51,12 +51,12 @@ function session(org: string, membershipId: string) {
 const posts = (org = ORG) => api.sent('POST', `/api/v1/o/${org}/workspaces`).length;
 
 async function openCreate() {
-  fireEvent.click(await screen.findByRole('button', { name: 'Criar workspace' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Criar ambiente de trabalho' }));
   const dialog = await screen.findByRole('alertdialog');
   fireEvent.change(within(dialog).getByLabelText(/^Nome/), { target: { value: 'Operações' } });
   return dialog;
 }
-const confirmButton = (dialog: HTMLElement) => within(dialog).getByRole('button', { name: 'Criar workspace' });
+const confirmButton = (dialog: HTMLElement) => within(dialog).getByRole('button', { name: 'Criar ambiente de trabalho' });
 
 beforeEach(() => {
   Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
@@ -81,7 +81,7 @@ describe('resultado desconhecido persistente (FRONT-V1-002)', () => {
     const dialog = await openCreate();
     await waitFor(() => expect(confirmButton(dialog)).toBeEnabled());
     fireEvent.click(confirmButton(dialog));
-    expect(await within(dialog).findByText(/Não foi possível confirmar se o workspace foi criado/)).toBeInTheDocument();
+    expect(await within(dialog).findByText(/Não foi possível confirmar se o ambiente de trabalho foi criado/)).toBeInTheDocument();
     expect(confirmButton(dialog)).toBeDisabled();
     expect(applied).toBe(1);
 
@@ -152,7 +152,7 @@ describe('resultado desconhecido persistente (FRONT-V1-002)', () => {
     const dialog = await openCreate();
     await waitFor(() => expect(confirmButton(dialog)).toBeEnabled());
     fireEvent.click(confirmButton(dialog));
-    await within(dialog).findByText(/Não foi possível confirmar se o workspace foi criado/);
+    await within(dialog).findByText(/Não foi possível confirmar se o ambiente de trabalho foi criado/);
     view.unmount();
 
     // Bia, na mesma organização
@@ -183,7 +183,7 @@ describe('resultado desconhecido persistente (FRONT-V1-002)', () => {
     const dialog = await openCreate();
     await waitFor(() => expect(confirmButton(dialog)).toBeEnabled());
     fireEvent.click(confirmButton(dialog));
-    await within(dialog).findByText(/Não foi possível confirmar se o workspace foi criado/);
+    await within(dialog).findByText(/Não foi possível confirmar se o ambiente de trabalho foi criado/);
     view.unmount();
     renderApp(`/o/${ORG}/workspaces`);
     const again = await openCreate();
@@ -202,7 +202,7 @@ describe('resultado desconhecido persistente (FRONT-V1-002)', () => {
     const dialog = await openCreate();
     await waitFor(() => expect(confirmButton(dialog)).toBeEnabled());
     fireEvent.click(confirmButton(dialog));
-    await within(dialog).findByText(/Não foi possível confirmar se o workspace foi criado/);
+    await within(dialog).findByText(/Não foi possível confirmar se o ambiente de trabalho foi criado/);
     view.unmount();
 
     // 73 h depois, página recarregada (registro novo; a limpeza do carregamento roda)

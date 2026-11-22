@@ -1,0 +1,109 @@
+/* PLATFORM-FLUXO-002 (070): área do cliente — só arranjo; cores, tipografia e espaços vêm dos tokens da Nekkora-Lib. */
+.pw-client__orgs,
+.pw-client__cards,
+.pw-client__executions,
+.pw-client__files {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--nk-space-3);
+}
+.pw-client__cards {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+}
+.pw-client__org,
+.pw-client__card-row,
+.pw-client__execution {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nk-space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+.pw-client__card-row {
+  justify-content: flex-start;
+}
+.pw-client__facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--nk-space-2) var(--nk-space-4);
+  margin: 0;
+}
+.pw-client__facts dt {
+  font-weight: 600;
+}
+.pw-client__facts dd {
+  margin: 0;
+}
+.pw-client__attempt {
+  display: grid;
+  gap: var(--nk-space-3);
+}
+.pw-client__subtitle {
+  font-weight: 600;
+}
+.pw-client__logs {
+  margin: 0;
+  max-height: 24rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--nk-font-mono, ui-monospace, monospace);
+  font-size: 0.875rem;
+}
+/* 071: dashboard de execução e arquivos de retorno */
+.pw-client__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
+  gap: var(--nk-space-3);
+}
+.pw-client__stat {
+  display: grid;
+  gap: var(--nk-space-1);
+}
+.pw-client__stat-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.pw-client__stat-label {
+  font-size: 0.875rem;
+  color: var(--nk-color-text-secondary);
+}
+.pw-client__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nk-space-3);
+  align-items: flex-end;
+}
+.pw-client__file {
+  display: grid;
+  gap: var(--nk-space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.pw-client__file-actions {
+  display: flex;
+  gap: var(--nk-space-2);
+  align-items: center;
+}
+.pw-client__preview {
+  margin: 0;
+  max-height: 28rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--nk-font-mono, ui-monospace, monospace);
+  font-size: 0.875rem;
+}
+.pw-client__image {
+  max-width: 100%;
+  height: auto;
+}
+.pw-client__pdf {
+  width: 100%;
+  height: 32rem;
+  border: 0;
+}

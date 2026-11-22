@@ -11,7 +11,7 @@ import { CommunicationCell, FreshnessNotice, LinkBadge, PRESENCE_TEXT, useLiveLi
 
 /** Explicação para quem administra Agents sem administrar Workers. */
 export const AGENTS_ONLY_TEXT =
-  'Você administra os Agents desta organização, mas não os Workers. Aqui ficam as ações sobre as máquinas vinculadas: renovar a credencial e revogar o vínculo. Criar Workers, autorizá-los em workspaces e vincular um Agent a um Worker exigem a permissão de administrar Workers.';
+  'Você administra os Agents (os computadores vinculados) desta organização, mas não as máquinas. Aqui ficam as ações sobre os computadores vinculados a elas: renovar a credencial e revogar o vínculo. Cadastrar máquinas, autorizá-las em ambientes de trabalho e vincular um Agent a uma máquina exigem a permissão de administrar máquinas.';
 
 /**
  * PLATFORM-AGENT-V2-002 R1 — a tela de Workers para quem tem `agent.manage` SEM `worker.manage`. A lista de Workers exige
@@ -35,7 +35,7 @@ export function LinkedAgentsView({ has }: { has: (p: string) => boolean }) {
   const canRotate = has('agent_credential.manage');
   const canRevoke = has('agent.manage');
   const name = (a: Agent) => a.name ?? `Agent ${a.agentId!.slice(0, 8)}…`;
-  const worker = (a: Agent) => (a.workerId ? `Worker ${a.workerId.slice(0, 8)}…` : 'Sem Worker');
+  const worker = (a: Agent) => (a.workerId ? `Máquina ${a.workerId.slice(0, 8)}…` : 'Sem máquina');
   const linked = (a: Agent): LinkedAgent => ({ agentId: a.agentId!, name: name(a), workerName: worker(a) });
   const columns: TableColumn<Agent>[] = [
     // o nome sozinho (título do cartão no modo estreito); situação, versão e validade ficam na coluna Agent
@@ -56,7 +56,7 @@ export function LinkedAgentsView({ has }: { has: (p: string) => boolean }) {
         </Stack>
       ),
     },
-    { key: 'worker', header: 'Worker', align: 'center', render: (a) => <span title={a.workerId ?? undefined}>{worker(a)}</span> },
+    { key: 'worker', header: 'Máquina', align: 'center', render: (a) => <span title={a.workerId ?? undefined}>{worker(a)}</span> },
     {
       key: 'comunicacao',
       header: 'Comunicação',
@@ -149,7 +149,7 @@ export function LinkedAgentsView({ has }: { has: (p: string) => boolean }) {
           setRevoking(null);
           setNotice({
             tone: 'success',
-            text: `Vínculo revogado: ${a?.workerName ?? 'o Worker'} está livre, com os workspaces e o histórico mantidos. A máquina precisa ser pareada de novo para voltar a executar. Isso não prova que um processo já em execução numa máquina desconectada parou.`,
+            text: `Vínculo revogado: ${a?.workerName ?? 'a máquina'} está livre, com os ambientes de trabalho e o histórico mantidos. A máquina precisa ser pareada de novo para voltar a executar. Isso não prova que um processo já em execução numa máquina desconectada parou.`,
           });
           void load();
         }}

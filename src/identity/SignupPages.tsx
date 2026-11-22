@@ -1,15 +1,17 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router';
 import { Alert, Button, Input, Link, StateView } from 'nekkora-lib';
 import { ApiError, isApiError } from '../api/http';
-import { confirmSignup, resendSignupConfirmation, signup } from '../api/identity';
+import { confirmSignup, resendSignupConfirmation, signup, signupPreview } from '../api/identity';
 import { AuthScreen } from '../app/AuthScreen';
 import { identityPath } from '../auth/flow';
 import { onboarding } from '../auth/onboarding';
 import { consumeInitialLinkToken } from '../auth/linkToken';
 import { commonMessage, type UserMessage } from '../auth/messages';
-import { meetsPasswordPolicy, PASSWORD_MAX, PASSWORD_MIN, passwordLength } from '../auth/passwordPolicy';
+import { passwordProblem } from '../auth/passwordPolicy';
+import { NewPasswordFields } from '../components/NewPasswordFields';
 import { ErrorAlert } from '../pages/ErrorAlert';
+import { pendingInvitation } from './AcceptInvitationPage';
 
 const SIGNUP_UNAVAILABLE = 'O cadastro não está disponível no momento. Nenhuma conta foi criada.';
 
@@ -55,8 +57,14 @@ function useEmailRequest(send: (email: string) => Promise<void>) {
 
 /** /cadastro — pede o cadastro com SÓ o e-mail; senha e nome vêm na confirmação pelo link. */
 export function SignupPage() {
-  const [email, setEmail] = useState('');
-  const request = useEmailRequest(signup);
+  // 071: vindo do convite, o e-mail já é o do convite (não é pedido de novo; a confirmação continua pelo link do e-mail)
+  const inviteEmail = (useLocation().state as { inviteEmail?: string } | null)?.inviteEmail ?? null;
+  const [email, setEmail] = useState(inviteEmail ?? '');
+  // o convite aberto nesta aba: o servidor confere que é para o mesmo e-mail e guarda o nome dele como sugestão
+  const request = useEmailRequest((e) => {
+    const p = inviteEmail ? pendingInvitation.peek() : null;
+    return signup(e, p ? { organizationId: p.org, token: p.token } : undefined);
+  });
   const resend = useEmailRequest(resendSignupConfirmation);
 
   if (request.sent) {
@@ -92,8 +100,12 @@ export function SignupPage() {
   return (
     <AuthScreen
       icon="user"
-      title="Criar cadastro na Nekkora"
-      description="Informe seu e-mail. Enviaremos um link para você concluir o cadastro."
+      title={inviteEmail ? 'Criar seu acesso' : 'Criar cadastro na Nekkora'}
+      description={
+        inviteEmail
+          ? `Vamos enviar um link para ${inviteEmail} para confirmar que o e-mail é seu. Depois você só escolhe a senha.`
+          : 'Informe seu e-mail. Enviaremos um link para você concluir o cadastro.'
+      }
       actions={
         <>
           <span className="pw-muted">Já tem cadastro?</span>
@@ -121,14 +133,15 @@ export function SignupPage() {
           placeholder="voce@empresa.com"
           required
           fullWidth
-          autoFocus
+          autoFocus={!inviteEmail}
           maxLength={254}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          readOnly={request.pending}
+          readOnly={request.pending || !!inviteEmail}
+          hint={inviteEmail ? 'E-mail do convite.' : undefined}
         />
-        <Button type="submit" fullWidth size="lg" loading={request.pending} disabled={request.disabled}>
-          {request.pending ? 'Enviando…' : 'Continuar'}
+        <Button type="submit" fullWidth size="lg" loading={request.pending} disabled={request.disabled} autoFocus={!!inviteEmail}>
+          {request.pending ? 'Enviando…' : inviteEmail ? 'Enviar o link de confirmação' : 'Continuar'}
         </Button>
       </form>
     </AuthScreen>
@@ -156,7 +169,24 @@ export function SignupConfirmPage() {
   const { pathname } = useLocation();
   const [token] = useState(() => consumeInitialLinkToken(pathname));
   const [state, setState] = useState<ConfirmState>(token ? 'form' : 'invalid');
+  // 071: o nome informado no convite já vem preenchido (o servidor o guardou no pedido de cadastro); a pessoa pode ajustar
+  const [prefill, setPrefill] = useState<{ name: string } | null>(null);
   const [displayName, setDisplayName] = useState('');
+  useEffect(() => {
+    if (!token) return;
+    let alive = true;
+    signupPreview(token).then(
+      (p) => {
+        if (!alive || !p.displayName) return;
+        setPrefill({ name: p.displayName });
+        setDisplayName((d) => d || p.displayName!);
+      },
+      () => undefined,
+    );
+    return () => {
+      alive = false;
+    };
+  }, [token]);
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [errors, setErrors] = useState<{ displayName?: string; password?: string; confirmation?: string }>({});
@@ -171,7 +201,7 @@ export function SignupConfirmPage() {
     if (inFlight.current || !token) return;
     const next = {
       displayName: displayNameProblem(displayName),
-      password: meetsPasswordPolicy(password) ? undefined : `A senha precisa ter entre ${PASSWORD_MIN} e ${PASSWORD_MAX} caracteres.`,
+      password: passwordProblem(password),
       confirmation: confirmation === password ? undefined : 'As senhas não coincidem.',
     };
     setErrors(next);
@@ -187,8 +217,9 @@ export function SignupConfirmPage() {
       setState('success');
     } catch (e) {
       // 400 = link inválido para a API (vencido, já usado, revogado, substituído por reenvio). Os campos já foram conferidos
-      // com as MESMAS regras da API (e04a57c: PasswordPolicy 12–128 pontos de código; nome sem controle, até 120), então
-      // um 400 aqui não é recusa de política. Se a API endurecer a política, esta tela precisa distinguir os dois casos.
+      // com as MESMAS regras da API (PasswordPolicy, PLATFORM-SENHA-001: 12 a 20 pontos de código com maiúscula, minúscula,
+      // número e símbolo; nome sem controle, até 120), então um 400 aqui não é recusa de política. Se as regras mudarem,
+      // as duas pontas mudam juntas (passwordPolicy.ts espelha a API).
       if (isApiError(e, 'invalid_request')) setState('invalid');
       else if (isDisabled(e)) setState('disabled');
       else setError(commonMessage(e));
@@ -252,7 +283,11 @@ export function SignupConfirmPage() {
         <StateView
           status="success"
           title="Agora entre com seu e-mail e a senha escolhida."
-          description="Ao entrar, vamos sugerir ativar a verificação em duas etapas (opcional, recomendada). O cadastro não cria organização: depois de entrar, você pode criar uma ou aceitar um convite."
+          description={
+            prefill
+              ? 'Ao entrar, vamos sugerir ativar a verificação em duas etapas (opcional, recomendada). Depois, abra de novo o link do convite para aceitar.'
+              : 'Ao entrar, vamos sugerir ativar a verificação em duas etapas (opcional, recomendada). O cadastro não cria organização: depois de entrar, você pode criar uma ou aceitar um convite.'
+          }
           actions={
             <Button fullWidth onClick={() => navigate(identityPath.login, { replace: true })}>
               Entrar
@@ -263,11 +298,13 @@ export function SignupConfirmPage() {
     );
   }
 
-  const length = passwordLength(password);
-  const lengthOk = length >= PASSWORD_MIN && length <= PASSWORD_MAX;
-
   return (
-    <AuthScreen icon="user" title="Conclua seu cadastro" description="Escolha como você quer ser chamada ou chamado e a sua senha." actions={backToLogin}>
+    <AuthScreen
+      icon="user"
+      title="Conclua seu cadastro"
+      description={prefill?.name ? 'Seu nome veio do convite. Só falta escolher a senha.' : 'Escolha como você quer ser chamada ou chamado e a sua senha.'}
+      actions={backToLogin}
+    >
       {error && <ErrorAlert message={error} />}
       <form className="pw-form" onSubmit={submit} noValidate>
         <Input
@@ -276,37 +313,24 @@ export function SignupConfirmPage() {
           autoComplete="name"
           required
           fullWidth
-          autoFocus
+          autoFocus={!prefill?.name}
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
           error={errors.displayName}
           readOnly={pending}
         />
-        <Input
+        <NewPasswordFields
           label="Senha"
-          type="password"
-          name="new-password"
-          autoComplete="new-password"
-          required
-          fullWidth
+          confirmLabel="Confirmar senha"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={setPassword}
+          confirmation={confirmation}
+          onConfirmationChange={setConfirmation}
           error={errors.password}
-          hint={`Entre ${PASSWORD_MIN} e ${PASSWORD_MAX} caracteres. Frases longas são mais seguras e fáceis de lembrar.`}
-          success={!errors.password && lengthOk ? `Entre ${PASSWORD_MIN} e ${PASSWORD_MAX} caracteres — atendido.` : undefined}
+          confirmationError={errors.confirmation}
           readOnly={pending}
-        />
-        <Input
-          label="Confirmar senha"
-          type="password"
-          name="confirm-password"
-          autoComplete="new-password"
-          required
-          fullWidth
-          value={confirmation}
-          onChange={(e) => setConfirmation(e.target.value)}
-          error={errors.confirmation}
-          readOnly={pending}
+          autoFocus={!!prefill?.name}
+          userInputs={[displayName]}
         />
         <Button type="submit" fullWidth size="lg" loading={pending}>
           {pending ? 'Concluindo…' : 'Concluir cadastro'}

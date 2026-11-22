@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { devices, expect, test, type Page } from '@playwright/test';
 import { DEV_ORG, OTHER_ORG } from '../mock/contract';
 import { Authenticator } from '../mock/totp';
-import { path, signIn, SESSION_EXPIRED } from './support/app';
+import { leaveMenu, path, signIn, SESSION_EXPIRED, signOut } from './support/app';
 
 /**
  * F4 no navegador, contra a API SIMULADA (mock/): área interna, navegação e lista de execuções. Cada teste cria a
@@ -44,11 +44,16 @@ function recordRequests(page: Page) {
 }
 
 const rows = (page: Page) => page.getByRole('table').locator('tbody tr');
-const executionsRequests = (urls: string[]) => urls.filter((u) => u.includes('/executions'));
+const executionsRequests = (urls: string[]) => urls.filter((u) => u.includes('/activity'));
 
+/** PLATFORM-FLUXO-002: Execuções abre em "Em andamento"; a lista com período (e o histórico do simulador) fica em "Histórico". */
 async function openExecutions(page: Page) {
   await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Execuções' }).click();
   await expect(page).toHaveURL(/\/execucoes(\?.*)?$/);
+  await expect(page.getByRole('tab', { name: 'Em andamento' })).toHaveAttribute('aria-selected', 'true');
+  await leaveMenu(page);
+  await page.getByRole('tab', { name: 'Histórico' }).click();
+  await expect(page).toHaveURL(/aba=historico/);
   await expect(rows(page).first()).toBeVisible();
 }
 
@@ -76,9 +81,9 @@ test('ORG_ADMIN: acesso global, P02 nunca chamada, período padrão indicado; ax
   const urls = recordRequests(page);
   const acc = await account({ orgRoles: ['ORG_ADMIN'] });
   await enter(page, acc);
-  await expect(page.getByText('Administração da organização (todos os workspaces)')).toBeVisible();
+  await expect(page.getByText('Administração da organização (todos os ambientes de trabalho)')).toBeVisible();
   await openExecutions(page);
-  await expect(page.getByLabel('Workspace').locator('option')).toHaveCount(10);
+  await expect(page.getByLabel('Ambiente de trabalho').locator('option')).toHaveCount(10);
   await expect(page.getByText(/Período: Últimos 30 dias \(padrão\)\./)).toBeVisible();
   await expect(rows(page)).toHaveCount(25);
   expect(urls.some((u) => u.includes('/me/permissions/workspaces'))).toBe(false);
@@ -89,19 +94,19 @@ test('ORG_ADMIN: acesso global, P02 nunca chamada, período padrão indicado; ax
   await audit(page, 'execucoes-desktop');
 });
 
-test('acesso limitado (VIEWER em Atendimento) e conta sem workspaces', async ({ page }) => {
+test('acesso limitado (VIEWER em Atendimento) e conta sem ambientes de trabalho', async ({ page }) => {
   const viewer = await account({ workspaceRoles: [['atendimento', ['VIEWER']]], displayName: 'Leitor E2E' });
   await enter(page, viewer, 'Leitor E2E');
   await openExecutions(page);
-  await expect(page.getByLabel('Workspace').locator('option')).toHaveText(['Todos os workspaces visíveis', 'Atendimento']);
+  await expect(page.getByLabel('Ambiente de trabalho').locator('option')).toHaveText(['Todos os ambientes de trabalho visíveis', 'Atendimento']);
   for (const text of await rows(page).allInnerTexts()) expect(text).toContain('Atendimento');
-  await page.getByRole('button', { name: 'Sair' }).first().click();
+  await signOut(page);
 
   const none = await account({ displayName: 'Sem Acesso E2E' });
   await enter(page, none, 'Sem Acesso E2E');
-  await expect(page.getByText('Nenhum workspace visível para você.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Nenhum ambiente de trabalho visível para você.', { exact: true })).toBeVisible();
   await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Execuções' }).click();
-  await expect(page.getByText('Você ainda não tem acesso a nenhum workspace.')).toBeVisible();
+  await expect(page.getByText('Você ainda não tem acesso a nenhum ambiente de trabalho.')).toBeVisible();
 });
 
 test('conta externa: início próprio, rota interna volta a ele, sem P01/P02/leituras internas', async ({ page }) => {
@@ -119,7 +124,7 @@ test('isolamento entre organizações', async ({ page }) => {
   const vizinha = await account({ org: OTHER_ORG, orgRoles: ['ORG_ADMIN'], displayName: 'Vizinha E2E' });
   await enter(page, vizinha, 'Vizinha E2E');
   await openExecutions(page);
-  await expect(page.getByLabel('Workspace').locator('option')).toHaveText(['Todos os workspaces visíveis', 'Workspace da organização vizinha']);
+  await expect(page.getByLabel('Ambiente de trabalho').locator('option')).toHaveText(['Todos os ambientes de trabalho visíveis', 'Workspace da organização vizinha']);
   await page.goto(`/o/${DEV_ORG}/execucoes`);
   await expect(page).toHaveURL(path.login(DEV_ORG));
 });
@@ -131,12 +136,9 @@ test('filtros, carregar mais, revogação entre páginas e cursor recusado', asy
   await openExecutions(page);
   await periodAll(page);
 
-  await test.step('estado vira parâmetro e filtra as linhas', async () => {
-    await page.getByLabel('Concluída').check();
-    await expect.poll(() => new URL(executionsRequests(urls).at(-1)!, BASE).searchParams.getAll('status')).toEqual(['succeeded']);
-    await expect(rows(page).first()).toBeVisible();
-    for (const t of await rows(page).allInnerTexts()) expect(t).toContain('Concluída');
-    await page.getByLabel('Concluída').uncheck();
+  await test.step('a aba vira parâmetro: o histórico não traz o que está em andamento', async () => {
+    await expect.poll(() => new URL(executionsRequests(urls).at(-1)!, BASE).searchParams.get('tab')).toBe('history');
+    for (const t of await rows(page).allInnerTexts()) expect(t).not.toContain('Em andamento');
     await expect(rows(page)).toHaveCount(25);
   });
 
@@ -170,10 +172,10 @@ test('resposta fora do contrato e falha de rede ao carregar mais: nada acrescent
   await enter(page, acc);
   await openExecutions(page);
 
-  await page.route('**/api/v1/o/*/executions?*cursor=*', async (route) => {
+  await page.route('**/api/v1/o/*/activity?*cursor=*', async (route) => {
     const res = await route.fetch();
     const body = await res.json();
-    body.items[0].status = 'finished'; // fora do enum do contrato
+    body.items[0].outcome = 'finished'; // fora do enum do contrato
     await route.fulfill({ response: res, json: body });
   });
   await page.getByRole('button', { name: 'Carregar mais' }).click();
@@ -182,13 +184,13 @@ test('resposta fora do contrato e falha de rede ao carregar mais: nada acrescent
   const afterInvalid = executionsRequests(urls).length;
   await page.waitForTimeout(400);
   expect(executionsRequests(urls)).toHaveLength(afterInvalid);
-  await page.unroute('**/api/v1/o/*/executions?*cursor=*');
+  await page.unroute('**/api/v1/o/*/activity?*cursor=*');
 
-  await page.route('**/api/v1/o/*/executions?*cursor=*', (route) => route.abort('internetdisconnected'));
+  await page.route('**/api/v1/o/*/activity?*cursor=*', (route) => route.abort('internetdisconnected'));
   await page.getByRole('button', { name: 'Tentar novamente' }).click();
   await expect(page.getByText(/Não foi possível conectar\. A lista exibida continua válida\./)).toBeVisible();
   await expect(rows(page)).toHaveCount(25);
-  await page.unroute('**/api/v1/o/*/executions?*cursor=*');
+  await page.unroute('**/api/v1/o/*/activity?*cursor=*');
   await page.getByRole('button', { name: 'Tentar novamente' }).click();
   await expect(rows(page)).toHaveCount(50);
 });
@@ -214,7 +216,9 @@ test('teclado no desktop: pular para o conteúdo e filtros alcançáveis', async
   await page.keyboard.press('Enter');
   await expect(page.getByRole('main')).toBeFocused();
   await page.keyboard.press('Tab');
-  await expect(page.getByLabel('Workspace')).toBeFocused();
+  await expect(page.getByRole('tab', { name: 'Histórico' })).toBeFocused(); // a aba ativa é a parada do grupo
+  await page.keyboard.press('Tab');
+  await expect(page.getByLabel('Ambiente de trabalho')).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(page.getByLabel('Período')).toBeFocused();
 });

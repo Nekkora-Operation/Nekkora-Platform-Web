@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
-import { Link as RouterLink, useLocation } from 'react-router';
-import { Badge, Button, Heading, Link, StateView, Text, type LinkProps } from 'nekkora-lib';
+import { Link as RouterLink, useHref, useLinkClickHandler, useLocation } from 'react-router';
+import { Badge, Button, Heading, Link, StateView, Text, type ButtonProps, type LinkProps } from 'nekkora-lib';
 import { isApiError } from '../../api/http';
 import type { Workspace } from '../../api/v1';
 import { ContractViolation } from '../../api/validate';
@@ -47,6 +47,20 @@ export function RouteLink({ to, state, children, ...rest }: { to: string; state?
     <Link as={RouterLink} {...rest} {...(routerProps as object)}>
       {children}
     </Link>
+  );
+}
+
+/**
+ * Link de navegação interna com a aparência de botão (Button da lib com `href`): continua sendo um link de verdade
+ * (endereço no `href`, abre em nova aba, teclado) e navega sem recarregar a página.
+ */
+export function RouteButton({ to, state, children, ...rest }: { to: string; state?: unknown; children: ReactNode } & Omit<ButtonProps, 'href' | 'children' | 'onClick' | 'type'>) {
+  const href = useHref(to);
+  const onClick = useLinkClickHandler(to, { state }) as unknown as ButtonProps['onClick'];
+  return (
+    <Button {...rest} href={href} onClick={onClick}>
+      {children}
+    </Button>
   );
 }
 

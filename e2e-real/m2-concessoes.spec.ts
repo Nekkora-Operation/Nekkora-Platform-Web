@@ -25,13 +25,15 @@ async function createOrganizationAndEnter(page: Page, person: Person, name: stri
   return /\/o\/([0-9a-f-]{36})/.exec(page.url())![1];
 }
 
+// PLATFORM-FLUXO-002 (adaptado em 21/11): o convite fica em "Pessoas e acessos"; as concessões por ambiente inteiro (modelo
+// anterior, com as decisões de antes) ficam em Pessoas e acessos → Compartilhamentos → "Concessões por ambiente inteiro".
 async function inviteAndAccept(admin: Page, ana: Person, guest: Page, person: Person, org: string, role: '' | 'ORG_ADMIN') {
-  await admin.goto(`/o/${org}/administracao/convites`);
+  await admin.goto(`/o/${org}/administracao/pessoas`);
   await admin.getByLabel(/^E-mail da pessoa/).fill(person.email);
-  await admin.getByLabel(/^Papel/).selectOption(role);
+  await admin.getByLabel(/^Perfil \(opcional\)/).selectOption(role);
   await admin.getByRole('button', { name: 'Convidar' }).click();
   await confirmStepUp(admin, ana, 'Enviar convite');
-  await expect(admin.getByText('Convite enviado.')).toBeVisible();
+  await expect(admin.getByText('Convite enviado. A pessoa recebe o link por e-mail.')).toBeVisible();
   const token = await waitToken('ORG_INVITATION', person.email);
   await guest.goto('about:blank');
   await guest.goto(`/o/${org}/convite#token=${token}`);
@@ -41,7 +43,7 @@ async function inviteAndAccept(admin: Page, ana: Person, guest: Page, person: Pe
   await expect(guest).toHaveURL(new RegExp(`/o/${org}$`));
 }
 
-const grantsUrl = (org: string) => `/o/${org}/administracao/concessoes`;
+const grantsUrl = (org: string) => `/o/${org}/administracao/pessoas/acessos/ambientes`;
 const list = (page: Page) => page.getByRole('region', { name: 'Lista de concessões' });
 
 test('J09: concessão entre duas pessoas — aprovação inicial, recusas de autoridade, KEEP sem data, renovação e conflito', async ({ browser }) => {
@@ -76,6 +78,14 @@ test('J09: concessão entre duas pessoas — aprovação inicial, recusas de aut
     data: { clientMembershipId: fx.clientMembershipId, workspaceId: fx.workspaceId, nextReviewAt: inTwoWeeks.toISOString() },
   });
   expect(created.status()).toBe(201);
+
+  // a concessão por ambiente inteiro aparece na aba Compartilhamentos, com o atalho para as decisões do modelo anterior
+  await anaPage.goto(`/o/${org}/administracao/pessoas?aba=compartilhamentos`);
+  const unificada = anaPage.getByRole('region', { name: 'Lista de concessões de clientes' }).locator('tbody tr').filter({ hasText: fx.externalName });
+  await expect(unificada).toContainText('Ambiente inteiro (modelo anterior)');
+  await unificada.getByRole('link', { name: 'Decidir' }).click();
+  await expect(anaPage).toHaveURL(new RegExp(`/administracao/pessoas/acessos/ambientes`));
+  await expect(list(anaPage)).toContainText('Pendente');
 
   // recusa de autoridade 1: Caio (vínculo sem papel) não vê concessões, nem por endereço direto
   await caioPage.goto(grantsUrl(org));

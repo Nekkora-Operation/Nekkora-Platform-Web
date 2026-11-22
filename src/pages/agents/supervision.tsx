@@ -1,9 +1,8 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { useParams } from 'react-router';
-import { Alert, Badge, Button, Card, DescriptionList, Heading, Select, Stack, StateView, Table, Text, type TableColumn, type Tone } from 'nekkora-lib';
-import { getAgentRun, listAgentRunEvents, listAgentRuns, type AgentRun, type AgentRunEvent, type AgentSupervisorState } from '../../api/agents';
+import { Alert, Badge, Button, Card, DescriptionList, Heading, Stack, StateView, Table, Text, type TableColumn, type Tone } from 'nekkora-lib';
+import { getAgentRun, listAgentRunEvents, type AgentRun, type AgentRunEvent, type AgentSupervisorState } from '../../api/agents';
 import { isApiError } from '../../api/http';
-import { useInternalArea } from '../../area/InternalShell';
 import { useSession } from '../../area/session';
 import { orgPath } from '../../auth/organization';
 import { usePolling, type Polling } from '../../hooks/usePolling';
@@ -137,81 +136,6 @@ function StaleAlert({ poll }: { poll: Polling<unknown> }) {
   );
 }
 
-/** /o/{org}/supervisao — execuções locais registradas pelos Agents (não é o catálogo /executions nem o Portal). */
-export function AgentRunsPage() {
-  const { org, expired } = useSession();
-  const { workspaces } = useInternalArea();
-  const [workspaceId, setWorkspaceId] = useState('');
-  const [state, setState] = useState<AgentSupervisorState | ''>('');
-  const poll = usePolling(() => listAgentRuns(org, { limit: 25, ...(workspaceId ? { workspaceId } : {}), ...(state ? { state: [state] } : {}) }), {
-    intervalMs: LIST_INTERVAL_MS,
-    // a lista continua mesmo vazia ou com tudo encerrado: a execução que a pessoa iniciar no Agent precisa aparecer
-    keepGoing: () => true,
-    deps: [org, workspaceId, state],
-    onUnauthenticated: expired,
-  });
-
-  const columns: TableColumn<AgentRun>[] = [
-    { key: 'registro', header: 'Registrada em', render: (r) => <RouteLink to={orgPath.agentRun(org, r.runId!)}><DateTimeText iso={r.registeredAt} /></RouteLink> },
-    { key: 'automacao', header: 'Automação', render: (r) => r.automationName ?? short(r.correlation?.automationId) },
-    { key: 'maquina', header: 'Máquina', render: (r) => r.agentName ?? short(r.correlation?.agentId) },
-    { key: 'origem', header: 'Origem', render: (r) => [r.sourceKind ? SOURCE_KIND[r.sourceKind] : null, r.origin === 'PLATFORM_REQUEST' ? ORIGIN.PLATFORM_REQUEST : null].filter(Boolean).join(' · ') || '—' },
-    { key: 'inicio', header: 'Início', render: (r) => <DateTimeText iso={r.supervisor?.agentStartedAt} /> },
-    { key: 'duracao', header: 'Fim / duração', render: (r) => (r.supervisor?.agentEndedAt ? <><DateTimeText iso={r.supervisor.agentEndedAt} /> · {durationText(r.supervisor.agentStartedAt, r.supervisor.agentEndedAt)}</> : '—') },
-    {
-      key: 'supervisor',
-      header: 'Desfecho',
-      render: (r) => {
-        if (!r.supervisor?.state) return '—';
-        const o = outcomeLabel(r.supervisor.state, r.supervisor.code, r.supervisor.exitCode);
-        return <Badge tone={o.tone}>{o.label}</Badge>;
-      },
-    },
-    { key: 'processo', header: 'Processo', render: (r) => (r.process ? PROCESS[r.process] : '—') },
-    { key: 'historico', header: 'Histórico', render: (r) => (r.history?.completeness ? COMPLETENESS[r.history.completeness].label : '—') },
-    { key: 'workspace', header: 'Workspace', render: (r) => workspaces.items.find((w) => w.workspaceId === r.correlation?.workspaceId)?.name ?? short(r.correlation?.workspaceId) },
-  ];
-
-  return (
-    <Stack gap={5}>
-      <PageHeader title="Supervisão" subtitle="Execuções registradas pelos Agents: iniciadas na máquina (inclusive Python externo monitorado) ou pedidas pela Platform. O desfecho é sempre o do supervisor da máquina." />
-      <div className="pw-form__row">
-        <Select
-          label="Workspace"
-          value={workspaceId}
-          onChange={(e) => setWorkspaceId(e.target.value)}
-          options={[{ value: '', label: 'Todos' }, ...workspaces.items.map((w) => ({ value: w.workspaceId, label: w.name }))]}
-        />
-        <Select
-          label="Supervisor"
-          value={state}
-          onChange={(e) => setState(e.target.value as AgentSupervisorState | '')}
-          options={[{ value: '', label: 'Todos' }, ...Object.entries(SUPERVISOR).map(([value, s]) => ({ value, label: s.label }))]}
-        />
-      </div>
-      <Freshness poll={poll} interval={LIST_INTERVAL_MS} always />
-      <StaleAlert poll={poll} />
-      {poll.data === undefined ? (
-        poll.error ? (
-          isApiError(poll.error, 'forbidden') ? (
-            <StateView status="neutral" title="Você não tem permissão para ver estas execuções." />
-          ) : (
-            <StateView status="error" title={errorText(poll.error).title} actions={<Button onClick={poll.refresh}>Tentar novamente</Button>} />
-          )
-        ) : (
-          <StateView status="loading" title="Carregando execuções…" />
-        )
-      ) : poll.data.items.length === 0 ? (
-        <StateView status="neutral" title="Nenhuma execução local registrada." description="Elas aparecem quando um Agent inicia uma automação autorizada e registra a execução." />
-      ) : (
-        <div className="pw-prod__scroll" role="region" aria-label="Execuções locais" tabIndex={0}>
-          <Table columns={columns} data={poll.data.items} rowKey="runId" size="sm" caption="Execuções locais em ordem de registro, da mais antiga para a mais recente (as 25 primeiras)." />
-        </div>
-      )}
-    </Stack>
-  );
-}
-
 /** Todas as páginas de eventos (ordem de `sequence`), até o fim ou ao teto da tela. */
 async function readEvents(org: string, runId: string): Promise<{ items: AgentRunEvent[]; truncated: boolean }> {
   const items: AgentRunEvent[] = [];
@@ -225,7 +149,7 @@ async function readEvents(org: string, runId: string): Promise<{ items: AgentRun
   return { items, truncated: true };
 }
 
-/** /o/{org}/supervisao/:runId — uma execução local: identificação, cinco dimensões e etapas reais. */
+/** /o/{org}/execucoes-locais/:runId (antes /supervisao/:runId, que redireciona para cá) — uma execução local: identificação, cinco dimensões e etapas reais. */
 export function AgentRunPage() {
   const { org, expired } = useSession();
   const { runId = '' } = useParams();
@@ -252,7 +176,7 @@ export function AgentRunPage() {
 
   if (poll.data === undefined) {
     if (poll.error && isApiError(poll.error, 'not_found', 'invalid_request'))
-      return <NotFoundState title="Execução não encontrada." back={{ to: orgPath.agentRuns(org), label: 'Voltar para a supervisão' }} />;
+      return <NotFoundState title="Execução não encontrada." back={{ to: orgPath.executions(org), label: 'Voltar para Execuções' }} />;
     if (poll.error) return <StateView status="error" title={errorText(poll.error).title} actions={<Button onClick={poll.refresh}>Tentar novamente</Button>} />;
     return <StateView status="loading" title="Carregando execução…" />;
   }
@@ -273,7 +197,7 @@ export function AgentRunPage() {
 
   return (
     <Stack gap={5}>
-      <PageHeader title="Execução local" subtitle={`Registrada em ${r.registeredAt ? new Date(r.registeredAt).toLocaleString('pt-BR') : '—'}`} back={{ to: orgPath.agentRuns(org), label: 'Voltar para a supervisão' }} />
+      <PageHeader title="Execução local" subtitle={`Registrada em ${r.registeredAt ? new Date(r.registeredAt).toLocaleString('pt-BR') : '—'}`} back={{ to: orgPath.executions(org), label: 'Voltar para Execuções' }} />
       <Freshness poll={poll as Polling<unknown>} interval={DETAIL_INTERVAL_MS} />
       <StaleAlert poll={poll as Polling<unknown>} />
       {r.authorizationStateAtRegistration && r.authorizationStateAtRegistration !== 'ACTIVE' && (
@@ -333,9 +257,20 @@ export function AgentRunPage() {
               ),
             },
             { key: 'origem', term: 'Origem', description: [r.sourceKind ? SOURCE_KIND[r.sourceKind] : null, r.origin ? ORIGIN[r.origin] : null].filter(Boolean).join(' · ') || '—' },
-            { key: 'agent', term: 'Máquina (Agent)', description: r.agentName ?? short(c?.agentId) },
+            { key: 'agent', term: 'Nome da máquina', description: r.agentName ?? short(c?.agentId) },
             { key: 'duracao', term: 'Duração (relógio do Agent)', description: durationText(s?.agentStartedAt, s?.agentEndedAt) },
-            { key: 'worker', term: 'Worker', description: short(c?.workerId) },
+            {
+              key: 'worker',
+              term: 'Máquina',
+              description: c?.workerId ? (
+                <span>
+                  <RouteLink to={orgPath.machine(org, c.workerId)}>Abrir a máquina</RouteLink> ·{' '}
+                  <RouteLink to={orgPath.machineActivity(org, c.workerId)}>Ver atividade</RouteLink>
+                </span>
+              ) : (
+                '—'
+              ),
+            },
             { key: 'autorizacao', term: 'Autorização', description: short(c?.authorizationId) },
             { key: 'execucao', term: 'Execução no Agent', description: <code className="pw-hash">{c?.agentExecutionId ?? '—'}</code> },
             { key: 'framework', term: 'Execução no Framework', description: <code className="pw-hash">{c?.frameworkExecutionId ?? '—'}</code> },

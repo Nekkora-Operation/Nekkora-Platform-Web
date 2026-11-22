@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button, Card, Input, RadioGroup, Stack, Text } from 'nekkora-lib';
+import { Alert, Button, Card, Checkbox, Input, RadioGroup, Stack, Text } from 'nekkora-lib';
 import { createPairingCode, createRotationCode, revokeAgent, type AgentCode } from '../../api/agents';
-import { isApiError } from '../../api/http';
+import { hasReason, isApiError } from '../../api/http';
 import { useSession } from '../../area/session';
 import { StepUpDialog } from '../../components/StepUpDialog';
 import { accessRefusal, orgStepUp } from '../access/shared';
@@ -32,10 +32,18 @@ export function OneTimeCode({ code, onCancel, onDone }: { code: AgentCode; onCan
   return (
     <Card variant="outlined" padding="lg">
       <Stack gap={3}>
-        <Alert tone="warning" title="Este código aparece só agora.">
-          Use-o no Agent da máquina ({'"'}Parear com a Platform{'"'}). Ele é temporário e de uso único; ao sair desta tela ele não
-          pode ser exibido de novo — se perder, cancele e gere outro.
-        </Alert>
+        {code.remoteExecution ? (
+          <Alert tone="warning" title="Este código aparece só agora.">
+            Use-o no Nekkora Agent do computador, no menu da conta, em {'"'}Execução remota{'"'} → {'"'}Habilitar este computador{'"'}. A
+            máquina só fica habilitada depois que alguém confirmar nela; o código sozinho não habilita nada. Ele é temporário e
+            de uso único; ao sair desta tela ele não pode ser exibido de novo — se perder, cancele e gere outro.
+          </Alert>
+        ) : (
+          <Alert tone="warning" title="Este código aparece só agora.">
+            Use-o no Agent da máquina ({'"'}Parear com a Platform{'"'}). Ele é temporário e de uso único; ao sair desta tela ele não
+            pode ser exibido de novo — se perder, cancele e gere outro.
+          </Alert>
+        )}
         <code className="pw-break pw-hash pw-code" aria-label="Código de uso único">
           {code.code}
         </code>
@@ -71,7 +79,7 @@ export function OneTimeCode({ code, onCancel, onDone }: { code: AgentCode; onCan
                   () => setCancelState('done'),
                   (e) =>
                     setCancelState(
-                      isApiError(e, 'conflict') ? 'O código já foi usado ou cancelado.' : 'Não foi possível confirmar o cancelamento. Confira a lista de Workers.',
+                      isApiError(e, 'conflict') ? 'O código já foi usado ou cancelado.' : 'Não foi possível confirmar o cancelamento. Confira a lista de máquinas.',
                     ),
                 );
               }}
@@ -92,27 +100,62 @@ export function OneTimeCode({ code, onCancel, onDone }: { code: AgentCode; onCan
   );
 }
 
+/** Recurso desligado no servidor: 409 conflict + reason remote_execution_unavailable, nada gravado. */
+export const REMOTE_UNAVAILABLE_REASON = 'remote_execution_unavailable';
+export const REMOTE_UNAVAILABLE_TEXT = 'A execução remota não está disponível nesta Platform. Nenhum código foi gerado.';
+
 /** Worker sem Agent a que o código de pareamento se destina. */
 export type FreeWorker = { workerId: string; name: string };
 /** Máquina (Agent) vinculada a um Worker. */
 export type LinkedAgent = { agentId: string; name: string; workerName: string };
 
+/** Qual aplicativo vai usar o código: o Nekkora Agent Client (vínculo de execução remota) ou o Agent anterior (pareamento de sempre). */
+export type PairingApp = 'client' | 'agent';
+export const PAIRING_APP: Record<PairingApp, { label: string; description: string }> = {
+  client: {
+    label: 'Nekkora Agent Client',
+    description: 'O aplicativo atual. O vínculo dele é o de execução remota: o código só é gerado com a confirmação abaixo marcada.',
+  },
+  agent: {
+    label: 'Nekkora Agent anterior',
+    description: 'O código de pareamento de sempre, sem execução remota. O fluxo dele não muda.',
+  },
+};
+/** RELEASE-2.2: onde a execução remota não está disponível, o Client aparece desabilitado com o motivo. */
+export const CLIENT_UNAVAILABLE_DESCRIPTION =
+  'Indisponível nesta versão: o novo Nekkora Agent Client ainda não foi publicado e a execução pela Platform não está ligada.';
+export const AGENT_AVAILABLE_DESCRIPTION = 'O aplicativo disponível hoje. O código de pareamento de sempre, para executar no próprio computador.';
+export const CLIENT_CONFIRMATION_REQUIRED = 'Marque a confirmação para gerar o código deste vínculo. Sem ela, nenhum código é gerado.';
+
 /**
  * Vincular Agent: código de pareamento para ESTE Worker (`workerId`), sem cadastrar outro. Nenhuma máquina é registrada
  * até o Agent usar o código; cancelar ou deixar vencer não cria nada.
+ *
+ * O vínculo do Nekkora Agent Client é o de execução remota e exige a confirmação existente ("Habilitar esta máquina para
+ * execução remota"): sem marcá-la, o botão não gera o código. O Agent anterior continua com o pedido de sempre, sem a opção.
  */
 export function PairAgentDialog({ worker, onDone, onClose }: { worker: FreeWorker | null; onDone: (code: AgentCode) => void; onClose: () => void }) {
-  const { org, expired } = useSession();
+  const { org, expired, me } = useSession();
+  // RELEASE-2.2: o aplicativo que vem marcado é o que esta Platform aceita (sem execução remota, o Agent)
+  const clientAvailable = me.remoteExecutionAvailable === true;
+  const defaultApp: PairingApp = clientAvailable ? 'client' : 'agent';
   const [agentName, setAgentName] = useState('');
   const [minutes, setMinutes] = useState('15');
+  const [app, setApp] = useState<PairingApp>(defaultApp);
+  const [remote, setRemote] = useState(false);
   const workerId = worker?.workerId;
   useEffect(() => {
     if (!worker) return;
     setAgentName(worker.name);
     setMinutes('15');
+    setApp(defaultApp);
+    setRemote(false);
     // só ao abrir para um Worker (o nome digitado não é sobrescrito enquanto o diálogo está aberto)
-  }, [workerId]);
-  const ready = agentName.trim().length > 0 && agentName.trim().length <= 80 && Number(minutes) >= 5 && Number(minutes) <= 60;
+  }, [workerId, defaultApp]);
+  const fieldsOk = agentName.trim().length > 0 && agentName.trim().length <= 80 && Number(minutes) >= 5 && Number(minutes) <= 60;
+  // vínculo do Client: a confirmação de execução remota é obrigatória (o Agent anterior não tem essa opção)
+  const forClient = app === 'client';
+  const ready = fieldsOk && (!forClient || remote);
 
   return (
     <StepUpDialog<AgentCode>
@@ -123,21 +166,35 @@ export function PairAgentDialog({ worker, onDone, onClose }: { worker: FreeWorke
       ready={ready}
       stepUp={orgStepUp(org)}
       action={() =>
-        worker ? createPairingCode(org, { workerId: worker.workerId, agentName: agentName.trim(), expiresInMinutes: Number(minutes) }) : Promise.reject()
+        worker
+          ? createPairingCode(org, {
+              workerId: worker.workerId,
+              agentName: agentName.trim(),
+              expiresInMinutes: Number(minutes),
+              // só no vínculo do Client, com a confirmação marcada; no Agent anterior o pedido é o de sempre, campo por campo
+              ...(forClient && remote ? { remoteExecution: true as const } : {}),
+            })
+          : Promise.reject()
       }
       onDone={onDone}
       onClose={onClose}
       refusalText={(e) =>
-        accessRefusal(e, {
-          conflict: 'Este Worker já tem um Agent vinculado. Atualize a lista.',
-          forbidden: 'O código não foi gerado: faltam permissões (Agents, credenciais, vínculo de Workers) ou a organização ainda não foi ativada.',
+        hasReason(e, 'conflict', REMOTE_UNAVAILABLE_REASON)
+          ? REMOTE_UNAVAILABLE_TEXT
+          : accessRefusal(e, {
+          conflict: 'Esta máquina já tem um Agent vinculado. Atualize a lista.',
+          // no modelo por licença a ativação não se aplica: a recusa é só de permissão
+          forbidden:
+            me.organizationLicenseModel === 'licensed'
+              ? 'O código não foi gerado: faltam permissões (Agents, credenciais, vínculo de máquinas).'
+              : 'O código não foi gerado: faltam permissões (Agents, credenciais, vínculo de máquinas) ou a organização ainda não foi ativada.',
         })
       }
       uncertainText="Não foi possível confirmar se o código foi gerado. Feche: se foi, ele não pode ser exibido de novo e vence sozinho; gere outro."
       onUnauthenticated={expired}
     >
       <Text>
-        O código vincula a máquina a este Worker, sem cadastrar outro. A máquina só aparece na lista depois que o Agent usar o
+        O código vincula o computador a esta máquina, sem cadastrar outra. A máquina só aparece na lista depois que o Agent usar o
         código; cancelar o código ou deixá-lo vencer não registra máquina nenhuma.
       </Text>
       <Input
@@ -147,9 +204,39 @@ export function PairAgentDialog({ worker, onDone, onClose }: { worker: FreeWorke
         maxLength={80}
         value={agentName}
         onChange={(e) => setAgentName(e.target.value)}
-        hint="Nome lógico informado por você; nada é coletado da máquina."
+        hint="Informado por você aqui, no pareamento. A Platform não detecta o nome do computador."
       />
       <Input label="Validade do código (minutos)" type="number" min={5} max={60} value={minutes} onChange={(e) => setMinutes(e.target.value)} hint="De 5 a 60." />
+      <RadioGroup
+        legend="Aplicativo desta máquina"
+        value={app}
+        onChange={(v) => {
+          setApp(v as PairingApp);
+          setRemote(false);
+        }}
+        options={(Object.keys(PAIRING_APP) as PairingApp[]).map((k) =>
+          clientAvailable
+            ? { value: k, label: PAIRING_APP[k].label, description: PAIRING_APP[k].description }
+            : k === 'client'
+              ? { value: k, label: PAIRING_APP[k].label, description: CLIENT_UNAVAILABLE_DESCRIPTION, disabled: true }
+              : { value: k, label: PAIRING_APP[k].label, description: AGENT_AVAILABLE_DESCRIPTION },
+        )}
+      />
+      {forClient && (
+        <>
+          <Checkbox
+            label="Habilitar esta máquina para execução remota"
+            checked={remote}
+            onChange={(e) => setRemote(e.target.checked)}
+            hint="O código passa a servir para habilitar o computador a receber execuções solicitadas pela Platform. A habilitação só vale depois de confirmada no próprio computador, e você fica registrado como quem habilitou. Não autoriza nenhuma automação: as autorizações de ambiente de trabalho e de versão continuam valendo como hoje."
+          />
+          {!remote && (
+            <Text variant="body-sm" color="secondary" role="note">
+              {CLIENT_CONFIRMATION_REQUIRED}
+            </Text>
+          )}
+        </>
+      )}
     </StepUpDialog>
   );
 }
@@ -167,11 +254,11 @@ export function RotateCredentialDialog({ agent, onDone, onClose }: { agent: Link
       action={() => (agent ? createRotationCode(org, agent.agentId) : Promise.reject())}
       onDone={onDone}
       onClose={onClose}
-      refusalText={(e) => accessRefusal(e, { notFound: 'A máquina não está mais vinculada a este Worker.' })}
+      refusalText={(e) => accessRefusal(e, { notFound: 'O computador não está mais vinculado a esta máquina.' })}
       uncertainText="Não foi possível confirmar se o código foi gerado. Feche e gere outro se precisar."
       onUnauthenticated={expired}
     >
-      <Text>O Agent resgata o código apresentando a credencial atual; nesse momento a credencial anterior deixa de valer. O vínculo com o Worker continua.</Text>
+      <Text>O Agent resgata o código apresentando a credencial atual; nesse momento a credencial anterior deixa de valer. O vínculo com a máquina continua.</Text>
     </StepUpDialog>
   );
 }
@@ -205,13 +292,13 @@ export function RevokeLinkDialog({
       onDone={onDone}
       onClose={onClose}
       refusalText={(e) => accessRefusal(e, { conflict: 'O vínculo já foi revogado.' })}
-      uncertainText="Não foi possível confirmar a revogação. Feche e confira a lista de Workers."
+      uncertainText="Não foi possível confirmar a revogação. Feche e confira a lista de máquinas."
       onUnauthenticated={expired}
       onOutcome={(k) => k === 'uncertain' && onUncertain?.()}
     >
       <Text>
-        A credencial da máquina é revogada e os códigos abertos são cancelados. O Worker fica livre na Platform e continua
-        existindo, com as autorizações de workspace e o histórico. Para usar uma máquina de novo, será preciso vincular um
+        A credencial da máquina é revogada e os códigos abertos são cancelados. A máquina fica livre na Platform e continua
+        existindo, com as autorizações de ambiente de trabalho e o histórico. Para usar uma máquina de novo, será preciso vincular um
         Agent (novo pareamento).
       </Text>
       <Text>A máquina em si não é contatada: um processo que já esteja rodando numa máquina sem conexão não é interrompido.</Text>

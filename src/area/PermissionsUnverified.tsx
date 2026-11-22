@@ -9,7 +9,7 @@ export function PermissionsUnverified({ actions, onRetry }: { actions: string; o
   return (
     <Alert
       tone="warning"
-      title="Não foi possível verificar suas permissões neste workspace agora."
+      title="Não foi possível verificar suas permissões neste ambiente de trabalho agora."
       action={
         <Button size="sm" variant="secondary" onClick={onRetry}>
           Tentar novamente

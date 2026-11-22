@@ -12,6 +12,9 @@ import { useSession } from '../../area/session';
 import { useCursorList } from '../../hooks/useCursorList';
 import { useResource } from '../../hooks/useResource';
 import { LocalRunAuthorizations } from '../agents/LocalRunAuthorizations';
+import { ShareAutomationPanel } from '../access/ShareRequests';
+import { RuntimeRequirements } from './RuntimeRequirements';
+import { RemoteUnavailableNotice, useRemoteExecutionAvailable } from '../../components/RemoteUnavailable';
 import { DateTimeText, errorOf, errorText, isMissing, isSubordinateGone, LoadErrorState, NotFoundState, PageHeader, ResourceStatusBadge, RouteLink, useBackTarget, useExpiresOn } from './shared';
 
 const PAGE = 25;
@@ -28,7 +31,8 @@ export function AutomationDetailPage() {
  * ele (automation.manage no workspace).
  */
 function AutomationDetail({ automationId }: { automationId: string }) {
-  const { org } = useSession();
+  const { org, expired } = useSession();
+  const remoteAvailable = useRemoteExecutionAvailable();
   const { workspaces } = useInternalArea();
   const navigate = useNavigate();
   const [refresh, setRefresh] = useState(0);
@@ -42,6 +46,8 @@ function AutomationDetail({ automationId }: { automationId: string }) {
   const perms = useWorkspacePermissions(workspaceId);
   const canManage = perms.status === 'ready' && perms.has('automation.manage');
   const canExecute = perms.status === 'ready' && perms.has('automation.execute');
+  // 071: membro com client_share.request no ambiente pede o compartilhamento com pessoa externa (outra pessoa aprova)
+  const canShare = perms.status === 'ready' && perms.has('client_share.request');
   const back = useBackTarget(workspaceId ? orgPath.workspace(org, workspaceId) : orgPath.workspaces(org));
 
   useExpiresOn(errorOf(automation), versions.error);
@@ -52,7 +58,7 @@ function AutomationDetail({ automationId }: { automationId: string }) {
     setRefresh((n) => n + 1);
   };
 
-  if (gone) return <NotFoundState title="Automação não encontrada." back={{ to: back, label: 'Voltar para workspaces' }} />;
+  if (gone) return <NotFoundState title="Automação não encontrada." back={{ to: back, label: 'Voltar para ambientes de trabalho' }} />;
   if (automation.status === 'loading') return <StateView status="loading" title="Carregando automação…" />;
   if (automation.status === 'error') {
     return <LoadErrorState error={automation.error} onRetry={onRefresh} page />;
@@ -84,7 +90,7 @@ function AutomationDetail({ automationId }: { automationId: string }) {
 
   return (
     <Stack gap={6}>
-      <PageHeader title={a.name} subtitle="Automação" back={{ to: back, label: workspaceName ? `Voltar para ${workspaceName}` : 'Voltar para o workspace' }} onRefresh={onRefresh} refreshing={automation.refreshing} />
+      <PageHeader title={a.name} subtitle="Automação" back={{ to: back, label: workspaceName ? `Voltar para ${workspaceName}` : 'Voltar para o ambiente de trabalho' }} onRefresh={onRefresh} refreshing={automation.refreshing} />
       <Card variant="surface" padding="lg">
         <Stack gap={4}>
           <DescriptionList
@@ -92,10 +98,10 @@ function AutomationDetail({ automationId }: { automationId: string }) {
               { key: 'estado', term: 'Estado', description: <ResourceStatusBadge status={a.status} /> },
               {
                 key: 'workspace',
-                term: 'Workspace',
+                term: 'Ambiente de trabalho',
                 description: (
                   <Link as={RouterLink} to={orgPath.workspace(org, a.workspaceId)}>
-                    {workspaceName ?? 'Abrir workspace'}
+                    {workspaceName ?? 'Abrir ambiente de trabalho'}
                   </Link>
                 ),
               },
@@ -116,7 +122,7 @@ function AutomationDetail({ automationId }: { automationId: string }) {
             ]}
           />
           <div className="pw-prod__links">
-            <Link as={RouterLink} to={`${orgPath.executions(org)}?automacao=${encodeURIComponent(a.automationId)}`} arrow>
+            <Link as={RouterLink} to={`${orgPath.executions(org)}?aba=historico&automacao=${encodeURIComponent(a.automationId)}`} arrow>
               Ver execuções desta automação
             </Link>
           </div>
@@ -165,8 +171,17 @@ function AutomationDetail({ automationId }: { automationId: string }) {
         )}
       </section>
 
+      {/* EXECUCAO-REMOTA-001 (T01c): dependências declaradas na Platform; não mudam o pacote publicado */}
+      {remoteAvailable ? (
+        <RuntimeRequirements automationId={a.automationId} canManage={canManage} />
+      ) : (
+        <RemoteUnavailableNotice detail="Por isso, as dependências de execução (o que a máquina precisa ter para executar a pedido da Platform) não aparecem aqui." />
+      )}
+
       {/* AGENT-PYTHON-001 (030): monitoramento de um Python externo disparado pelo agendador do cliente */}
       <LocalRunAuthorizations workspaceId={a.workspaceId} automation={{ automationId: a.automationId, name: a.name }} canExecute={canExecute} />
+
+      {canShare && a.status === 'active' && <ShareAutomationPanel org={org} automationId={a.automationId} automationName={a.name} onUnauthenticated={expired} />}
     </Stack>
   );
 }

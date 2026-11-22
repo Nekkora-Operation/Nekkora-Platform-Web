@@ -19,6 +19,12 @@ export type RoleAssignment = S['RoleAssignment'];
 export type GrantState = S['GrantState'];
 export type AccessEvent = S['AccessEventPage']['items'][number];
 export type LifecycleWorkspace = S['LifecycleWorkspace'];
+export type PeoplePage = S['PeoplePage'];
+export type PersonItem = S['PersonItem'];
+export type PersonMember = S['PersonMember'];
+export type PersonInvitation = S['PersonInvitation'];
+export type PersonRole = S['PersonRole'];
+export type PersonSituation = S['PersonSituation'];
 
 const base = (org: string) => `/api/v1/o/${encodeURIComponent(org)}`;
 const id = (v: string) => encodeURIComponent(v);
@@ -27,6 +33,19 @@ async function send<T>(org: string, operationId: OperationId, path: string, opti
   const write = options.method && options.method !== 'GET';
   const { status, data } = await request<unknown>(`${base(org)}${path}`, write ? { ...options, csrf: await sessionCsrf(org) } : options);
   return validated<T>(operationId, data, status);
+}
+
+// ------------------------------------------------------------------ pessoas e acessos (PLATFORM-FLUXO-002, org.manage)
+
+/**
+ * Membros e convites numa lista só: pendentes primeiro, depois membros, depois convites encerrados (pelo filtro), do mais
+ * recente ao mais antigo dentro de cada grupo; a ordem vale para a lista inteira (cursor). Sem `situation`: pendentes e membros.
+ */
+export function listPeople(
+  org: string,
+  q: { situation?: PersonSituation[]; q?: string; cursor?: string; limit?: number } = {},
+): Promise<PeoplePage> {
+  return send(org, 'listPeople', `/people${queryString(q)}`);
 }
 
 // ------------------------------------------------------------------ workspaces (workspace.lifecycle)

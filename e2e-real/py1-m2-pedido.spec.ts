@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { confirmStepUp, LAB, pairNewWorker, signUpAndEnroll, type Person, workersText, newVersionWithPackage } from './support/lab';
+import { activateAutomation, confirmStepUp, dayFromNow, executionsText, LAB, localRunLinks, pairNewWorker, signUpAndEnroll, type Person, workersText, newVersionWithPackage } from './support/lab';
 
 /**
  * AGENT-PYTHON-001 — Marco 2 com Web, API e Agent REAIS: um projeto Python externo é empacotado pelo gerador (build =
@@ -128,9 +128,9 @@ test('M2: pacote externo publicado, aprovado na máquina e disparado pela Platfo
   const ana = await signUpAndEnroll(page, 'py1m2');
   const org = await prepareOrganization(page, ana);
   await page.goto(`/o/${org}/workspaces`);
-  await page.getByRole('button', { name: 'Criar workspace' }).click();
+  await page.getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await page.getByRole('alertdialog').getByLabel(/^Nome/).fill('Operações');
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar workspace' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await expect(page.getByRole('heading', { name: 'Operações' })).toBeVisible();
   const workspaceId = /workspaces\/([0-9a-f-]{36})/.exec(page.url())![1];
   await page.getByRole('button', { name: 'Criar automação' }).click();
@@ -152,21 +152,20 @@ test('M2: pacote externo publicado, aprovado na máquina e disparado pela Platfo
 
   // ---------- pareamento, Worker no workspace e autorização da versão
   // T07: Workers → Criar Worker → Vincular Agent
-  const code = await pairNewWorker(page, org, ana, 'Worker pedidos', 'ESTACAO-PY1-M2');
+  const code = await pairNewWorker(page, org, ana, 'Máquina pedidos', 'ESTACAO-PY1-M2');
   agent('iniciar');
   agent('parear', `${code}\n`);
   await page.getByRole('button', { name: 'Concluir' }).click();
   await expect.poll(() => workersText(page, org), { timeout: 240_000, intervals: [10_000] }).toMatch(/ESTACAO-PY1-M2[\s\S]*Conectada/);
   await page.goto(`/o/${org}/workers`);
-  await page.getByRole('button', { name: 'Autorizar Worker pedidos num workspace' }).click();
-  await page.getByRole('alertdialog').getByLabel('Workspace').selectOption(workspaceId);
+  await page.getByRole('button', { name: 'Autorizar Máquina pedidos num ambiente de trabalho' }).click();
+  await page.getByRole('alertdialog').getByLabel('Ambiente de trabalho').selectOption(workspaceId);
   await confirmStepUp(page, ana, 'Autorizar');
-  await expect(page.getByText('Worker autorizado no workspace.')).toBeVisible();
+  await expect(page.getByText('Máquina autorizada no ambiente de trabalho.')).toBeVisible();
+  // PLATFORM-FLUXO-002: a autorização da versão para a máquina vem da ativação em um passo (modelo anterior: com validade)
+  await activateAutomation(page, ana, org, { workspace: 'Operações', automation: 'Relatório por pedido', workers: ['Máquina pedidos'], validUntil: dayFromNow(10) });
   await page.goto(versionUrl);
-  await page.getByLabel(/^Worker autorizado neste workspace/).selectOption({ label: 'Worker pedidos' }, { timeout: 30_000 });
-  await page.getByRole('button', { name: 'Autorizar execução local' }).click();
-  await confirmStepUp(page, ana, 'Autorizar execução local');
-  await expect(page.getByText(/Execução local autorizada\. Nada foi iniciado/)).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Autorizações de execução local.' })).toContainText('Vigente', { timeout: 30_000 });
 
   // ---------- máquina: pacote presente e APROVADO (ato local); o Agent baixa a autorização
   log('instalar', machine('instalar-pacote', ['-Exemplo', zip]).replace(/\s+/g, ' ').slice(0, 400));
@@ -266,7 +265,7 @@ test('M2: pacote externo publicado, aprovado na máquina e disparado pela Platfo
   const s6 = await execute(page, ana, versionUrl, 3);
   // T07: revogar o vínculo na linha do Worker (o Worker fica livre; a máquina não é contatada)
   await page.goto(`/o/${org}/workers`);
-  await page.getByRole('button', { name: 'Revogar vínculo de ESTACAO-PY1-M2 com Worker pedidos' }).click();
+  await page.getByRole('button', { name: 'Revogar vínculo de ESTACAO-PY1-M2 com Máquina pedidos' }).click();
   await confirmStepUp(page, ana, 'Revogar vínculo');
   await page.waitForTimeout(2_000);
   agent('iniciar');
@@ -276,10 +275,14 @@ test('M2: pacote externo publicado, aprovado na máquina e disparado pela Platfo
   expect(effects()).toBe(3);
   agent('parar');
 
-  // ---------- supervisão: as execuções pedidas pela Platform aparecem com a origem
-  await page.goto(`/o/${org}/supervisao`);
+  // ---------- Execuções (a antiga Supervisão): os pedidos que viraram execução aparecem como execuções do Agent anterior,
+  // com a origem "Pedido pela Platform" no detalhe; os que não viraram (vencido, máquina sem credencial) como pedidos
+  const lista = await executionsText(page, org);
+  expect(lista).toContain('Pedido ao Agent anterior');
+  expect(lista).toContain('Agent anterior');
+  await shot(page, 'm2-07-execucoes-pedidos');
+  await localRunLinks(page).last().click();
   await expect(page.locator('main')).toContainText('Pedido pela Platform');
-  await shot(page, 'm2-07-supervisao-pedidos');
   log('pedidos_finais', sql(`SELECT run_request_id || '|' || state || '|' || deliveries || '|' || coalesce(decision_reason,'-') FROM run_requests q JOIN agents a USING (organization_id, agent_id) WHERE q.organization_id = '${org}' ORDER BY requested_at`).split('\n'));
   log('execucoes_locais', readdirSync(`${LABDIR}/agent-dados/execucoes`).filter((n) => /^ex-/.test(n)).length);
   log('fim', 'M2 concluído');

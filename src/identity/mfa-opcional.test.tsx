@@ -110,6 +110,8 @@ describe('ativação voluntária', () => {
     renderApp('/conta');
     expect(await screen.findByText(/Desativada/)).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Códigos de recuperação' })).not.toBeInTheDocument();
+    // um seletor de tema só (antes aparecia duas vezes sem MFA e nenhuma com MFA)
+    expect(screen.getAllByRole('group', { name: 'Tema' })).toHaveLength(1);
     await user().click(screen.getByRole('button', { name: 'Ativar autenticação em duas etapas' }));
     expect(location()).toBe('/conta/ativar-autenticacao');
     await user().click(await screen.findByRole('button', { name: 'Começar' }));

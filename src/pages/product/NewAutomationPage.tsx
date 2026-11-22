@@ -79,8 +79,8 @@ function refusalText(step: Step, e: unknown): string {
       return `O pacote foi recusado pela conferência da Platform: ${reason}. A automação foi criada, mas nenhuma versão: a versão só passa a existir quando a Platform aceita o pacote. Escolha o arquivo corrigido e continue: o envio vai para esta mesma automação.`;
     return draftRefusal(e, 'nothing');
   }
-  if (isApiError(e, 'conflict')) return 'O workspace não está ativo. Nada foi criado.';
-  if (isApiError(e, 'forbidden', 'not_found')) return 'Você não tem permissão para criar automações neste workspace. Nada foi criado.';
+  if (isApiError(e, 'conflict')) return 'O ambiente de trabalho não está ativo. Nada foi criado.';
+  if (isApiError(e, 'forbidden', 'not_found')) return 'Você não tem permissão para criar automações neste ambiente de trabalho. Nada foi criado.';
   if (isApiError(e, 'rate_limited')) return 'Muitas tentativas em pouco tempo. Aguarde e tente de novo. Nada foi criado.';
   if (isApiError(e, 'invalid_request')) return 'O pedido não foi aceito. Confira o nome. Nada foi criado.';
   return 'A automação não foi criada.';
@@ -134,13 +134,13 @@ export function NewAutomationPage() {
     setProgressState(p);
   };
 
-  if (workspace.status === 'loading' || perms.status === 'loading') return <StateView status="loading" title="Carregando workspace…" />;
+  if (workspace.status === 'loading' || perms.status === 'loading') return <StateView status="loading" title="Carregando ambiente de trabalho…" />;
   if (workspace.status === 'error') {
     if (isApiError(workspace.error, 'unauthenticated')) {
       expired();
       return null;
     }
-    if (isMissing(workspace.error)) return <NotFoundState title="Workspace não encontrado." back={{ to: orgPath.workspaces(org), label: 'Voltar para workspaces' }} />;
+    if (isMissing(workspace.error)) return <NotFoundState title="Ambiente de trabalho não encontrado." back={{ to: orgPath.workspaces(org), label: 'Voltar para ambientes de trabalho' }} />;
     return <LoadErrorState error={workspace.error} onRetry={workspace.refresh} page />;
   }
   const w = workspace.data;
@@ -158,7 +158,7 @@ export function NewAutomationPage() {
     return (
       <Stack gap={5}>
         <PageHeader title="Nova automação" subtitle={w.name} back={back} />
-        <StateView status="neutral" title={w.status !== 'active' ? 'O workspace não está ativo.' : 'Você não tem permissão para criar automações neste workspace.'} />
+        <StateView status="neutral" title={w.status !== 'active' ? 'O ambiente de trabalho não está ativo.' : 'Você não tem permissão para criar automações neste ambiente de trabalho.'} />
       </Stack>
     );
   }
@@ -358,13 +358,13 @@ export function NewAutomationPage() {
         <Alert tone="warning" title="Resultado não confirmado">
           <Stack gap={2}>
             <span>
-              Uma tentativa de criar automação neste workspace, às {new Date(recorded!.at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })},
+              Uma tentativa de criar automação neste ambiente de trabalho, às {new Date(recorded!.at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })},
               ficou sem resposta confirmada (nesta ou em outra aba). Nada é repetido automaticamente. Confira as automações do
-              workspace antes de criar de novo.
+              ambiente de trabalho antes de criar de novo.
             </span>
             <span>
               <Link as={RouterLink} to={orgPath.workspace(org, workspaceId)}>
-                Abrir o workspace
+                Abrir o ambiente de trabalho
               </Link>
               {' · '}
               <Button size="sm" variant="secondary" onClick={() => operations().acknowledge(guard.key)}>
@@ -503,7 +503,7 @@ export function NewAutomationPage() {
           )}
           {phase.kind === 'ambiguous' && (
             <Alert tone="warning" title="Há mais de um registro possível.">
-              Encontramos {phase.count} registros com este nome criados agora há pouco. Abra o workspace e confira qual usar; esta tela não escolhe por você.
+              Encontramos {phase.count} registros com este nome criados agora há pouco. Abra o ambiente de trabalho e confira qual usar; esta tela não escolhe por você.
             </Alert>
           )}
           <div>

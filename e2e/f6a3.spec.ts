@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { expect, test, type Page } from '@playwright/test';
 import { Authenticator } from '../mock/totp';
-import { signIn } from './support/app';
+import { leaveMenu, signIn } from './support/app';
 
 /**
  * F6a-3 no navegador, contra a API SIMULADA: revogar concessões. Cada teste usa uma organização NOVA criada pelo
@@ -25,7 +25,7 @@ async function control<T>(route: string, body: unknown): Promise<T> {
   return (await res.json()) as T;
 }
 
-const WHERE = '(cliente Cliente Vizinho, workspace Workspace da organização vizinha)';
+const WHERE = '(cliente Cliente Vizinho, ambiente de trabalho Workspace da organização vizinha)';
 const A = `Externa Um ${WHERE}`;
 const B = `Externa Dois ${WHERE}`;
 
@@ -51,9 +51,21 @@ async function setup(page: Page) {
     ],
   });
   await login(page, org, admin, 'Admin F6a3');
-  await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Concessões' }).click();
+  await goGrants(page);
+  await leaveMenu(page);
   await expect(page.getByRole('button', { name: `Revogar a concessão de ${A}` })).toBeVisible();
   return { org, admin, grants };
+}
+
+/**
+ * PLATFORM-FLUXO-002 (070): as concessões por ambiente inteiro (com as decisões de antes) ficam em Pessoas e acessos →
+ * aba Compartilhamentos → "Concessões por ambiente inteiro"; a navegação continua dentro da mesma página (sem recarregar).
+ */
+async function goGrants(page: Page) {
+  await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Pessoas e acessos' }).click();
+  await page.getByRole('tab', { name: 'Compartilhamentos' }).click();
+  await page.getByRole('link', { name: /Concessões por ambiente inteiro/ }).click();
+  await page.getByRole('region', { name: 'Lista de concessões' }).waitFor();
 }
 
 function posts(page: Page) {
@@ -82,7 +94,7 @@ const panel = (page: Page) => page.getByRole('region', { name: 'Ações sem resu
 const announce = (page: Page) => page.getByRole('status', { name: 'Resultado das ações' });
 const anchor = (page: Page, id: string) => page.locator(`[data-concessao-linha="${id}"]`);
 
-test('teclado: revogar com a confirmação identificando cliente e workspace; foco na linha; axe no diálogo e depois', async ({ page }) => {
+test('teclado: revogar com a confirmação identificando cliente e ambiente de trabalho; foco na linha; axe no diálogo e depois', async ({ page }) => {
   const sent = posts(page);
   const { grants } = await setup(page);
   await page.getByRole('button', { name: `Revogar a concessão de ${A}` }).focus();
@@ -123,7 +135,7 @@ test('filtro sem "Revogada": a linha revogada sai da vista; o foco vai à lista;
   const { org } = await setup(page);
   await page.getByRole('checkbox', { name: 'Ativa' }).check();
   await page.getByRole('checkbox', { name: 'Pendente' }).check();
-  await expect(page).toHaveURL(`/o/${org}/administracao/concessoes?estado=active&estado=pending`);
+  await expect(page).toHaveURL(`/o/${org}/administracao/pessoas/acessos/ambientes?estado=active&estado=pending`);
   await page.getByRole('button', { name: `Revogar a concessão de ${A}` }).focus();
   await page.keyboard.press('Enter');
   await page.keyboard.press('Tab');
@@ -157,9 +169,10 @@ test('transporte: rede cai DEPOIS de aplicar → incerto; conferir informa "revo
   await expect(panel(page)).toContainText('não confirma o resultado do pedido');
 
   const nav = page.getByRole('navigation', { name: 'Navegação principal' });
-  await nav.getByRole('link', { name: 'Clientes' }).click();
-  await expect(page).toHaveURL(`/o/${org}/administracao/clientes`);
-  await nav.getByRole('link', { name: 'Concessões' }).click();
+  await nav.getByRole('link', { name: 'Pessoas e acessos' }).click();
+  await page.getByRole('link', { name: 'Gerenciar clientes' }).click();
+  await expect(page).toHaveURL(`/o/${org}/administracao/pessoas/clientes`);
+  await goGrants(page);
   await expect(panel(page)).toContainText(`Revogação da concessão de ${A}: resultado não confirmado.`);
   expect(sent.length).toBe(1);
 });
@@ -203,7 +216,7 @@ test('membros e concessões não colidem: cada tela mostra só a sua incerteza',
   await dialog.getByRole('button', { name: 'Cancelar' }).click();
 
   const nav = page.getByRole('navigation', { name: 'Navegação principal' });
-  await nav.getByRole('link', { name: 'Membros' }).click();
+  await nav.getByRole('link', { name: 'Pessoas e acessos' }).click();
   await expect(page.getByRole('button', { name: 'Suspender Alvo F6a3' })).toBeVisible();
   await expect(panel(page)).toHaveCount(0);
   await page.getByRole('button', { name: 'Suspender Alvo F6a3' }).click();
@@ -214,7 +227,7 @@ test('membros e concessões não colidem: cada tela mostra só a sua incerteza',
   await expect(panel(page)).toContainText('Suspensão de Alvo F6a3: resultado não confirmado.');
   await expect(panel(page)).not.toContainText('Revogação');
 
-  await nav.getByRole('link', { name: 'Concessões' }).click();
+  await goGrants(page);
   await expect(panel(page)).toContainText(`Revogação da concessão de ${A}: resultado não confirmado.`);
   await expect(panel(page)).not.toContainText('Alvo F6a3');
 });
@@ -237,7 +250,7 @@ test('R1: filtro "Ativa", revogar TODAS as carregadas pelo teclado: continuaçã
     if (r.method() === 'GET' && new URL(r.url()).pathname.endsWith('/client-grants')) reads.push(r.url());
   });
   await login(page, org, admin, 'Admin F6a3');
-  await page.goto(`/o/${org}/administracao/concessoes?estado=active`);
+  await page.goto(`/o/${org}/administracao/pessoas/acessos/ambientes?estado=active`);
   const revogar = page.getByRole('button', { name: `Revogar a concessão de ${A}` });
   await expect(revogar).toHaveCount(25);
   await expect(page.getByRole('button', { name: 'Carregar mais' })).toBeVisible();
@@ -261,7 +274,7 @@ test('R1: filtro "Ativa", revogar TODAS as carregadas pelo teclado: continuaçã
   const before = reads.length;
   await page.waitForTimeout(300);
   expect(reads.length).toBe(before); // nenhuma página buscada sozinha
-  await expect(page).toHaveURL(`/o/${org}/administracao/concessoes?estado=active`);
+  await expect(page).toHaveURL(`/o/${org}/administracao/pessoas/acessos/ambientes?estado=active`);
   await audit(page, 'f6a3-r1-vazio-entre-carregadas');
 
   await page.keyboard.press('Tab');
@@ -292,7 +305,7 @@ test('R2: zerar as visíveis → continuação RECUSADA: aviso e recomeço conti
     if (r.method() === 'GET' && new URL(r.url()).pathname.endsWith('/client-grants')) reads.push(r.url());
   });
   await login(page, org, admin, 'Admin F6a3');
-  await page.goto(`/o/${org}/administracao/concessoes?estado=active`);
+  await page.goto(`/o/${org}/administracao/pessoas/acessos/ambientes?estado=active`);
   const revogar = page.getByRole('button', { name: `Revogar a concessão de ${A}` });
   await expect(revogar).toHaveCount(25);
   for (let i = 0; i < 25; i++) {
@@ -326,7 +339,7 @@ test('R2: zerar as visíveis → continuação RECUSADA: aviso e recomeço conti
   await page.waitForTimeout(300);
   expect(reads.length).toBe(before + 1); // só a continuação pedida; o cursor recusado não é reenviado
   expect(rejected.length).toBe(1);
-  await expect(page).toHaveURL(`/o/${org}/administracao/concessoes?estado=active`);
+  await expect(page).toHaveURL(`/o/${org}/administracao/pessoas/acessos/ambientes?estado=active`);
   await audit(page, 'f6a3-r2-continuacao-recusada');
 
   await page.unroute(/\/client-grants\?.*cursor=/);
@@ -336,7 +349,7 @@ test('R2: zerar as visíveis → continuação RECUSADA: aviso e recomeço conti
   expect(reads.length).toBe(before + 2);
   expect(reads[before + 1]).not.toContain('cursor=');
   expect(reads[before + 1]).toContain('status=active');
-  await expect(page).toHaveURL(`/o/${org}/administracao/concessoes?estado=active`);
+  await expect(page).toHaveURL(`/o/${org}/administracao/pessoas/acessos/ambientes?estado=active`);
   await expect(page.getByText(/Exibindo 1 concessão · lista completa/)).toBeVisible();
   await expect(page.getByText(/A lista mudou desde a última página/)).toHaveCount(0);
   await audit(page, 'f6a3-r2-depois-recomecar');
@@ -375,7 +388,7 @@ test('duas abas no mesmo navegador — outra aba entra com outra conta: a aba an
   await page.waitForTimeout(300);
   expect(checks.length).toBe(1);
 
-  await other.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Concessões' }).click();
+  await goGrants(other);
   await expect(other.getByRole('button', { name: `Revogar a concessão de ${A}` })).toBeVisible();
   await expect(panel(other)).toHaveCount(0);
 });

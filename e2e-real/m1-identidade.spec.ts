@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { confirmStepUp, identitySignIn, messages, PASSWORD, signInWithTotp, signUpAndEnroll, syntheticEmail, waitToken } from './support/lab';
+import { confirmStepUp, identitySignIn, messages, PASSWORD, signInWithTotp, signOut, signUpAndEnroll, syntheticEmail, waitToken } from './support/lab';
 
 /**
  * M1 contra a API REAL (laboratório descartável). Nenhuma semeadura: a pessoa nasce pelo cadastro do navegador e a
@@ -33,7 +33,7 @@ test('J01 + J06: cadastro → confirmação pela caixa → entrada → primeiro 
   await expect(page.getByText(person.name).first()).toBeVisible();
 
   // sair encerra a organização e a identidade
-  await page.getByRole('button', { name: 'Sair' }).click();
+  await signOut(page);
   await expect(page).toHaveURL(/\/entrar$/);
   await expect(page.getByText('Você saiu da sua conta.')).toBeVisible();
   await page.goto('/organizacoes');
@@ -92,7 +92,7 @@ test('J02: respostas uniformes do cadastro, reenvio invalida o link anterior, re
 
 test('J03: senha errada genérica, código errado, entrada válida, sessão encerrada fora da aba', async ({ page, context }) => {
   const person = await signUpAndEnroll(page, 'j03');
-  await page.getByRole('button', { name: 'Sair' }).click();
+  await signOut(page);
   await expect(page).toHaveURL(/\/entrar$/);
 
   // senha errada e e-mail inexistente: a MESMA mensagem
@@ -121,7 +121,7 @@ test('J03: senha errada genérica, código errado, entrada válida, sessão ence
   const other = await context.newPage();
   await other.goto('/organizacoes');
   await expect(other.getByRole('heading', { name: 'Suas organizações' })).toBeVisible();
-  await other.getByRole('button', { name: 'Sair' }).click();
+  await signOut(other);
   await expect(other).toHaveURL(/\/entrar$/);
   await expect(page).toHaveURL(/\/entrar$/);
   await signInWithTotp(page, person);
@@ -129,7 +129,7 @@ test('J03: senha errada genérica, código errado, entrada válida, sessão ence
 
 test('J04: código de recuperação → sessão restrita visível → troca do fator libera → código usado não volta a valer', async ({ page }) => {
   const person = await signUpAndEnroll(page, 'j04');
-  await page.getByRole('button', { name: 'Sair' }).click();
+  await signOut(page);
   await expect(page).toHaveURL(/\/entrar$/);
 
   const used = person.recoveryCodes[0];
@@ -161,7 +161,7 @@ test('J04: código de recuperação → sessão restrita visível → troca do f
   await expect(page.getByRole('heading', { name: 'Suas organizações' })).toBeVisible();
 
   // o código usado não vale mais; o fator antigo também não
-  await page.getByRole('button', { name: 'Sair' }).click();
+  await signOut(page);
   await identitySignIn(page, person.email);
   await page.getByRole('button', { name: 'Usar código de recuperação' }).click();
   await page.getByLabel(/^Código de recuperação/).fill(used);
@@ -179,7 +179,7 @@ test('J05: troca de senha e novos códigos com step-up; recuperação de senha p
   await page.goto('/conta');
 
   // troca de senha (step-up)
-  const newPassword = 'Ensaio-Front-V1-001-nova-senha';
+  const newPassword = 'Ensaio#Nova-2026';
   await page.getByLabel(/^Senha atual/).fill(person.password);
   await page.getByLabel(/^Senha nova/).fill(newPassword);
   await page.getByLabel(/^Confirmar senha nova/).fill(newPassword);
@@ -195,7 +195,7 @@ test('J05: troca de senha e novos códigos com step-up; recuperação de senha p
   expect(regenerated).not.toContain(person.recoveryCodes[1]);
   await page.getByLabel('Guardei meus códigos de recuperação em um local seguro.').check();
   await page.getByRole('button', { name: 'Concluir' }).click();
-  await page.getByRole('button', { name: 'Sair' }).click();
+  await signOut(page);
 
   // senha antiga recusada (mensagem genérica); recuperação por e-mail
   await identitySignIn(page, person.email, person.password);
@@ -212,11 +212,11 @@ test('J05: troca de senha e novos códigos com step-up; recuperação de senha p
   await page.goto(`/recuperar-senha#token=${token}`);
   await expect(page.getByRole('heading', { name: 'Crie uma nova senha' })).toBeVisible();
   expect(page.url()).not.toContain(token);
-  const recovered = 'Ensaio-Front-V1-001-recuperada';
+  const recovered = 'Ensaio#Recup-2026';
   await page.getByLabel(/^Nova senha/).fill(recovered);
   await page.getByLabel(/^Confirmar nova senha/).fill(recovered);
   await page.getByRole('button', { name: 'Salvar nova senha' }).click();
-  await expect(page.getByText(/O código do autenticador continua sendo pedido/)).toBeVisible();
+  await expect(page.getByText(/Se a verificação em duas etapas estiver ativada, ela continuará sendo solicitada/)).toBeVisible();
   await page.getByRole('button', { name: 'Voltar para o login' }).click();
 
   // MFA continua exigido depois da recuperação
@@ -228,8 +228,8 @@ test('J05: troca de senha e novos códigos com step-up; recuperação de senha p
   // o link de recuperação já usado não vale de novo
   await page.goto('about:blank');
   await page.goto(`/recuperar-senha#token=${token}`);
-  await page.getByLabel(/^Nova senha/).fill('Ensaio-Front-V1-001-de-novo');
-  await page.getByLabel(/^Confirmar nova senha/).fill('Ensaio-Front-V1-001-de-novo');
+  await page.getByLabel(/^Nova senha/).fill('Ensaio#DeNovo-2026');
+  await page.getByLabel(/^Confirmar nova senha/).fill('Ensaio#DeNovo-2026');
   await page.getByRole('button', { name: 'Salvar nova senha' }).click();
   await expect(page.getByRole('heading', { name: 'Este link não é mais válido' })).toBeVisible();
 });

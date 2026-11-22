@@ -44,9 +44,9 @@ test('J17/J18: telas reais com teclado, zoom 200%, viewports, recarga, links dir
   execFileSync('node', ['tools/lab/lab.mjs', LAB, 'limites', org, ana.email]);
 
   await page.goto(`/o/${org}/workspaces`);
-  await page.getByRole('button', { name: 'Criar workspace' }).click();
+  await page.getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await page.getByRole('alertdialog').getByLabel(/^Nome/).fill('Operações');
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar workspace' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await expect(page.getByRole('heading', { name: 'Operações' })).toBeVisible();
   const workspaceUrl = page.url();
   await page.getByRole('button', { name: 'Criar automação' }).click();
@@ -58,12 +58,12 @@ test('J17/J18: telas reais com teclado, zoom 200%, viewports, recarga, links dir
   const versionUrl = await newVersionWithPackage(page, PKG);
 
   // código de pareamento (T07: Workers → Criar Worker → Vincular Agent): aparece só na tela (J18 confere que não vaza)
-  const pairing = await pairNewWorker(page, org, ana, 'Worker J17', 'LAB-J17');
+  const pairing = await pairNewWorker(page, org, ana, 'Máquina J17', 'LAB-J17');
   await page.getByRole('button', { name: 'Concluir' }).click();
 
   // ---------------- J17: teclado e foco — o primeiro Tab é o atalho para o conteúdo, e ele leva o foco ao conteúdo
   await page.goto(`/o/${org}/workspaces`);
-  await expect(page.getByRole('heading', { name: 'Workspaces', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Ambientes de trabalho', level: 1 })).toBeVisible();
   // a navegação leva o foco ao conteúdo; o teste parte do começo do documento, como quem chega pelo teclado
   await page.evaluate(() => {
     document.body.tabIndex = -1;
@@ -93,10 +93,13 @@ test('J17/J18: telas reais com teclado, zoom 200%, viewports, recarga, links dir
     ['início da organização', `/o/${org}`, /^Olá, /],
     ['workspace', workspaceUrl.replace(/^https?:\/\/[^/]+/, ''), 'Operações'],
     ['versão', versionUrl.replace(/^https?:\/\/[^/]+/, ''), /Biografias da Wikipédia — versão 1/],
-    ['workers', `/o/${org}/workers`, 'Workers'],
-    ['supervisão', `/o/${org}/supervisao`, 'Supervisão'],
-    ['convites', `/o/${org}/administracao/convites`, 'Convites'],
-    ['concessões', `/o/${org}/administracao/concessoes`, 'Concessões'],
+    ['workers', `/o/${org}/workers`, 'Máquinas'],
+    ['execuções (o endereço antigo de Supervisão)', `/o/${org}/supervisao`, 'Execuções'],
+    // PLATFORM-FLUXO-002: Convites, Concessões e Auditoria viraram abas de "Pessoas e acessos" (os endereços antigos redirecionam)
+    ['pessoas e acessos — Pessoas', `/o/${org}/administracao/pessoas`, 'Pessoas e acessos'],
+    ['pessoas e acessos — Compartilhamentos', `/o/${org}/administracao/pessoas?aba=compartilhamentos`, 'Pessoas e acessos'],
+    ['pessoas e acessos — Histórico', `/o/${org}/administracao/pessoas?aba=historico`, 'Pessoas e acessos'],
+    ['concessões por ambiente inteiro', `/o/${org}/administracao/pessoas/acessos/ambientes`, 'Concessões'],
     ['conta', '/conta', 'Segurança da conta'],
   ];
   const report = (line: string) => appendFileSync(`tools/lab/saidas/${LAB}/a11y-telas.txt`, `${new Date().toISOString()} ${line}\n`);

@@ -65,7 +65,7 @@ function NewVersion({ automationId }: { automationId: string }) {
       return null;
     }
   }
-  if (gone) return <NotFoundState title="Automação não encontrada." back={{ to: orgPath.workspaces(org), label: 'Voltar para workspaces' }} />;
+  if (gone) return <NotFoundState title="Automação não encontrada." back={{ to: orgPath.workspaces(org), label: 'Voltar para ambientes de trabalho' }} />;
   if (automation.status === 'loading' || existing.status === 'loading' || perms.status === 'loading') return <StateView status="loading" title="Carregando automação…" />;
   if (automation.status === 'error') return <LoadErrorState error={automation.error} onRetry={automation.refresh} page />;
   if (existing.status === 'error') return <LoadErrorState error={existing.error} onRetry={existing.refresh} page />;

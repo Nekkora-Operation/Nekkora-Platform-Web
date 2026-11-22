@@ -8,9 +8,10 @@ import { orgPath } from '../../auth/organization';
 import { useInternalArea } from '../../area/InternalShell';
 import { useSession } from '../../area/session';
 import { useCursorList } from '../../hooks/useCursorList';
+import { machineName } from '../agents/machine';
 import { useResource } from '../../hooks/useResource';
 import { formatDuration, ORIGIN_LABEL, REASON_LABEL, STATUS_LABEL, STATUS_TONE } from '../executions/format';
-import { DateTimeText, errorOf, errorText, isMissing, isSubordinateGone, LoadErrorState, NotFoundState, PageHeader, useBackTarget, useExpiresOn } from './shared';
+import { DateTimeText, errorOf, errorText, isMissing, isSubordinateGone, LoadErrorState, NotFoundState, PageHeader, RouteLink, useBackTarget, useExpiresOn } from './shared';
 
 const EVENTS_PAGE = 25;
 
@@ -24,6 +25,9 @@ export const EVENT_LABEL: Record<ExecutionEvent['type'], string> = {
 };
 
 /** Rota /execucoes/:executionId. A chave pelo identificador remonta a página: nada da execução anterior sobra. */
+/** Execução sem máquina registrada (ex.: não chegou a ser enviada a nenhuma): dito assim, sem inferir uma máquina. */
+export const NO_MACHINE_TEXT = 'Sem máquina registrada para esta execução.';
+
 export function ExecutionDetailPage() {
   const { executionId = '' } = useParams();
   return <ExecutionDetail key={executionId} executionId={executionId} />;
@@ -114,11 +118,27 @@ function ExecutionDetail({ executionId }: { executionId: string }) {
             { key: 'versao', term: 'Versão', description: `versão ${e.automationVersion.versionNumber}` },
             {
               key: 'workspace',
-              term: 'Workspace',
+              term: 'Ambiente de trabalho',
               description: (
                 <Link as={RouterLink} to={orgPath.workspace(org, e.workspaceId)}>
-                  {workspaceName ?? 'Abrir workspace'}
+                  {workspaceName ?? 'Abrir ambiente de trabalho'}
                 </Link>
+              ),
+            },
+            {
+              // PLATFORM-FLUXO-002: a máquina em que a execução foi registrada; sem máquina registrada, isso é dito (nada é inferido)
+              key: 'maquina',
+              term: 'Máquina',
+              description: e.machine ? (
+                <span>
+                  {machineName(e.machine.name, e.machine.computerName)} ·{' '}
+                  <RouteLink to={orgPath.machine(org, e.machine.workerId)}>Abrir a máquina</RouteLink> ·{' '}
+                  <RouteLink to={orgPath.machineActivity(org, e.machine.workerId)} state={{ machine: e.machine }}>
+                    Ver atividade
+                  </RouteLink>
+                </span>
+              ) : (
+                NO_MACHINE_TEXT
               ),
             },
             { key: 'solicitante', term: 'Solicitante', description: requester },

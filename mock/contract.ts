@@ -3,6 +3,7 @@ import contract from '../src/api/generated/nekkora-api-v1.schemas.json' with { t
 import { AdminData, type MembershipStatus } from './admin.ts';
 import { ProductData, ROLE_PERMISSIONS, stableUuid, type OrgRole, type WorkspaceRole } from './product.ts';
 import { acceptedStep, newSecret } from './totp.ts';
+import { meetsPasswordPolicy } from '../src/auth/passwordPolicy.ts';
 
 /**
  * API simulada do Nekkora Platform — contrato 8.7 de autenticação, em memória, para trabalhar na interface sem
@@ -567,6 +568,8 @@ export class MockApi {
           organizationId: a.org,
           // 022: a simulação só tem organizações já ativadas pela operação
           organizationActivationState: 'ATIVADA',
+          // RELEASE-2.2: a simulação representa a Platform com a execução remota ligada (os roteiros e2e dela)
+          remoteExecutionAvailable: true,
           // 029: a simulação só tem contas com MFA (login por organização): o step-up é o código
           stepUpMethod: 'totp',
         });
@@ -623,8 +626,9 @@ export class MockApi {
         const t = str(body.token) ?? '';
         const entry = TOKEN.test(t) ? this.resetTokens.get(t) : undefined;
         const password = str(body.newPassword) ?? '';
-        const length = Array.from(password).length;
-        if (!entry || entry.used || entry.expiresAt <= this.now() || length < 12 || length > 128) return error(400, 'invalid_request');
+        // mesma política da API (PasswordPolicy, PLATFORM-SENHA-001): recusa antes de usar o token, que continua valendo
+        if (!meetsPasswordPolicy(password)) return error(400, 'invalid_request');
+        if (!entry || entry.used || entry.expiresAt <= this.now()) return error(400, 'invalid_request');
         entry.used = true;
         const account = this.accounts.get(entry.userId)!;
         account.password = password;

@@ -3,6 +3,8 @@
  * o fetch ligado direto ao MockApi e relógio fixo. Cobertura contra o mock; a API real continua pendente (F1.5/F8).
  */
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import product from '../../product.json';
+import { productLine } from '../app/product';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEV_ORG, MockApi, OTHER_ORG } from '../../mock/contract';
@@ -35,9 +37,9 @@ function renderAt(path: string) {
   );
 }
 
-const exec = (org = DEV_ORG) => `/o/${org}/execucoes`;
+const exec = (org = DEV_ORG) => `/o/${org}/execucoes?aba=historico`;
 const rows = () => within(screen.getByRole('table')).getAllByRole('row').slice(1);
-const execRequests = () => requests.filter((r) => r.includes('/executions'));
+const execRequests = () => requests.filter((r) => r.includes('/activity'));
 const param = (url: string, name: string) => new URL(url, 'http://x').searchParams.getAll(name);
 
 beforeEach(() => {
@@ -112,12 +114,12 @@ async function ready() {
 }
 
 describe('área interna', () => {
-  it('ORG_ADMIN: P01 orienta o resumo, workspaces vêm de listWorkspaces (paginada) e a P02 nunca é chamada', async () => {
+  it('ORG_ADMIN: P01 orienta o resumo, ambientes de trabalho vêm de listWorkspaces (paginada) e a P02 nunca é chamada', async () => {
     sessionFor('ana@nekkora.dev');
     renderAt(`/o/${DEV_ORG}`);
     expect(await screen.findByRole('heading', { name: 'Olá, Ana Souza' })).toBeInTheDocument();
-    expect(await screen.findByText('Administração da organização (todos os workspaces)')).toBeInTheDocument();
-    expect(await screen.findByText('9 workspaces visíveis')).toBeInTheDocument();
+    expect(await screen.findByText('Administração da organização (todos os ambientes de trabalho)')).toBeInTheDocument();
+    expect(await screen.findByText('9 ambientes de trabalho visíveis')).toBeInTheDocument();
     expect(requests.filter((r) => r.startsWith(`/api/v1/o/${DEV_ORG}/me/permissions`) && !r.includes('/workspaces'))).toHaveLength(1);
     expect(requests.some((r) => r.includes('/me/permissions/workspaces'))).toBe(false);
     expect(requests.filter((r) => r.includes('/workspaces?') && r.includes('limit=100')).length).toBeGreaterThan(0);
@@ -128,16 +130,34 @@ describe('área interna', () => {
     renderAt(exec());
     const nav = await screen.findByRole('navigation', { name: 'Navegação principal' });
     const links = within(nav).getAllByRole('link').map((l) => l.textContent);
-    expect(links.slice(0, 4)).toEqual(['Início', 'Workspaces', 'Execuções', 'Supervisão']);
+    expect(links.slice(0, 3)).toEqual(['Início', 'Ambientes de trabalho', 'Execuções']);
+    // PLATFORM-FLUXO-002: Supervisão saiu do menu (o acompanhamento ficou em Execuções)
+    expect(links).not.toContain('Supervisão');
     // M4: Workers aparece só com a P01 (worker.manage); T07: sem item separado de Agents (Workers é a entrada única)
-    expect(links.slice(4).every((l) => ['Workers', 'Minha conta', 'Membros', 'Convites', 'Clientes', 'Concessões', 'Auditoria de acessos'].includes(l ?? ''))).toBe(true);
+    expect(links.slice(4).every((l) => ['Máquinas', 'Minha conta', 'Membros', 'Convites', 'Clientes', 'Concessões', 'Auditoria de acessos'].includes(l ?? ''))).toBe(true);
     expect(links).not.toContain('Agents');
     expect(within(nav).getByRole('link', { name: 'Execuções' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getAllByText('Ana Souza').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Menu da conta: Ana Souza' })).toBeInTheDocument();
     // PLATFORM-LOCAL-002: o e-mail saiu do menu e da página inicial; fica em Minha conta
     expect(screen.queryByText('ana@nekkora.dev')).toBeNull();
     expect(within(nav).getByRole('link', { name: 'Minha conta' })).toHaveAttribute('href', '/o/' + DEV_ORG + '/conta');
-    expect(screen.getAllByRole('button', { name: 'Sair' }).length).toBeGreaterThan(0);
+    // conta no topo: o círculo (UserMenu da lib) abre o painel com o nome, o acesso, os atalhos e o sair
+    expect(screen.queryByRole('button', { name: 'Sair' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Menu da conta: Ana Souza' }));
+    const conta = screen.getByRole('dialog', { name: 'Menu da conta' });
+    expect(within(conta).getByText('Ana Souza')).toBeInTheDocument();
+    expect(within(conta).getByRole('link', { name: 'Minha conta' })).toHaveAttribute('href', '/o/' + DEV_ORG + '/conta');
+    expect(within(conta).getByRole('link', { name: 'Trocar organização' })).toBeInTheDocument();
+    expect(within(conta).getByRole('button', { name: 'Sair' })).toBeInTheDocument();
+    // layout com topo de largura total (AppShell layout="header" da lib)
+    expect(document.querySelector('.nk-shell--header')).not.toBeNull();
+    // rodapé do menu (PLATFORM-INICIO-001): versão oficial do produto e direitos; nada técnico nem da conta
+    const menu = screen.getByRole('complementary', { name: 'Menu' });
+    const footer = menu.querySelector('.nk-shell__sidebar-footer')!;
+    expect(footer.textContent).toBe(`Versão${productLine()}© ${new Date().getFullYear()} Nekkora. Todos os direitos reservados.`);
+    expect(productLine()).toBe(`Nekkora Platform ${product.version}`);
+    expect(footer.textContent).not.toMatch(/Web |API |candidata|branch|alterações locais|Ana Souza|Organização/);
+    expect(menu.querySelector('.nk-shell__sidebar-compact')!.textContent).toBe(`v${product.version}© ${new Date().getFullYear()}`);
     expect(screen.queryByRole('button', { name: /executar|cancelar|reagendar/i })).toBeNull();
   });
 
@@ -151,15 +171,15 @@ describe('área interna', () => {
     expect(screen.queryByRole('navigation', { name: 'Navegação principal' })).toBeNull();
   });
 
-  it('isolamento: sessão de outra organização não abre a área (volta ao login); na própria, só os workspaces dela', async () => {
+  it('isolamento: sessão de outra organização não abre a área (volta ao login); na própria, só os ambientes de trabalho dela', async () => {
     sessionFor('vizinha@nekkora.dev', OTHER_ORG);
     const { unmount } = renderAt(exec(DEV_ORG));
     expect(await screen.findByRole('heading', { name: 'Bem-vinda de volta' })).toBeInTheDocument();
     unmount();
     renderAt(exec(OTHER_ORG));
     await ready();
-    const select = screen.getByLabelText('Workspace') as HTMLSelectElement;
-    await waitFor(() => expect([...select.options].map((o) => o.text)).toEqual(['Todos os workspaces visíveis', 'Workspace da organização vizinha']));
+    const select = screen.getByLabelText('Ambiente de trabalho') as HTMLSelectElement;
+    await waitFor(() => expect([...select.options].map((o) => o.text)).toEqual(['Todos os ambientes de trabalho visíveis', 'Workspace da organização vizinha']));
   });
 });
 
@@ -175,17 +195,17 @@ describe('execuções por perfil', () => {
     expect(param(first, 'to')).toEqual([]);
     expect(param(first, 'limit')).toEqual(['25']);
     const header = within(screen.getByRole('table')).getAllByRole('columnheader').map((h) => h.textContent);
-    expect(header).toEqual(['Automação', 'Workspace', 'Estado', 'Origem', 'Criada em', 'Início', 'Término', 'Duração']);
+    expect(header).toEqual(['Automação', 'Ambiente de trabalho', 'Máquina', 'Situação', 'Pedida em', 'Início', 'Término']);
     expect(screen.getByRole('table')).toHaveTextContent(/Horários no fuso deste navegador/);
-    const select = screen.getByLabelText('Workspace') as HTMLSelectElement;
+    const select = screen.getByLabelText('Ambiente de trabalho') as HTMLSelectElement;
     await waitFor(() => expect(select.options).toHaveLength(10));
   });
 
-  it('acesso limitado (operador): só os workspaces dele no filtro e nas linhas', async () => {
+  it('acesso limitado (operador): só os ambientes de trabalho dele no filtro e nas linhas', async () => {
     sessionFor('operador@nekkora.dev');
     renderAt(exec());
     await ready();
-    const select = screen.getByLabelText('Workspace') as HTMLSelectElement;
+    const select = screen.getByLabelText('Ambiente de trabalho') as HTMLSelectElement;
     await waitFor(() => expect([...select.options].map((o) => o.text).slice(1).sort()).toEqual(['Logística', 'Operações']));
     for (const r of rows()) expect(r.textContent).toMatch(/Logística|Operações/);
   });
@@ -193,19 +213,19 @@ describe('execuções por perfil', () => {
   it('sem workspaces: estado vazio próprio', async () => {
     sessionFor('sematribuicao@nekkora.dev');
     renderAt(exec());
-    expect(await screen.findByText('Você ainda não tem acesso a nenhum workspace.')).toBeInTheDocument();
+    expect(await screen.findByText('Você ainda não tem acesso a nenhum ambiente de trabalho.')).toBeInTheDocument();
   });
 });
 
 describe('filtros e paginação', () => {
-  it('estado e workspace viram parâmetros da API; período personalizado inválido não envia nada', async () => {
+  it('aba e ambiente de trabalho viram parâmetros da API; período personalizado inválido não envia nada', async () => {
     sessionFor('ana@nekkora.dev');
     renderAt(exec());
     await ready();
-    fireEvent.click(screen.getByLabelText('Falhou'));
-    await waitFor(() => expect(param(execRequests().at(-1)!, 'status')).toEqual(['failed']));
-    await waitFor(() => expect(rows().every((r) => r.textContent!.includes('Falhou'))).toBe(true));
-    fireEvent.change(screen.getByLabelText('Workspace'), { target: { value: ws('logistica') } }); // valor do workspace
+    expect(param(execRequests().at(-1)!, 'tab')).toEqual(['history']);
+    // o histórico só traz o que já tem desfecho
+    expect(rows().some((r) => r.textContent!.includes('Em andamento'))).toBe(false);
+    fireEvent.change(screen.getByLabelText('Ambiente de trabalho'), { target: { value: ws('logistica') } }); // valor do workspace
     await waitFor(() => expect(param(execRequests().at(-1)!, 'workspaceId')).toEqual([ws('logistica')]));
     const before = execRequests().length;
     fireEvent.change(screen.getByLabelText('Período'), { target: { value: 'custom' } });
@@ -242,12 +262,12 @@ describe('filtros e paginação', () => {
     sessionFor('ana@nekkora.dev');
     let release!: () => void;
     const slow = new Promise<void>((r) => (release = r));
-    intercept = (path) => (path.includes('/executions') && param(path, 'status').includes('cancelled') ? { delay: slow } : undefined);
+    intercept = (path) => (path.includes('/activity') && param(path, 'workspaceId').includes(ws('logistica')) ? { delay: slow } : undefined);
     renderAt(exec());
     await ready();
-    fireEvent.click(screen.getByLabelText('Cancelada')); // fica pendente
+    fireEvent.change(screen.getByLabelText('Ambiente de trabalho'), { target: { value: ws('logistica') } }); // fica pendente
     await waitFor(() => expect(screen.queryByRole('table')).toBeNull()); // lista limpa na hora
-    fireEvent.click(screen.getByLabelText('Cancelada')); // desmarca: volta a todos
+    fireEvent.change(screen.getByLabelText('Ambiente de trabalho'), { target: { value: 'todos' } }); // volta a todos
     await ready();
     const shown = rows().map((r) => r.textContent);
     await act(async () => release());
@@ -257,7 +277,7 @@ describe('filtros e paginação', () => {
 });
 
 describe('falhas e sessão', () => {
-  it('revogação entre páginas: a página seguinte não traz o workspace perdido', async () => {
+  it('revogação entre páginas: a página seguinte não traz o ambiente de trabalho perdido', async () => {
     const op = sessionFor('operador@nekkora.dev');
     renderAt(exec());
     await ready();
@@ -271,7 +291,7 @@ describe('falhas e sessão', () => {
     expect(rows().slice(n).some((r) => r.textContent!.includes('Logística'))).toBe(false);
   });
 
-  it('vários 401 concorrentes (P01 e workspaces em andamento): o aviso de sessão expirada não é apagado', async () => {
+  it('vários 401 concorrentes (P01 e ambientes de trabalho em andamento): o aviso de sessão expirada não é apagado', async () => {
     const ana = sessionFor('ana@nekkora.dev');
     let release!: () => void;
     const hold = new Promise<void>((r) => (release = r));
@@ -315,7 +335,7 @@ describe('falhas e sessão', () => {
   it('resposta fora do contrato ao carregar mais: nada é acrescentado, erro exposto, sem repetição automática', async () => {
     sessionFor('ana@nekkora.dev');
     intercept = (path) =>
-      path.includes('/executions') && path.includes('cursor=') ? { tamper: (b) => ({ ...b, items: b.items.map((e: any, i: number) => (i === 3 ? { ...e, status: 'finished' } : e)) }) } : undefined;
+      path.includes('/activity') && path.includes('cursor=') ? { tamper: (b) => ({ ...b, items: b.items.map((e: any, i: number) => (i === 3 ? { ...e, outcome: 'finished' } : e)) }) } : undefined;
     renderAt(exec());
     await ready();
     fireEvent.click(screen.getByRole('button', { name: 'Carregar mais' }));
@@ -329,7 +349,7 @@ describe('falhas e sessão', () => {
   it('falha de rede ao carregar mais: mantém a lista e só tenta de novo por ação', async () => {
     sessionFor('ana@nekkora.dev');
     let fail = true;
-    intercept = (path) => (path.includes('/executions') && path.includes('cursor=') && fail ? { network: true } : undefined);
+    intercept = (path) => (path.includes('/activity') && path.includes('cursor=') && fail ? { network: true } : undefined);
     renderAt(exec());
     await ready();
     fireEvent.click(screen.getByRole('button', { name: 'Carregar mais' }));
@@ -345,7 +365,7 @@ describe('falhas e sessão', () => {
 
   it('primeira página fora do contrato: estado de erro, não lista vazia', async () => {
     sessionFor('ana@nekkora.dev');
-    intercept = (path) => (path.includes('/executions') ? { tamper: (b) => ({ items: b.items }) } : undefined);
+    intercept = (path) => (path.includes('/activity') ? { tamper: (b) => ({ items: b.items }) } : undefined);
     renderAt(exec());
     expect(await screen.findByText('A resposta do servidor veio fora do formato esperado.')).toBeInTheDocument();
     expect(screen.queryByRole('table')).toBeNull();
@@ -404,7 +424,7 @@ describe('F4-R1: Atualizar', () => {
     sessionFor('ana@nekkora.dev');
     let release!: () => void;
     const hold = new Promise<void>((r) => (release = r));
-    intercept = (path) => (path.includes('/executions') && path.includes('cursor=') ? { delay: hold } : undefined);
+    intercept = (path) => (path.includes('/activity') && path.includes('cursor=') ? { delay: hold } : undefined);
     renderAt(exec());
     await ready();
     fireEvent.change(screen.getByLabelText('Período'), { target: { value: 'all' } });
@@ -423,8 +443,8 @@ describe('F4-R1: data aceita pelo contrato que o Date não representa', () => {
   it('segundo bissexto (23:59:60Z) passa pela validação e a tela continua utilizável, mostrando o valor como recebido', async () => {
     sessionFor('ana@nekkora.dev');
     intercept = (path) =>
-      path.includes('/executions') && !path.includes('cursor=')
-        ? { tamper: (b) => ({ ...b, items: b.items.map((e: any, i: number) => (i === 0 ? { ...e, status: 'succeeded', statusReason: 'process_completed', startedAt: '2016-12-31T23:59:00Z', finishedAt: '2016-12-31T23:59:60Z', durationMs: 60000 } : e)) }) }
+      path.includes('/activity') && !path.includes('cursor=')
+        ? { tamper: (b) => ({ ...b, items: b.items.map((e: any, i: number) => (i === 0 ? { ...e, outcome: 'succeeded', startedAt: '2016-12-31T23:59:00Z', endedAt: '2016-12-31T23:59:60Z' } : e)) }) }
         : undefined;
     renderAt(exec());
     await ready();
@@ -438,32 +458,32 @@ describe('F4-R1: data aceita pelo contrato que o Date não representa', () => {
   });
 });
 
-describe('F4-R1: workspaces além da primeira página', () => {
-  it('carrega só a primeira página ao entrar, oferece continuação e permite filtrar por um workspace da página seguinte', async () => {
+describe('F4-R1: ambientes de trabalho além da primeira página', () => {
+  it('carrega só a primeira página ao entrar, oferece continuação e permite filtrar por um ambiente de trabalho da página seguinte', async () => {
     addWorkspaces(130);
     sessionFor('ana@nekkora.dev');
     renderAt(`/o/${DEV_ORG}`);
-    expect(await screen.findByText('Pelo menos 100 workspaces visíveis (lista parcial)')).toBeInTheDocument();
-    // o total (139) não aparece antes da continuação; o rodapé de versão fica de fora (o commit pode conter "139")
-    expect(screen.queryAllByText(/139/).filter((el) => !el.closest('.pw-shell__footer-version'))).toHaveLength(0);
+    expect(await screen.findByText('Pelo menos 100 ambientes de trabalho visíveis (lista parcial)')).toBeInTheDocument();
+    // o total (139) não aparece antes da continuação
+    expect(screen.queryAllByText(/139/)).toHaveLength(0);
     const wsRequests = () => requests.filter((r) => r.includes('/workspaces?'));
     expect(wsRequests()).toHaveLength(1); // nada de carregar tudo automaticamente
     fireEvent.click(screen.getByRole('link', { name: 'Ver execuções' }));
     await ready();
-    const select = screen.getByLabelText('Workspace') as HTMLSelectElement;
+    const select = screen.getByLabelText('Ambiente de trabalho') as HTMLSelectElement;
     expect(select.options).toHaveLength(101);
-    expect(screen.getByText(/Lista parcial: 100 workspaces carregados/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais workspaces' }));
+    expect(screen.getByText(/Lista parcial: 100 ambientes de trabalho carregados/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais ambientes de trabalho' }));
     await waitFor(() => expect(select.options).toHaveLength(140));
     expect(wsRequests()).toHaveLength(2);
-    expect(screen.queryByRole('button', { name: 'Carregar mais workspaces' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Carregar mais ambientes de trabalho' })).toBeNull();
     const last = stableUuid('teste:ws-extra:130');
     fireEvent.change(select, { target: { value: last } });
     await waitFor(() => expect(param(execRequests().at(-1)!, 'workspaceId')).toEqual([last]));
   });
 });
 
-describe('F4-R2: continuação recusada da lista de workspaces', () => {
+describe('F4-R2: continuação recusada da lista de ambientes de trabalho', () => {
   const wsRequests = () => requests.filter((r) => r.includes('/workspaces?'));
 
   async function openWithExtras() {
@@ -471,7 +491,7 @@ describe('F4-R2: continuação recusada da lista de workspaces', () => {
     sessionFor('ana@nekkora.dev');
     renderAt(exec());
     await ready();
-    const select = screen.getByLabelText('Workspace') as HTMLSelectElement;
+    const select = screen.getByLabelText('Ambiente de trabalho') as HTMLSelectElement;
     expect(select.options).toHaveLength(101);
     return select;
   }
@@ -479,19 +499,19 @@ describe('F4-R2: continuação recusada da lista de workspaces', () => {
   it('cursor recusado: mantém o carregado, identifica a recusa, não repete nem reenvia o cursor; recomeço só por ação, sem cursor', async () => {
     const select = await openWithExtras();
     api.product.cursors.rotate(); // a continuação emitida deixa de valer (DC-15)
-    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais workspaces' }));
-    expect(await screen.findByText(/A continuação da lista de workspaces deixou de valer/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais ambientes de trabalho' }));
+    expect(await screen.findByText(/A continuação da lista de ambientes de trabalho deixou de valer/)).toBeInTheDocument();
     expect(select.options).toHaveLength(101); // o carregado continua
-    expect(screen.queryByRole('button', { name: 'Carregar mais workspaces' })).toBeNull(); // nada de reenviar o cursor recusado
+    expect(screen.queryByRole('button', { name: 'Carregar mais ambientes de trabalho' })).toBeNull(); // nada de reenviar o cursor recusado
     const afterRejection = wsRequests().length;
     await new Promise((r) => setTimeout(r, 40));
     expect(wsRequests()).toHaveLength(afterRejection); // sem repetição automática
-    fireEvent.click(screen.getByRole('button', { name: 'Recomeçar lista de workspaces' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Recomeçar lista de ambientes de trabalho' }));
     await waitFor(() => expect(wsRequests()).toHaveLength(afterRejection + 1));
     expect(param(wsRequests().at(-1)!, 'cursor')).toEqual([]); // nova primeira página, sem cursor
     await waitFor(() => expect(screen.queryByText(/deixou de valer/)).toBeNull());
     expect(select.options).toHaveLength(101);
-    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais workspaces' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais ambientes de trabalho' }));
     await waitFor(() => expect(select.options).toHaveLength(140)); // a continuação nova funciona
   });
 
@@ -499,15 +519,15 @@ describe('F4-R2: continuação recusada da lista de workspaces', () => {
     let fail = true;
     intercept = (path) => (path.includes('/workspaces?') && path.includes('cursor=') && fail ? { network: true } : undefined);
     const select = await openWithExtras();
-    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais workspaces' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais ambientes de trabalho' }));
     expect(await screen.findByText(/Não foi possível carregar a próxima parte/)).toBeInTheDocument();
     expect(select.options).toHaveLength(101);
-    expect(screen.queryByRole('button', { name: 'Recomeçar lista de workspaces' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Recomeçar lista de ambientes de trabalho' })).toBeNull();
     const failed = wsRequests().at(-1)!;
     await new Promise((r) => setTimeout(r, 40));
     expect(wsRequests().at(-1)).toBe(failed); // sem repetição automática
     fail = false;
-    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais workspaces' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais ambientes de trabalho' }));
     await waitFor(() => expect(select.options).toHaveLength(140));
     const retried = wsRequests().filter((r) => param(r, 'cursor').length > 0);
     expect(retried).toHaveLength(2);

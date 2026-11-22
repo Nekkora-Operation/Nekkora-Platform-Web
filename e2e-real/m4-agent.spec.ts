@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { confirmStepUp, LAB, pairNewWorker, signUpAndEnroll, type Person, newVersionWithPackage } from './support/lab';
+import { activateAutomation, confirmStepUp, dayFromNow, LAB, openExecutions, pairNewWorker, signUpAndEnroll, type Person, newVersionWithPackage } from './support/lab';
 
 /**
  * M4 (J12) contra a API REAL e o Agent REAL (empacotado, cópia do laboratório: tools/lab/agent.ps1). A execução local
@@ -37,7 +37,7 @@ async function prepareOrganization(page: Page, person: Person) {
   return org;
 }
 
-test('J12: código emitido na tela, pareamento do Agent real, presença, Worker no workspace e autorização de execução local', async ({ page }) => {
+test('J12: código emitido na tela, pareamento do Agent real, presença, máquina no ambiente de trabalho e autorização de execução local', async ({ page }) => {
   test.setTimeout(900_000);
   // Agent do laboratório sem pareamento anterior (dados locais da cópia descartável)
   agent('parar');
@@ -47,9 +47,9 @@ test('J12: código emitido na tela, pareamento do Agent real, presença, Worker 
 
   // versão publicada (o mesmo caminho do M3)
   await page.goto(`/o/${org}/workspaces`);
-  await page.getByRole('button', { name: 'Criar workspace' }).click();
+  await page.getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await page.getByRole('alertdialog').getByLabel(/^Nome/).fill('Operações');
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar workspace' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await expect(page.getByRole('heading', { name: 'Operações' })).toBeVisible();
   const workspaceId = /workspaces\/([0-9a-f-]{36})/.exec(page.url())![1];
   await page.getByRole('button', { name: 'Criar automação' }).click();
@@ -65,8 +65,8 @@ test('J12: código emitido na tela, pareamento do Agent real, presença, Worker 
 
   // T07: Workers → Criar Worker (sem Agent) → Vincular Agent (código para esse Worker, step-up); aparece só agora
   await page.goto(`/o/${org}/workers`);
-  await expect(page.getByText('Nenhum Worker criado.')).toBeVisible();
-  const code = await pairNewWorker(page, org, ana, 'Worker do laboratório', 'LAB-FRONT-01');
+  await expect(page.getByText('Nenhuma máquina cadastrada.')).toBeVisible();
+  const code = await pairNewWorker(page, org, ana, 'Máquina do laboratório', 'LAB-FRONT-01');
   expect(code).toMatch(/^nkp1\./);
 
   // a pessoa abre o Agent real e cola o código (teclado enviado à janela do Agent)
@@ -77,8 +77,8 @@ test('J12: código emitido na tela, pareamento do Agent real, presença, Worker 
   // a máquina aparece na linha do Worker depois do resgate; a comunicação depende do heartbeat (CONNECTED até 180 s do último sinal)
   const agentsText = async () => {
     await page.getByRole('button', { name: 'Atualizar' }).click();
-    await page.getByRole('region', { name: 'Lista de Workers' }).waitFor({ timeout: 15_000 });
-    return page.getByRole('region', { name: 'Lista de Workers' }).innerText().catch(() => '');
+    await page.getByRole('region', { name: 'Lista de máquinas' }).waitFor({ timeout: 15_000 });
+    return page.getByRole('region', { name: 'Lista de máquinas' }).innerText().catch(() => '');
   };
   let seen = '';
   await page.waitForTimeout(5_000);
@@ -94,24 +94,26 @@ test('J12: código emitido na tela, pareamento do Agent real, presença, Worker 
 
   // Worker no workspace (step-up)
   await page.goto(`/o/${org}/workers`);
-  await page.getByRole('button', { name: 'Autorizar Worker do laboratório num workspace' }).click();
-  await page.getByRole('alertdialog').getByLabel('Workspace').selectOption(workspaceId);
+  await page.getByRole('button', { name: 'Autorizar Máquina do laboratório num ambiente de trabalho' }).click();
+  await page.getByRole('alertdialog').getByLabel('Ambiente de trabalho').selectOption(workspaceId);
   await confirmStepUp(page, ana, 'Autorizar');
-  await expect(page.getByText('Worker autorizado no workspace.')).toBeVisible();
+  await expect(page.getByText('Máquina autorizada no ambiente de trabalho.')).toBeVisible();
 
-  // autorização de execução local (step-up) — não inicia nada
+  // autorização de execução local — PLATFORM-FLUXO-002: pela ativação em um passo (Administração › Licenças e automações),
+  // com a máquina escolhida e a validade (modelo anterior). Não inicia nada.
+  await activateAutomation(page, ana, org, { workspace: 'Operações', automation: 'Biografias da Wikipédia', workers: ['Máquina do laboratório'], validUntil: dayFromNow(10) });
   await page.goto(versionUrl);
-  await page.getByLabel(/^Worker autorizado neste workspace/).selectOption({ label: 'Worker do laboratório' });
-  await page.getByRole('button', { name: 'Autorizar execução local' }).click();
-  await confirmStepUp(page, ana, 'Autorizar execução local');
-  await expect(page.getByText(/Execução local autorizada\. Nada foi iniciado/)).toBeVisible();
   await page.waitForTimeout(3_000);
   console.log(`AUTORIZACOES: ${(await page.locator('main').innerText()).replace(/\s+/g, ' ').slice(-700)}`);
   await expect(page.getByRole('table', { name: 'Autorizações de execução local.' })).toContainText('Vigente');
 
-  // sem execução iniciada no Agent, a supervisão está vazia (nada foi despachado)
+  // sem execução iniciada no Agent, o acompanhamento está vazio (nada foi despachado). PLATFORM-FLUXO-002: a antiga
+  // Supervisão é Execuções; o endereço antigo leva até lá
   await page.goto(`/o/${org}/supervisao`);
-  await expect(page.getByText('Nenhuma execução local registrada.')).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/o/${org}/execucoes([?]aba=andamento)?$`));
+  await expect(page.getByText('Nada em andamento agora.')).toBeVisible();
+  await openExecutions(page, org, 'historico');
+  await expect(page.getByText('Nenhuma execução encontrada.')).toBeVisible();
 
   console.log(`J12 org=${org} workspace=${workspaceId} versao=${versionUrl.split('/').pop()}`);
 });

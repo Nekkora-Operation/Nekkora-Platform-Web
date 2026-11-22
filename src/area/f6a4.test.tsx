@@ -143,15 +143,30 @@ const posts = () => requests.filter((r) => r.method === 'POST' && /\/auth\/mfa\/
 const kinds = () => posts().map((r) => (r.path.endsWith('/step-up') ? 'step-up' : r.path.endsWith('/mfa/reset') ? 'reset' : 'outra'));
 const isStepUp = (m: string, p: string) => m === 'POST' && p.endsWith('/auth/mfa/step-up');
 const isReset = (m: string, p: string) => m === 'POST' && p.endsWith('/mfa/reset');
-const row = (name: string) => within(screen.getByRole('region', { name: 'Lista de membros' })).getAllByRole('row').find((r) => r.textContent!.includes(name))!;
+const row = (name: string) => within(screen.getByRole('region', { name: 'Lista de pessoas e convites' })).getAllByRole('row').find((r) => r.textContent!.includes(name))!;
 const panel = () => screen.queryByRole('region', { name: 'Ações sem resultado confirmado' });
 const announced = () => screen.getByRole('status', { name: 'Resultado das ações' });
 const CAIO = 'Caio Mendes';
 
+/**
+ * PLATFORM-FLUXO-002: em "Pessoas e acessos" os membros vêm da entrada mais recente para a mais antiga; a equipe sintética
+ * (24 pessoas mais novas) ocupa a primeira página. Carrega a lista inteira antes de procurar uma linha.
+ */
+async function loadAllPeople() {
+  for (let i = 0; i < 10; i++) {
+    const more = screen.queryByRole('button', { name: /Carregar mais/ });
+    if (!more) return;
+    fireEvent.click(more);
+    await waitFor(() => expect(screen.queryByRole('button', { name: /Carregar mais/, busy: true })).toBeNull());
+    await new Promise((r) => setTimeout(r, 30));
+  }
+}
+
 async function openMembers() {
   const view = renderAt(members);
-  await screen.findByRole('region', { name: 'Lista de membros' });
-  await screen.findByRole('button', { name: `Redefinir MFA de ${CAIO}` });
+  await screen.findByRole('region', { name: 'Lista de pessoas e convites' });
+  await loadAllPeople();
+  await findAcrossPages(`Redefinir MFA de ${CAIO}`);
   return view;
 }
 
@@ -176,6 +191,24 @@ async function uncertainReset(t: Transport = { kind: 'network-before' }) {
   fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
   await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
   transport = null;
+}
+
+
+/**
+ * PLATFORM-FLUXO-002: em "Pessoas e acessos" os membros vêm da entrada mais recente para a mais antiga (a equipe sintética,
+ * mais nova, ocupa a primeira página). Procura o botão e, se ele não estiver na tela, carrega a página seguinte.
+ */
+async function findAcrossPages(name: string) {
+  await screen.findByRole('region', { name: 'Lista de pessoas e convites' }, { timeout: 5000 });
+  for (let i = 0; i < 10; i++) {
+    const found = screen.queryByRole('button', { name });
+    if (found) return found;
+    const more = screen.queryByRole('button', { name: /Carregar mais/ });
+    if (!more) return screen.findByRole('button', { name });
+    if (!(more as HTMLButtonElement).disabled) fireEvent.click(more);
+    await new Promise((r) => setTimeout(r, 60));
+  }
+  return screen.findByRole('button', { name });
 }
 
 describe('redefinir MFA: sucesso', () => {
@@ -234,7 +267,7 @@ describe('redefinir MFA: sucesso', () => {
           }
         : null;
     renderAt(members);
-    await screen.findByRole('button', { name: `Suspender ${CAIO}` });
+    await findAcrossPages(`Suspender ${CAIO}`);
     expect(screen.queryByRole('button', { name: /^Redefinir MFA/ })).toBeNull();
   });
 });
@@ -418,8 +451,8 @@ describe('resultado incerto da redefinição (falhas de TRANSPORTE depois do ste
     sessionFor('ana@nekkora.dev');
     await openMembers();
     await uncertainReset({ kind: 'network-after' });
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Revogado' }));
-    await waitFor(() => expect(location).toContain('estado=revoked'));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Retirado da organização' }));
+    await waitFor(() => expect(location).toContain('estado=member_revoked'));
     requests = [];
     fireEvent.click(within(panel()!).getByRole('button', { name: /^Conferir estado atual/ }));
     expect(await within(panel()!).findByText(/Estado atual lido às .*: MFA não configurado\. Isto informa como a conta está agora; não confirma o resultado do pedido\./)).toBeInTheDocument();
@@ -473,12 +506,12 @@ describe('resultado incerto da redefinição (falhas de TRANSPORTE depois do ste
     await uncertainReset();
     api.product.revokeOrganizationRoles(ana.membershipId);
     fireEvent.click(screen.getByRole('button', { name: /Atualizar/ }));
-    expect(await screen.findByText('Você não tem permissão para ver os membros desta organização.')).toBeInTheDocument();
+    expect(await screen.findByText('Você não tem permissão para ver as pessoas e os convites desta organização.')).toBeInTheDocument();
     expect(panel()).toBeNull();
     expect(screen.queryByText(/Caio Mendes/)).toBeNull();
     api.product.memberships.get(ana.membershipId)!.orgRoles = ['ORG_ADMIN'];
     fireEvent.click(screen.getByRole('button', { name: 'Verificar novamente' }));
-    await screen.findByRole('region', { name: 'Lista de membros' });
+    await screen.findByRole('region', { name: 'Lista de pessoas e convites' });
     expect(panel()).toHaveTextContent('Redefinição de MFA de Caio Mendes: resultado não confirmado.');
   });
 });
@@ -505,7 +538,8 @@ describe('sessão, abas e respostas pendentes', () => {
     // FRONT-V1-002: a MESMA pessoa, ao reler a lista, vê a incerteza vinda do registro persistente — sem reenvio
     again.unmount();
     renderAt(members);
-    await screen.findByRole('region', { name: 'Lista de membros' });
+    await screen.findByRole('region', { name: 'Lista de pessoas e convites' });
+    await loadAllPeople(); // o alvo está na segunda página (membros da entrada mais recente para a mais antiga)
     await waitFor(() => expect(writeEntry(DEV_ORG, id, 'mfa')?.error).toBeInstanceOf(PreviouslyUncertain));
     expect(kinds()).toEqual(['step-up', 'reset']);
   });

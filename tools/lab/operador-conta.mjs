@@ -123,7 +123,7 @@ if (cmd === 'criar') {
   const tag = randomBytes(4).toString('hex');
   const conta = {
     email: `operador-${tag}@operacao.frontlab.test`,
-    senha: `Operador-${randomBytes(18).toString('base64url')}`,
+    senha: `Op#7${randomBytes(9).toString('base64url')}`, // 16: política de senha nova (PLATFORM-SENHA-001)
     nome: 'Operação do laboratório',
     organizacao: `Operação do laboratório ${tag}`,
   };

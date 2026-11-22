@@ -297,6 +297,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/signup/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * O que a confirmacao ja sabe pelo token do link: o e-mail e o nome vindo do convite (nulo se nao houver)
+         * @description 071. Sem consumir o token. displayName so vem quando o pedido de cadastro foi feito a partir de um convite aberto para o mesmo e-mail (o nome informado por quem convidou); a pessoa confirma ou ajusta na confirmacao. Token malformado, desconhecido, vencido, consumido ou de identidade fora de PENDING: 400. Desligado: 404.
+         */
+        post: operations["signupPreview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/signup/confirmation/resend": {
         parameters: {
             query?: never;
@@ -606,7 +626,7 @@ export interface paths {
         };
         /**
          * Organizacoes em que a identidade pode entrar (vinculo ACTIVE, conta elegivel, organizacao ativa)
-         * @description Missao 1, desenho 6.4. Sessao de identidade (cookie __Host-nekkora_id), sem organizacao. A lista vem inteira de identity_organizations (017), com a mesma elegibilidade da emissao. Lista vazia e resposta legitima (identidade recem-confirmada). activationState (022) indica, por organizacao, se ela ainda aguarda a ativacao (capacidade de execucao zero) ou ja foi ativada pela operacao; e independente da situacao administrativa. canCreateOrganization (P2) e SO indicacao para a interface: chave da criacao de organizacao ligada, sessao nao restrita e identity_org_creation_allowed (R5 da 017) verdadeira (identidade ACTIVE e verificada, menos de 10 organizacoes criadas pelo cadastro). O step-up nao entra no calculo (e pedido na hora); a criacao reconfere tudo na funcao de escrita. Sessao restrita a recuperacao (DC-17.13): 403. R12. Mesma chave da entrada geral (nekkora.entrada-geral.enabled): desligada, 404.
+         * @description Missao 1, desenho 6.4. Sessao de identidade (cookie __Host-nekkora_id), sem organizacao. A lista vem inteira de identity_organizations (017), com a mesma elegibilidade da emissao. Lista vazia e resposta legitima (identidade recem-confirmada). activationState (022) indica, por organizacao, se ela ainda aguarda a ativacao (capacidade de execucao zero) ou ja foi ativada pela operacao; e independente da situacao administrativa. canCreateOrganization (P2) e SO indicacao para a interface: chave da criacao de organizacao ligada, sessao nao restrita e identity_org_creation_allowed (R5 da 017) verdadeira (identidade ACTIVE e verificada, menos de 10 organizacoes criadas pelo cadastro). O step-up nao entra no calculo (e pedido na hora); a criacao reconfere tudo na funcao de escrita. 067: a indicacao passa a considerar tambem o perfil (membro solicita; Cliente nao cria) e o limite de organizacoes vazias - o detalhe esta em GET /api/v1/me/organization-creation. Sessao restrita a recuperacao (DC-17.13): 403. R12. Mesma chave da entrada geral (nekkora.entrada-geral.enabled): desligada, 404.
          */
         get: operations["identityOrganizations"];
         put?: never;
@@ -908,9 +928,109 @@ export interface paths {
         put?: never;
         /**
          * Cria uma organizacao com a identidade como ORG_ADMIN (exige step-up da identidade de ate 5 min)
-         * @description P2 (contrato de 2026-10-13). Sessao de identidade nao restrita (cookie __Host-nekkora_id) e CSRF dela. Corpo: name e legalName opcional, cada um com 1 a 120 pontos de codigo, sem espaco nas pontas e sem caractere de controle (fora disso: 400). Uma transacao que chama so identity_create_organization: a funcao reconfere, sob o lock da identidade, sessao nao restrita, step-up de ate 5 min, identidade ACTIVE e verificada e o teto de 10, e cria organizacao, conta, vinculo, ORG_ADMIN e o evento 6 (ORG_CREATED) no mesmo commit. Recusa da funcao: 403 generico; sessao que caiu: 401. R11 (3 reservas por identidade a cada 24 h; devolvidas quando a criacao comprovadamente nao aconteceu, mantidas em resultado desconhecido; Redis fora: 503) e R12. Chave propria (nekkora.criacao-organizacao.enabled) e a da entrada geral: qualquer uma desligada, 404. Em seguida, a troca (/api/v1/sessions/organization) da a sessao de organizacao. PLATFORM-AGENT-V2-003 T10 (034): o nome e unico entre as organizacoes CRIADAS PELA MESMA IDENTIDADE pelo cadastro (autoria, nao propriedade; espacos internos repetidos e maiusculas/minusculas nao distinguem; acentos e pontuacao distinguem). Repetido: 409 conflict + reason organization_name_taken, nada criado (a reserva de R11 e devolvida). Outras identidades, e organizacoes em que a pessoa so participa por convite, nao contam. Concorrentes da mesma identidade: uma criada, a outra 409. A organizacao nova recebe um identificador legivel unico e estavel (handle).
+         * @description P2 (contrato de 2026-10-13). Sessao de identidade nao restrita (cookie __Host-nekkora_id) e CSRF dela. Corpo: name e legalName opcional, cada um com 1 a 120 pontos de codigo, sem espaco nas pontas e sem caractere de controle (fora disso: 400). Uma transacao que chama so identity_create_organization: a funcao reconfere, sob o lock da identidade, sessao nao restrita, step-up de ate 5 min, identidade ACTIVE e verificada e o teto de 10, e cria organizacao, conta, vinculo, ORG_ADMIN e o evento 6 (ORG_CREATED) no mesmo commit. Recusa da funcao: 403 generico; sessao que caiu: 401. R11 (3 reservas por identidade a cada 24 h; devolvidas quando a criacao comprovadamente nao aconteceu, mantidas em resultado desconhecido; Redis fora: 503) e R12. Chave propria (nekkora.criacao-organizacao.enabled) e a da entrada geral: qualquer uma desligada, 404. Em seguida, a troca (/api/v1/sessions/organization) da a sessao de organizacao. PLATFORM-AGENT-V2-003 T10 (034): o nome e unico entre as organizacoes CRIADAS PELA MESMA IDENTIDADE pelo cadastro (autoria, nao propriedade; espacos internos repetidos e maiusculas/minusculas nao distinguem; acentos e pontuacao distinguem). Repetido: 409 conflict + reason organization_name_taken, nada criado (a reserva de R11 e devolvida). Outras identidades, e organizacoes em que a pessoa so participa por convite, nao contam. Concorrentes da mesma identidade: uma criada, a outra 409. A organizacao nova recebe um identificador legivel unico e estavel (handle). PLATFORM-LICENCIAMENTO-001 (067): o PERFIL de quem cria e decidido no servidor a cada tentativa. Cria direto a recem-cadastrada (sem conta ativa) e quem administra alguma organizacao. O membro interno que nao administra nenhuma NAO cria: 409 organization_creation_requires_request (ele solicita: POST /api/v1/organization-requests). Quem so tem conta do tipo Cliente (mesmo e-mail verificado) nao cria nem solicita: 403 forbidden + reason organization_creation_client_profile. Limite de organizacoes VAZIAS (ativas, sem nenhuma automacao) por responsavel, tres: 409 empty_organization_limit_reached. Nao ha teto fixo de organizacoes criadas. Quem cria fica registrado como RESPONSAVEL pela organizacao. A funcao do banco reconfere tudo sob a trava da identidade (se ela recusar depois da conferencia da aplicacao, 403 generico). Em nenhuma recusa algo e criado, e a reserva de R11 e devolvida. Criar organizacao nao concede licenca.
          */
         post: operations["identityCreateOrganization"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/organization-creation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Perfil de quem cria organizacao, limites e as organizacoes de que a pessoa e responsavel
+         * @description SO indicacao para a interface; o servidor decide em cada ato. profile: FIRST (sem conta ativa: cria a primeira), ADMIN (administra alguma organizacao: cria direto), MEMBER (conta interna ativa, nao administra nenhuma: solicita) ou CLIENT (so conta do tipo Cliente, reconhecida pelo mesmo e-mail verificado: nao cria nem solicita). O perfil e reavaliado a cada chamada; ser Cliente numa organizacao nao tira a administracao de outra. canCreate e cannotCreateReason (o reason que a criacao responderia). canRequest: MEMBER com menos de tres pedidos pendentes. emptyOrganizations: as organizacoes ATIVAS e sem nenhuma automacao de que a pessoa e responsavel, contra o limite (tres, configuravel); desativadas nao contam. responsibleFor: as organizacoes de que a pessoa e responsavel, inclusive as desativadas, que nao aparecem em /api/v1/me/organizations - state ACTIVE, DEACTIVATED (desativada por esta acao; canReactivate) ou BLOCKED (parada por decisao da Nekkora, ou com bloqueio registrado: a reativacao nao a remove). newOrganizationLicenseModel: o modelo em que a organizacao criada agora nasce (D7). Mesmas chaves da criacao: qualquer uma desligada, 404.
+         */
+        get: operations["identityOrganizationCreation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * O membro pede a criacao de uma organizacao ao administrador de uma organizacao em que e membro
+         * @description Sessao de identidade nao restrita e CSRF dela, com a confirmacao reforcada de ate 5 min (sem ela: 403 forbidden + reason step_up_required). organizationId: a organizacao EM QUE a pessoa pede - ela tem de ser membro interno ativo dela, e e um administrador dessa organizacao quem decide. So o perfil MEMBER pede: quem administra alguma organizacao cria direto, e quem so tem conta do tipo Cliente recebe 403 organization_creation_client_profile. Pedido em organizacao de que nao e membro, por quem ja administra alguma, ou com tres pedidos pendentes: 409 organization_request_not_available. Pedir nao cria nada: a organizacao so nasce na aprovacao. Nome: mesma regra da criacao (legalName ausente = name).
+         */
+        post: operations["identityRequestOrganization"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/organization-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Os pedidos de criacao de organizacao feitos pela pessoa
+         * @description Ate 50, do mais recente. state: PENDING, APPROVED ou REFUSED. responsible (so em APPROVED): APPROVER (o administrador que aprovou ficou responsavel; a pessoa NAO recebeu acesso a nova organizacao) ou REQUESTER (ela e a responsavel e administradora). createdOrganizationId so vem quando a pessoa ficou responsavel.
+         */
+        get: operations["identityOrganizationRequests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization-deactivations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * O responsavel desativa a organizacao (nada e apagado nem liberado)
+         * @description Sessao de identidade nao restrita, CSRF e confirmacao reforcada (sem ela: 403 step_up_required). So o RESPONSAVEL pela organizacao que ainda a administra: outro, 409 organization_not_responsible. Com trabalho em andamento em qualquer automacao (inclusive ocupacao incerta): 409 organization_work_in_progress. Ja parada: 409 organization_state_conflict. Desativada, ninguem entra nela e as sessoes abertas caem na requisicao seguinte. Historico, licencas, periodos, vinculos e entregas ficam como estao: desativar NAO libera licenca para outra automacao e nao muda o ciclo. A desativada deixa de contar no limite de organizacoes vazias.
+         */
+        post: operations["identityDeactivateOrganization"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization-reactivations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * O responsavel reativa a organizacao que ele desativou
+         * @description Mesmas exigencias da desativacao. So desfaz a desativacao feita por aquela acao: organizacao parada por decisao da Nekkora, ou com bloqueio da Nekkora registrado, responde 409 organization_blocked_by_nekkora e nada muda. O limite de organizacoes vazias e RECONFERIDO: reativar uma vazia com o limite cheio responde 409 empty_organization_limit_reached. Organizacao ativa: 409 organization_state_conflict.
+         */
+        post: operations["identityReactivateOrganization"];
         delete?: never;
         options?: never;
         head?: never;
@@ -971,6 +1091,26 @@ export interface paths {
          * @description Missao 1, desenho 6.5 e DC-17.6. identity_org_session_target indica a candidata; a emissao, em transacao de organizacao READ COMMITTED, trava a organizacao antes de tudo, e a trigger da 017 reconfere vinculo, sessao de identidade (ativa, nao restrita), identidade e elegibilidade da conta, da organizacao e do vinculo interno. Sucesso: sessao de organizacao no cookie __Host-nekkora_session (SameSite=Lax), com o marcador de MFA herdado e prazo que nao passa o da sessao de identidade; as rotas /api/v1/o/{org}/... funcionam sem alteracao, e a sessao cai na requisicao seguinte se a sessao de identidade for encerrada (DC-17.4). Organizacao inexistente, suspensa ou encerrada, sem vinculo, vinculo inativo, conta inelegivel ou mudanca entre a resolucao e a emissao: 200 sem_acesso, sem distinguir a causa. As duas respostas 200 tem o mesmo piso de tempo. R10 (por sessao de identidade) e R12. organizationId malformado ou ausente: 400. Sessao restrita a recuperacao: 403. Mesma chave da entrada geral: desligada, 404.
          */
         post: operations["exchangeOrganizationSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invitations/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Primeiro acesso pelo link do convite: organizacao, nome e e-mail do convite aberto (pre-autenticacao)
+         * @description 071. So com o token do link e a organizacao; convite aberto e no prazo, senao 404 unico. O cadastro usa o nome e o e-mail para nao pedi-los de novo; nao confirma identidade (o e-mail continua confirmado pelo codigo e o aceite exige a identidade com o mesmo e-mail verificado). Nada de conta, escopo ou quem convidou. Chaves nekkora.convites.enabled e nekkora.entrada-geral.enabled: desligada, 404.
+         */
+        post: operations["invitationPreview"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1448,6 +1588,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/people": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pessoas e acessos: membros, clientes (070) e convites numa lista so (exige org.manage)
+         * @description So leitura. Ordem da lista inteira (com cursor): convites pendentes (criacao, do mais recente), depois membros (entrada, do mais recente), depois convites encerrados (so com o filtro). Sem `situation`: pendentes e todos os membros; o convite aceito nao aparece ao lado do membro que criou. Convites so entram com a funcionalidade ligada (`invitationsEnabled` na resposta).
+         */
+        get: operations["listPeople"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/clients": {
         parameters: {
             query?: never;
@@ -1457,6 +1617,293 @@ export interface paths {
         };
         /** Lista clientes (org.manage ou external_access.manage) */
         get: operations["listClients"];
+        put?: never;
+        /** Cadastra um cliente (org.manage ou external_access.manage); nasce ativo; auditado */
+        post: operations["createClient"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Compartilha UMA automacao com uma pessoa (nome e e-mail): convite de Cliente (excecao a D-GRANT-1; so administradora, com step-up)
+         * @description Exige org.manage E external_access.manage e step-up. 071: pede nome e e-mail, a automacao, os conteudos (dashboard de execucao e/ou arquivos de retorno; registros tecnicos nao se compartilham: canReadLogs true e 400) e, opcional, a maquina e um cliente cadastrado; sem cliente, o cliente interno e criado ou reutilizado. O envio nao concede nada: no aceite (pela identidade global) o servidor reconfere identidade, convite, autoridade de quem convidou e escopo, e so entao cria ou reutiliza a conta e o vinculo de cliente e a concessao (base CONVITE_DE_CLIENTE). Maquina nula = todas as maquinas desta automacao. Auditado com grant_exception. 409: client_invitation_internal_member, client_invitation_legacy_account, client_invitation_other_client, client_grant_exists, client_scope_unavailable; conflict sem motivo: convite pendente para o e-mail.
+         */
+        post: operations["inviteClient"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/clients/{client}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cadastro de cliente com as pessoas vinculadas, convites pendentes e automacoes compartilhadas (org.manage ou external_access.manage) */
+        get: operations["getClientDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Altera nome e/ou situacao do cliente (nada e apagado; suspender ou arquivar barra a area do cliente) */
+        patch: operations["updateClient"];
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-share-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Automacoes compartilhaveis com as maquinas desta automacao: administradora, todas (mode invite); membro com client_share.request, as dos ambientes dele e os conteudos que ele pode ver (mode request); sem nenhuma, 403 */
+        get: operations["listClientShareOptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-share-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pedidos de compartilhamento: external_access.manage ve todos; os demais, so os proprios (ate 200, do mais recente) */
+        get: operations["listClientShareRequests"];
+        put?: never;
+        /**
+         * Pedido de compartilhamento de um membro (client_share.request no ambiente): nao concede nem envia nada ate outra pessoa aprovar
+         * @description 071. Quem tem client_share.request no ambiente da automacao (WORKSPACE_ADMIN) pede o compartilhamento com uma pessoa (nome e e-mail), so com os conteudos que ele mesmo pode ver (dashboard: automation.read; arquivos de retorno: logs.read). Sem step-up. Outra pessoa com org.manage e external_access.manage aprova (com step-up) e o convite sai na aprovacao; a excecao da administradora nao se estende ao pedido. 403 sem a permissao; 409 como no convite de Cliente e client_grant_exists (pedido igual pendente).
+         */
+        post: operations["requestClientShare"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-share-requests/{request}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Aprova o pedido (outra pessoa com org.manage e external_access.manage, step-up) e emite o convite no mesmo ato */
+        post: operations["approveClientShare"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-share-requests/{request}/refuse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Recusa o pedido (outra pessoa com org.manage e external_access.manage); nada e enviado */
+        post: operations["refuseClientShare"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-share-requests/{request}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancela o proprio pedido pendente (so quem pediu) */
+        post: operations["cancelClientShare"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-automation-grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pede o acompanhamento de outra automacao (ou mais permissoes) para um vinculo de cliente: nasce PENDENTE (D-GRANT-1)
+         * @description external_access.manage. So vale com a aprovacao de OUTRA pessoa (approve). Com uma concessao ativa do mesmo escopo, o pedido so serve para ampliar permissoes e a substitui na aprovacao. 409 client_grant_exists (ja ativa sem ampliar, ou pedido pendente) ou client_scope_unavailable.
+         */
+        post: operations["requestClientAutomationGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-automation-grants/{grant}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Aprova o pedido: outra pessoa (quem pediu: 403), com step-up; o banco confere de novo */
+        post: operations["approveClientAutomationGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-automation-grants/{grant}/reduce": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Desliga o dashboard e/ou os arquivos de retorno de uma concessao ativa (so reduz; ligar: 409 client_grant_widening_requires_request; os dois desligados: 400, use revoke) */
+        post: operations["reduceClientAutomationGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-automation-grants/{grant}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoga a concessao ativa ou cancela o pedido pendente (so aquele acesso); idempotente */
+        post: operations["revokeClientAutomationGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-memberships/{membership}/suspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Suspende o vinculo de cliente (org.manage): a area do cliente recusa a proxima consulta */
+        post: operations["suspendClientMembership"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-memberships/{membership}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reativa o vinculo suspenso (org.manage, step-up); concessoes revogadas continuam revogadas */
+        post: operations["reactivateClientMembership"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/client-memberships/{membership}/retire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retira o vinculo de cliente desta organizacao e revoga as concessoes dele (a identidade global continua) */
+        post: operations["retireClientMembership"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/access-grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Concessoes das duas especies (por automacao e por ambiente inteiro), da mais recente (external_access.manage) */
+        get: operations["listAccessGrants"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/access-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Historico de acesso com nomes e filtros; org.manage ve tudo, so external_access.manage ve os atos de cliente
+         * @description Somente consulta. scope=all (org.manage) ou client_access (so external_access.manage: sem os atos de papel; dos demais, so os que tem cliente). grantId filtra os eventos de UMA concessao (qualquer especie), inclusive revogada.
+         */
+        get: operations["listAccessHistory"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1548,6 +1995,547 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/execution-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Contagem das execucoes pedidas no periodo, nos ambientes visiveis (automation.read)
+         * @description Agregacao feita no banco sobre TODAS as execucoes do periodo [from, to) - nunca a soma de uma pagina de lista. Uma execucao e um pedido, nunca uma tentativa. Quatro origens, sem sobreposicao: execucoes da Platform (manuais ou agendadas; a repeticao e outro pedido e conta de novo); execucoes relatadas pelo Agent; pedidos ao Agent anterior que nao viraram execucao (o que virou e contado pela execucao); e solicitacoes de execucao remota do Agent Client, pelo estado da ULTIMA tentativa (repetir em outra maquina nao aumenta o total). A data e o instante em que a Platform registrou o pedido. Cada execucao cai em exatamente uma situacao e a soma das seis e o total: succeeded; failed (o processo da automacao falhou ou estourou o tempo); inProgress; cancelled; notStarted (recusada, expirada, bloqueada ou que falhou antes de o processo existir - nao e erro da automacao); unconfirmed (terminou sem resultado confirmado - nunca sucesso nem erro). Execucoes locais privadas do Agent Client nao chegam a Platform e nao entram. Quem nao le nenhum ambiente recebe zeros. from e to sao obrigatorios, com fuso; to depois de from; periodo de ate 366 dias.
+         */
+        get: operations["getExecutionSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/organization-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pedidos de criacao de organizacao feitos a esta organizacao (org.manage)
+         * @description Para quem administra a organizacao. Ate 200, os pendentes primeiro. requester: quem pediu (membro desta organizacao). ownRequest: o pedido e de quem esta lendo (ninguem decide o proprio pedido).
+         */
+        get: operations["listOrganizationRequests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/organization-requests/{requestId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Aprova o pedido escolhendo o responsavel pela nova organizacao (org.manage, confirmacao reforcada)
+         * @description responsible e obrigatorio e explicito: APPROVER (quem aprova; a escolha padrao da tela) ou REQUESTER (quem pediu). A escolha CONCEDE a administracao da nova organizacao ao escolhido e decide de quem e contado o limite de organizacoes vazias. O limite do escolhido e reconferido aqui, sob a trava dele (409 empty_organization_limit_reached; o pedido continua pendente). A organizacao nasce na MESMA transacao. So o responsavel recebe acesso: o outro nao entra na nova organizacao. createdOrganizationId so vem quando quem aprovou ficou responsavel. Quem aprova com conta sem identidade geral nao pode ser o responsavel (409 organization_request_approver_without_identity; pode escolher REQUESTER). Pedido ja decidido: 409 organization_request_not_pending. Proprio pedido: 409 organization_request_own. Responsavel que deixou de poder receber: 409 organization_request_responsible_not_eligible. Nome repetido para o responsavel: 409 organization_name_taken. O banco reconfere que quem decide administra esta organizacao agora.
+         */
+        post: operations["approveOrganizationRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/organization-requests/{requestId}/refuse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recusa o pedido, com motivo (org.manage, confirmacao reforcada)
+         * @description reason: 10 a 500 caracteres; fica gravado com quem decidiu e quando, e o solicitante o le. Nada e criado.
+         */
+        post: operations["refuseOrganizationRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/capacity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Capacidade tecnica da organizacao, separada das licencas (org.manage)
+         * @description Workers cadastrados, vagas de execucao ocupadas e execucoes pendentes, cada uma com o limite TECNICO. Os limites sao iguais para todas as organizacoes do modelo por licenca (iniciais: 50 Workers, 5 simultaneas, 50 pendentes), configuraveis por procedimento administrativo; nao sao contratados e nao tem relacao com a quantidade de licencas. A VAGA de execucao e uma so para a organizacao e e reservada quando o trabalho e autorizado a iniciar: na entrega da tentativa remota a maquina, na entrega do pedido ao Agent anterior e na reserva da execucao da Platform. Sem vaga, o trabalho NAO e recusado: continua pendente ate haver vaga ou vencer o proprio prazo. concurrentExecutions.breakdown diz de que a ocupacao e feita (a soma e used): remote (tentativa remota entregue ate em execucao), unconfirmed (tentativa remota com ocupacao incerta: terminou sem confirmacao ou com processo possivelmente vivo, ate a maquina confirmar ou um administrador declarar a reconciliacao), platform (execucao da Platform) e previousAgent (pedido entregue ou aceito e sessao em andamento do Agent anterior) e previousAgentUnconfirmed (068: sessao do Agent anterior em RESULTADO DESCONHECIDO, que nao comprova que a execucao deixou de ocupar a maquina; reserva uma vaga ate a reconciliacao pelo suporte). active soma as execucoes ativas (remote, platform, previousAgent); reservedUncertain, as reservas por situacao incerta (unconfirmed, previousAgentUnconfirmed). A sessao que o Agent anterior inicia na propria maquina nao pode ser segurada: ocupa vaga ao ser registrada, e used pode passar de limit. pendingExecutions: na fila, ainda nao entregues, no prazo; fila cheia responde 409 capacity_pending_limit_reached a solicitacao nova. O cadastro de Worker no limite responde 409 worker_limit_reached. Nenhum limite daqui consome nem libera licenca. Na organizacao do modelo anterior, limit vem nulo: a capacidade dela continua sendo a da ativacao.
+         */
+        get: operations["getOrganizationCapacity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/licenses/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Modelo de habilitacao da organizacao e a conta das licencas de execucao e monitoracao (org.manage)
+         * @description So leitura, para quem administra a organizacao. Agregacao feita no banco sobre TODAS as licencas - nunca a soma de uma pagina da lista. Vigente = a licenca nao foi encerrada e tem um periodo com inicio <= asOf < fim. contracted: vigentes; used: vigentes com automacao vinculada; available: vigentes sem automacao (contracted = used + available); licensedAutomations: automacoes com licenca ativa (uma licenca atende uma automacao: igual a used); expiredWithAutomation: licencas vencidas que continuam vinculadas a uma automacao (renovar mantem o vinculo). Licenca ativa NAO significa execucao em andamento: uma automacao parada continua consumindo a licenca. model: legacy (a organizacao segue pela ativacao e pelos limites anteriores; licencas aparecem mas nao sao exigidas) ou licensed (executar e monitorar exige licenca). NESTA ETAPA nenhum caminho de execucao consulta licenca e toda organizacao e legacy.
+         */
+        get: operations["getLicenseSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/licenses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Licencas da organizacao, com a situacao, a validade e a automacao vinculada (org.manage)
+         * @description Uma linha por licenca, inclusive as vencidas e as encerradas. status: active (vigente), scheduled (so tem periodo no futuro), expired (o ultimo periodo venceu) ou ended (encerrada por ato). validFrom e o inicio do primeiro periodo e validUntil o fim do ultimo (exclusivo). automation e nulo quando a licenca esta disponivel; quando ha vinculo, traz a automacao, o ambiente de trabalho, a situacao da automacao e, A PARTE, executionInProgress - se a automacao tem trabalho em andamento em alguma origem (as mesmas regras do resumo do Inicio). Suspender, renomear ou arquivar a automacao nao desfaz o vinculo.
+         */
+        get: operations["listOrganizationLicenses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/licenses/{licenseId}/assignment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Vincula uma licenca disponivel a uma automacao (org.manage + confirmacao reforcada)
+         * @description Ato EXPLICITO do administrador da organizacao: a licenca passa a atender a automacao e fica vinculada a ela durante o ciclo. Suspender, renomear ou arquivar a automacao depois NAO desfaz o vinculo; renovar a licenca o mantem; so a transferencia pelo suporte muda a automacao atendida. A licenca tem de estar vigente e sem automacao; a automacao nao pode estar arquivada nem ja consumir outra licenca. Recusas com 409 conflict e reason: license_already_assigned, automation_already_licensed, license_not_valid, license_automation_archived. Duas tentativas simultaneas de vincular a mesma licenca: uma e aceita e a outra recebe license_already_assigned; nunca ha dois vinculos. O ato fica na trilha (quem, licenca, automacao, instante). NESTA ETAPA o vinculo nao muda o que a organizacao pode executar: nenhum fluxo confere licenca.
+         */
+        post: operations["assignLicense"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/automation-activations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Licencas e automacoes: a conta das licencas e cada automacao ativada, com ambiente, licenca, validade, versao e Workers (org.manage)
+         * @description So leitura, para quem administra a organizacao (conta interna). Itens: automacoes com licenca vinculada ou com autorizacoes da ativacao (as de execucao e de monitoramento por Worker). state: ACTIVE (pronta), CONFIGURATION_PENDING (falta Worker, versao publicada ou alguma autorizacao), RENEWAL_AVAILABLE (a licenca foi renovada e ha autorizacoes a renovar), LICENSE_REQUIRED, LICENSE_EXPIRED. pending lista o que falta, um codigo por item: LICENSE_REQUIRED, LICENSE_EXPIRED, NO_PUBLISHED_VERSION, NO_WORKER, WORKER_WITHOUT_EXECUTION, WORKER_WITHOUT_MONITORING, NEW_VERSION_AVAILABLE (ha versao publicada mais nova que a aceita; ela NAO e autorizada sozinha), RENEWAL_AVAILABLE. Uma autorizacao revogada por uma pessoa tira aquele escopo da ativacao.
+         */
+        get: operations["listAutomationActivations"];
+        put?: never;
+        /**
+         * Ativar execucao e monitoramento da automacao nos Workers escolhidos, com uma licenca (org.manage + confirmacao reforcada)
+         * @description Um passo: (1) se a automacao ainda nao tem licenca, vincula a licenca vigente e disponivel de menor numero (ato 4 da trilha); sem nenhuma, 409 license_unavailable e nada e gravado (no modelo anterior a licenca nao e exigida). (2) Para cada Worker informado - nenhum e marcado implicitamente -, emite a autorizacao de EXECUCAO da versao publicada atual (se houver) e a de MONITORAMENTO da automacao, validas ate o fim da cobertura sem lacuna da licenca (D3) e no maximo 366 dias; no modelo anterior, ate validUntil (obrigatorio quando ha Worker). Uma licenca cobre a automacao qualquer que seja o numero de Workers; o Worker nao consome licenca. Cada autorizacao e um ato proprio: o que falhar volta em results com outcome failed e o reason, sem desfazer o resto; repetir conclui sem consumir outra licenca e sem duplicar (a vigente do escopo e reaproveitada: outcome already). Tambem e o "Gerenciar ativacao > acrescentar Worker". Os Workers sao conferidos ANTES de consumir a licenca: um Worker fora do ambiente da automacao da 409 activation_worker_not_in_workspace. Automacao ou ambiente inativo: 409 activation_automation_inactive.
+         */
+        post: operations["activateAutomation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/automation-activations/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preparacao de "Ativar automacao" num ambiente de trabalho: automacoes, Workers do ambiente e a licenca que seria usada (org.manage)
+         * @description Nada e reservado: a licenca (nextLicense, nula se nao ha disponivel) e os Workers sao conferidos de novo na confirmacao. Ambiente inexistente, inativo ou de outra organizacao: 404.
+         */
+        get: operations["getAutomationActivationOptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/automation-activations/{automationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Uma ativacao (a mesma forma de cada item da lista) (org.manage) */
+        get: operations["getAutomationActivation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/automation-activations/{automationId}/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Aceitar uma versao publicada nos Workers da ativacao (org.manage + confirmacao reforcada); nao consome licenca
+         * @description Emite a autorizacao de EXECUCAO daquele pacote para cada Worker da ativacao. O monitoramento ja autorizado continua valendo e nao e reemitido. A licenca nunca autoriza versoes futuras sozinha: cada versao nova passa por aqui. Sem Worker na ativacao: 409 activation_without_workers. Versao nao publicada: 409.
+         */
+        post: operations["acceptAutomationActivationVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/automation-activations/{automationId}/renewal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Renovar autorizacoes depois da renovacao da licenca (org.manage + confirmacao reforcada); nao consome licenca
+         * @description Para cada Worker da ativacao, emite autorizacoes NOVAS da versao ja aceita e do monitoramento, validas a partir de agora ate o fim da cobertura atual, quando as correntes terminam antes dela. A anterior ainda vigente e revogada na mesma transacao como SUBSTITUIDA (069); o historico fica. Nunca renova autorizacao revogada por uma pessoa, nunca inclui maquina nova, nunca troca para a versao mais nova (aceitar versao continua explicito). Nao cobre intervalos anteriores nem regulariza execucoes iniciadas sem licenca. Repetir nao duplica (results vazio). So no modelo por licenca: no anterior, 409 activation_renewal_not_applicable. Licenca vencida: 409 license_expired.
+         */
+        post: operations["renewAutomationActivation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Acompanhamento unificado das execucoes: "Em andamento" e "Historico", com a maquina de cada uma (automation.read por ambiente)
+         * @description Uma linha por EXECUCAO, com as mesmas quatro origens e as mesmas situacoes do resumo do Inicio (getExecutionSummary): platform (execucao da Platform), local_agent (execucao relatada pelo Agent anterior), local_request (pedido ao Agent anterior que nao virou execucao) e remote (solicitacao remota, pela ultima tentativa). Nada e repetido e nenhuma execucao e criada. attention = resultado desconhecido ainda nao reconciliado (Agent anterior em OUTCOME_UNKNOWN sem reconciliacao; ultima tentativa remota ENDED_UNKNOWN sem confirmacao da maquina nem declaracao): nunca e tratado como em andamento nem como maquina livre. tab=in_progress (padrao): em andamento OU com attention, SEM periodo (uma pendencia antiga nunca some). tab=history: o que ja tem desfecho, no periodo [from, to) pelo instante do pedido (as pendencias tambem aparecem, marcadas). Filtros por ambiente, automacao e maquina (workerId). Ordem: pedido mais recente primeiro, com cursor.
+         */
+        get: operations["listActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/activity/machines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Atividade por maquina: em andamento, pendencias de atencao e o ultimo pedido (as mesmas linhas de listActivity, contadas)
+         * @description So nos ambientes com automation.read; uma maquina sem atividade visivel nao aparece. inProgress nao inclui as pendencias (attention), que sao contadas a parte e nunca indicam maquina livre nem execucao comprovadamente ativa.
+         */
+        get: operations["listMachineActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/license-operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A sessao e de um operador de licencas da Nekkora?
+         * @description Para a tela decidir se mostra a area do operador. 200 so para sessao da organizacao interna configurada, com segundo fator, inscrita no cadastro de operadores. Fora da organizacao interna: 404. Sem cadastro: 403. Nao altera nada.
+         */
+        get: operations["getLicenseOperatorStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/license-operations/organizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Criacao excepcional de organizacao, com a pessoa responsavel indicada pelo operador
+         * @description O operador indica EXPLICITAMENTE a pessoa responsavel pelo e-mail verificado dela (responsibleEmail). Ela recebe a administracao da nova organizacao e passa a ser a responsavel (limite de vazias, desativar e reativar). O operador NAO recebe conta, papel nem acesso. Responsavel, operador, organizacao do operador e justificativa ficam gravados. A excecao dispensa o perfil (um membro pode ser indicado). Ela NAO dispensa os limites: o limite de organizacoes vazias do responsavel vale por padrao (409 empty_organization_limit_reached). A Nekkora o ultrapassa so por excecao EXPLICITA: exceedEmptyLimit true com limitJustification propria, que ficam gravadas. Nao ha teto fixo de organizacoes criadas. Outras recusas 409: organization_responsible_not_found (nao ha identidade ativa com esse e-mail verificado), organization_responsible_is_client (so tem conta do tipo Cliente: nao e indicado nem por excecao), organization_name_taken. Exige confirmacao reforcada.
+         */
+        post: operations["createOrganizationByOperator"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/license-operations/organizations/{target}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A organizacao alvo vista pelo operador: modelo, licencas e automacoes
+         * @description So leitura, para o operador escolher a licenca e a automacao dos atos. status da licenca: VALID (em periodo vigente), NOT_VALID (sem periodo vigente: vencida ou ainda nao iniciada) ou ENDED. Automacoes arquivadas nao aparecem.
+         */
+        get: operations["getLicenseOperatorOrganization"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/license-operations/organizations/{target}/previous-agent-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sessoes do Agent anterior sem desfecho confiavel, que ainda seguram a transferencia ou uma vaga
+         * @description Sessoes da organizacao alvo em RESULTADO DESCONHECIDO (OUTCOME_UNKNOWN) ou sem encerramento (READY, STARTING, RUNNING) que ainda seguram a transferencia e uma vaga de execucao. So identificador, automacao, estado e instantes: nada do conteudo da execucao. previouslyReconciledAt: ja houve declaracao do suporte e a maquina informou execucao ATIVA depois dela (por isso a sessao voltou a contar). Ate 200, da mais antiga.
+         */
+        get: operations["listUnresolvedPreviousAgentSessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/license-operations/organizations/{target}/previous-agent-sessions/{sessionId}/reconciliation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reconciliacao, pelo suporte, de uma sessao do Agent anterior sem desfecho confiavel
+         * @description Registra o operador, a justificativa e a VERIFICACAO REALIZADA. NAO altera a sessao: o resultado desconhecido continua desconhecido, nenhum desfecho e gravado e nada declara a maquina livre. O efeito e a sessao deixar de segurar a transferencia de licenca e a vaga de execucao. Nao ha espera obrigatoria: o que autoriza o ato e a verificacao registrada (o processo terminou, ou a maquina esta fora de operacao); tempo sem contato, sozinho, nao basta e nunca libera a vaga. A declaracao fica no historico. Um relato posterior da maquina e tratado pelo conteudo: um desfecho resolve a duvida; um relato de execucao AINDA ATIVA faz a sessao voltar a segurar; outro relato nao desfaz a declaracao. Recusas 409: previous_agent_session_has_outcome, previous_agent_session_already_reconciled. Sessao de outra organizacao: 404. Exige confirmacao reforcada.
+         */
+        post: operations["reconcilePreviousAgentSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/license-operations/organizations/{target}/enforcement-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Previa: o que ligar a exigencia de licenca faria agora na organizacao alvo (operador da Nekkora)
+         * @description ROTAS DO OPERADOR: org e a organizacao interna da Nekkora definida na configuracao do servico (sem ela, ou em qualquer outra organizacao, estas rotas respondem 404). Opera quem tem sessao dessa organizacao, conta interna COM segundo fator e esta no cadastro de operadores (conferido no banco); os atos exigem confirmacao reforcada recente. Esta rota nao altera nada. blockedAutomations: automacoes EM USO (autorizacao vigente em alguma maquina, execucao ou monitoramento nos ultimos 30 dias, ou trabalho em andamento) e SEM licenca vigente - as que ficariam impedidas de iniciar trabalho novo. offlineAuthorizations: LIMITACAO - autorizacoes ja entregues valem sem conexao ate offlineAuthorizationsValidUntil; ligar a exigencia nao bloqueia de imediato uma maquina desconectada. workInProgress: trabalho em andamento, que nao e interrompido.
+         */
+        get: operations["previewLicenseEnforcement"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/license-operations/organizations/{target}/licenses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Concede licencas a organizacao alvo, com o periodo e a justificativa (operador da Nekkora)
+         * @description Concede count licencas (1 a 100), todas com o periodo [startsAt, endsAt). Nenhuma nasce vinculada: vincular e ato do administrador da organizacao. Nao liga a exigencia. Cada licenca gera um ato na trilha, com o operador e a justificativa (10 a 1000 caracteres). Periodo ja terminado: 409 license_period_already_ended.
+         */
+        post: operations["grantLicenses"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/license-operations/organizations/{target}/licenses/{licenseId}/renewal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Renova uma licenca: acrescenta um periodo, preserva os anteriores e mantem o vinculo (operador da Nekkora)
+         * @description startsAt ausente = comeca no fim do ultimo periodo. Recusas 409: license_ended, license_period_overlaps (comeca antes do fim do ultimo periodo), license_period_already_ended.
+         */
+        post: operations["renewLicense"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/license-operations/organizations/{target}/licenses/{licenseId}/transfer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transfere a licenca para outra automacao da mesma organizacao, a pedido de um administrador (operador da Nekkora)
+         * @description O pedido chega pelo atendimento externo; nao ha rota de pedido nem de transferencia para o administrador. O operador informa o administrador solicitante (requesterEmail: tem de administrar a organizacao NESTE instante, senao 409 license_transfer_requester_not_admin), a referencia do chamado, como a identidade dele foi verificada e a justificativa; tudo fica no ato 5 da trilha, com origem, destino, responsavel e instante. Informar o solicitante nao prova o pedido: quem o atesta e o operador. Na mesma transacao o vinculo de origem e encerrado (TRANSFERIDA) e o de destino e aberto: nao ha instante com as duas automacoes atendidas. Os periodos nao mudam (o fim do ciclo e preservado). Recusas 409: license_not_assigned, license_transfer_same_automation, license_automation_archived, automation_already_licensed, license_not_valid (licenca vencida: renovar antes), license_ended e license_transfer_work_in_progress (a automacao de origem tem execucao, monitoramento, pedido pendente ou tentativa remota nao terminada: precisa terminar ou ter o cancelamento confirmado; a sessao do Agent anterior com RESULTADO DESCONHECIDO tambem segura, ate a reconciliacao pelo suporte - 068). Automacao de destino de outra organizacao: 404. Roda sob trava exclusiva do modelo da organizacao: nenhum inicio de trabalho corre contra a transferencia.
+         */
+        post: operations["transferLicense"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/license-operations/organizations/{target}/licenses/{licenseId}/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Encerra uma licenca e o vinculo aberto dela (operador da Nekkora)
+         * @description Uma vez; nao reabre nem renova depois (409 license_ended). Nao interrompe trabalho em andamento.
+         */
+        post: operations["endLicense"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/license-operations/organizations/{target}/enforcement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Liga ou desliga a exigencia de licenca da organizacao alvo, com a previa confirmada (operador da Nekkora)
+         * @description model licensed liga; legacy desliga. Para ligar, confirmPreview e obrigatorio e tem de ser o previewToken da previa conferida: ele resume o CONJUNTO (a identidade de cada automacao que ficaria impedida e, de cada coberta, a licenca que a cobre). A previa e refeita na mesma transacao, sob trava exclusiva do modelo da organizacao (vinculo, concessao, renovacao e encerramento esperam); se o conjunto mudou, mesmo com a mesma quantidade, 409 license_preview_changed e nada e gravado. O retrato da previa, com as identidades, fica na trilha. Ja no modelo pedido: 409 license_model_unchanged. NESTA ETAPA o modelo e um dado visivel (resumo de licencas da organizacao): nenhum fluxo de execucao ou de monitoracao o consulta ainda.
+         */
+        post: operations["setLicenseEnforcement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/automations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Automacoes dos ambientes visiveis da organizacao, com o ambiente e a ultima execucao
+         * @description As automacoes de todos os ambientes em que a pessoa tem automation.read (sem ambiente visivel: lista vazia). Cada item traz o nome do ambiente e a execucao mais recente da automacao entre as quatro origens do resumo, com a mesma classificacao - ou nulo, se nunca houve. A ultima execucao nao depende de periodo. O identificador vem nulo quando a mais recente e um pedido ao Agent anterior que nao virou execucao (nao ha detalhe para abrir).
+         */
+        get: operations["listOrganizationAutomations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/automations/{automationId}": {
         parameters: {
             query?: never;
@@ -1632,6 +2620,126 @@ export interface paths {
         };
         /** Eventos da execucao (sem payload); execucao sem acesso -> 404 (diferente do portal) */
         get: operations["listExecutionEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/portal/api/v1/me/client-organizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Organizacoes em que a identidade e cliente (vinculo ativo), com quantas automacoes compartilhadas
+         * @description Area do cliente (070): somente GET; sessao de IDENTIDADE (__Host-nekkora_id), conferida a cada chamada junto com a conta e o vinculo de cliente e as concessoes vigentes. 401: sessao invalida; 403: sem vinculo de cliente vigente (ou sem a permissao pedida); 404: fora do escopo (igual a inexistente).
+         */
+        get: operations["portalClientOrganizations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/portal/api/v1/o/{org}/shared-automations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Automacoes compartilhadas com a pessoa nesta organizacao (cards)
+         * @description Area do cliente (070): somente GET; sessao de IDENTIDADE (__Host-nekkora_id), conferida a cada chamada junto com a conta e o vinculo de cliente e as concessoes vigentes. 401: sessao invalida; 403: sem vinculo de cliente vigente (ou sem a permissao pedida); 404: fora do escopo (igual a inexistente).
+         */
+        get: operations["portalSharedAutomations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/portal/api/v1/o/{org}/shared-automations/{automation}/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dashboard: contagem por estado no periodo (padrao: 30 dias; maximo 400) de uma automacao compartilhada com dashboard
+         * @description Area do cliente (070/071): somente GET; sessao de IDENTIDADE (__Host-nekkora_id), conferida a cada chamada junto com a conta e o vinculo de cliente e as concessoes vigentes e o conteudo pedido (dashboard ou arquivos de retorno; registros tecnicos nao existem aqui). 401: sessao invalida; 403: sem vinculo de cliente vigente ou sem aquele conteudo; 404: fora do escopo (igual a inexistente).
+         */
+        get: operations["portalSharedSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/portal/api/v1/o/{org}/shared-automations/{automation}/executions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dashboard: execucoes de uma automacao compartilhada com dashboard (so as maquinas concedidas), no periodo, da mais recente; estado em linguagem simples, sem maquina nem detalhe tecnico
+         * @description Area do cliente (070/071): somente GET; sessao de IDENTIDADE (__Host-nekkora_id), conferida a cada chamada junto com a conta e o vinculo de cliente e as concessoes vigentes e o conteudo pedido (dashboard ou arquivos de retorno; registros tecnicos nao existem aqui). 401: sessao invalida; 403: sem vinculo de cliente vigente ou sem aquele conteudo; 404: fora do escopo (igual a inexistente).
+         */
+        get: operations["portalSharedExecutions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/portal/api/v1/o/{org}/shared-files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Arquivos de retorno autorizados (todas as automacoes com arquivos, ou uma), pelo periodo da execucao e busca no nome; da execucao mais recente
+         * @description Area do cliente (070/071): somente GET; sessao de IDENTIDADE (__Host-nekkora_id), conferida a cada chamada junto com a conta e o vinculo de cliente e as concessoes vigentes e o conteudo pedido (dashboard ou arquivos de retorno; registros tecnicos nao existem aqui). 401: sessao invalida; 403: sem vinculo de cliente vigente ou sem aquele conteudo; 404: fora do escopo (igual a inexistente).
+         */
+        get: operations["portalSharedFiles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/portal/api/v1/o/{org}/shared-files/{attempt}/{number}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Bytes de um arquivo de retorno, sempre como anexo (application/octet-stream, nosniff); a tela "Visualizar" mostra o conteudo na propria pagina
+         * @description Area do cliente (070/071): somente GET; sessao de IDENTIDADE (__Host-nekkora_id), conferida a cada chamada junto com a conta e o vinculo de cliente e as concessoes vigentes e o conteudo pedido (dashboard ou arquivos de retorno; registros tecnicos nao existem aqui). 401: sessao invalida; 403: sem vinculo de cliente vigente ou sem aquele conteudo; 404: fora do escopo (igual a inexistente).
+         */
+        get: operations["portalSharedFileContent"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1820,6 +2928,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/workspaces/{workspace}/remote-machines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista as maquinas habilitadas para execucao remota de um ambiente (PLATFORM-CLIENT-EXECUCAO-REMOTA-001, T01a)
+         * @description Exige automation.execute no ambiente (sem ela, ou ambiente de outro escopo: 404, como as demais leituras do ambiente). Entram as maquinas HABILITADAS (codigo marcado resgatado com a confirmacao na maquina) cujo Agent esta ativo e associado a um Worker autorizado NESTE ambiente. Maquina pareada por codigo comum nao entra; Agent revogado ou desvinculado deixa de aparecer. state, o primeiro que valer: OFFLINE (sem contato autenticado nos ultimos 180 s), INCOMPATIBLE (o aplicativo nao declara REMOTE_RUN_1_0), PAUSED (a maquina pausou o recebimento), NO_DISK_SPACE e BUSY (o que a maquina informou no ultimo batimento), AVAILABLE. O estado e INDICATIVO: nao reserva a maquina. Nao traz credencial, instalacao nem dado da maquina alem do nome logico e da versao do aplicativo. Esta lista nao autoriza versao alguma: as autorizacoes vigentes de automacao e monitoramento continuam valendo como antes.
+         */
+        get: operations["listRemoteMachines"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/workspaces/{workspace}/remote-machines/{agent}/python-environments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Inventario de Python de uma maquina habilitada (PLATFORM-CLIENT-EXECUCAO-REMOTA-001, T01c)
+         * @description Exige automation.execute no ambiente. So para maquina habilitada, ativa, associada e com o Worker autorizado NESTE ambiente; qualquer outra situacao: 404. Traz o que a maquina DISSE ter no ultimo inventario: identificador opaco (nunca um caminho), versao do Python, tipo e instantes. Lista vazia: a maquina ainda nao publicou, ou nao achou Python. Nao escolhe ambiente e nao prova que uma automacao roda nele.
+         */
+        get: operations["listRemoteMachinePythonEnvironments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/workers": {
         parameters: {
             query?: never;
@@ -1883,7 +3031,7 @@ export interface paths {
         put?: never;
         /**
          * Autoriza execucao local de uma versao publicada num Worker (step-up)
-         * @description AGENT-PYTHON-001 (030): com sourceKind = EXTERNAL_MONITORED o corpo leva automationId (e nao automationVersionId) e a autorizacao e de MONITORAMENTO de Python externo, sem versao e sem impressao (a Platform nao conhece codigo, caminho nem argumento); sourceKind de pacote no corpo e 400 (a origem de pacote vem da regra da versao: package-fingerprint/1 = STUDIO_PACKAGE, external-python-fingerprint/1 = EXTERNAL_PACKAGE). Exige automation.execute no workspace e step-up. Vincula organizacao, workspace, Worker AUTORIZADO no workspace, versao PUBLICADA e o pacote imutavel (packageFingerprint = command_json.agent_package.fingerprint da versao, com agent_package.fingerprint_rule = nekkora-agent/package-fingerprint/1; NAO e command_json.artifact.sha256, que mede os bytes do artefato). validUntil posterior a agora e ate 366 dias (fora disso, 400); automacao ou workspace inativo, 409. Versao rascunho ou sem artefato, ou Worker sem autorizacao no workspace: 409. A 025 reconfere tudo no banco. Auditoria (agent_admin_events 10). PLATFORM-AGENT-V2-003 T12 (033): no maximo UMA autorizacao VIGENTE (nao revogada e validUntil depois do horario do servidor) por escopo: mesma autorizacao do Worker no workspace e mesma versao (pacote) ou mesma automacao (monitoramento). Havendo uma, 409 conflict + reason local_run_authorization_exists: nada gravado, auditado, estendido, substituido ou revogado (a Web rele a lista e mostra a vigente); repetir o mesmo pedido depois de perder a resposta tambem cai aqui e nunca cria outra. A regra e do banco (gatilho com trava do escopo): duas abas, duas pessoas ou chamadas diretas nunca gravam duas. Depois de revogada ou vencida, uma nova e aceita e a anterior fica no historico. Outros Workers, versoes, automacoes e workspaces nao sao afetados.
+         * @description PLATFORM-LICENCIAMENTO-001 (064, D3): na organizacao do modelo por licenca a autorizacao so nasce com licenca vigente da automacao (409 + license_required ou license_expired) e o validUntil gravado e o MENOR entre o pedido e o fim da cobertura da licenca sem lacuna entre periodos (uma renovacao que comeca depois de um intervalo nao estende a autorizacao). A resposta traz o validUntil efetivo. AGENT-PYTHON-001 (030): com sourceKind = EXTERNAL_MONITORED o corpo leva automationId (e nao automationVersionId) e a autorizacao e de MONITORAMENTO de Python externo, sem versao e sem impressao (a Platform nao conhece codigo, caminho nem argumento); sourceKind de pacote no corpo e 400 (a origem de pacote vem da regra da versao: package-fingerprint/1 = STUDIO_PACKAGE, external-python-fingerprint/1 = EXTERNAL_PACKAGE). Exige automation.execute no workspace e step-up. Vincula organizacao, workspace, Worker AUTORIZADO no workspace, versao PUBLICADA e o pacote imutavel (packageFingerprint = command_json.agent_package.fingerprint da versao, com agent_package.fingerprint_rule = nekkora-agent/package-fingerprint/1; NAO e command_json.artifact.sha256, que mede os bytes do artefato). validUntil posterior a agora e ate 366 dias (fora disso, 400); automacao ou workspace inativo, 409. Versao rascunho ou sem artefato, ou Worker sem autorizacao no workspace: 409. A 025 reconfere tudo no banco. Auditoria (agent_admin_events 10). PLATFORM-AGENT-V2-003 T12 (033): no maximo UMA autorizacao VIGENTE (nao revogada e validUntil depois do horario do servidor) por escopo: mesma autorizacao do Worker no workspace e mesma versao (pacote) ou mesma automacao (monitoramento). Havendo uma, 409 conflict + reason local_run_authorization_exists: nada gravado, auditado, estendido, substituido ou revogado (a Web rele a lista e mostra a vigente); repetir o mesmo pedido depois de perder a resposta tambem cai aqui e nunca cria outra. A regra e do banco (gatilho com trava do escopo): duas abas, duas pessoas ou chamadas diretas nunca gravam duas. Depois de revogada ou vencida, uma nova e aceita e a anterior fica no historico. Outros Workers, versoes, automacoes e workspaces nao sao afetados.
          */
         post: operations["createLocalRunAuthorization"];
         delete?: never;
@@ -1927,7 +3075,7 @@ export interface paths {
         put?: never;
         /**
          * Pede que uma versao autorizada rode num Agent (step-up) - 030
-         * @description Exige automation.execute no workspace e step-up. A autorizacao precisa estar ATIVA e ser de pacote (monitoramento: 409); o Agent, ativo e associado ao Worker da autorizacao (409). Validade de 60 s a 24 h (400). A mesma requestKey devolve o mesmo pedido (200); com outro conteudo, 409. A requisicao nao transporta comando, caminho nem segredo. Auditoria (agent_admin_events 12).
+         * @description Exige automation.execute no workspace e step-up. A autorizacao precisa estar ATIVA e ser de pacote (monitoramento: 409); o Agent, ativo e associado ao Worker da autorizacao (409). Maquina que ja se apresentou SEM declarar RUN_REQUEST_1_0 (o Nekkora Agent Client, que atende a execucao remota e nao este pedido): 409, nenhum pedido e criado. Validade de 60 s a 24 h (400). A mesma requestKey devolve o mesmo pedido (200); com outro conteudo, 409. A requisicao nao transporta comando, caminho nem segredo. Auditoria (agent_admin_events 12).
          */
         post: operations["createRunRequest"];
         delete?: never;
@@ -2120,6 +3268,294 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/automations/{automation}/remote-machines/{agent}/python-selection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Escolhe o ambiente Python de uma automacao numa maquina habilitada
+         * @description Exige automation.manage no ambiente da automacao. agent: maquina habilitada cujo Worker esta autorizado nesse ambiente (outra: 404). environmentId: um ambiente do inventario ATUAL da maquina (fora dele: 409 conflict, reason remote_python_not_in_inventory). Trocar substitui a escolha; a de uma maquina nao vale para outra. A Platform guarda so o identificador opaco: nunca um caminho. Nao verifica dependencias nem instala nada - a maquina confere o ambiente antes de iniciar. Sem a escolha, a solicitacao de execucao remota nessa maquina e recusada (reason remote_python_not_selected). Recurso desligado: 409 conflict, reason remote_execution_unavailable.
+         */
+        put: operations["selectRemoteMachinePython"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/automations/{automation}/remote-machines/{agent}/dependency-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pede a maquina que confira agora as dependencias da automacao no Python escolhido para ela
+         * @description Exige automation.execute no ambiente da automacao. agent: maquina habilitada cujo Worker esta autorizado nesse ambiente (outra: 404). Congela o que sera conferido: o ambiente Python escolhido agora para a automacao nessa maquina e a lista efetiva vigente das dependencias. A maquina confere SO isso, naquele ambiente, e responde uma vez; a resposta aparece em dependencyCheck, na lista de candidates. Sem resposta em 2 minutos, o pedido fica UNANSWERED: nao foi possivel verificar (a maquina pode estar ocupada ou sem contato) - nunca incompativel. Limite: um pedido por minuto por maquina e automacao; o segundo recebe 429 + rate_limited, reason remote_dependency_check_too_soon, e nada e criado. Sem Python escolhido: 409 + remote_python_not_selected; escolhido fora do inventario atual: 409 + remote_python_not_in_inventory; dependencias nao declaradas ou em conflito: 409 + remote_requirements_not_declared / remote_requirements_conflict. Recurso desligado: 409 + remote_execution_unavailable. E informacao: nao instala nada, nao muda a escolha, e a conferencia que vale para executar continua sendo a da maquina, antes de iniciar.
+         */
+        post: operations["checkRemoteMachineDependencies"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/workspaces/{workspace}/remote-executions/candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Maquinas habilitadas do ambiente para uma versao, com o que falta em cada uma
+         * @description Exige automation.read no ambiente. automationVersion: uma versao PUBLICADA do ambiente (outra: 404). Para cada maquina habilitada cujo Worker esta autorizado no ambiente: requestable e missing, a lista do que impede solicitar nela agora - PACKAGE_NOT_SUPPORTED (o pacote da versao nao e um pacote Python externo; a execucao remota so aceita esse tipo e o formato Studio fica de fora - vale para todas as maquinas e nao ha acao que resolva), PACKAGE_NOT_REGISTERED (a Platform nao tem o pacote desta versao registrado, entao nao ha o que entregar a maquina - vale para todas as maquinas; resolve-se publicando uma versao com o pacote), REQUIREMENTS_NOT_DECLARED, REQUIREMENTS_CONFLICT (da automacao), AUTHORIZATION_MISSING, AUTHORIZATION_REVOKED, AUTHORIZATION_EXPIRED (a autorizacao de execucao desta versao para o Worker da maquina), MACHINE_PAUSED, MACHINE_INCOMPATIBLE, MACHINE_BUSY, MACHINE_UNCONFIRMED (ha tentativa desta maquina com resultado nao confirmado cujo processo ELA ainda nao confirmou ausente: a ocupacao e incerta. Um novo contato, o fim do vinculo ou a declaracao manual NAO mudam isso; so a confirmacao da propria maquina. Se ela disse que ainda executa, o motivo e MACHINE_BUSY), MACHINE_FINISHING (060: o processo principal da ultima tentativa desta maquina terminou, mas ha processos da automacao ainda ativos nela - "finalizando"; libera quando a propria maquina confirmar que acabaram; se ela deixar de saber, o motivo passa a MACHINE_UNCONFIRMED), MACHINE_OCCUPIED (a propria maquina informou, na presenca, que esta ocupada, sem dizer com o que - por exemplo uma execucao iniciada nela pela pessoa; a Platform nao recebe nada dessa execucao, so o sim/nao. E o ultimo sinal recebido: pode estar atrasado, e quem decide na hora e a maquina, que recusa a tentativa com BUSY), MACHINE_DISK_PRESSURE (a maquina informou pouco espaco livre: recusa trabalho novo com DISK_PRESSURE ate haver espaco), PYTHON_NOT_SELECTED (ninguem escolheu o ambiente Python desta automacao nesta maquina), PYTHON_NOT_IN_INVENTORY (o escolhido nao esta mais no inventario dela). authorization: a autorizacao vigente da versao para o Worker, ou a mais recente que deixou de valer (null = nunca houve). python: o ambiente escolhido para a automacao nesta maquina (null = nenhum). E indicativo: a solicitacao reconfere tudo, de forma atomica.
+         */
+        get: operations["listRemoteExecutionCandidates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/workspaces/{workspace}/remote-executions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Solicitacoes mais recentes do ambiente
+         * @description Exige automation.read no ambiente. limit de 1 a 100 (padrao 25). Cada item traz as tentativas, com o estado, o motivo de uma recusa e a comunicacao (OK, LOST ou NONE). LOST nao muda o estado nem encerra a tentativa.
+         */
+        get: operations["listRemoteExecutions"];
+        put?: never;
+        /**
+         * Solicita a execucao de uma versao publicada numa maquina habilitada (step-up)
+         * @description Exige automation.execute no ambiente e step-up recente. Para ACEITAR, exige ainda: o pacote da versao e um pacote Python externo (o formato Studio nao e executado remotamente: 409 + remote_package_not_supported, conferido antes de todas as outras exigencias e antes de gravar; o mesmo vale ao repetir em outra maquina); o pacote da versao esta registrado na Platform (senao 409 + remote_package_not_registered, tambem antes de gravar e tambem ao repetir: o banco fixa na tentativa o pacote que a maquina podera baixar e nao cria tentativa sem ele); Worker da maquina autorizado no ambiente; maquina habilitada, nao pausada, compativel e livre; autorizacao de execucao VIGENTE desta versao para o Worker da maquina; dependencias da automacao declaradas e sem conflito com o pacote. Cada exigencia que falta responde 409 conflict com o seu reason (remote_authorization_missing, remote_authorization_revoked, remote_authorization_expired, remote_machine_not_enabled, remote_machine_paused, remote_machine_incompatible, remote_machine_busy, remote_machine_unconfirmed, remote_machine_finishing, remote_requirements_not_declared, remote_requirements_conflict) e nada e gravado. Nenhuma autorizacao e criada por aqui, EXCETO com authorizeVersion: true (S2, aceite explicito da versao naquela maquina, no mesmo passo e na mesma confirmacao reforcada). PLATFORM-LICENCIAMENTO-001 (064): na organizacao do modelo por licenca, a automacao precisa de licenca vigente - senao 409 + license_required (sem licenca vinculada) ou license_expired (licenca fora de periodo), conferido antes das demais exigencias; a conferencia se repete em cada tentativa nova, na oferta e imediatamente antes de iniciar (a tentativa que ainda nao comecou e recusada com LICENSE_REQUIRED ou LICENSE_EXPIRED). Nesse modelo o prazo da autorizacao nao recusa (remote_authorization_expired so existe no modelo anterior); a revogacao continua valendo. O que ja comecou termina e entrega registros e resultados. A solicitacao fixa a versao, a impressao do pacote e a revisao das dependencias. requestKey: UUID gerado pelo navegador; repetir com a mesma chave e o mesmo conteudo devolve 200 com a mesma solicitacao (resposta perdida); com outro conteudo, 409. Recurso desligado: 409 + remote_execution_unavailable. Solicitar nao prova inicio: a maquina puxa, e o servidor revalida as mesmas condicoes antes de entregar e antes de iniciar.
+         */
+        post: operations["requestRemoteExecution"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/remote-executions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Solicitacoes de execucao remota dos ambientes visiveis (telas Execucoes e Supervisao)
+         * @description As solicitacoes mais recentes dos ambientes em que a pessoa tem automation.read, da mais recente para a mais antiga. E a mesma solicitacao das outras leituras (nada e copiado para alimentar a lista): cada item traz as suas tentativas, com maquina, Worker, horarios, estado e codigo de saida. Registros e arquivos continuam nas rotas da tentativa (logs.read). Filtros opcionais: workspaceId (sem acesso a ele: lista vazia), automationId e o periodo da SOLICITACAO (from inclusivo, to exclusivo, com fuso; invertido: 400). Sem cursor: limit de 1 a 100 (padrao 25).
+         */
+        get: operations["listVisibleRemoteExecutions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/remote-executions/{execution}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Uma solicitacao e as tentativas dela
+         * @description Exige automation.read no ambiente da solicitacao (fora do alcance: 404).
+         */
+        get: operations["getRemoteExecution"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/remote-executions/{execution}/attempts/{attempt}/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * As linhas da saida do processo de uma tentativa e o fechamento do envio
+         * @description Exige logs.read no ambiente da solicitacao (fora do alcance: 404). Sao as linhas que o processo da automacao escreveu na saida padrao (STDOUT) e na saida de erro (STDERR), e avisos do aplicativo da maquina (EXECUTOR), na ordem em que a maquina as capturou - que nao e uma ordem global entre os dois canais. STDERR e um canal, nao um nivel: level e sempre UNKNOWN nesta versao e nada e classificado pelo texto. Paginacao pela sequencia: after (exclusivo, padrao 0) e limit (1 a 500, padrao 500); nextAfter null = esta pagina chegou ao fim do que ha agora. total: quantas linhas a Platform tem. closure null: a maquina ainda nao fechou o envio (a execucao pode estar em andamento, ou ha linha a caminho, ou ela nao voltou). closure.droppedLines: quantas linhas a maquina descartou por limite (8 KiB por linha - a linha cortada vem com truncated; 50.000 linhas e 20 MiB por tentativa). Linha que falta, cortada ou descartada NAO muda o estado da tentativa. textRemoved true: o texto foi apagado pela retencao; o registro de que a linha existiu fica. So existem linhas de tentativa remota: a saida de uma execucao iniciada no proprio computador nunca chega a Platform.
+         */
+        get: operations["listRemoteAttemptLogs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/remote-executions/{execution}/attempts/{attempt}/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Os arquivos de resultado de uma tentativa e o fechamento do envio
+         * @description Exige logs.read no ambiente da solicitacao (fora do alcance: 404). Resultado e o que a automacao gravou na pasta de saida e a maquina enviou depois do termino: no maximo 50 arquivos, 20 MiB cada, 50 MiB no total por tentativa. closure null: a maquina ainda nao fechou o envio (pode haver arquivo a caminho, ou ela nao voltou). closure.skippedByLimit: quantos arquivos ela deixou de enviar por limite. Arquivo que falta ou excede o limite NAO muda o estado da tentativa. available false: os bytes foram removidos pela retencao; o metadado fica.
+         */
+        get: operations["listRemoteAttemptResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/remote-executions/{execution}/attempts/{attempt}/results/{number}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Baixa um arquivo de resultado
+         * @description Exige logs.read no ambiente da solicitacao. Os bytes sao relidos e conferidos pelo SHA-256; a resposta e sempre um anexo (application/octet-stream, nosniff), nunca interpretada pelo navegador. O download fica na trilha da automacao. Bytes removidos pela retencao, ausentes ou que nao conferem: 409 conflict, reason remote_result_unavailable.
+         */
+        get: operations["downloadRemoteAttemptResult"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/remote-executions/{execution}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pede o cancelamento da tentativa atual (step-up)
+         * @description Exige automation.execute no ambiente e step-up. A tentativa que a maquina ainda NAO recebeu (QUEUED, OFFERED) e cancelada na hora. A que ja foi recebida so para quando a maquina obedecer e informar: o pedido fica gravado (cancelRequestedAt) e o estado so muda com a palavra da maquina. Tentativa ja terminada: 409 + remote_attempt_already_finished. Repetir o pedido e idempotente.
+         */
+        post: operations["cancelRemoteExecution"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/remote-executions/{execution}/attempts/{attempt}/reconciliation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reconciliacao declarada por um ORG_ADMIN (step-up)
+         * @description Para quando NAO e possivel obter a confirmacao da maquina. Exige o papel ORG_ADMIN na propria organizacao (conferido no servidor e no banco; outro papel: 403) e step-up. So para tentativa em ENDED_UNKNOWN ainda sem declaracao manual (outra: 409 + remote_attempt_not_unconfirmed ou remote_attempt_already_reconciled). reason: de uma lista fechada. verification: o que a pessoa verificou, de 20 a 2000 caracteres. acknowledgePartialEffects tem de ser true: a pessoa afirma saber que a execucao anterior pode ter causado efeitos parciais (sem isso, 400). Fica registrado quem, quando, o motivo, a verificacao, a tentativa e a maquina. NAO executa nada e NAO muda o resultado da tentativa, que continua ENDED_UNKNOWN: libera uma nova tentativa da solicitacao, sujeita as mesmas autorizacoes. NAO libera a maquina antiga, que continua indisponivel ate ELA confirmar; o que ela informar depois fica ao lado, sem alterar esta declaracao.
+         */
+        post: operations["reconcileRemoteAttempt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/remote-executions/{execution}/attempts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Executa novamente em outra maquina (step-up)
+         * @description Exige automation.execute no ambiente e step-up. Cria uma tentativa nova da MESMA solicitacao (mesma versao, mesmo pacote, mesmo retrato de dependencias) na maquina indicada. So depois que a tentativa anterior TERMINOU: enquanto ela nao terminar, 409 + remote_attempt_not_finished - nao ha troca automatica de maquina nem duas maquinas com a mesma solicitacao. As exigencias sao as da solicitacao, conferidas para a maquina de DESTINO; em especial, a autorizacao vigente da versao tem de ser do Worker de destino: a da maquina anterior NAO e transferida (sem ela, 409 + remote_authorization_missing). Cancelamento ja pedido: 409 + remote_execution_cancel_requested. Quando a tentativa anterior terminou como ENDED_UNKNOWN (qualquer que seja a causa: comunicacao perdida, revogacao, reinicio do aplicativo), a repeticao fica BLOQUEADA ate a tentativa ser reconciliada - pela maquina, ou por declaracao de um ORG_ADMIN (ver .../reconciliation): 409 + remote_previous_result_unconfirmed e nada e gravado. Reconhecer o risco, revogar a maquina ou esperar nao liberam. A maquina de destino com ocupacao incerta responde 409 + remote_machine_unconfirmed; a que ainda executa, remote_machine_busy. 060: o mesmo bloqueio vale quando a tentativa anterior terminou (concluida, falhou, cancelada, tempo esgotado) mas a maquina disse que ha processos da automacao ainda ativos, ou que nao sabe: 409 + remote_previous_processes_pending, ate a maquina confirmar que acabaram ou um ORG_ADMIN declarar. A maquina que esta finalizando responde 409 + remote_machine_finishing.
+         */
+        post: operations["retryRemoteExecution"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/automations/{automation}/runtime-requirements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dependencias declaradas, as do pacote publicado e o efetivo
+         * @description Exige automation.read no ambiente da automacao. declared: a revisao vigente da declaracao (null = ninguem declarou). published: as dependencias do manifesto da versao publicada mais recente (null = sem versao publicada). effective: o manifesto mais os acrescimos declarados; a mesma biblioteca declarada com versao ou extras diferentes dos do manifesto aparece em conflicts e deixa resolved em false - o manifesto prevalece e nunca e enfraquecido.
+         */
+        get: operations["getRuntimeRequirements"];
+        /**
+         * Declara as dependencias de execucao (cria a revisao seguinte)
+         * @description Exige automation.manage no ambiente da automacao. source PACKAGE (so as do pacote) ou NONE_CONFIRMED (sem dependencias externas, confirmado): sem text. source FILE (conteudo de um requirements.txt) ou TEXT (digitado): text obrigatorio, lido estaticamente com as regras do aplicativo; so nome==versao (com extras) entra. Qualquer linha que nao se representa (faixa, sem versao, marcador, endereco, caminho, inclusao, opcao, hash, conflito) recusa a declaracao inteira: 409 conflict + reason runtime_requirements_unresolved, nada gravado (use a rota analysis para ver o problema de cada linha). Nenhuma versao e inventada e nada e instalado. expectedRevision: a revisao vista pela pessoa (ausente = nenhuma); se mudou, 409 + runtime_requirements_changed. O pacote publicado nao muda; declarar nao verifica maquina nem autoriza execucao. Auditoria (automation_admin_events 10).
+         */
+        put: operations["declareRuntimeRequirements"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/automations/{automation}/runtime-requirements/analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Le um texto de dependencias e diz, por linha, o que e (nada e gravado)
+         * @description Exige automation.manage no ambiente da automacao. Leitura estatica de um texto no formato do requirements.txt (ate 262144 caracteres): cada linha com conteudo recebe uma situacao; problem true impede declarar. resolved: nenhuma linha com problema. Nada e gravado, instalado ou buscado na rede; inclusoes e enderecos nao sao seguidos.
+         */
+        post: operations["analyzeRuntimeRequirements"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/automation-versions/{version}/publish": {
         parameters: {
             query?: never;
@@ -2151,19 +3587,19 @@ export interface components {
              * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached, draft_exists, draft_changed, local_run_authorization_exists, organization_name_taken; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
              * @enum {string}
              */
-            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken";
+            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "license_already_assigned" | "automation_already_licensed" | "license_not_valid" | "license_automation_archived" | "license_ended" | "license_period_overlaps" | "license_period_already_ended" | "license_model_unchanged" | "license_preview_changed" | "license_required" | "license_expired" | "run_not_covered" | "capacity_pending_limit_reached" | "license_not_assigned" | "license_transfer_same_automation" | "license_transfer_work_in_progress" | "organization_responsible_not_found" | "organization_responsible_is_client" | "previous_agent_session_has_outcome" | "previous_agent_session_already_reconciled" | "license_transfer_requester_not_admin" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_machine_unconfirmed" | "remote_machine_finishing" | "remote_previous_processes_pending" | "remote_previous_result_unconfirmed" | "remote_attempt_not_unconfirmed" | "remote_attempt_already_reconciled" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_package_not_supported" | "remote_package_not_registered" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_dependency_check_too_soon" | "remote_dependency_check_closed" | "remote_result_unavailable" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken" | "organization_creation_client_profile" | "organization_creation_requires_request" | "empty_organization_limit_reached" | "organization_request_not_available" | "organization_request_not_pending" | "organization_request_own" | "organization_request_approver_without_identity" | "organization_request_responsible_not_eligible" | "organization_not_responsible" | "organization_work_in_progress" | "organization_blocked_by_nekkora" | "organization_state_conflict" | "license_unavailable" | "activation_worker_not_in_workspace" | "activation_automation_inactive" | "activation_without_workers" | "activation_renewal_not_applicable" | "client_invitation_internal_member" | "client_invitation_legacy_account" | "client_invitation_other_client" | "client_grant_exists" | "client_scope_unavailable" | "client_grant_widening_requires_request";
         };
         /**
-         * @description Permissoes de workspace (13): podem aparecer em allWorkspaces e em atribuicoes de workspace.
+         * @description Permissoes de workspace (14): podem aparecer em allWorkspaces e em atribuicoes de workspace. client_share.request (071): pedir compartilhamento com pessoa externa (WORKSPACE_ADMIN).
          * @enum {string}
          */
-        WorkspacePermissionCode: "workspace.configure" | "role.assign_operator_viewer" | "automation.read" | "automation.execute" | "logs.read" | "automation.manage" | "automation.publish" | "workspace_parameter.read" | "workspace_parameter.manage" | "workspace_secret.read" | "workspace_secret.manage" | "automation_schedule.read" | "automation_schedule.manage";
+        WorkspacePermissionCode: "workspace.configure" | "role.assign_operator_viewer" | "automation.read" | "automation.execute" | "logs.read" | "automation.manage" | "automation.publish" | "client_share.request" | "workspace_parameter.read" | "workspace_parameter.manage" | "workspace_secret.read" | "workspace_secret.manage" | "automation_schedule.read" | "automation_schedule.manage";
         /**
          * @description Permissoes organizacionais (10): so aparecem em organization.permissions.
          * @enum {string}
          */
         OrganizationOnlyPermissionCode: "org.manage" | "workspace.lifecycle" | "role.assign_admin_roles" | "external_access.manage" | "worker.manage" | "agent.manage" | "agent_credential.manage" | "worker_agent.assign" | "worker_workspace.authorize" | "identity.mfa.reset";
-        /** @description Catalogo completo de public.permissions (migrations 003, 004, 005, 008, 009, 014): 23 codigos. */
+        /** @description Catalogo completo de public.permissions (migrations 003, 004, 005, 008, 009, 014, 071): 24 codigos. */
         PermissionCode: components["schemas"]["WorkspacePermissionCode"] | components["schemas"]["OrganizationOnlyPermissionCode"];
         /** @enum {string} */
         RoleCode: "ORG_ADMIN" | "WORKSPACE_ADMIN" | "OPERATOR" | "VIEWER";
@@ -2223,6 +3659,563 @@ export interface components {
             organizationRoles: components["schemas"]["OrganizationRoleCode"][];
             /** Format: date-time */
             createdAt: string;
+        };
+        ClientInvitationRequest: {
+            email: string;
+            /** @description 071: nome da pessoa (preenche o primeiro acesso) */
+            name: string;
+            /**
+             * Format: uuid
+             * @description 071: opcional; sem ele, o cliente interno e criado ou reutilizado
+             */
+            clientId?: string | null;
+            /** Format: uuid */
+            automationId: string;
+            /**
+             * Format: uuid
+             * @description nulo = todas as maquinas desta automacao
+             */
+            workerId?: string | null;
+            /** @description dashboard de execucao (indicadores e estado em linguagem simples) */
+            canViewDashboard: boolean;
+            /** @description arquivos de retorno (ver e baixar) */
+            canDownloadResults: boolean;
+        };
+        ClientInvitationCreated: {
+            /** Format: uuid */
+            invitationId: string;
+            email: string;
+            recipientName: string;
+            /** Format: uuid */
+            clientId: string;
+            /** Format: uuid */
+            workspaceId: string;
+            /** Format: uuid */
+            automationId: string;
+            /** Format: uuid */
+            workerId: string | null;
+            canViewDashboard: boolean;
+            canDownloadResults: boolean;
+            /** Format: uuid */
+            shareRequestId: string | null;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        ClientShareRequestBody: {
+            email: string;
+            name: string;
+            /** Format: uuid */
+            automationId: string;
+            /** Format: uuid */
+            workerId?: string | null;
+            canViewDashboard: boolean;
+            canDownloadResults: boolean;
+        };
+        /** @enum {string} */
+        ClientShareRequestStatus: "PENDENTE" | "APROVADO" | "RECUSADO" | "CANCELADO";
+        ClientShareRequestState: {
+            /** Format: uuid */
+            shareRequestId: string;
+            status: components["schemas"]["ClientShareRequestStatus"];
+            recipientName: string;
+            email: string;
+            /** Format: uuid */
+            workspaceId: string;
+            /** Format: uuid */
+            automationId: string;
+            /** Format: uuid */
+            workerId: string | null;
+            canViewDashboard: boolean;
+            canDownloadResults: boolean;
+            /** Format: uuid */
+            requestedByMembershipId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            decidedAt: string | null;
+            /**
+             * Format: uuid
+             * @description convite emitido na aprovacao
+             */
+            invitationId: string | null;
+        };
+        ClientShareRequest: components["schemas"]["ClientShareRequestState"];
+        ClientShareRequestItem: {
+            /** Format: uuid */
+            shareRequestId: string;
+            status: components["schemas"]["ClientShareRequestStatus"];
+            recipientName: string;
+            email: string;
+            automation: components["schemas"]["AutomationRef"];
+            workspace: components["schemas"]["WorkspaceRef"];
+            machine: components["schemas"]["MachineRef"] | null;
+            requestedBy: string;
+            decidedBy: string | null;
+            canViewDashboard: boolean;
+            canDownloadResults: boolean;
+            /** Format: uuid */
+            requestedByMembershipId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            decidedAt: string | null;
+            /** Format: uuid */
+            invitationId: string | null;
+        };
+        ClientShareRequestList: {
+            items: components["schemas"]["ClientShareRequestItem"][];
+        };
+        ClientCreateRequest: {
+            name: string;
+        };
+        ClientUpdateRequest: {
+            name?: string;
+            status?: components["schemas"]["ResourceStatus"];
+        };
+        ClientAutomationGrantRequest: {
+            /** Format: uuid */
+            clientMembershipId: string;
+            /** Format: uuid */
+            automationId: string;
+            /** Format: uuid */
+            workerId?: string | null;
+            canViewDashboard: boolean;
+            canDownloadResults: boolean;
+        };
+        ClientAutomationGrantReduceRequest: {
+            canViewDashboard: boolean;
+            canDownloadResults: boolean;
+        };
+        ClientAutomationGrant: {
+            /** Format: uuid */
+            grantId: string;
+            /** @enum {string} */
+            status: "PENDENTE" | "ATIVA" | "REVOGADA";
+            /** @enum {string} */
+            basis: "SEGUNDA_PESSOA" | "CONVITE_DE_CLIENTE";
+            /** Format: uuid */
+            clientId: string;
+            /** Format: uuid */
+            clientMembershipId: string;
+            /** Format: uuid */
+            workspaceId: string;
+            /** Format: uuid */
+            automationId: string;
+            /** Format: uuid */
+            workerId: string | null;
+            canViewDashboard: boolean;
+            canDownloadResults: boolean;
+            /** Format: uuid */
+            replacesGrantId: string | null;
+        };
+        ClientMembershipState: {
+            /** Format: uuid */
+            clientMembershipId: string;
+            /** Format: uuid */
+            clientId: string;
+            /** Format: uuid */
+            userId: string;
+            status: components["schemas"]["ClientMembershipStatus"];
+        };
+        /** @enum {string} */
+        ClientMembershipStatus: "pending" | "active" | "suspended" | "revoked";
+        ShareMachine: {
+            /** Format: uuid */
+            workerId: string;
+            name: string;
+        };
+        ClientShareOption: {
+            /** Format: uuid */
+            automationId: string;
+            name: string;
+            /** Format: uuid */
+            workspaceId: string;
+            workspaceName: string;
+            /** @description maquinas desta automacao (ativacao), ativas e autorizadas no ambiente */
+            machines: components["schemas"]["ShareMachine"][];
+            /** @description 071: quem consulta pode compartilhar o dashboard desta automacao */
+            canShareDashboard: boolean;
+            /** @description 071: quem consulta pode compartilhar os arquivos de retorno desta automacao */
+            canShareFiles: boolean;
+        };
+        ClientShareOptions: {
+            automations: components["schemas"]["ClientShareOption"][];
+            /**
+             * @description 071: invite = convite direto (administradora); request = pedido que outra pessoa aprova
+             * @enum {string}
+             */
+            mode: "invite" | "request";
+        };
+        AccessPerson: {
+            /** Format: uuid */
+            userId: string | null;
+            name: string | null;
+            email: string | null;
+        };
+        AutomationRef: {
+            /** Format: uuid */
+            automationId: string;
+            name: string;
+        };
+        MachineRef: {
+            /** Format: uuid */
+            workerId: string;
+            name: string;
+        };
+        /** @enum {string} */
+        AccessGrantSituation: "pending" | "active" | "suspended" | "revoked";
+        AccessGrant: {
+            /**
+             * @description automation (070) ou workspace (ambiente inteiro, 003)
+             * @enum {string}
+             */
+            kind: "automation" | "workspace";
+            /** Format: uuid */
+            grantId: string;
+            situation: components["schemas"]["AccessGrantSituation"];
+            person: components["schemas"]["AccessPerson"];
+            /** Format: uuid */
+            clientMembershipId: string;
+            membershipStatus: components["schemas"]["ClientMembershipStatus"];
+            client: components["schemas"]["ClientRef"];
+            workspace: components["schemas"]["WorkspaceRef"];
+            automation: components["schemas"]["AutomationRef"] | null;
+            machine: components["schemas"]["MachineRef"] | null;
+            /** @description por ambiente inteiro (modelo anterior): sempre true */
+            canViewDashboard: boolean;
+            canDownloadResults: boolean;
+            /** @enum {string} */
+            basis: "second_person" | "client_invitation";
+            requestedBy: string | null;
+            approvedBy: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            approvedAt: string | null;
+            /** Format: date-time */
+            revokedAt: string | null;
+            /** @enum {string|null} */
+            revokeReason: "revoked" | "replaced" | "link_retired" | "request_cancelled" | null;
+            /** Format: uuid */
+            replacesGrantId: string | null;
+            /** Format: date-time */
+            expiresAt: string | null;
+            /** Format: date-time */
+            nextReviewAt: string | null;
+        };
+        AccessGrantPage: {
+            items: components["schemas"]["AccessGrant"][];
+            nextCursor: string | null;
+        };
+        /** @enum {string} */
+        AccessHistoryCategory: "invitations" | "roles" | "grants" | "client_links" | "clients" | "share_requests";
+        AccessHistoryEvent: {
+            /** Format: uuid */
+            eventId: string;
+            /** @enum {string} */
+            type: "CONVITE_EMITIDO" | "CONVITE_REVOGADO" | "CONVITE_REENVIADO" | "CONVITE_ACEITO" | "PAPEL_ATRIBUIDO" | "PAPEL_REVOGADO" | "PAPEL_ALTERADO" | "VINCULO_RETIRADO" | "CONCESSAO_CRIADA" | "CONCESSAO_APROVADA" | "CONCESSAO_RENOVADA" | "CONCESSAO_REVISADA" | "CONCESSAO_REVOGADA" | "CONCESSAO_RENOVACAO_SOLICITADA" | "CLIENTE_CONCESSAO_SOLICITADA" | "CLIENTE_CONCESSAO_APROVADA" | "CLIENTE_CONCESSAO_APLICADA_NO_ACEITE" | "CLIENTE_CONCESSAO_REDUZIDA" | "CLIENTE_CONCESSAO_REVOGADA" | "VINCULO_CLIENTE_SUSPENSO" | "VINCULO_CLIENTE_REATIVADO" | "VINCULO_CLIENTE_RETIRADO" | "CLIENTE_CADASTRADO" | "CLIENTE_ALTERADO" | "CLIENTE_REGISTROS_TECNICOS_RETIRADOS" | "COMPARTILHAMENTO_SOLICITADO" | "COMPARTILHAMENTO_APROVADO" | "COMPARTILHAMENTO_RECUSADO" | "COMPARTILHAMENTO_CANCELADO";
+            category: components["schemas"]["AccessHistoryCategory"];
+            /** Format: date-time */
+            createdAt: string;
+            /** @description responsavel (nulo quando foi a propria pessoa convidada: byInvitee; ou ato do sistema: CLIENTE_REGISTROS_TECNICOS_RETIRADOS, 071) */
+            actor: components["schemas"]["AccessPerson"] | null;
+            byInvitee: boolean;
+            target: components["schemas"]["AccessPerson"] | null;
+            role: string | null;
+            previousRole: string | null;
+            workspace: components["schemas"]["WorkspaceRef"] | null;
+            client: components["schemas"]["ClientRef"] | null;
+            automation: components["schemas"]["AutomationRef"] | null;
+            machine: components["schemas"]["MachineRef"] | null;
+            grant: {
+                /** @enum {string} */
+                kind: "automation" | "workspace";
+                /** Format: uuid */
+                grantId: string;
+            } | null;
+            /** Format: uuid */
+            invitationId: string | null;
+            /** @enum {string|null} */
+            decision: "KEEP" | "SUSPEND" | "REVOKE" | null;
+            /** @description 071: o ato (anterior a 071) envolvia registros tecnicos; o historico continua mostrando */
+            technicalLogs: boolean;
+            canViewDashboard: boolean | null;
+            canDownloadResults: boolean | null;
+            /** Format: uuid */
+            shareRequestId: string | null;
+            /** @description o ato usou a excecao a D-GRANT-1 do convite de Cliente */
+            grantException: boolean;
+            /** Format: uuid */
+            correlationId: string;
+        };
+        AccessHistoryPage: {
+            items: components["schemas"]["AccessHistoryEvent"][];
+            nextCursor: string | null;
+            /** @enum {string} */
+            scope: "all" | "client_access";
+        };
+        ClientGrantSummary: {
+            /** @enum {string} */
+            kind: "automation" | "workspace";
+            /** Format: uuid */
+            grantId: string;
+            situation: components["schemas"]["AccessGrantSituation"];
+            automation: components["schemas"]["AutomationRef"] | null;
+            workspace: components["schemas"]["WorkspaceRef"];
+            machine: components["schemas"]["MachineRef"] | null;
+            canViewDashboard: boolean;
+            canDownloadResults: boolean;
+            /** @enum {string} */
+            basis: "second_person" | "client_invitation";
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ClientDetailPerson: {
+            /** Format: uuid */
+            clientMembershipId: string;
+            person: components["schemas"]["AccessPerson"];
+            status: components["schemas"]["ClientMembershipStatus"];
+            /** Format: date-time */
+            joinedAt: string;
+            linkedToIdentity: boolean;
+            grants: components["schemas"]["AccessGrant"][];
+        };
+        ClientDetail: {
+            /** Format: uuid */
+            clientId: string;
+            name: string;
+            status: components["schemas"]["ResourceStatus"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            people: components["schemas"]["ClientDetailPerson"][];
+            pendingInvitations: {
+                /** Format: uuid */
+                invitationId: string;
+                email: string;
+                automationName: string;
+                /** Format: date-time */
+                createdAt: string;
+                /** Format: date-time */
+                expiresAt: string;
+            }[];
+            sharedAutomations: {
+                automation: components["schemas"]["AutomationRef"];
+                workspace: components["schemas"]["WorkspaceRef"];
+                people: number;
+            }[];
+        };
+        PersonClient: {
+            /** Format: uuid */
+            clientMembershipId: string;
+            /** Format: uuid */
+            userId: string;
+            displayName: string;
+            email: string;
+            status: components["schemas"]["ClientMembershipStatus"];
+            /** Format: date-time */
+            joinedAt: string;
+            /** Format: uuid */
+            clientId: string;
+            clientName: string;
+            /** @description falso nas contas de cliente antigas (sem identidade) */
+            linkedToIdentity: boolean;
+            /** @description concessoes que ainda contam (pedidos e ativas; por ambiente nao revogadas) */
+            grants: components["schemas"]["AccessGrant"][];
+        };
+        PersonClientScope: {
+            /** Format: uuid */
+            clientId: string;
+            clientName: string;
+            /** Format: uuid */
+            automationId: string;
+            automationName: string;
+            /** Format: uuid */
+            workspaceId: string;
+            workspaceName: string;
+            /** Format: uuid */
+            workerId: string | null;
+            workerName: string | null;
+            canViewDashboard: boolean;
+            canDownloadResults: boolean;
+            /** @description 071: nome informado no convite (nulo nos convites anteriores) */
+            recipientName: string | null;
+            /**
+             * Format: uuid
+             * @description 071: pedido de membro aprovado que originou o convite
+             */
+            shareRequestId: string | null;
+        };
+        PortalClientOrganization: {
+            /** Format: uuid */
+            organizationId: string;
+            organizationName: string;
+            clientName: string;
+            sharedAutomations: number;
+        };
+        PortalClientOrganizationList: {
+            items: components["schemas"]["PortalClientOrganization"][];
+        };
+        PortalSharedDashboard: {
+            executionsLast30Days: number;
+            succeededLast30Days: number;
+            failedLast30Days: number;
+            inProgress: number;
+            /** Format: date-time */
+            lastRequestedAt: string | null;
+            lastOutcome: components["schemas"]["PortalOutcome"] | null;
+        };
+        /** @enum {string} */
+        PortalOutcome: "succeeded" | "failed" | "in_progress" | "cancelled" | "not_started" | "unconfirmed" | "no_error_signaled";
+        PortalSharedAutomation: {
+            /** Format: uuid */
+            automationId: string;
+            name: string;
+            canViewDashboard: boolean;
+            canDownloadResults: boolean;
+            /** @description so com o dashboard compartilhado */
+            dashboard: components["schemas"]["PortalSharedDashboard"] | null;
+            /** @description so com os arquivos de retorno compartilhados */
+            filesAvailable: number | null;
+            clientName: string;
+        };
+        PortalSharedAutomationList: {
+            items: components["schemas"]["PortalSharedAutomation"][];
+        };
+        PortalSharedSummary: {
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+            total: number;
+            succeeded: number;
+            failed: number;
+            inProgress: number;
+            notStarted: number;
+            cancelled: number;
+            /** @description resultado desconhecido (nao se sabe como terminou) */
+            unconfirmed: number;
+            /** @description terminou com codigo 0 sem confirmacao de sucesso (nunca conta como concluida) */
+            noErrorSignaled: number;
+            /** Format: date-time */
+            lastRequestedAt: string | null;
+            lastOutcome: components["schemas"]["PortalOutcome"] | null;
+        };
+        PortalSharedExecution: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            requestedAt: string;
+            /** Format: date-time */
+            startedAt: string | null;
+            /** Format: date-time */
+            endedAt: string | null;
+            outcome: components["schemas"]["PortalOutcome"];
+            /** @description arquivos de retorno disponiveis desta execucao (nulo sem os arquivos compartilhados) */
+            files: number | null;
+        };
+        PortalSharedExecutionPage: {
+            items: components["schemas"]["PortalSharedExecution"][];
+            nextCursor: string | null;
+        };
+        PortalSharedFile: {
+            /**
+             * Format: uuid
+             * @description identificador opaco do arquivo, com number
+             */
+            attemptId: string;
+            number: number;
+            automation: components["schemas"]["AutomationRef"];
+            /** Format: date-time */
+            executionRequestedAt: string;
+            fileName: string;
+            sizeBytes: number;
+            /** Format: date-time */
+            receivedAt: string;
+            available: boolean;
+        };
+        PortalSharedFilePage: {
+            items: components["schemas"]["PortalSharedFile"][];
+            nextCursor: string | null;
+        };
+        /** @enum {string} */
+        PersonSituation: "invitation_pending" | "invitation_expired" | "invitation_revoked" | "invitation_accepted" | "member_pending" | "member_active" | "member_suspended" | "member_revoked" | "client_active" | "client_suspended" | "client_revoked";
+        PersonRole: {
+            role: components["schemas"]["RoleCode"];
+            /** Format: uuid */
+            workspaceId: string | null;
+            workspaceName: string | null;
+        };
+        PersonMember: {
+            /** Format: uuid */
+            membershipId: string;
+            /** Format: uuid */
+            userId: string;
+            displayName: string;
+            email: string;
+            emailVerified: boolean;
+            accountStatus: components["schemas"]["AccountStatus"];
+            membershipStatus: components["schemas"]["MembershipStatus"];
+            mfaConfigured: boolean;
+            /**
+             * Format: date-time
+             * @description entrada no vinculo
+             */
+            joinedAt: string;
+            /** @description papeis ativos: os da organizacao e os de ambiente */
+            roles: components["schemas"]["PersonRole"][];
+        };
+        PersonInvitation: {
+            /** Format: uuid */
+            invitationId: string;
+            email: string;
+            role: string | null;
+            /** Format: uuid */
+            workspaceId: string | null;
+            workspaceName: string | null;
+            /** @enum {string} */
+            state: "PENDENTE" | "EXPIRADO" | "ACEITO" | "REVOGADO";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            acceptedAt: string | null;
+            /** Format: date-time */
+            revokedAt: string | null;
+            /** @enum {string|null} */
+            revokeReason: "REVOGADO" | "REENVIADO" | "EXPIRADO" | "EMISSOR_SEM_AUTORIDADE" | null;
+            /**
+             * Format: uuid
+             * @description conta criada pelo aceite (o membro)
+             */
+            acceptedUserId: string | null;
+            /**
+             * @description 070: convite de pessoa da equipe ou de Cliente
+             * @enum {string}
+             */
+            audience: "internal" | "client";
+            /** @description 070: escopo confirmado do convite de Cliente */
+            clientScope: components["schemas"]["PersonClientScope"] | null;
+        };
+        PersonItem: {
+            /** @enum {string} */
+            kind: "member" | "invitation" | "client";
+            /**
+             * Format: uuid
+             * @description membershipId, invitationId ou clientMembershipId, conforme kind
+             */
+            id: string;
+            member: components["schemas"]["PersonMember"] | null;
+            invitation: components["schemas"]["PersonInvitation"] | null;
+            client: components["schemas"]["PersonClient"] | null;
+        };
+        PeoplePage: {
+            items: components["schemas"]["PersonItem"][];
+            nextCursor: string | null;
+            /** @description convites ligados nesta Platform (emitir e listar) */
+            invitationsEnabled: boolean;
         };
         MemberPage: {
             items: components["schemas"]["Member"][];
@@ -2322,6 +4315,420 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        /** @description total = soma das seis situacoes */
+        ExecutionCounts: {
+            /** Format: int64 */
+            total: number;
+            /** Format: int64 */
+            succeeded: number;
+            /** Format: int64 */
+            failed: number;
+            /** Format: int64 */
+            inProgress: number;
+            /** Format: int64 */
+            cancelled: number;
+            /** Format: int64 */
+            notStarted: number;
+            /** Format: int64 */
+            unconfirmed: number;
+        };
+        ExecutionSummary: {
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+            /** Format: int64 */
+            total: number;
+            /** Format: int64 */
+            succeeded: number;
+            /** Format: int64 */
+            failed: number;
+            /** Format: int64 */
+            inProgress: number;
+            /** Format: int64 */
+            cancelled: number;
+            /** Format: int64 */
+            notStarted: number;
+            /** Format: int64 */
+            unconfirmed: number;
+            /** @description A mesma conta, por origem: Platform, Agent (execucoes relatadas e pedidos que nao viraram execucao) e execucao remota do Agent Client */
+            sources: {
+                platform: components["schemas"]["ExecutionCounts"];
+                localAgent: components["schemas"]["ExecutionCounts"];
+                remote: components["schemas"]["ExecutionCounts"];
+            };
+        };
+        OrganizationAutomation: {
+            /** Format: uuid */
+            automationId: string;
+            /** Format: uuid */
+            workspaceId: string;
+            workspaceName: string;
+            name: string;
+            description: string | null;
+            status: components["schemas"]["ResourceStatus"];
+            latestPublishedVersion: {
+                /** Format: uuid */
+                automationVersionId: string;
+                versionNumber: number;
+                /** Format: date-time */
+                publishedAt: string;
+            } | null;
+            lastExecution: {
+                /** @enum {string} */
+                source: "platform" | "localAgent" | "remote";
+                /**
+                 * Format: uuid
+                 * @description execucao (platform), execucao do Agent (localAgent) ou solicitacao remota (remote); nulo: pedido ao Agent anterior que nao virou execucao
+                 */
+                id: string | null;
+                /** @enum {string} */
+                outcome: "succeeded" | "failed" | "inProgress" | "cancelled" | "notStarted" | "unconfirmed";
+                /** Format: date-time */
+                requestedAt: string;
+            } | null;
+        };
+        LicenseCount: {
+            /** @description Vigentes */
+            contracted: number;
+            /** @description Vigentes com automacao */
+            used: number;
+            /** @description Vigentes sem automacao */
+            available: number;
+        };
+        AutomationActivationVersion: {
+            /** Format: uuid */
+            versionId: string;
+            number: number;
+            /** Format: date-time */
+            publishedAt?: string | null;
+        } | null;
+        AutomationActivationAuthorization: {
+            /** Format: uuid */
+            authorizationId: string;
+            /**
+             * Format: uuid
+             * @description Nulo no monitoramento
+             */
+            automationVersionId?: string | null;
+            /** Format: date-time */
+            validUntil: string;
+            /** @enum {string} */
+            status: "active" | "expired" | "replaced";
+        } | null;
+        AutomationActivation: {
+            /** Format: uuid */
+            automationId: string;
+            name: string;
+            /** @enum {string} */
+            automationStatus: "active" | "suspended" | "archived";
+            /** Format: uuid */
+            workspaceId: string;
+            workspaceName: string;
+            /** @enum {string} */
+            state: "ACTIVE" | "CONFIGURATION_PENDING" | "RENEWAL_AVAILABLE" | "LICENSE_REQUIRED" | "LICENSE_EXPIRED";
+            pending: ("LICENSE_REQUIRED" | "LICENSE_EXPIRED" | "NO_PUBLISHED_VERSION" | "NO_WORKER" | "WORKER_WITHOUT_EXECUTION" | "WORKER_WITHOUT_MONITORING" | "NEW_VERSION_AVAILABLE" | "RENEWAL_AVAILABLE")[];
+            license: {
+                /** Format: uuid */
+                licenseId: string;
+                number: number;
+                /** Format: date-time */
+                assignedAt: string;
+                /**
+                 * Format: date-time
+                 * @description Fim do ultimo periodo da licenca
+                 */
+                lastPeriodEndsAt?: string | null;
+                /** @enum {string} */
+                state: "LEGACY" | "OK" | "LICENSE_EXPIRED" | "LICENSE_REQUIRED";
+                /**
+                 * Format: date-time
+                 * @description Ate quando a cobertura de agora segue sem lacuna (nulo: sem cobertura)
+                 */
+                coverageUntil?: string | null;
+            } | null;
+            currentVersion: components["schemas"]["AutomationActivationVersion"];
+            acceptedVersion: components["schemas"]["AutomationActivationVersion"];
+            workers: {
+                /** Format: uuid */
+                workerId: string;
+                name: string;
+                /** @description Nome do computador vinculado, informado na vinculacao (a Platform nao coleta o nome real do computador); nulo sem computador */
+                computerName?: string | null;
+                /** Format: date-time */
+                lastContactAt?: string | null;
+                /**
+                 * @description PLATFORM-FLUXO-002: estado da maquina para a tela. REGISTERED cadastrada sem computador vinculado; AWAITING_CONNECTION codigo de vinculacao ainda valido ou computador vinculado ainda sem contato; CONNECTED contato nos ultimos 180 s; NO_CONTACT vinculada sem contato recente; LINK_SUSPENDED vinculo do computador suspenso; INACTIVE maquina desativada. Cadastrar ou conectar nao consome licenca
+                 * @enum {string}
+                 */
+                machineState: "REGISTERED" | "AWAITING_CONNECTION" | "CONNECTED" | "NO_CONTACT" | "LINK_SUSPENDED" | "INACTIVE";
+                execution: components["schemas"]["AutomationActivationAuthorization"];
+                monitoring: components["schemas"]["AutomationActivationAuthorization"];
+            }[];
+        };
+        AutomationActivationList: {
+            /** @enum {string} */
+            model: "legacy" | "licensed";
+            licenses: components["schemas"]["LicenseCount"];
+            items: components["schemas"]["AutomationActivation"][];
+            /** Format: date-time */
+            asOf: string;
+        };
+        AutomationActivationOptions: {
+            /** Format: uuid */
+            workspaceId: string;
+            workspaceName: string;
+            /** @enum {string} */
+            model: "legacy" | "licensed";
+            licenses: components["schemas"]["LicenseCount"];
+            nextLicense: {
+                /** Format: uuid */
+                licenseId: string;
+                number: number;
+                /** Format: date-time */
+                validUntil?: string | null;
+            } | null;
+            automations: {
+                /** Format: uuid */
+                automationId: string;
+                name: string;
+                licensed: boolean;
+                /** @enum {string} */
+                state: "ACTIVE" | "CONFIGURATION_PENDING" | "RENEWAL_AVAILABLE" | "LICENSE_REQUIRED" | "LICENSE_EXPIRED";
+                currentVersion: components["schemas"]["AutomationActivationVersion"];
+                /** @description Workers que ja fazem parte da ativacao */
+                workerIds: string[];
+            }[];
+            workers: {
+                /** Format: uuid */
+                workerId: string;
+                name: string;
+                /** @description Nome do computador vinculado, informado na vinculacao (a Platform nao coleta o nome real do computador); nulo sem computador */
+                computerName?: string | null;
+                /** Format: date-time */
+                lastContactAt?: string | null;
+                /**
+                 * @description PLATFORM-FLUXO-002: estado da maquina para a tela. REGISTERED cadastrada sem computador vinculado; AWAITING_CONNECTION codigo de vinculacao ainda valido ou computador vinculado ainda sem contato; CONNECTED contato nos ultimos 180 s; NO_CONTACT vinculada sem contato recente; LINK_SUSPENDED vinculo do computador suspenso; INACTIVE maquina desativada. Cadastrar ou conectar nao consome licenca
+                 * @enum {string}
+                 */
+                machineState: "REGISTERED" | "AWAITING_CONNECTION" | "CONNECTED" | "NO_CONTACT" | "LINK_SUSPENDED" | "INACTIVE";
+            }[];
+        };
+        AutomationActivationRequest: {
+            /** Format: uuid */
+            automationId: string;
+            /** @description So estes Workers; vazio: so a licenca (configuracao pendente) */
+            workerIds?: string[];
+            /**
+             * Format: date-time
+             * @description So no modelo anterior (obrigatorio nele quando ha Worker)
+             */
+            validUntil?: string;
+        };
+        AutomationActivationOutcome: {
+            /** @description true: este pedido vinculou uma licenca; false: ja estava vinculada. Ausente no modelo anterior sem licenca */
+            licenseConsumedNow?: boolean;
+            results: {
+                /** Format: uuid */
+                workerId: string;
+                /** @enum {string} */
+                kind: "execution" | "monitoring";
+                /** Format: uuid */
+                automationVersionId?: string | null;
+                /** @enum {string} */
+                outcome: "issued" | "already" | "failed";
+                /** Format: uuid */
+                authorizationId?: string;
+                /** Format: date-time */
+                validUntil?: string;
+                /** @description Com failed: o motivo (reason do contrato ou a classe da recusa) */
+                reason?: string;
+            }[];
+            activation: components["schemas"]["AutomationActivation"];
+        };
+        ActivityRef: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
+        ActivityItem: {
+            /**
+             * @description Origem; decide a pagina de detalhe
+             * @enum {string}
+             */
+            kind: "platform" | "local_agent" | "local_request" | "remote";
+            /**
+             * Format: uuid
+             * @description executionId, agentRunId, runRequestId ou remoteExecutionId, conforme kind
+             */
+            id: string;
+            workspace: components["schemas"]["ActivityRef"];
+            automation: components["schemas"]["ActivityRef"];
+            machine: {
+                /** Format: uuid */
+                workerId: string;
+                name: string | null;
+                /** @description Computador vinculado hoje a maquina (informado na vinculacao) */
+                computerName: string | null;
+            } | null;
+            /**
+             * @description no_error_signaled: Python externo monitorado que terminou com codigo 0 SEM sinal de sucesso (AGT-EXT-001); nunca e sucesso de negocio
+             * @enum {string}
+             */
+            outcome: "succeeded" | "failed" | "in_progress" | "cancelled" | "not_started" | "unconfirmed" | "no_error_signaled";
+            /** @description Resultado desconhecido ainda nao reconciliado */
+            attention: boolean;
+            /** Format: date-time */
+            requestedAt: string;
+            /** Format: date-time */
+            startedAt: string | null;
+            /** Format: date-time */
+            endedAt: string | null;
+        };
+        ActivityPage: {
+            items: components["schemas"]["ActivityItem"][];
+            nextCursor: string | null;
+        };
+        MachineActivityList: {
+            items: {
+                /** Format: uuid */
+                workerId: string;
+                inProgress: number;
+                attention: number;
+                /** Format: date-time */
+                lastActivityAt: string | null;
+            }[];
+        };
+        LicenseSummary: {
+            /**
+             * @description legacy: ativacao e limites anteriores; licensed: exige licenca
+             * @enum {string}
+             */
+            model: "legacy" | "licensed";
+            /**
+             * Format: date-time
+             * @description quando o modelo atual passou a valer; nulo se a organizacao nunca mudou de modelo
+             */
+            modelSince: string | null;
+            /** Format: int64 */
+            contracted: number;
+            /** Format: int64 */
+            used: number;
+            /** Format: int64 */
+            available: number;
+            /** Format: int64 */
+            licensedAutomations: number;
+            /** Format: int64 */
+            expiredWithAutomation: number;
+            /**
+             * Format: date-time
+             * @description instante da conta, medido no banco
+             */
+            asOf: string;
+        };
+        OrganizationLicense: {
+            /** Format: uuid */
+            licenseId: string;
+            /** @description sequencial por organizacao */
+            number: number;
+            /** @enum {string} */
+            status: "active" | "scheduled" | "expired" | "ended";
+            /** Format: date-time */
+            validFrom: string | null;
+            /**
+             * Format: date-time
+             * @description fim do ultimo periodo, exclusivo
+             */
+            validUntil: string | null;
+            /**
+             * Format: date-time
+             * @description inicio do proximo periodo ainda nao iniciado, se houver
+             */
+            nextPeriodStartsAt: string | null;
+            renewals: number;
+            automation: {
+                /** Format: uuid */
+                automationId: string;
+                name: string;
+                status: components["schemas"]["ResourceStatus"];
+                /** Format: uuid */
+                workspaceId: string;
+                workspaceName: string;
+                /** Format: date-time */
+                assignedAt: string;
+                /** @description ha trabalho em andamento agora; nao tem relacao com a licenca estar ativa */
+                executionInProgress: boolean;
+            } | null;
+        };
+        LicenseEnforcementPreview: {
+            /** Format: uuid */
+            organizationId: string;
+            /** @enum {string} */
+            model: "legacy" | "licensed";
+            /** Format: date-time */
+            modelSince: string | null;
+            /** Format: int64 */
+            contracted: number;
+            /** Format: int64 */
+            used: number;
+            /** Format: int64 */
+            available: number;
+            blockedAutomations: components["schemas"]["LicensePreviewAutomation"][];
+            licensedAutomations: components["schemas"]["LicensePreviewAutomation"][];
+            /**
+             * Format: int64
+             * @description autorizacoes vigentes das automacoes que ficariam impedidas; valem sem conexao ate a validade
+             */
+            offlineAuthorizations: number;
+            /** Format: date-time */
+            offlineAuthorizationsValidUntil: string | null;
+            /** @description resumo do conjunto apresentado; devolvido em confirmPreview para ligar a exigencia */
+            previewToken: string;
+            /** Format: int64 */
+            workInProgress: number;
+            /** Format: date-time */
+            asOf: string;
+        };
+        CapacityUsage: {
+            used: number;
+            /** @description nulo na organizacao do modelo anterior */
+            limit: number | null;
+        };
+        LicensePreviewAutomation: {
+            /** Format: uuid */
+            automationId: string;
+            name: string;
+            workspaceName: string;
+            inUseBecause: ("validAuthorization" | "recentUse" | "workInProgress")[];
+            /** Format: date-time */
+            authorizationsValidUntil: string | null;
+            /**
+             * Format: uuid
+             * @description so nas cobertas: a licenca que cobre a automacao
+             */
+            licenseId?: string;
+        };
+        LicenseAssignment: {
+            /** Format: uuid */
+            licenseId: string;
+            number: number;
+            /** Format: uuid */
+            automationId: string;
+            /** Format: uuid */
+            workspaceId: string;
+            /** Format: date-time */
+            assignedAt: string;
+        };
+        OrganizationLicensePage: {
+            items: components["schemas"]["OrganizationLicense"][];
+            nextCursor: string | null;
+            /** Format: date-time */
+            asOf: string;
+        };
+        OrganizationAutomationPage: {
+            items: components["schemas"]["OrganizationAutomation"][];
+            nextCursor: string | null;
+        };
         AutomationPage: {
             items: components["schemas"]["Automation"][];
             nextCursor: string | null;
@@ -2372,6 +4779,14 @@ export interface components {
             cancelRequestedAt: string | null;
         };
         ExecutionDetail: components["schemas"]["Execution"] & {
+            /** @description PLATFORM-FLUXO-002: a maquina (Worker) em que a execucao foi registrada; nula quando a execucao nao tem maquina registrada (nada e inferido) */
+            machine: {
+                /** Format: uuid */
+                workerId: string;
+                name: string | null;
+                /** @description Computador vinculado hoje a maquina (informado na vinculacao) */
+                computerName: string | null;
+            } | null;
             /** Format: uuid */
             retryOfExecutionId: string | null;
             /** @description solicitante; nulo em execucao agendada */
@@ -2635,7 +5050,7 @@ export interface components {
             currentPassword: string;
             /**
              * Format: password
-             * @description 12 a 128 pontos de codigo
+             * @description politica de senha nova (PLATFORM-SENHA-001): 12 a 128 pontos de codigo Unicode com ao menos uma maiuscula (Lu), uma minuscula (Ll), um numero (Nd) e um simbolo (pontuacao P ou simbolo S; espaco nao conta); sem normalizacao (nada e cortado nem aparado). Fora dela: 400 invalid_request, sem consumir o token. O login nao aplica a politica: senhas existentes continuam valendo.
              */
             newPassword: string;
         };
@@ -2644,7 +5059,10 @@ export interface components {
         };
         RecoveryConfirmation: {
             token: string;
-            /** Format: password */
+            /**
+             * Format: password
+             * @description politica de senha nova (PLATFORM-SENHA-001): 12 a 128 pontos de codigo Unicode com ao menos uma maiuscula (Lu), uma minuscula (Ll), um numero (Nd) e um simbolo (pontuacao P ou simbolo S; espaco nao conta); sem normalizacao (nada e cortado nem aparado). Fora dela: 400 invalid_request, sem consumir o token. O login nao aplica a politica: senhas existentes continuam valendo.
+             */
             newPassword: string;
         };
         TokenBody: {
@@ -2653,8 +5071,19 @@ export interface components {
         /** @description Pedido de cadastro: SO o e-mail, sem espacos nas pontas nem internos, com um @, ate 254 caracteres (comparado em minusculas). password ou displayName presentes: 400 (pertencem a confirmacao). */
         SignupRequest: {
             email: string;
+            /** @description 071 (opcional): o convite aberto de onde a pessoa veio. Para o mesmo e-mail, o nome do convite vira o nome provisorio (a resposta nao muda; convite invalido e ignorado). */
+            invitation?: {
+                /** Format: uuid */
+                organizationId: string;
+                token: string;
+            };
         };
-        /** @description Conclusao do cadastro pela titular do e-mail: token recebido, senha pela politica atual (12-128 pontos de codigo, sem regras de composicao) e nome (ate 120 pontos de codigo, nao em branco, sem caracteres de controle). */
+        SignupPreview: {
+            email: string;
+            /** @description nome vindo do convite; nulo = a pessoa escolhe */
+            displayName: string | null;
+        };
+        /** @description Conclusao do cadastro pela titular do e-mail: token recebido, senha pela politica de senha nova (PLATFORM-SENHA-001) (12 a 128 pontos de codigo com maiuscula, minuscula, numero e simbolo; ver PasswordChange.newPassword) e nome (ate 120 pontos de codigo, nao em branco, sem caracteres de controle). */
         SignupConfirmation: {
             token: string;
             /** Format: password */
@@ -2671,9 +5100,104 @@ export interface components {
                 /** @description codigos dos papeis ativos do vinculo interno, em ordem */
                 roles: string[];
                 activationState: components["schemas"]["OrganizationActivationState"];
+                licenseModel?: components["schemas"]["OrganizationLicenseModel"];
             }[];
             /** @description so indicacao para a interface (P2): chave da criacao ligada e identity_org_creation_allowed verdadeira; a criacao reconfere tudo */
             canCreateOrganization: boolean;
+        };
+        OrganizationRef: {
+            /** Format: uuid */
+            organizationId: string;
+        };
+        UsedOfLimit: {
+            /** Format: int64 */
+            used: number;
+            /** Format: int64 */
+            limit: number;
+        };
+        OrganizationCreationState: {
+            /** @enum {string} */
+            profile: "FIRST" | "ADMIN" | "MEMBER" | "CLIENT";
+            canCreate: boolean;
+            cannotCreateReason: string | null;
+            canRequest: boolean;
+            emptyOrganizations: {
+                /** Format: int64 */
+                used: number;
+                /** Format: int64 */
+                limit: number;
+                organizationIds: string[];
+            };
+            pendingRequests: components["schemas"]["UsedOfLimit"];
+            /**
+             * @description D7: o modelo em que uma organizacao criada AGORA nasce (a chave license_rollout). licensed: nasce pronta para configurar, sem ativacao a esperar; executar e monitorar uma automacao depende de licenca vinculada a ela. legacy: nasce aguardando a ativacao pela operacao. So indicacao para a tela; quem decide e a criacao.
+             * @enum {string}
+             */
+            newOrganizationLicenseModel: "legacy" | "licensed";
+            responsibleFor: {
+                /** Format: uuid */
+                organizationId: string;
+                name: string;
+                /** @enum {string} */
+                state: "ACTIVE" | "DEACTIVATED" | "BLOCKED";
+                empty: boolean;
+                /** Format: date-time */
+                deactivatedAt: string | null;
+                canReactivate: boolean;
+            }[];
+        };
+        MyOrganizationRequest: {
+            /** Format: uuid */
+            requestId: string;
+            /** Format: uuid */
+            organizationId: string;
+            organizationName: string | null;
+            name: string;
+            legalName: string;
+            /** @enum {string} */
+            state: "PENDING" | "APPROVED" | "REFUSED";
+            /** Format: date-time */
+            requestedAt: string;
+            /** Format: date-time */
+            decidedAt: string | null;
+            /** @enum {string|null} */
+            responsible: "APPROVER" | "REQUESTER" | null;
+            refusalReason: string | null;
+            /** Format: uuid */
+            createdOrganizationId: string | null;
+        };
+        OrganizationRequest: {
+            /** Format: uuid */
+            requestId: string;
+            name: string;
+            legalName: string;
+            /** @enum {string} */
+            state: "PENDING" | "APPROVED" | "REFUSED";
+            /** Format: date-time */
+            requestedAt: string;
+            /** Format: date-time */
+            decidedAt: string | null;
+            /** @enum {string|null} */
+            responsible: "APPROVER" | "REQUESTER" | null;
+            refusalReason: string | null;
+            requester: {
+                /** Format: uuid */
+                membershipId: string;
+                displayName: string | null;
+                email: string;
+            };
+            decidedByDisplayName: string | null;
+            ownRequest: boolean;
+        };
+        OrganizationRequestDecision: {
+            /** Format: uuid */
+            requestId: string;
+            /** @enum {string} */
+            state: "APPROVED" | "REFUSED";
+            /** @enum {string|null} */
+            responsible: "APPROVER" | "REQUESTER" | null;
+            /** Format: uuid */
+            createdOrganizationId: string | null;
         };
         OrganizationCreateRequest: {
             /** @description 1 a 120 pontos de codigo, sem espaco nas pontas, sem caractere de controle */
@@ -2785,9 +5309,23 @@ export interface components {
             /** @description token do link do convite (fragmento #token=); nunca vai a log */
             token: string;
         };
+        InvitationPreview: {
+            /** Format: uuid */
+            organizationId: string;
+            organizationName: string;
+            email: string;
+            recipientName: string | null;
+            /** @enum {string} */
+            audience: "internal" | "client";
+        };
         InvitationAccepted: {
             /** Format: uuid */
             organizationId: string;
+            /**
+             * @description 070: internal troca para a sessao da organizacao; client entra pela area do cliente (Portal), sem sessao da organizacao
+             * @enum {string}
+             */
+            audience: "internal" | "client";
         };
         RoleRequest: {
             role: components["schemas"]["RoleCode"];
@@ -2934,8 +5472,16 @@ export interface components {
             /** Format: uuid */
             organizationId: string;
             organizationActivationState: components["schemas"]["OrganizationActivationState"];
+            organizationLicenseModel?: components["schemas"]["OrganizationLicenseModel"];
             stepUpMethod: components["schemas"]["StepUpMethod"];
+            /** @description RELEASE-2.2: se esta Platform aceita execucao remota (chave nekkora.remote-execution.enabled; padrao false). So indicacao para a tela; cada rota continua recusando com 409 remote_execution_unavailable. Ausente (API anterior): tratar como indisponivel. */
+            remoteExecutionAvailable?: boolean;
         };
+        /**
+         * @description PLATFORM-LICENCIAMENTO-001. licensed: a organizacao esta no modelo por licenca - a capacidade e tecnica (limites iguais para todas) e NAO depende da ativacao pela operacao; o que habilita uma automacao e a licenca. legacy: modelo anterior, em que a ativacao libera a capacidade. A tela usa para nao dizer "aguardando ativacao: nenhum Worker pode ser registrado" a quem ja pode registrar.
+         * @enum {string}
+         */
+        OrganizationLicenseModel: "legacy" | "licensed";
         /**
          * @description Ciclo de ativacao da organizacao (migration 022), INDEPENDENTE da situacao administrativa (ativa, suspensa, encerrada). AGUARDANDO_ATIVACAO: capacidade de execucao zero (nenhum Worker registrado, nenhuma execucao simultanea ou pendente) ate a ativacao pela operacao da Nekkora; toda organizacao criada nasce assim. ATIVADA: a operacao aplicou limites explicitos. So indicacao para a interface: os valores dos limites nao sao expostos e a admissao de execucao continua decidida no banco.
          * @enum {string}
@@ -2992,6 +5538,358 @@ export interface components {
                 receivedAt: string;
             }[];
         };
+        RemoteExecutionRequest: {
+            /** Format: uuid */
+            automationVersionId: string;
+            /** Format: uuid */
+            agentId: string;
+            /**
+             * Format: uuid
+             * @description Gerado pelo navegador; repeticao idempotente
+             */
+            requestKey: string;
+            /** @description PLATFORM-LICENCIAMENTO-001 (S2): true e o ACEITE EXPLICITO desta versao nesta maquina, no mesmo passo. Cria a autorizacao da versao para o Worker da maquina se nao houver uma que sirva; mesmo ato, mesmas recusas e mesma trilha da rota de autorizacao. Nunca vale para versoes futuras. Ausente ou false: nada e autorizado. */
+            authorizeVersion?: boolean;
+            /**
+             * Format: date-time
+             * @description So com authorizeVersion. Obrigatorio na organizacao do modelo anterior; no modelo por licenca e opcional e limitado ao fim da cobertura da licenca.
+             */
+            authorizationValidUntil?: string;
+        };
+        RemoteExecutionCandidateList: {
+            items: {
+                /** Format: uuid */
+                agentId: string;
+                agentName: string;
+                /** Format: uuid */
+                workerId: string;
+                workerName: string;
+                requestable: boolean;
+                missing: ("LICENSE_REQUIRED" | "LICENSE_EXPIRED" | "PACKAGE_NOT_SUPPORTED" | "PACKAGE_NOT_REGISTERED" | "REQUIREMENTS_NOT_DECLARED" | "REQUIREMENTS_CONFLICT" | "AUTHORIZATION_MISSING" | "AUTHORIZATION_REVOKED" | "AUTHORIZATION_EXPIRED" | "MACHINE_PAUSED" | "MACHINE_INCOMPATIBLE" | "MACHINE_BUSY" | "MACHINE_UNCONFIRMED" | "MACHINE_FINISHING" | "MACHINE_OCCUPIED" | "MACHINE_DISK_PRESSURE" | "PYTHON_NOT_SELECTED" | "PYTHON_NOT_IN_INVENTORY")[];
+                authorization: {
+                    /** Format: uuid */
+                    authorizationId: string;
+                    /** Format: date-time */
+                    validUntil: string;
+                    /** @enum {string} */
+                    status: "VALID" | "REVOKED" | "EXPIRED";
+                } | null;
+                python: components["schemas"]["RemotePythonChoice"] | null;
+                dependencyCheck: components["schemas"]["RemoteDependencyCheck"] | null;
+            }[];
+        };
+        /** @description A verificacao sob demanda mais recente das dependencias de uma automacao no Python escolhido de uma maquina. E informacao: a conferencia que vale para executar e a da maquina, antes de iniciar. */
+        RemoteDependencyCheck: {
+            /** Format: uuid */
+            checkId: string;
+            /** @description O ambiente Python conferido (identificador opaco) */
+            environmentId: string;
+            requirementsRevision: number;
+            /** Format: date-time */
+            requestedAt: string;
+            /** Format: date-time */
+            answerValidUntil: string;
+            /**
+             * @description UNANSWERED: o prazo venceu sem resposta - nao foi possivel verificar
+             * @enum {string}
+             */
+            state: "PENDING" | "ANSWERED" | "UNANSWERED";
+            /**
+             * @description So em ANSWERED
+             * @enum {string|null}
+             */
+            outcome: "SATISFIED" | "MISSING" | "ENVIRONMENT_GONE" | "NOT_VERIFIED" | null;
+            /** @description So com MISSING: o que falta, do que foi perguntado (nome==versao) */
+            missing: string[];
+            /** Format: date-time */
+            answeredAt: string | null;
+            /** @description O que foi conferido ainda e a escolha do Python e a revisao das dependencias de agora */
+            current: boolean;
+        };
+        /** @description Ambiente Python escolhido para uma automacao numa maquina. Identificador opaco publicado pela maquina; nunca um caminho. */
+        RemotePythonChoice: {
+            environmentId: string;
+            /** @description A versao que o inventario da maquina dizia quando a escolha foi feita */
+            pythonVersion: string;
+            /** @description O ambiente ainda esta no inventario atual da maquina */
+            inInventory: boolean;
+            /** Format: date-time */
+            selectedAt: string;
+        };
+        RemoteAttemptLogs: {
+            /** Format: uuid */
+            attemptId: string;
+            items: {
+                sequence: number;
+                /**
+                 * Format: date-time
+                 * @description Quando a maquina capturou a linha (relogio dela)
+                 */
+                capturedAt: string;
+                /** @enum {string} */
+                channel: "STDOUT" | "STDERR" | "EXECUTOR";
+                /** @enum {string} */
+                level: "UNKNOWN";
+                /** @description A linha passava de 8 KiB e foi cortada pela maquina */
+                truncated: boolean;
+                message: string;
+                /** @description O texto foi apagado pela retencao */
+                textRemoved: boolean;
+            }[];
+            /** @description Linhas que a Platform tem desta tentativa = automationLines + systemLines */
+            total: number;
+            /** @description Linhas que o PROCESSO DA AUTOMACAO escreveu (STDOUT e STDERR) e a Platform tem */
+            automationLines: number;
+            /** @description Avisos do proprio aplicativo da maquina (EXECUTOR), por exemplo o aviso de limite atingido. Ocupam lugar no limite de linhas da tentativa, mas nao sao saida da automacao */
+            systemLines: number;
+            nextAfter: number | null;
+            closure: {
+                /** @description Linhas que a maquina enviou, contando os avisos do proprio aplicativo (systemLines) */
+                lines: number;
+                /** @description Linhas DA AUTOMACAO que a maquina descartou por limite. O que a automacao escreveu = automationLines + droppedLines (com o envio fechado e sem perda) */
+                droppedLines: number;
+                /** Format: date-time */
+                closedAt: string;
+            } | null;
+            /** @description A maquina avisou que REMOVEU, pelo prazo de guarda local dela, o que ainda guardava desta tentativa sem a confirmacao de recebimento. null = nenhum aviso. localCount e quanto havia NA MAQUINA quando ela removeu; nao e quanto se perdeu. */
+            retentionLoss: {
+                /** @description Linhas que a maquina tinha capturado. Compare com total (o que a Platform tem) */
+                localCount: number;
+                /**
+                 * Format: date-time
+                 * @description Quando o aviso chegou a Platform
+                 */
+                reportedAt: string;
+            } | null;
+            /** @description 057: o conteudo desta tentativa VENCEU pela retencao do servidor (o texto das linhas foi apagado; cada linha continua existindo, com textRemoved = true). null = nao venceu. O prazo conta do fim da entrega (deliveryEndedAt): a maquina fechou o envio (CLOSED), avisou que perdeu o que guardava (LOSS_NOTICE) ou o vinculo sob o qual a tentativa rodou foi encerrado (LINK_ENDED); ou, na entrega que nao se concluiu, o ultimo progresso dela (NO_PROGRESS, 059). Tentativa em andamento ou com resultado nao confirmado sem reconciliacao nao vence. O historico da tentativa nao e removido. */
+            expiration: {
+                /**
+                 * Format: date-time
+                 * @description Quando o vencimento foi registrado
+                 */
+                expiredAt: string;
+                /**
+                 * Format: date-time
+                 * @description Quando a remocao do conteudo foi confirmada; null = em andamento
+                 */
+                confirmedAt: string | null;
+                /** @description O prazo aplicado, em dias */
+                retentionDays: number;
+                /** Format: date-time */
+                deliveryEndedAt: string;
+                /**
+                 * @description NO_PROGRESS (059): entrega INCOMPLETA - venceu o teto sem progresso de entrega; a maquina nao fechou o envio e nenhum recebimento e indicado
+                 * @enum {string}
+                 */
+                deliveryEnd: "CLOSED" | "LOSS_NOTICE" | "LINK_ENDED" | "NO_PROGRESS";
+                /** @description Linhas que tinham texto quando venceu */
+                items: number;
+            } | null;
+        };
+        RemoteAttemptResults: {
+            /** Format: uuid */
+            attemptId: string;
+            items: {
+                number: number;
+                /** @description Nome relativo a pasta de saida da execucao; nunca um caminho absoluto */
+                fileName: string;
+                sizeBytes: number;
+                sha256: string;
+                /** Format: date-time */
+                receivedAt: string;
+                /** @description Os bytes ainda estao guardados */
+                available: boolean;
+            }[];
+            closure: {
+                sent: number;
+                /** @description Arquivos que a maquina deixou de enviar por limite */
+                skippedByLimit: number;
+                /** Format: date-time */
+                closedAt: string;
+            } | null;
+            /** @description A maquina avisou que REMOVEU, pelo prazo de guarda local dela, o que ainda guardava desta tentativa sem a confirmacao de recebimento. null = nenhum aviso. localCount e quanto havia NA MAQUINA quando ela removeu; nao e quanto se perdeu. */
+            retentionLoss: {
+                /** @description Arquivos que havia na pasta de saida da maquina. Compare com items (o que a Platform tem) */
+                localCount: number;
+                /**
+                 * Format: date-time
+                 * @description Quando o aviso chegou a Platform
+                 */
+                reportedAt: string;
+            } | null;
+            /** @description 057: o conteudo desta tentativa VENCEU pela retencao do servidor (os bytes dos arquivos foram removidos; nome, tamanho e SHA-256 continuam, com available = false). null = nao venceu. O prazo conta do fim da entrega (deliveryEndedAt): a maquina fechou o envio (CLOSED), avisou que perdeu o que guardava (LOSS_NOTICE) ou o vinculo sob o qual a tentativa rodou foi encerrado (LINK_ENDED); ou, na entrega que nao se concluiu, o ultimo progresso dela (NO_PROGRESS, 059). Tentativa em andamento ou com resultado nao confirmado sem reconciliacao nao vence. O historico da tentativa nao e removido. */
+            expiration: {
+                /**
+                 * Format: date-time
+                 * @description Quando o vencimento foi registrado
+                 */
+                expiredAt: string;
+                /**
+                 * Format: date-time
+                 * @description Quando a remocao do conteudo foi confirmada; null = em andamento
+                 */
+                confirmedAt: string | null;
+                /** @description O prazo aplicado, em dias */
+                retentionDays: number;
+                /** Format: date-time */
+                deliveryEndedAt: string;
+                /**
+                 * @description NO_PROGRESS (059): entrega INCOMPLETA - venceu o teto sem progresso de entrega; a maquina nao fechou o envio e nenhum recebimento e indicado
+                 * @enum {string}
+                 */
+                deliveryEnd: "CLOSED" | "LOSS_NOTICE" | "LINK_ENDED" | "NO_PROGRESS";
+                /** @description Arquivos que estavam guardados quando venceu */
+                items: number;
+            } | null;
+        };
+        RemoteExecution: {
+            /** Format: uuid */
+            remoteExecutionId: string;
+            /** Format: uuid */
+            workspaceId: string;
+            /** Format: uuid */
+            automationId: string;
+            /** Format: uuid */
+            automationVersionId: string;
+            versionNumber: number;
+            state: components["schemas"]["RemoteAttemptState"];
+            requirementsRevision: number;
+            /** @description O efetivo congelado na solicitacao */
+            dependencies: string[];
+            /** Format: date-time */
+            requestedAt: string;
+            /** Format: date-time */
+            cancelRequestedAt: string | null;
+            /** @description Nome do ambiente da solicitacao (para as listas por organizacao) */
+            workspaceName?: string;
+            /** @description Nome da automacao da solicitacao */
+            automationName?: string;
+            /** @description PLATFORM-LICENCIAMENTO-001: a tentativa esta na fila e, neste instante, a organizacao (modelo por licenca) esta no limite tecnico de execucoes simultaneas: espera uma vaga. Capacidade, nao licenca. */
+            waitingForSlot?: boolean;
+            attempts: {
+                /** Format: uuid */
+                attemptId: string;
+                attemptNumber: number;
+                /** Format: uuid */
+                agentId: string;
+                agentName: string;
+                /** Format: uuid */
+                workerId: string;
+                workerName: string;
+                state: components["schemas"]["RemoteAttemptState"];
+                /** @enum {string|null} */
+                refusalReason: "BUSY" | "PAUSED" | "PACKAGE_INVALID" | "ENVIRONMENT_GONE" | "ENVIRONMENT_INCOMPATIBLE" | "DEPENDENCIES_MISSING" | "DISK_PRESSURE" | "CLIENT_INCOMPATIBLE" | "SESSION_UNAVAILABLE" | "AUTHORIZATION_MISSING" | "AUTHORIZATION_REVOKED" | "AUTHORIZATION_EXPIRED" | "WORKER_NOT_AUTHORIZED" | "MACHINE_NOT_LINKED" | "MACHINE_NOT_ENABLED" | "MACHINE_INCOMPATIBLE" | "COMMUNICATION_LOST" | "LICENSE_REQUIRED" | "LICENSE_EXPIRED" | null;
+                /**
+                 * @description LOST: o prazo da maquina venceu. Vencido ha mais que a espera configurada (padrao 120 min), a tentativa recebida e encerrada pelo servidor (closureCause COMMUNICATION_LOST)
+                 * @enum {string}
+                 */
+                communication: "OK" | "LOST" | "NONE";
+                exitCode: number | null;
+                /** Format: date-time */
+                createdAt: string;
+                /** Format: date-time */
+                offerValidUntil: string;
+                /** Format: date-time */
+                offeredAt: string | null;
+                /** Format: date-time */
+                receivedAt: string | null;
+                /** Format: date-time */
+                startedAt: string | null;
+                /** Format: date-time */
+                endedAt: string | null;
+                /**
+                 * @description Por que o SERVIDOR encerrou a tentativa (a maquina desvinculou-se, foi revogada, ou deixou de se comunicar alem da espera). Nulo: o desfecho veio da maquina. O servidor so encerra como REFUSED (nunca autorizou o inicio; refusalReason MACHINE_NOT_LINKED ou COMMUNICATION_LOST) ou ENDED_UNKNOWN (autorizada a iniciar ou em execucao): nunca sucesso, falha nem cancelamento.
+                 * @enum {string|null}
+                 */
+                closureCause: "MACHINE_UNLINKED" | "MACHINE_REVOKED" | "COMMUNICATION_LOST" | null;
+                /** @description O que a maquina informou DEPOIS de um encerramento por COMMUNICATION_LOST. Fica ao lado: o estado da tentativa nao muda (uma nova tentativa pode ja ter sido pedida). */
+                lateReport: {
+                    /** @enum {string} */
+                    state: "SUCCEEDED" | "FAILED" | "CANCELLED" | "TIMED_OUT" | "ENDED_UNKNOWN";
+                    exitCode: number | null;
+                    /** Format: date-time */
+                    reportedAt: string;
+                } | null;
+                /** @description 058: como uma tentativa em ENDED_UNKNOWN foi reconciliada. Vazio: NAO reconciliada - a repeticao da solicitacao esta bloqueada. MACHINE: a maquina confirmou que nao ha processo desta tentativa em execucao nela. MANUAL: declaracao de um ORG_ADMIN (so ai ha reason, verification e byMembershipId). As duas podem existir: uma nao altera a outra. O estado da tentativa continua ENDED_UNKNOWN. */
+                reconciliations: {
+                    /** @enum {string} */
+                    kind: "MACHINE" | "MANUAL";
+                    /** Format: date-time */
+                    at: string;
+                    /** @enum {string|null} */
+                    reason: "MACHINE_OFF_OUT_OF_OPERATION" | "PROCESS_ENDED_BY_ADMINISTRATOR" | "OTHER_VERIFIED" | null;
+                    verification: string | null;
+                    /** Format: uuid */
+                    byMembershipId: string | null;
+                }[];
+                /**
+                 * Format: date-time
+                 * @description A maquina voltou e disse que AINDA executa esta tentativa (a primeira vez em que disse). Nulo depois que ela confirma o fim, e tambem quando ela disse depois que o processo principal terminou (ver processes)
+                 */
+                machineStillRunningAt: string | null;
+                /**
+                 * @description 060: o que a maquina disse dos processos desta tentativa DEPOIS do fim do processo principal, enquanto ela nao confirma que acabaram. ACTIVE: ha processos da automacao ainda ativos ("finalizando"). UNCERTAIN: ela nao tem como saber (ocupacao incerta). Nulo: ela confirmou que nao ha mais processo (ver reconciliations, kind MACHINE), ou nao disse nada. Enquanto nao for nulo e nao houver reconciliacao, a maquina fica indisponivel e a repeticao bloqueada; o estado e o codigo de saida da tentativa nao mudam
+                 * @enum {string|null}
+                 */
+                processes: "ACTIVE" | "UNCERTAIN" | null;
+                /** Format: date-time */
+                processesAt: string | null;
+            }[];
+        };
+        /** @enum {string} */
+        RemoteAttemptState: "QUEUED" | "OFFERED" | "RECEIVED" | "PREPARING" | "STARTING" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELLED" | "TIMED_OUT" | "REFUSED" | "EXPIRED" | "ENDED_UNKNOWN";
+        RuntimeRequirementsDeclaration: {
+            /** @enum {string} */
+            source: "PACKAGE" | "FILE" | "TEXT" | "NONE_CONFIRMED";
+            /** @description So com FILE ou TEXT */
+            text?: string;
+            /** @description A revisao vista; ausente = nenhuma declaracao ainda */
+            expectedRevision?: number;
+        };
+        RuntimeRequirementsAnalysis: {
+            lines: {
+                number: number;
+                /** @description A linha sem o comentario, saneada e limitada */
+                text: string;
+                /** @enum {string} */
+                kind: "EXACT" | "DUPLICATE" | "CONFLICT" | "RANGE" | "NO_VERSION" | "MARKER" | "REMOTE" | "LOCAL_PATH" | "INCLUDE" | "OPTION" | "HASH" | "UNKNOWN";
+                problem: boolean;
+                /** @description nome[extras]==versao, so em EXACT */
+                dependency?: string | null;
+            }[];
+            dependencies: string[];
+            resolved: boolean;
+        };
+        RuntimeRequirements: {
+            /** Format: uuid */
+            automationId: string;
+            declared: {
+                revision: number;
+                /** @enum {string} */
+                source: "PACKAGE" | "FILE" | "TEXT" | "NONE_CONFIRMED";
+                /** @description Os acrescimos declarados */
+                dependencies: string[];
+                contentSha256: string;
+                /** Format: date-time */
+                declaredAt: string;
+            } | null;
+            published: {
+                /** Format: uuid */
+                automationVersionId: string;
+                versionNumber: number;
+                /** @description As do manifesto do pacote publicado */
+                dependencies: string[];
+            } | null;
+            effective: {
+                dependencies: string[];
+                conflicts: {
+                    name: string;
+                    published: string;
+                    declared: string;
+                }[];
+                resolved: boolean;
+            };
+        };
         AgentPairingRequest: {
             /**
              * Format: uuid
@@ -3003,6 +5901,11 @@ export interface components {
             agentName: string;
             /** @default 15 */
             expiresInMinutes: number;
+            /**
+             * @description T01a da execucao remota: true = codigo marcado para habilitar a maquina (ver x-execucao-remota)
+             * @default false
+             */
+            remoteExecution: boolean;
         };
         AgentRotationRequest: {
             /** @default 15 */
@@ -3026,6 +5929,57 @@ export interface components {
              * @description So na rotacao
              */
             agentId?: string | null;
+            /**
+             * @description Presente (true) so no codigo de pareamento marcado para execucao remota; ausente nos demais
+             * @enum {boolean}
+             */
+            remoteExecution?: true;
+        };
+        PythonEnvironmentList: {
+            items: {
+                /** @description Opaco; nunca um caminho */
+                environmentId: string;
+                pythonVersion: string;
+                /** @enum {string} */
+                kind: "INSTALLATION" | "VIRTUAL_ENVIRONMENT";
+                /**
+                 * Format: date-time
+                 * @description Relogio da maquina
+                 */
+                observedAt: string;
+                /**
+                 * Format: date-time
+                 * @description Relogio do servidor
+                 */
+                reportedAt: string;
+            }[];
+        };
+        RemoteMachineList: {
+            items: {
+                /** Format: uuid */
+                workerId: string;
+                workerName: string;
+                /** Format: uuid */
+                agentId: string;
+                /** @description Nome logico da maquina, informado pela pessoa no pareamento */
+                agentName: string;
+                /** @description Versao do aplicativo informada no ultimo contato */
+                agentVersion: string;
+                /**
+                 * @description Indicativo; nao reserva a maquina
+                 * @enum {string}
+                 */
+                state: "OFFLINE" | "INCOMPATIBLE" | "PAUSED" | "NO_DISK_SPACE" | "BUSY" | "AVAILABLE";
+                /**
+                 * @description Recebimento de novos trabalhos, decidido na maquina
+                 * @enum {string}
+                 */
+                receiving: "ENABLED" | "PAUSED";
+                /** Format: date-time */
+                lastHeartbeatAt?: string | null;
+                /** Format: date-time */
+                enabledAt: string;
+            }[];
         };
         AgentList: {
             items: {
@@ -3046,7 +6000,8 @@ export interface components {
                 /** @enum {string} */
                 connectivity?: "CONNECTED" | "DISCONNECTED";
                 contractVersion?: string | null;
-                capabilities?: ("RUN_LOCAL" | "OBS_1_0" | "SUPERVISOR_REPORT_1_0" | "EXTERNAL_PYTHON_1_0" | "RUN_REQUEST_1_0")[];
+                /** @description As capacidades que a maquina declarou no ultimo contato (as mesmas do contrato Platform-Agent). RUN_REQUEST_1_0 = atende o pedido de execucao (createRunRequest); REMOTE_RUN_1_0 = atende a execucao remota (Nekkora Agent Client). Uma maquina pode declarar so um dos dois. */
+                capabilities?: ("RUN_LOCAL" | "OBS_1_0" | "SUPERVISOR_REPORT_1_0" | "EXTERNAL_PYTHON_1_0" | "RUN_REQUEST_1_0" | "REMOTE_RUN_1_0" | "REMOTE_LOGS_1_0" | "REMOTE_RESULTS_1_0" | "PY_INVENTORY_1_0")[];
                 /** Format: date-time */
                 credentialExpiresAt?: string | null;
                 /**
@@ -3087,6 +6042,11 @@ export interface components {
                 credentialExpiresAt?: string | null;
                 /** Format: date-time */
                 createdAt?: string;
+                /**
+                 * @description PLATFORM-FLUXO-002: estado da maquina para a tela. REGISTERED cadastrada sem computador vinculado; AWAITING_CONNECTION codigo de vinculacao ainda valido ou computador vinculado ainda sem contato; CONNECTED contato nos ultimos 180 s; NO_CONTACT vinculada sem contato recente; LINK_SUSPENDED vinculo do computador suspenso; INACTIVE maquina desativada. Cadastrar ou conectar nao consome licenca
+                 * @enum {string}
+                 */
+                machineState?: "REGISTERED" | "AWAITING_CONNECTION" | "CONNECTED" | "NO_CONTACT" | "LINK_SUSPENDED" | "INACTIVE";
             }[];
         };
         WorkerCreateRequest: {
@@ -3325,7 +6285,7 @@ export interface components {
             executionMode?: "single" | "list" | "tabular" | null;
             /** @enum {string} */
             packageKind?: "STUDIO_PYTHON" | "EXTERNAL_PYTHON";
-            /** @description So EXTERNAL_PYTHON (ex.: >=3.10,<3.14) */
+            /** @description So EXTERNAL_PYTHON (ex.: >=3.10,<3.14; ==3.12.0 no descritor 1.1). null num EXTERNAL_PYTHON de descritor 1.1: o autor nao declarou restricao de Python (nao e promessa de compatibilidade) */
             pythonRequirement?: string | null;
             /** @description So EXTERNAL_PYTHON: nome==versao exata */
             dependencies?: string[] | null;
@@ -4182,6 +7142,36 @@ export interface operations {
             404: components["responses"]["SignupDisabled"];
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    signupPreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Cadastro pendente */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignupPreview"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            403: components["responses"]["CsrfForbidden"];
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
         };
     };
     resendSignupConfirmation: {
@@ -5154,7 +8144,7 @@ export interface operations {
                 };
             };
             404: components["responses"]["SignupDisabled"];
-            /** @description T10 (034): esta identidade ja criou, pelo cadastro, uma organizacao com esse nome; nada foi criado. Codigo conflict com reason organization_name_taken */
+            /** @description T10 (034): esta identidade ja criou, pelo cadastro, uma organizacao com esse nome (organization_name_taken); ou, 067: organization_creation_requires_request, empty_organization_limit_reached. Nada foi criado */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5166,6 +8156,203 @@ export interface operations {
                      *       "reason": "organization_name_taken"
                      *     }
                      */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    identityOrganizationCreation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Estado da criacao */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationCreationState"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["RestrictedIdentitySession"];
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    identityRequestOrganization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    organizationId: string;
+                    name: string;
+                    legalName?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Pedido registrado */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        requestId: string;
+                    };
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description Origin/CSRF invalido, sessao restrita; step_up_required; organization_creation_client_profile */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["SignupDisabled"];
+            /** @description organization_request_not_available */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    identityOrganizationRequests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pedidos */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["MyOrganizationRequest"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["RestrictedIdentitySession"];
+            404: components["responses"]["SignupDisabled"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    identityDeactivateOrganization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrganizationRef"];
+            };
+        };
+        responses: {
+            /** @description Desativada */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description Origin/CSRF invalido, sessao restrita, ou step_up_required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["SignupDisabled"];
+            /** @description organization_not_responsible, organization_work_in_progress, organization_state_conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    identityReactivateOrganization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrganizationRef"];
+            };
+        };
+        responses: {
+            /** @description Reativada */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description Origin/CSRF invalido, sessao restrita, ou step_up_required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["SignupDisabled"];
+            /** @description organization_not_responsible, organization_blocked_by_nekkora, empty_organization_limit_reached, organization_state_conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
                     "application/json": components["schemas"]["Error"];
                 };
             };
@@ -5311,6 +8498,47 @@ export interface operations {
             503: components["responses"]["ServiceUnavailable"];
         };
     };
+    invitationPreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvitationAcceptRequest"];
+            };
+        };
+        responses: {
+            /** @description Convite aberto */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationPreview"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            /** @description Origin/CSRF de pre-autenticacao invalido */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": "forbidden"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
     acceptInvitation: {
         parameters: {
             query?: never;
@@ -5363,7 +8591,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description already_member, account_exists ou account_unavailable */
+            /** @description already_member, account_exists ou account_unavailable; 070 (convite de Cliente): conflict com client_invitation_internal_member, client_invitation_other_client, client_grant_exists ou client_scope_unavailable */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6226,6 +9454,42 @@ export interface operations {
             500: components["responses"]["CatalogInconsistent"];
         };
     };
+    listPeople: {
+        parameters: {
+            query?: {
+                situation?: components["schemas"]["PersonSituation"][];
+                /** @description busca por nome ou e-mail (contem, sem diferenciar maiusculas) */
+                q?: string;
+                /** @description Opaco e assinado: base64url(payload) "." base64url(HMAC-SHA256). Vinculado a rota, organizacao, vinculo da sessao, recurso pai, filtros (impressao canonica; limit fora) e ordenacao. Posicao = chave de ordenacao de tamanho limitado (prefixo de 48 pontos de codigo + id, ou campos de tamanho fixo); id da chave como impressao de 11 caracteres. O servidor nunca emite cursor maior que 872 caracteres (pior caso calculado, documento secao 1.5.1); aceita ate 1024. Nao e autoridade: autorizacao reaplicada a cada pagina. Malformado, adulterado, de outra rota/organizacao/vinculo/pai, com filtros ou ordenacao diferentes, ou de chave desconhecida (inclusive apos rotacao da chave) -> 400. Sem expiracao por tempo. Chave: decisao DC-15 (subchave derivada; a rotacao invalida os cursores). */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description fora de 1-100 ou nao inteiro -> 400; pode mudar entre paginas */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pagina de pessoas */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PeoplePage"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["CatalogInconsistent"];
+        };
+    };
     listClients: {
         parameters: {
             query?: {
@@ -6251,6 +9515,601 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClientPage"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["CatalogInconsistent"];
+        };
+    };
+    createClient: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Cliente */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Client"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    inviteClient: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientInvitationRequest"];
+            };
+        };
+        responses: {
+            /** @description Convite emitido */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientInvitationCreated"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getClientDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                client: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cliente */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientDetail"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    updateClient: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                client: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Cliente */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Client"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listClientShareOptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Opcoes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientShareOptions"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listClientShareRequests: {
+        parameters: {
+            query?: {
+                automationId?: string;
+                pendingOnly?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pedidos */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientShareRequestList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    requestClientShare: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientShareRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Pedido */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientShareRequest"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    approveClientShare: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                request: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Aprovado; convite emitido */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientShareRequestState"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    refuseClientShare: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                request: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recusado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientShareRequestState"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    cancelClientShare: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                request: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cancelado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientShareRequestState"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    requestClientAutomationGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientAutomationGrantRequest"];
+            };
+        };
+        responses: {
+            /** @description Pedido */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientAutomationGrant"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    approveClientAutomationGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                grant: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Concessao ativa */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientAutomationGrant"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    reduceClientAutomationGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                grant: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientAutomationGrantReduceRequest"];
+            };
+        };
+        responses: {
+            /** @description Concessao */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientAutomationGrant"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    revokeClientAutomationGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                grant: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revogada */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    suspendClientMembership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                membership: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Vinculo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientMembershipState"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    reactivateClientMembership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                membership: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Vinculo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientMembershipState"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    retireClientMembership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                membership: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Vinculo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientMembershipState"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listAccessGrants: {
+        parameters: {
+            query?: {
+                /** @description conta beneficiaria (userId) */
+                personId?: string;
+                clientId?: string;
+                workspaceId?: string;
+                automationId?: string;
+                workerId?: string;
+                situation?: components["schemas"]["AccessGrantSituation"][];
+                /** @description criacao, inclusivo */
+                from?: string;
+                /** @description criacao, exclusivo */
+                to?: string;
+                /** @description Opaco e assinado: base64url(payload) "." base64url(HMAC-SHA256). Vinculado a rota, organizacao, vinculo da sessao, recurso pai, filtros (impressao canonica; limit fora) e ordenacao. Posicao = chave de ordenacao de tamanho limitado (prefixo de 48 pontos de codigo + id, ou campos de tamanho fixo); id da chave como impressao de 11 caracteres. O servidor nunca emite cursor maior que 872 caracteres (pior caso calculado, documento secao 1.5.1); aceita ate 1024. Nao e autoridade: autorizacao reaplicada a cada pagina. Malformado, adulterado, de outra rota/organizacao/vinculo/pai, com filtros ou ordenacao diferentes, ou de chave desconhecida (inclusive apos rotacao da chave) -> 400. Sem expiracao por tempo. Chave: decisao DC-15 (subchave derivada; a rotacao invalida os cursores). */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description fora de 1-100 ou nao inteiro -> 400; pode mudar entre paginas */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pagina */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessGrantPage"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["CatalogInconsistent"];
+        };
+    };
+    listAccessHistory: {
+        parameters: {
+            query?: {
+                /** @description alvo ou responsavel (userId) */
+                personId?: string;
+                clientId?: string;
+                workspaceId?: string;
+                automationId?: string;
+                workerId?: string;
+                grantId?: string;
+                category?: components["schemas"]["AccessHistoryCategory"][];
+                from?: string;
+                to?: string;
+                /** @description Opaco e assinado: base64url(payload) "." base64url(HMAC-SHA256). Vinculado a rota, organizacao, vinculo da sessao, recurso pai, filtros (impressao canonica; limit fora) e ordenacao. Posicao = chave de ordenacao de tamanho limitado (prefixo de 48 pontos de codigo + id, ou campos de tamanho fixo); id da chave como impressao de 11 caracteres. O servidor nunca emite cursor maior que 872 caracteres (pior caso calculado, documento secao 1.5.1); aceita ate 1024. Nao e autoridade: autorizacao reaplicada a cada pagina. Malformado, adulterado, de outra rota/organizacao/vinculo/pai, com filtros ou ordenacao diferentes, ou de chave desconhecida (inclusive apos rotacao da chave) -> 400. Sem expiracao por tempo. Chave: decisao DC-15 (subchave derivada; a rotacao invalida os cursores). */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description fora de 1-100 ou nao inteiro -> 400; pode mudar entre paginas */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pagina */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessHistoryPage"];
                 };
             };
             400: components["responses"]["InvalidRequest"];
@@ -6501,6 +10360,1064 @@ export interface operations {
             503: components["responses"]["ServiceUnavailable"];
         };
     };
+    getExecutionSummary: {
+        parameters: {
+            query: {
+                /** @description inclusivo, com fuso */
+                from: string;
+                /** @description exclusivo, com fuso */
+                to: string;
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resumo do periodo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecutionSummary"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["CatalogInconsistent"];
+        };
+    };
+    listOrganizationRequests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pedidos */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["OrganizationRequest"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    approveOrganizationRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                requestId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    responsible: "APPROVER" | "REQUESTER";
+                };
+            };
+        };
+        responses: {
+            /** @description Pedido aprovado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationRequestDecision"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    refuseOrganizationRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                requestId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Pedido recusado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationRequestDecision"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getOrganizationCapacity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Capacidade */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        model: "legacy" | "licensed";
+                        workers: components["schemas"]["CapacityUsage"];
+                        concurrentExecutions: components["schemas"]["CapacityUsage"] & {
+                            /**
+                             * Format: int64
+                             * @description execucoes ativas: remote + platform + previousAgent
+                             */
+                            active: number;
+                            /**
+                             * Format: int64
+                             * @description reservas por situacao incerta: unconfirmed + previousAgentUnconfirmed
+                             */
+                            reservedUncertain: number;
+                            breakdown: {
+                                /** Format: int64 */
+                                remote: number;
+                                /** Format: int64 */
+                                unconfirmed: number;
+                                /** Format: int64 */
+                                platform: number;
+                                /** Format: int64 */
+                                previousAgent: number;
+                                /** Format: int64 */
+                                previousAgentUnconfirmed: number;
+                            };
+                        };
+                        pendingExecutions: components["schemas"]["CapacityUsage"];
+                        /** Format: date-time */
+                        asOf: string;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getLicenseSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resumo das licencas */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LicenseSummary"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["CatalogInconsistent"];
+        };
+    };
+    listOrganizationLicenses: {
+        parameters: {
+            query?: {
+                /** @description Opaco e assinado: base64url(payload) "." base64url(HMAC-SHA256). Vinculado a rota, organizacao, vinculo da sessao, recurso pai, filtros (impressao canonica; limit fora) e ordenacao. Posicao = chave de ordenacao de tamanho limitado (prefixo de 48 pontos de codigo + id, ou campos de tamanho fixo); id da chave como impressao de 11 caracteres. O servidor nunca emite cursor maior que 872 caracteres (pior caso calculado, documento secao 1.5.1); aceita ate 1024. Nao e autoridade: autorizacao reaplicada a cada pagina. Malformado, adulterado, de outra rota/organizacao/vinculo/pai, com filtros ou ordenacao diferentes, ou de chave desconhecida (inclusive apos rotacao da chave) -> 400. Sem expiracao por tempo. Chave: decisao DC-15 (subchave derivada; a rotacao invalida os cursores). */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description fora de 1-100 ou nao inteiro -> 400; pode mudar entre paginas */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pagina de licencas */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationLicensePage"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["CatalogInconsistent"];
+        };
+    };
+    assignLicense: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                licenseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    automationId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Licenca vinculada */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LicenseAssignment"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listAutomationActivations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ativacoes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationActivationList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    activateAutomation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationActivationRequest"];
+            };
+        };
+        responses: {
+            /** @description Resultado de cada ato e a ativacao atualizada */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationActivationOutcome"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getAutomationActivationOptions: {
+        parameters: {
+            query: {
+                workspaceId: string;
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Preparacao */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationActivationOptions"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getAutomationActivation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                automationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ativacao */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationActivation"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    acceptAutomationActivationVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                automationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    automationVersionId: string;
+                    /**
+                     * Format: date-time
+                     * @description So no modelo anterior (obrigatorio nele)
+                     */
+                    validUntil?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Resultado de cada ato e a ativacao atualizada */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationActivationOutcome"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    renewAutomationActivation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                automationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resultado de cada ato e a ativacao atualizada */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationActivationOutcome"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listActivity: {
+        parameters: {
+            query?: {
+                tab?: "in_progress" | "history";
+                workspaceId?: string;
+                automationId?: string;
+                /** @description A maquina (Worker) */
+                workerId?: string;
+                /** @description So em history */
+                from?: string;
+                /** @description So em history; periodo de ate 366 dias */
+                to?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pagina do acompanhamento */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityPage"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listMachineActivity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Atividade por maquina */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MachineActivityList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getLicenseOperatorStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description E operador */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        operator: boolean;
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    createOrganizationByOperator: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    responsibleEmail: string;
+                    name: string;
+                    legalName: string;
+                    justification: string;
+                    /** @description excecao explicita: ultrapassar o limite de organizacoes vazias do responsavel */
+                    exceedEmptyLimit?: boolean;
+                    /** @description obrigatoria com exceedEmptyLimit */
+                    limitJustification?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Criada */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        organizationId: string;
+                        /** @description a criacao ultrapassou o limite de vazias do responsavel, pela excecao explicita */
+                        emptyLimitExceeded: boolean;
+                    };
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getLicenseOperatorOrganization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description a organizacao do cliente (nunca a do operador) */
+                target: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A organizacao */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        organizationId: string;
+                        name: string;
+                        /** @enum {string} */
+                        model: "legacy" | "licensed";
+                        licenses: {
+                            /** Format: uuid */
+                            licenseId: string;
+                            number: number;
+                            /** @enum {string} */
+                            status: "VALID" | "NOT_VALID" | "ENDED";
+                            /** Format: date-time */
+                            validUntil: string | null;
+                            /** Format: uuid */
+                            automationId: string | null;
+                            automationName: string | null;
+                        }[];
+                        automations: {
+                            /** Format: uuid */
+                            automationId: string;
+                            name: string;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listUnresolvedPreviousAgentSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description a organizacao do cliente (nunca a do operador) */
+                target: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description As sessoes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            sessionId: string;
+                            /** Format: uuid */
+                            automationId: string;
+                            automationName: string;
+                            /** @enum {string} */
+                            state: "READY" | "STARTING" | "RUNNING" | "OUTCOME_UNKNOWN";
+                            /** Format: date-time */
+                            registeredAt: string;
+                            /** Format: date-time */
+                            lastReportAt: string;
+                            /** Format: date-time */
+                            previouslyReconciledAt: string | null;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    reconcilePreviousAgentSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description a organizacao do cliente (nunca a do operador) */
+                target: string;
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    justification: string;
+                    verification: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Reconciliada */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        reconciliationId: string;
+                        /** Format: uuid */
+                        sessionId: string;
+                    };
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    previewLicenseEnforcement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                target: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Previa */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LicenseEnforcementPreview"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    grantLicenses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description a organizacao do cliente (nunca a do operador) */
+                target: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    count: number;
+                    /** Format: date-time */
+                    startsAt: string;
+                    /** Format: date-time */
+                    endsAt: string;
+                    justification: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Licencas concedidas */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            licenseId: string;
+                            number: number;
+                        }[];
+                    };
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    renewLicense: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description a organizacao do cliente (nunca a do operador) */
+                target: string;
+                licenseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: date-time */
+                    startsAt?: string;
+                    /** Format: date-time */
+                    endsAt: string;
+                    justification: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Periodo acrescentado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        licenseId: string;
+                        /** Format: uuid */
+                        periodId: string;
+                    };
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    transferLicense: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description a organizacao do cliente (nunca a do operador) */
+                target: string;
+                licenseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    toAutomationId: string;
+                    /** @description o administrador da organizacao que pediu */
+                    requesterEmail: string;
+                    /** @description referencia do chamado no atendimento */
+                    ticketReference: string;
+                    /** @description como o operador confirmou que o pedido veio do solicitante */
+                    identityVerification: string;
+                    justification: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Transferida */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        licenseId: string;
+                        /** Format: uuid */
+                        fromAutomationId: string;
+                        /** Format: uuid */
+                        toAutomationId: string;
+                        /** Format: uuid */
+                        actId: string;
+                    };
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    endLicense: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description a organizacao do cliente (nunca a do operador) */
+                target: string;
+                licenseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    justification: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Encerrada */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    setLicenseEnforcement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description a organizacao do cliente (nunca a do operador) */
+                target: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    model: "licensed" | "legacy";
+                    confirmPreview?: string;
+                    justification: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Modelo alterado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        organizationId: string;
+                        /** @enum {string} */
+                        model: "licensed" | "legacy";
+                        blockedAutomations: number;
+                    };
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listOrganizationAutomations: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["ResourceStatus"][];
+                /** @description Opaco e assinado: base64url(payload) "." base64url(HMAC-SHA256). Vinculado a rota, organizacao, vinculo da sessao, recurso pai, filtros (impressao canonica; limit fora) e ordenacao. Posicao = chave de ordenacao de tamanho limitado (prefixo de 48 pontos de codigo + id, ou campos de tamanho fixo); id da chave como impressao de 11 caracteres. O servidor nunca emite cursor maior que 872 caracteres (pior caso calculado, documento secao 1.5.1); aceita ate 1024. Nao e autoridade: autorizacao reaplicada a cada pagina. Malformado, adulterado, de outra rota/organizacao/vinculo/pai, com filtros ou ordenacao diferentes, ou de chave desconhecida (inclusive apos rotacao da chave) -> 400. Sem expiracao por tempo. Chave: decisao DC-15 (subchave derivada; a rotacao invalida os cursores). */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description fora de 1-100 ou nao inteiro -> 400; pode mudar entre paginas */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pagina de automacoes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationAutomationPage"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["CatalogInconsistent"];
+        };
+    };
     getAutomation: {
         parameters: {
             query?: never;
@@ -6710,6 +11627,188 @@ export interface operations {
             404: components["responses"]["NotFound"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["CatalogInconsistent"];
+        };
+    };
+    portalClientOrganizations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Organizacoes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalClientOrganizationList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    portalSharedAutomations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Automacoes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalSharedAutomationList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    portalSharedSummary: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                automation: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resumo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalSharedSummary"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    portalSharedExecutions: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+                cursor?: string;
+                /** @description fora de 1-100 ou nao inteiro -> 400; pode mudar entre paginas */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                automation: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pagina */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalSharedExecutionPage"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    portalSharedFiles: {
+        parameters: {
+            query?: {
+                automationId?: string;
+                from?: string;
+                to?: string;
+                q?: string;
+                cursor?: string;
+                /** @description fora de 1-100 ou nao inteiro -> 400; pode mudar entre paginas */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pagina */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalSharedFilePage"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    portalSharedFileContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                attempt: string;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Arquivo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     portalListWorkspaces: {
@@ -6995,6 +12094,70 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listRemoteMachines: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                workspace: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Maquinas habilitadas do ambiente */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteMachineList"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listRemoteMachinePythonEnvironments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                workspace: string;
+                /** @description malformado -> 400 */
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ambientes de Python da maquina */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PythonEnvironmentList"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };
@@ -7678,6 +12841,592 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    selectRemoteMachinePython: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                automation: string;
+                /** @description malformado -> 400 */
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    environmentId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Escolha gravada */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemotePythonChoice"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    checkRemoteMachineDependencies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                automation: string;
+                /** @description malformado -> 400 */
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pedido criado, aguardando a maquina */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteDependencyCheck"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listRemoteExecutionCandidates: {
+        parameters: {
+            query: {
+                automationVersion: string;
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                workspace: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Maquinas e o que falta */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteExecutionCandidateList"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listRemoteExecutions: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                workspace: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Solicitacoes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["RemoteExecution"][];
+                    };
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    requestRemoteExecution: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                workspace: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemoteExecutionRequest"];
+            };
+        };
+        responses: {
+            /** @description A mesma solicitacao (repeticao com a mesma chave) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteExecution"];
+                };
+            };
+            /** @description Solicitacao criada, com a primeira tentativa na fila */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteExecution"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listVisibleRemoteExecutions: {
+        parameters: {
+            query?: {
+                workspaceId?: string;
+                automationId?: string;
+                from?: string;
+                to?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Solicitacoes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["RemoteExecution"][];
+                    };
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getRemoteExecution: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                execution: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Solicitacao */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteExecution"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listRemoteAttemptLogs: {
+        parameters: {
+            query?: {
+                after?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                execution: string;
+                /** @description malformado -> 400 */
+                attempt: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Registros da tentativa */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteAttemptLogs"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listRemoteAttemptResults: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                execution: string;
+                /** @description malformado -> 400 */
+                attempt: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resultados da tentativa */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteAttemptResults"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    downloadRemoteAttemptResult: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                execution: string;
+                /** @description malformado -> 400 */
+                attempt: string;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bytes do arquivo */
+            200: {
+                headers: {
+                    /** @description SHA-256 dos bytes */
+                    "Nekkora-Result-Sha256"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    cancelRemoteExecution: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                execution: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Solicitacao com o pedido de cancelamento */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteExecution"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    reconcileRemoteAttempt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                execution: string;
+                /** @description malformado -> 400 */
+                attempt: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    reason: "MACHINE_OFF_OUT_OF_OPERATION" | "PROCESS_ENDED_BY_ADMINISTRATOR" | "OTHER_VERIFIED";
+                    verification: string;
+                    acknowledgePartialEffects: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Solicitacao, com a reconciliacao na tentativa */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteExecution"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    retryRemoteExecution: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                execution: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    agentId: string;
+                    /** @description PLATFORM-LICENCIAMENTO-001 (S2): true e o ACEITE EXPLICITO desta versao nesta maquina, no mesmo passo. Cria a autorizacao da versao para o Worker da maquina se nao houver uma que sirva; mesmo ato, mesmas recusas e mesma trilha da rota de autorizacao. Nunca vale para versoes futuras. Ausente ou false: nada e autorizado. */
+                    authorizeVersion?: boolean;
+                    /**
+                     * Format: date-time
+                     * @description So com authorizeVersion. Obrigatorio na organizacao do modelo anterior; no modelo por licenca e opcional e limitado ao fim da cobertura da licenca.
+                     */
+                    authorizationValidUntil?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Solicitacao com a tentativa nova */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteExecution"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getRuntimeRequirements: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                automation: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Situacao das dependencias */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeRequirements"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    declareRuntimeRequirements: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                automation: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuntimeRequirementsDeclaration"];
+            };
+        };
+        responses: {
+            /** @description Revisao criada */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeRequirements"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    analyzeRuntimeRequirements: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                automation: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    text: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Situacao de cada linha */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeRequirementsAnalysis"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };

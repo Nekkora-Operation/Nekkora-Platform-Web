@@ -161,7 +161,7 @@ async function pick(label: string, file: File) {
   await waitFor(() => expect(screen.getByText(new RegExp(file.name.replace('.', '\\.')))).toBeInTheDocument());
 }
 const NEW_ZIP = 'Arquivo .zip do pacote';
-const PERMS_UNVERIFIED = 'Não foi possível verificar suas permissões neste workspace agora.';
+const PERMS_UNVERIFIED = 'Não foi possível verificar suas permissões neste ambiente de trabalho agora.';
 /** "Tentar novamente" do aviso de permissões não conferidas (há outros botões com o mesmo nome em outras seções). */
 const retryPermissions = () => within(screen.getByText(PERMS_UNVERIFIED).closest('.nk-alert') as HTMLElement).getByRole('button', { name: 'Tentar novamente' });
 const sendNew = () => screen.getByRole('button', { name: 'Enviar o pacote e criar o rascunho' });
@@ -241,7 +241,7 @@ describe('um único rascunho por automação (T09)', () => {
           },
     );
     renderApp(`/o/${ORG}/automacoes/${AUT}/nova-versao`);
-    const alert = await screen.findByText('Não foi possível verificar suas permissões neste workspace agora.');
+    const alert = await screen.findByText('Não foi possível verificar suas permissões neste ambiente de trabalho agora.');
     expect(screen.queryByText(/Você não tem permissão/)).toBeNull();
     expect(screen.queryByLabelText(NEW_ZIP)).toBeNull();
     expect(writes()).toEqual([]);
@@ -250,24 +250,24 @@ describe('um único rascunho por automação (T09)', () => {
     fail = false;
     fireEvent.click(within(box).getByRole('button', { name: 'Tentar novamente' }));
     expect(await screen.findByLabelText(NEW_ZIP)).toBeInTheDocument();
-    expect(screen.queryByText('Não foi possível verificar suas permissões neste workspace agora.')).toBeNull();
+    expect(screen.queryByText('Não foi possível verificar suas permissões neste ambiente de trabalho agora.')).toBeNull();
     expect(writes()).toEqual([]);
   });
 
-  it('permissões do workspace com falha de rede: a automação não esconde Nova versão em silêncio; Tentar novamente recupera', async () => {
+  it('permissões do ambiente de trabalho com falha de rede: a automação não esconde Nova versão em silêncio; Tentar novamente recupera', async () => {
     let fail = true;
     api.on('GET', new RegExp(`/api/v1/o/${ORG}/me/permissions/workspaces`), 'listMyWorkspacePermissions', () =>
       fail ? 'network' : { status: 200, body: { items: [], nextCursor: null } },
     );
     await openAutomation();
-    const alert = await screen.findByText('Não foi possível verificar suas permissões neste workspace agora.');
+    const alert = await screen.findByText('Não foi possível verificar suas permissões neste ambiente de trabalho agora.');
     expect(alert.closest('[role="alert"], [role="status"], .nk-alert')).toHaveTextContent(/Nova versão, Continuar rascunho e a execução local só aparecem depois dessa verificação/);
     expect(screen.queryByRole('button', { name: 'Nova versão' })).toBeNull();
     expect(screen.queryByText(/Você não tem permissão/)).toBeNull();
     fail = false;
     fireEvent.click(retryPermissions());
     expect(await screen.findByRole('button', { name: 'Nova versão' })).toBeInTheDocument();
-    expect(screen.queryByText('Não foi possível verificar suas permissões neste workspace agora.')).toBeNull();
+    expect(screen.queryByText('Não foi possível verificar suas permissões neste ambiente de trabalho agora.')).toBeNull();
     expect(writes()).toEqual([]);
   });
 
@@ -292,11 +292,11 @@ describe('um único rascunho por automação (T09)', () => {
     const route = new RegExp(`/api/v1/o/${ORG}/me/permissions/workspaces`);
     api.on('GET', route, 'listMyWorkspacePermissions', () => (fail ? { status: 429, body: { error: 'rate_limited' } } : { status: 200, body: { items: [], nextCursor: null } }));
     await openAutomation();
-    await screen.findByText('Não foi possível verificar suas permissões neste workspace agora.');
+    await screen.findByText('Não foi possível verificar suas permissões neste ambiente de trabalho agora.');
     const before = api.sent('GET', route).length;
     fireEvent.click(retryPermissions());
     await waitFor(() => expect(api.sent('GET', route).length).toBeGreaterThan(before));
-    expect(await screen.findByText('Não foi possível verificar suas permissões neste workspace agora.')).toBeInTheDocument();
+    expect(await screen.findByText('Não foi possível verificar suas permissões neste ambiente de trabalho agora.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Nova versão' })).toBeNull();
     fail = false;
     fireEvent.click(retryPermissions());

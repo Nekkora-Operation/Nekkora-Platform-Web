@@ -219,10 +219,10 @@ describe('Redefinição de senha (deep link)', () => {
     expect(window.location.href).not.toContain(TOKEN);
     renderApp(RESET);
     const u = user();
-    await u.type(screen.getByLabelText(lbl('Nova senha')), 'uma frase longa e segura');
-    await u.type(screen.getByLabelText(lbl('Confirmar nova senha')), 'uma frase longa e segura');
+    await u.type(screen.getByLabelText(lbl('Nova senha')), 'Frase#Segura2026');
+    await u.type(screen.getByLabelText(lbl('Confirmar nova senha')), 'Frase#Segura2026');
     await u.click(screen.getByRole('button', { name: 'Salvar nova senha' }));
-    expect(await screen.findByRole('heading', { name: 'Senha alterada' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Senha redefinida' })).toBeInTheDocument();
     expect(fake.api().requests.filter((r) => r.path.endsWith('/password-reset/confirm'))).toHaveLength(1);
     await u.click(screen.getByRole('button', { name: 'Voltar para o login' }));
     expect(location()).toBe(LOGIN);
@@ -236,7 +236,7 @@ describe('Redefinição de senha (deep link)', () => {
     await u.type(screen.getByLabelText(lbl('Nova senha')), 'curta');
     await u.type(screen.getByLabelText(lbl('Confirmar nova senha')), 'outra');
     await u.click(screen.getByRole('button', { name: 'Salvar nova senha' }));
-    expect(screen.getByText(/A senha precisa ter entre 12 e 128 caracteres/)).toBeInTheDocument();
+    expect(screen.getByText(/A senha ainda não atende aos requisitos/)).toBeInTheDocument();
     expect(screen.getByText(/As senhas não coincidem/)).toBeInTheDocument();
     expect(fake.api().requests.filter((r) => r.path.endsWith('/password-reset/confirm'))).toHaveLength(0);
   });
@@ -248,8 +248,8 @@ describe('Redefinição de senha (deep link)', () => {
     openLink(RESET, token);
     renderApp(RESET);
     const u = user();
-    await u.type(screen.getByLabelText(lbl('Nova senha')), 'uma frase longa e segura');
-    await u.type(screen.getByLabelText(lbl('Confirmar nova senha')), 'uma frase longa e segura');
+    await u.type(screen.getByLabelText(lbl('Nova senha')), 'Frase#Segura2026');
+    await u.type(screen.getByLabelText(lbl('Confirmar nova senha')), 'Frase#Segura2026');
     await u.click(screen.getByRole('button', { name: 'Salvar nova senha' }));
     expect(await screen.findByRole('heading', { name: 'Este link não é mais válido' })).toBeInTheDocument();
     expect(document.body.textContent).not.toContain(token);
@@ -374,6 +374,7 @@ describe('Sessão', () => {
     await fillLogin('ana@empresa.com', 'senha-muito-segura');
     await user().type(await screen.findByLabelText(lbl('Código de autenticação')), TOTP_OK);
     await screen.findByRole('heading', { name: 'Olá, Ana Souza' });
+    await user().click(screen.getByRole('button', { name: /^Menu da conta: / })); // o sair fica no menu da conta
     await user().click(screen.getByRole('button', { name: 'Sair' }));
     expect(await screen.findByText('Você saiu da sua conta.')).toBeInTheDocument();
     expect(fake.api().hasSession()).toBe(false);

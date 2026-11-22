@@ -1,12 +1,13 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router';
 import { Alert, Button, Input, Link, SectionHeader, Stack, Text } from 'nekkora-lib';
 import { ApiError, hasReason, isApiError } from '../api/http';
-import { createOrganization, identityStepUp } from '../api/identity';
+import { createOrganization, identityStepUp, organizationCreation } from '../api/identity';
 import { identityPath } from '../auth/flow';
 import { StepUpDialog } from '../components/StepUpDialog';
 import { useIdentityArea } from './IdentityArea';
-import { activationLabel } from './labels';
+import { activationLabel, BORN_LICENSED } from './labels';
+import { CANNOT_CREATE, creationRateLimitText } from './OrganizationCreationPanel';
 import type { OrganizationsNavState } from './OrganizationsPage';
 import './identity.css';
 
@@ -26,19 +27,23 @@ export const NAME_TAKEN_TEXT =
 
 function refusalText(e: unknown): string {
   if (hasReason(e, 'conflict', 'organization_name_taken')) return NAME_TAKEN_TEXT;
-  if (isApiError(e, 'rate_limited'))
-    return 'Você atingiu o limite de criações de organização por enquanto. Tente de novo mais tarde. Nada foi criado.';
+  // PLATFORM-LICENCIAMENTO-001: o perfil e os limites decidem no servidor, com o motivo
+  const reason = e instanceof ApiError && (e.code === 'conflict' || e.code === 'forbidden') ? e.reason : undefined;
+  if (reason && CANNOT_CREATE[reason]) return `${CANNOT_CREATE[reason].title} ${CANNOT_CREATE[reason].body} Nada foi criado.`;
+  if (isApiError(e, 'rate_limited')) return creationRateLimitText(e instanceof ApiError ? e.retryAfterSeconds : undefined);
   if (isApiError(e, 'invalid_request')) return 'O nome não foi aceito. Confira os campos. Nada foi criado.';
   if (e instanceof ApiError && e.status === 404) return 'A criação de organizações não está disponível no momento. Nada foi criado.';
   if (isApiError(e, 'service_unavailable')) return 'Serviço temporariamente indisponível. Nada foi criado; tente de novo em instantes.';
-  // 403 é recusa genérica do contrato: teto de organizações, identidade inelegível ou confirmação vencida
-  return 'A criação não foi permitida. Você pode ter atingido o limite de organizações criadas ou a confirmação pode ter vencido. Nada foi criado.';
+  // 403 é recusa genérica do contrato: identidade inelegível ou confirmação vencida
+  return 'A criação não foi permitida. A confirmação pode ter vencido, ou a situação da sua conta mudou. Nada foi criado.';
 }
 
 /**
- * /organizacoes/nova — cria a organização com a identidade como administradora (step-up de até 5 min). Ela nasce
- * AGUARDANDO_ATIVACAO; a ativação é um ato da operação da Nekkora, fora desta interface. `canCreateOrganization` é só
- * indicação: a criação é sempre reconferida pela API.
+ * /organizacoes/nova — cria a organização com a identidade como administradora (step-up de até 5 min). O que a tela diz
+ * antes de criar segue o modelo em que a organização nasce (`newOrganizationLicenseModel`, D7): por licença, nasce pronta
+ * para configurar, sem ativação a esperar e sem depender de autorização da Nekkora; no modelo anterior, nasce aguardando a
+ * ativação pela operação. Sem essa informação (API anterior ou falha na leitura), a tela não afirma nenhum dos dois.
+ * `canCreateOrganization` é só indicação: a criação é sempre reconferida pela API.
  */
 export function CreateOrganizationPage() {
   const { expired } = useIdentityArea();
@@ -60,6 +65,16 @@ export function CreateOrganizationPage() {
     setConfirming(true);
   };
 
+  const [bornModel, setBornModel] = useState<'legacy' | 'licensed' | null>(null);
+  useEffect(() => {
+    let alive = true;
+    organizationCreation()
+      .then((c) => alive && setBornModel(c.newOrganizationLicenseModel ?? null))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
   const waiting = activationLabel('AGUARDANDO_ATIVACAO');
 
   return (
@@ -93,9 +108,16 @@ export function CreateOrganizationPage() {
           onChange={(e) => setLegalName(e.target.value)}
           error={errors.legalName}
         />
-        <Alert tone="info" title={`A organização nasce "${waiting.label.toLowerCase()}".`}>
-          {waiting.description}
-        </Alert>
+        {bornModel === 'licensed' && (
+          <Alert tone="info" title={BORN_LICENSED.title}>
+            {BORN_LICENSED.body}
+          </Alert>
+        )}
+        {bornModel === 'legacy' && (
+          <Alert tone="info" title="A organização nasce aguardando ativação.">
+            {waiting.description}
+          </Alert>
+        )}
         <div className="pw-form__row">
           <Button type="submit" disabled={uncertain}>
             Continuar
@@ -127,8 +149,12 @@ export function CreateOrganizationPage() {
         onOutcome={(kind) => kind === 'uncertain' && setUncertain(true)}
       >
         <Text>
-          A organização é criada com você como administradora ou administrador. Ela fica aguardando a ativação pela
-          operação da Nekkora antes de poder executar automações.
+          A organização é criada com você como administradora ou administrador.{' '}
+          {bornModel === 'licensed'
+            ? 'Ela nasce pronta para configurar, sem depender de aprovação da Nekkora. Para executar e monitorar uma automação, vincule a ela uma licença vigente.'
+            : bornModel === 'legacy'
+              ? 'Ela nasce aguardando a ativação pela operação da Nekkora; até lá, pessoas, ambientes de trabalho e automações já podem ser preparados.'
+              : 'A lista de organizações mostra a disponibilidade de execução dela.'}
         </Text>
       </StepUpDialog>
     </Stack>

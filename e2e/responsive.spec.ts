@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { expect, test, type Page } from '@playwright/test';
 import { createAccount, createOrganization } from './support/mock';
-import { enrollMfa, path, signIn } from './support/app';
+import { enrollMfa, path, signIn, signOut } from './support/app';
 
 const axeSource = readFileSync(createRequire(import.meta.url).resolve('axe-core/axe.min.js'), 'utf8');
 
@@ -60,7 +60,7 @@ test('códigos de recuperação, área autenticada e verificação MFA: acessibi
   const account = await createAccount();
   await signIn(page, account);
   const { auth } = await enrollMfa(page, account, (step) => audit(page, step === 'codes' ? 'mfa-codigos' : 'area-autenticada'));
-  await page.getByRole('button', { name: 'Sair' }).click();
+  await signOut(page);
   await signIn(page, account);
   await expect(page.getByRole('heading', { name: 'Confirme sua identidade' })).toBeVisible();
   await audit(page, 'mfa-verificar');

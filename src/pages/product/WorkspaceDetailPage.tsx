@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { useWorkspacePermissions } from '../../area/useWorkspacePermissions';
 import { PermissionsUnverified } from '../../area/PermissionsUnverified';
 import { LocalRunAuthorizations } from '../agents/LocalRunAuthorizations';
+import { RemoteMachines } from '../agents/RemoteMachines';
 import { Link as RouterLink, useParams } from 'react-router';
 import { Button, Card, DescriptionList, Heading, Link, LoadMore, Stack, StateView, Table, type TableColumn } from 'nekkora-lib';
 import { isApiError } from '../../api/http';
@@ -52,10 +53,10 @@ function WorkspaceDetail({ workspaceId }: { workspaceId: string }) {
     workspace.refresh();
     setRefresh((n) => n + 1);
   };
-  const backLink = { to: back, label: 'Voltar para workspaces' };
+  const backLink = { to: back, label: 'Voltar para ambientes de trabalho' };
 
-  if (gone) return <NotFoundState title="Workspace não encontrado." back={backLink} />;
-  if (workspace.status === 'loading') return <StateView status="loading" title="Carregando workspace…" />;
+  if (gone) return <NotFoundState title="Ambiente de trabalho não encontrado." back={backLink} />;
+  if (workspace.status === 'loading') return <StateView status="loading" title="Carregando ambiente de trabalho…" />;
   if (workspace.status === 'error') {
     return <LoadErrorState error={workspace.error} onRetry={onRefresh} page />;
   }
@@ -94,7 +95,7 @@ function WorkspaceDetail({ workspaceId }: { workspaceId: string }) {
     <Stack gap={6}>
       <PageHeader
         title={w.name}
-        subtitle="Workspace"
+        subtitle="Ambiente de trabalho"
         back={backLink}
         onRefresh={onRefresh}
         refreshing={workspace.refreshing}
@@ -119,14 +120,16 @@ function WorkspaceDetail({ workspaceId }: { workspaceId: string }) {
             ]}
           />
           <div className="pw-prod__links">
-            <Link as={RouterLink} to={`${orgPath.executions(org)}?workspace=${encodeURIComponent(w.workspaceId)}`} arrow>
-              Ver execuções deste workspace
+            <Link as={RouterLink} to={`${orgPath.executions(org)}?aba=historico&workspace=${encodeURIComponent(w.workspaceId)}`} arrow>
+              Ver execuções deste ambiente de trabalho
             </Link>
           </div>
         </Stack>
       </Card>
 
       <LocalRunAuthorizations workspaceId={w.workspaceId} canExecute={perms.status === 'ready' && perms.has('automation.execute')} />
+
+      {perms.status === 'ready' && perms.has('automation.execute') && <RemoteMachines workspaceId={w.workspaceId} />}
 
       <section className="pw-prod__section" aria-labelledby="automacoes-titulo">
         <Heading level={2} id="automacoes-titulo" className="pw-prod__section-title">
@@ -137,10 +140,10 @@ function WorkspaceDetail({ workspaceId }: { workspaceId: string }) {
         ) : automations.status === 'error' ? (
           <LoadErrorState error={automations.error} onRetry={automations.reload} />
         ) : automations.items.length === 0 ? (
-          <StateView status="neutral" title="Nenhuma automação neste workspace." />
+          <StateView status="neutral" title="Nenhuma automação neste ambiente de trabalho." />
         ) : (
           <>
-            <div className="pw-prod__scroll" role="region" aria-label="Automações do workspace" tabIndex={0}>
+            <div className="pw-prod__scroll" role="region" aria-label="Automações do ambiente de trabalho" tabIndex={0}>
               <Table columns={columns} data={automations.items} rowKey="automationId" size="sm" caption="Automações em ordem alfabética." />
             </div>
             <LoadMore

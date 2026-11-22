@@ -1,6 +1,8 @@
+import { isLicenseOperator } from '../api/licenseOperations';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink, Outlet, useLocation } from 'react-router';
-import { Alert, AppShell, Button, Link, Logo, Text, type AppNavGroup } from 'nekkora-lib';
+import { Alert, AppShell, Button, Link, Logo, Text, UserMenu, type AppNavGroup } from 'nekkora-lib';
+import { ThemeCycleButton } from '../components/AppearanceSection';
 import { isApiError } from '../api/http';
 import { getMyPermissions } from '../api/permissions';
 import { myOrganizations } from '../api/identity';
@@ -9,7 +11,7 @@ import { identityPath } from '../auth/flow';
 import { OperationScopeProvider, type OperationScopeValue } from '../components/operationScope';
 import { setPersistentScope } from '../admin/writeStore';
 import { orgPath, shortOrganizationId } from '../auth/organization';
-import { VersionFooter } from '../components/VersionInfo';
+import { ProductFooter, ProductFooterCompact } from '../components/VersionInfo';
 import { useSession } from './session';
 import { useVisibleWorkspaces, type VisibleWorkspaces } from './useVisibleWorkspaces';
 import './InternalShell.css';
@@ -41,18 +43,24 @@ export function useInternalArea(): InternalArea {
 const MAIN_ID = 'conteudo';
 
 /** Seção da área interna a que o endereço pertence (menu ativo e título do topo). */
-function sectionOf(pathname: string, org: string): 'inicio' | 'conta' | 'execucoes' | 'workspaces' | 'membros' | 'clientes' | 'concessoes' | 'convites' | 'auditoria' | 'workers' | 'supervisao' | null {
+function sectionOf(pathname: string, org: string): 'inicio' | 'conta' | 'execucoes' | 'workspaces' | 'pessoas' | 'workers' | 'operador' | 'licencas' | 'pedidos' | null {
   if (pathname === orgPath.home(org)) return 'inicio';
   const rest = pathname.slice(orgPath.home(org).length);
-  if (rest === '/execucoes' || rest.startsWith('/execucoes/')) return 'execucoes';
+  if (rest === '/execucoes' || rest.startsWith('/execucoes/') || rest.startsWith('/execucoes-remotas/') || rest.startsWith('/execucoes-locais/')) return 'execucoes';
   if (rest === '/workspaces' || rest.startsWith('/workspaces/') || rest.startsWith('/automacoes/') || rest.startsWith('/versoes/')) return 'workspaces';
-  if (rest === '/administracao/membros' || rest.startsWith('/administracao/membros/')) return 'membros';
-  if (rest === '/administracao/convites') return 'convites';
+  // PLATFORM-FLUXO-002: Membros, Convites, Clientes, Concessões e Auditoria de acessos ficam em "Pessoas e acessos"
+  // (os endereços antigos redirecionam)
+  if (
+    rest === '/administracao/pessoas' ||
+    rest.startsWith('/administracao/pessoas/') ||
+    rest.startsWith('/administracao/membros') ||
+    ['/administracao/convites', '/administracao/clientes', '/administracao/concessoes', '/administracao/auditoria'].includes(rest)
+  )
+    return 'pessoas';
   if (rest === '/workers') return 'workers';
-  if (rest === '/supervisao' || rest.startsWith('/supervisao/')) return 'supervisao';
-  if (rest === '/administracao/auditoria') return 'auditoria';
-  if (rest === '/administracao/clientes') return 'clientes';
-  if (rest === '/administracao/concessoes') return 'concessoes';
+  if (rest === '/administracao/licencas') return 'licencas';
+  if (rest === '/administracao/pedidos-de-organizacao') return 'pedidos';
+  if (rest === '/operador-de-licencas') return 'operador';
   if (rest === '/conta') return 'conta';
   return null;
 }
@@ -60,21 +68,21 @@ function sectionOf(pathname: string, org: string): 'inicio' | 'conta' | 'execuco
 /** Título da página atual, para o topo do shell. */
 function titleFor(pathname: string, org: string): string {
   const rest = pathname.slice(orgPath.home(org).length);
+  if (rest.startsWith('/execucoes-remotas/')) return 'Execução remota';
+  if (rest.startsWith('/execucoes-locais/')) return 'Execução local';
   if (rest.startsWith('/execucoes/')) return 'Execução';
   if (rest === '/execucoes') return 'Execuções';
-  if (rest.startsWith('/workspaces/')) return 'Workspace';
-  if (rest === '/workspaces') return 'Workspaces';
+  if (rest.startsWith('/workspaces/')) return 'Ambiente de trabalho';
+  if (rest === '/workspaces') return 'Ambientes de trabalho';
   if (rest.startsWith('/automacoes/')) return 'Automação';
   if (rest.startsWith('/versoes/')) return 'Versão';
-  if (rest === '/administracao/membros') return 'Membros';
-  if (rest.startsWith('/administracao/membros/')) return 'Acessos do membro';
-  if (rest === '/administracao/convites') return 'Convites';
-  if (rest === '/workers') return 'Workers';
-  if (rest === '/supervisao') return 'Supervisão';
-  if (rest.startsWith('/supervisao/')) return 'Execução local';
-  if (rest === '/administracao/auditoria') return 'Auditoria de acessos';
-  if (rest === '/administracao/clientes') return 'Clientes';
-  if (rest === '/administracao/concessoes') return 'Concessões';
+  if (rest === '/administracao/pessoas/clientes' || rest === '/administracao/clientes') return 'Clientes';
+  if (rest === '/administracao/pessoas/acessos' || rest === '/administracao/concessoes' || rest === '/administracao/auditoria') return 'Acessos e histórico';
+  if (rest === '/administracao/pessoas' || rest.startsWith('/administracao/membros') || rest === '/administracao/convites') return 'Pessoas e acessos';
+  if (rest === '/workers') return 'Máquinas';
+  if (rest === '/administracao/licencas') return 'Licenças e automações';
+  if (rest === '/administracao/pedidos-de-organizacao') return 'Pedidos de organização';
+  if (rest === '/operador-de-licencas') return 'Operador de licenças';
   if (rest === '/conta') return 'Minha conta';
   return 'Início';
 }
@@ -118,6 +126,18 @@ export function InternalShell() {
   const orgLabel = orgName ?? shortOrganizationId(org);
   const { pathname } = useLocation();
   const [permissions, setPermissions] = useState<PermissionsState>({ status: 'loading' });
+  // uma pergunta por organização da sessão; qualquer recusa (404 fora da organização interna, 403 sem cadastro) = não é operador
+  const [operator, setOperator] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    setOperator(false);
+    void isLicenseOperator(org).then((yes) => {
+      if (alive) setOperator(yes);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [org]);
   const generation = useRef(0);
   const { workspaces, reloadWorkspaces, loadMoreWorkspaces, restartWorkspaces } = useVisibleWorkspaces(org, expired);
   const section = sectionOf(pathname, org);
@@ -169,7 +189,7 @@ export function InternalShell() {
       id: 'produto',
       label: 'Produto',
       items: [
-        { id: 'workspaces', label: 'Workspaces', href: orgPath.workspaces(org), icon: 'workspace', active: section === 'workspaces' },
+        { id: 'workspaces', label: 'Ambientes de trabalho', href: orgPath.workspaces(org), icon: 'workspace', active: section === 'workspaces' },
         { id: 'execucoes', label: 'Execuções', href: orgPath.executions(org), icon: 'executions', active: section === 'execucoes' },
       ],
     },
@@ -177,12 +197,12 @@ export function InternalShell() {
       id: 'execucao-local',
       label: 'Execução local',
       items: [
-        { id: 'supervisao', label: 'Supervisão', href: orgPath.agentRuns(org), icon: 'pulse', active: section === 'supervisao' },
+        // PLATFORM-FLUXO-002: o acompanhamento (antes Supervisão) ficou em Execuções, com as abas Em andamento e Histórico
         // PLATFORM-AGENT-V2-002, T07: Workers é a entrada única (a máquina vinculada é gerida na linha do Worker); /agents leva até lá.
         // R1: quem administra só Agents (agent.manage) também entra, para as ações que tinha na antiga tela de Agents.
         ...(permissions.status === 'ready' &&
         (permissions.data.organization.permissions.includes('worker.manage') || permissions.data.organization.permissions.includes('agent.manage'))
-          ? [{ id: 'workers', label: 'Workers', href: orgPath.workers(org), icon: 'server' as const, active: section === 'workers' }]
+          ? [{ id: 'workers', label: 'Máquinas', href: orgPath.workers(org), icon: 'server' as const, active: section === 'workers' }]
           : []),
       ],
     },
@@ -198,23 +218,37 @@ export function InternalShell() {
   if (permissions.status === 'ready') {
     const has = (p: PermissionCode) => permissions.data.organization.permissions.includes(p);
     const admin: AppNavGroup['items'] = [];
-    if (has('org.manage')) admin.push({ id: 'membros', label: 'Membros', href: orgPath.members(org), icon: 'users', active: section === 'membros' });
-    if (has('org.manage')) admin.push({ id: 'convites', label: 'Convites', href: orgPath.invitations(org), icon: 'mail', active: section === 'convites' });
+    // PLATFORM-FLUXO-002: Clientes, Concessões e Auditoria de acessos saíram do menu; ficam em "Pessoas e acessos"
+    // ("Gerenciar clientes" e "Acessos e histórico"). Quem só gerencia acesso de clientes também chega por aqui.
     if (has('org.manage') || has('external_access.manage'))
-      admin.push({ id: 'clientes', label: 'Clientes', href: orgPath.clients(org), icon: 'building', active: section === 'clientes' });
-    if (has('external_access.manage'))
-      admin.push({ id: 'concessoes', label: 'Concessões', href: orgPath.grants(org), icon: 'key', active: section === 'concessoes' });
+      admin.push({
+        id: 'pessoas',
+        label: 'Pessoas e acessos',
+        href: has('org.manage') ? orgPath.people(org) : orgPath.accessHistory(org),
+        icon: 'users',
+        active: section === 'pessoas',
+      });
+    // PLATFORM-LICENCIAMENTO-001: licenças e capacidade, e os pedidos de criação de organização feitos a esta
     if (has('org.manage'))
-      admin.push({ id: 'auditoria', label: 'Auditoria de acessos', href: orgPath.accessEvents(org), icon: 'file', active: section === 'auditoria' });
+      admin.push({ id: 'licencas', label: 'Licenças e automações', href: orgPath.licenses(org), icon: 'key', active: section === 'licencas' });
+    if (has('org.manage'))
+      admin.push({ id: 'pedidos', label: 'Pedidos de organização', href: orgPath.organizationRequests(org), icon: 'building', active: section === 'pedidos' });
     if (admin.length) nav.push({ id: 'administracao', label: 'Administração', items: admin });
   }
+  // PLATFORM-LICENCIAMENTO-001: a área do operador só aparece para quem a API reconhece como operador de licenças da Nekkora
+  if (operator)
+    nav.push({
+      id: 'operacao-nekkora',
+      label: 'Suporte Nekkora',
+      items: [{ id: 'operador', label: 'Operador de licenças', href: orgPath.licenseOperator(org), icon: 'key', active: section === 'operador' }],
+    });
 
   const access =
     permissions.status === 'ready'
       ? permissions.data.organization.roles.includes('ORG_ADMIN')
         ? 'Administração da organização'
         : permissions.data.hasWorkspaceAssignments
-          ? 'Acesso por workspace'
+          ? 'Acesso por ambiente de trabalho'
           : 'Sem atribuições de acesso'
       : null;
 
@@ -222,6 +256,7 @@ export function InternalShell() {
     <InternalContext.Provider value={{ organizationName: orgName, permissions, workspaces, reloadWorkspaces, loadMoreWorkspaces, restartWorkspaces, reloadPermissions: loadPermissions }}>
       <OperationScopeProvider value={operationScope}>
       <AppShell
+        layout="header"
         className="pw-shell"
         brand={<Logo variant="full" size={24} />}
         brandHref={orgPath.home(org)}
@@ -239,27 +274,27 @@ export function InternalShell() {
               {orgLabel}
               {orgHandle && <span className="pw-shell__org-handle"> · {orgHandle}</span>}
             </span>
-            <Link as={RouterLink} to={identityPath.organizations} size="sm" variant="subtle">
-              Trocar organização
-            </Link>
-            <Link as={RouterLink} to={orgPath.account(org)} size="sm" variant="subtle" className="pw-shell__name" aria-label={`Minha conta (${me.displayName})`}>
-              {me.displayName}
-            </Link>
-            <Button variant="ghost" size="sm" leftIcon="arrow-right" loading={signingOut} onClick={() => void signOut()}>
-              Sair
-            </Button>
+            <ThemeCycleButton />
+            {/* conta de quem está logado: nome, acesso (só informa; quem decide é a API), atalhos e sair */}
+            <UserMenu
+              name={me.displayName}
+              accountLevel={access ?? undefined}
+              accountLevelLabel="Acesso nesta organização"
+              onSignOut={signingOut ? undefined : () => void signOut()}
+            >
+              <div className="pw-shell__menu-links">
+                <Link as={RouterLink} to={orgPath.account(org)} size="sm">
+                  Minha conta
+                </Link>
+                <Link as={RouterLink} to={identityPath.organizations} size="sm">
+                  Trocar organização
+                </Link>
+              </div>
+            </UserMenu>
           </div>
         }
-        sidebarFooter={
-          <div className="pw-shell__footer">
-            <span className="pw-shell__footer-name">{me.displayName}</span>
-            <span className="pw-shell__footer-org" title={org}>
-              Organização {orgLabel}
-            </span>
-            {access && <span className="pw-shell__footer-access">{access}</span>}
-            <VersionFooter />
-          </div>
-        }
+        sidebarFooterCompact={<ProductFooterCompact />}
+        sidebarFooter={<ProductFooter />}
       >
         {permissions.status === 'error' && (
           <Alert

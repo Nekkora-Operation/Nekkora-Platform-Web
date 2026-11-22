@@ -54,15 +54,15 @@ test('MFA opcional: conta sem MFA, ação sensível com senha, convite e papel, 
   const org = /\/o\/([0-9a-f-]{36})/.exec(admin.url())![1];
   await expect(admin.getByLabel(`Organização aberta: ${orgName}`)).toBeVisible();
   await expect(admin.getByText('Organização aguardando ativação')).toBeVisible();
-  await expect(admin.getByRole('heading', { name: 'Criar primeiro workspace' })).toBeVisible();
+  await expect(admin.getByRole('heading', { name: 'Criar primeiro ambiente de trabalho' })).toBeVisible();
   await expect(admin.getByText(/operação da Nekkora/).first()).toBeVisible();
 
   // workspace (sem confirmação extra: não é ação que pede step-up)
   await admin.goto(`/o/${org}/workspaces`);
-  await admin.getByRole('button', { name: 'Criar workspace' }).click();
+  await admin.getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   const wsName = `Financeiro ${tag}`;
   await admin.getByRole('alertdialog').getByLabel(/^Nome/).fill(wsName);
-  await admin.getByRole('alertdialog').getByRole('button', { name: 'Criar workspace' }).click();
+  await admin.getByRole('alertdialog').getByRole('button', { name: 'Criar ambiente de trabalho' }).click();
   await expect(admin).toHaveURL(new RegExp(`/o/${org}/workspaces/[0-9a-f-]{36}$`));
   const workspaceId = /workspaces\/([0-9a-f-]{36})/.exec(admin.url())![1];
 
@@ -72,8 +72,8 @@ test('MFA opcional: conta sem MFA, ação sensível com senha, convite e papel, 
   // convite (ação sensível na organização): o diálogo pede a SENHA
   await admin.goto(`/o/${org}/administracao/convites`);
   await admin.getByLabel(/^E-mail da pessoa/).fill(bia.email);
-  await admin.getByLabel(/^Papel/).selectOption('OPERATOR');
-  await admin.getByLabel(/^Workspace do papel/).selectOption(workspaceId);
+  await admin.getByLabel(/^(Papel|Perfil)/).selectOption('OPERATOR');
+  await admin.getByLabel(/^Ambiente de trabalho do (papel|perfil)/).selectOption(workspaceId);
   await admin.getByRole('button', { name: 'Convidar' }).click();
   await confirmPassword(admin, ana.password, 'Enviar convite');
   await expect(admin.getByText('Convite enviado.')).toBeVisible();

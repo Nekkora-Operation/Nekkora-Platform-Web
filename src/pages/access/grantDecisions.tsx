@@ -184,7 +184,7 @@ export function GrantDecisionDialog({
         }
         refusalText={refusal}
       >
-        <Text>{again ? 'Cria um pedido novo para a mesma conta e workspace.' : 'O acesso atual não muda até a aprovação de outra pessoa.'}</Text>
+        <Text>{again ? 'Cria um pedido novo para a mesma conta e ambiente de trabalho.' : 'O acesso atual não muda até a aprovação de outra pessoa.'}</Text>
         {!again && (
           <Alert tone="info" live="off">
             Aprovar a renovação ainda não está disponível nesta tela: a Platform não mostra o pedido pendente a quem

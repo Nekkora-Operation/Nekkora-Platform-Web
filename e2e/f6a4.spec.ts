@@ -43,7 +43,7 @@ async function setup(page: Page) {
   const admin = await control<RoleAccount>('accounts', { org, mfa: true, orgRoles: ['ORG_ADMIN'], displayName: 'Admin F6a4' });
   const alvo = await control<RoleAccount>('accounts', { org, mfa: true, displayName: ALVO });
   const auth = await login(page, org, admin, 'Admin F6a4');
-  await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Membros' }).click();
+  await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Pessoas e acessos' }).click();
   await expect(page.getByRole('button', { name: `Redefinir MFA de ${ALVO}` })).toBeVisible();
   return { org, admin, alvo, auth };
 }
@@ -169,9 +169,10 @@ test('transporte: redefinição aplicada e resposta perdida → incerto; conferi
   await expect(panel(page)).toContainText('não confirma o resultado do pedido');
 
   const nav = page.getByRole('navigation', { name: 'Navegação principal' });
-  await nav.getByRole('link', { name: 'Clientes' }).click();
-  await expect(page).toHaveURL(`/o/${org}/administracao/clientes`);
-  await nav.getByRole('link', { name: 'Membros' }).click();
+  // PLATFORM-FLUXO-002 (070): "Gerenciar clientes" fica dentro de "Pessoas e acessos"
+  await page.getByRole('link', { name: 'Gerenciar clientes' }).click();
+  await expect(page).toHaveURL(`/o/${org}/administracao/pessoas/clientes`);
+  await nav.getByRole('link', { name: 'Pessoas e acessos' }).click();
   await expect(panel(page)).toContainText(`Redefinição de MFA de ${ALVO}: resultado não confirmado.`);
 
   await panel(page).getByRole('button', { name: /^Tentar de novo/ }).click();
@@ -203,7 +204,7 @@ test('duas abas no mesmo navegador — outra aba entra com outra conta: a aba an
   await expect(panel(page)).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Redefinir|Conferir|Tentar de novo/ })).toHaveCount(0);
 
-  await other.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Membros' }).click();
+  await other.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Pessoas e acessos' }).click();
   await expect(other.getByRole('button', { name: `Redefinir MFA de ${ALVO}` })).toBeVisible();
   await expect(panel(other)).toHaveCount(0);
 });

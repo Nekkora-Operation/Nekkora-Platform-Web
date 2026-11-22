@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Badge, Button, Card, Heading, Input, Select, StateView, Table, Text, type TableColumn } from 'nekkora-lib';
+import { Alert, Badge, Button, Heading, StateView, Table, Text, type TableColumn } from 'nekkora-lib';
 import {
-  createLocalRunAuthorization,
-  createMonitoringAuthorization,
   listAgents,
   listLocalRunAuthorizations,
   listWorkers,
@@ -13,23 +11,17 @@ import {
 } from '../../api/agents';
 import { RunRequestDialog, RunRequestPanel } from './runRequests';
 import { SOURCE_KIND } from './supervision';
-import { hasReason, isApiError } from '../../api/http';
+import { isApiError } from '../../api/http';
 import { useSession } from '../../area/session';
 import { orgPath } from '../../auth/organization';
 import { StepUpDialog } from '../../components/StepUpDialog';
-import { accessRefusal, orgStepUp } from '../access/shared';
+import { accessRefusal } from '../access/shared';
+import { useInternalArea } from '../../area/InternalShell';
 import { DateTimeText, LoadErrorState, RouteLink } from '../product/shared';
 
-const MAX_DAYS = 366;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const short = (v: string | undefined) => (v ? `${v.slice(0, 8)}…` : '—');
-const dayFromNow = (days: number) => {
-  const d = new Date(Date.now() + days * 86_400_000);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
 
 /** Data curta para textos de opção (os <option> não aceitam componente). */
-const dateText = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '—');
 
 /**
  * PLATFORM-AGENT-V2-003, T12 (API 033): no máximo UMA autorização vigente por escopo — o Worker no workspace e a versão
@@ -67,11 +59,8 @@ export function LocalRunAuthorizations({
   const { org, expired } = useSession();
   const [list, setList] = useState<{ status: 'loading' } | { status: 'ready'; items: LocalRunAuthorization[] } | { status: 'error'; error: unknown }>({ status: 'loading' });
   const [workers, setWorkers] = useState<Worker[] | null>(null);
-  const [workerId, setWorkerId] = useState('');
-  const [until, setUntil] = useState(dayFromNow(30));
-  const [creating, setCreating] = useState(false);
   const [revoking, setRevoking] = useState<LocalRunAuthorization | null>(null);
-  const [agents, setAgents] = useState<Agent[]>([]);
+  const [agents, setAgents] = useState<Agent[] | null>([]);
   const [executing, setExecuting] = useState<LocalRunAuthorization | null>(null);
   const [requests, setRequests] = useState<string[]>([]);
   const [notice, setNotice] = useState<{ tone: 'success' | 'warning'; text: string } | null>(null);
@@ -100,7 +89,8 @@ export function LocalRunAuthorizations({
     // máquinas para o "Executar" (agent.read); sem a permissão, o botão fica sem opção de máquina
     listAgents(org).then(
       (a) => setAgents(a.items),
-      () => setAgents([]),
+      // sem a permissão não há máquinas a oferecer; qualquer outra falha é "não foi possível ler", não "nenhuma máquina"
+      (e) => setAgents(isApiError(e, 'forbidden') ? [] : null),
     );
     return () => {
       generation.current++;
@@ -116,34 +106,9 @@ export function LocalRunAuthorizations({
         )
       : [];
   const workerName = (id?: string) => workers?.find((w) => w.workerId === id)?.name ?? short(id);
-  /** T12: a autorização VIGENTE deste escopo para o Worker (a lista já está filtrada pela versão ou pela automação). */
-  const currentFor = (id: string) => (list.status === 'ready' ? items.find((a) => a.workerId === id && stateOf(a).label === 'Vigente') : undefined);
-  const eligible = (workers ?? []).filter((w) => w.status === 'ACTIVE' && w.workspaceIds?.includes(workspaceId));
-  const untilDate = until ? new Date(`${until}T23:59:59`) : null;
-  const untilOk = !!untilDate && untilDate.getTime() > Date.now() && untilDate.getTime() <= Date.now() + MAX_DAYS * 86_400_000;
-  const current = UUID.test(workerId) ? currentFor(workerId) : undefined;
-  // só oferece criar com a lista conferida: sem ela, a tela não sabe se já há uma vigente (o servidor recusa de qualquer forma)
-  const canCreate = list.status === 'ready' && UUID.test(workerId) && untilOk && !current;
-  const scopeText = automation ? 'o monitoramento desta automação' : 'esta versão';
-  const workerOptions = eligible.map((w) => {
-    const c = currentFor(w.workerId!);
-    return { value: w.workerId!, label: c ? `${w.name ?? w.workerId!} (já autorizado até ${dateText(c.validUntil)})` : (w.name ?? w.workerId!) };
-  });
-  const existsText = `Este Worker já tem uma autorização vigente para ${scopeText}. Nada foi criado: a autorização atual aparece na lista abaixo. Para autorizar de novo, revogue a atual ou aguarde o vencimento.`;
-  const currentNotice = current ? (
-    <Alert tone="info" live="polite" title="Já autorizado">
-      Este Worker já tem uma autorização vigente para {scopeText}, válida até <DateTimeText iso={current.validUntil} />. Não é preciso autorizar de novo. Para
-      trocar a validade, revogue a atual na lista abaixo e autorize outra; depois do vencimento, uma nova autorização pode ser feita.
-    </Alert>
-  ) : list.status === 'error' && UUID.test(workerId) ? (
-    <Text variant="body-sm" color="secondary">
-      Não foi possível conferir as autorizações atuais. Tente carregar a lista de novo antes de autorizar.
-    </Text>
-  ) : null;
-  const onRefused = (k: string) => {
-    // releitura depois da recusa (inclusive a da autorização já vigente): a tela mostra o estado atual, sem presumir quem criou
-    if (k === 'refused') void load();
-  };
+  // PLATFORM-FLUXO-002: a criação manual saiu desta tela; a ativação (Licenças e automações) emite as autorizações
+  const { permissions } = useInternalArea();
+  const canManage = permissions.status === 'ready' && permissions.data.organization.permissions.includes('org.manage');
 
   const columns: TableColumn<LocalRunAuthorization>[] = [
     { key: 'estado', header: 'Situação', render: (a) => <Badge tone={stateOf(a).tone}>{stateOf(a).label}</Badge> },
@@ -157,7 +122,7 @@ export function LocalRunAuthorizations({
           },
         ]),
     { key: 'origem', header: 'Origem', render: (a) => (a.sourceKind ? SOURCE_KIND[a.sourceKind] : '—') },
-    { key: 'worker', header: 'Worker', render: (a) => workerName(a.workerId) },
+    { key: 'worker', header: 'Máquina', render: (a) => workerName(a.workerId) },
     {
       key: 'impressao',
       header: 'Impressão do pacote',
@@ -171,7 +136,7 @@ export function LocalRunAuthorizations({
         canExecute && stateOf(a).label === 'Vigente' ? (
           <span className="pw-form__row">
             {a.sourceKind !== 'EXTERNAL_MONITORED' && (
-              <Button size="sm" onClick={() => setExecuting(a)} aria-label={`Executar na máquina do Worker ${workerName(a.workerId)}`}>
+              <Button size="sm" onClick={() => setExecuting(a)} aria-label={`Executar na máquina ${workerName(a.workerId)}`}>
                 Executar
               </Button>
             )}
@@ -190,83 +155,17 @@ export function LocalRunAuthorizations({
       </Heading>
       {notice && <Alert tone={notice.tone}>{notice.text}</Alert>}
 
-      {version && canExecute && (
-        <Card variant="outlined" padding="lg">
-          <div className="pw-identity__form">
-            <Text>
-              Autorize um Worker a executar esta versão publicada{version.fingerprint ? ' (pacote de impressão ' : ''}
-              {version.fingerprint && <code className="pw-hash">{short(version.fingerprint)}</code>}
-              {version.fingerprint ? ')' : ''}. Isso não inicia nada.
-            </Text>
-            {workers ? (
-              <Select
-                label="Worker autorizado neste workspace"
-                fullWidth
-                value={workerId}
-                placeholder={eligible.length ? 'Escolha um Worker' : 'Nenhum Worker autorizado neste workspace'}
-                onChange={(e) => setWorkerId(e.target.value)}
-                options={workerOptions}
-                hint="Só Workers ativos e autorizados no workspace (tela de Workers)."
-              />
-            ) : (
-              <Input
-                label="Identificador do Worker"
-                fullWidth
-                value={workerId}
-                onChange={(e) => setWorkerId(e.target.value.trim())}
-                hint="Sem permissão para listar Workers: informe o identificador recebido de quem administra os Workers."
-                error={workerId && !UUID.test(workerId) ? 'Formato 8-4-4-4-12.' : undefined}
-              />
-            )}
-            <Input label="Vale até" type="date" fullWidth value={until} onChange={(e) => setUntil(e.target.value)} hint="Data futura, até 366 dias." error={until && !untilOk ? 'Escolha uma data futura dentro de 366 dias.' : undefined} />
-            {currentNotice}
-            <div>
-              <Button disabled={!canCreate} onClick={() => setCreating(true)}>
-                Autorizar execução local
-              </Button>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {automation && canExecute && (
-        <Card variant="outlined" padding="lg">
-          <div className="pw-identity__form">
-            <Text>
-              Monitore um Python que o agendador do cliente já executa: autorize um Worker a reportar as execuções desta automação. A Platform não recebe o
-              código, os caminhos nem os argumentos; o vínculo com o interpretador, o script e a pasta é aprovado na máquina (comando vincular do Agent).
-            </Text>
-            {workers ? (
-              <Select
-                label="Worker autorizado neste workspace"
-                fullWidth
-                value={workerId}
-                placeholder={eligible.length ? 'Escolha um Worker' : 'Nenhum Worker autorizado neste workspace'}
-                onChange={(e) => setWorkerId(e.target.value)}
-                options={workerOptions}
-              />
-            ) : (
-              <Input
-                label="Identificador do Worker"
-                fullWidth
-                value={workerId}
-                onChange={(e) => setWorkerId(e.target.value.trim())}
-                error={workerId && !UUID.test(workerId) ? 'Formato 8-4-4-4-12.' : undefined}
-              />
-            )}
-            <Input label="Vale até" type="date" fullWidth value={until} onChange={(e) => setUntil(e.target.value)} hint="Data futura, até 366 dias." error={until && !untilOk ? 'Escolha uma data futura dentro de 366 dias.' : undefined} />
-            <Text variant="body-sm" color="secondary">
-              Identificador da automação para o comando vincular: <code className="pw-hash">{automation.automationId}</code>
-            </Text>
-            {currentNotice}
-            <div>
-              <Button disabled={!canCreate} onClick={() => setCreating(true)}>
-                Autorizar monitoramento
-              </Button>
-            </div>
-          </div>
-        </Card>
-      )}
+      <Alert tone="info" title={automation ? 'O monitoramento é liberado pela ativação da automação.' : 'A execução desta versão é liberada pela ativação da automação.'}>
+        Quem administra a organização ativa a automação em Administração › Licenças e automações: escolhe as máquinas e, em um passo, libera a
+        execução e o monitoramento, com a licença. Uma versão nova é aceita em “Gerenciar ativação”.{' '}
+        {canManage && <RouteLink to={orgPath.licenses(org)}>Abrir Licenças e automações</RouteLink>}
+        {automation && (
+          <>
+            {' '}
+            Identificador da automação para o comando vincular do Agent: <code className="pw-hash">{automation.automationId}</code>
+          </>
+        )}
+      </Alert>
 
       {requests.map((rid) => (
         <RunRequestPanel key={rid} runRequestId={rid} />
@@ -278,82 +177,13 @@ export function LocalRunAuthorizations({
         (items.length === 0 ? (
           <StateView
             status="neutral"
-            title={automation ? 'Esta automação ainda não tem monitoramento autorizado.' : version ? 'Esta versão ainda não tem autorizações.' : 'Nenhuma autorização de execução local neste workspace.'}
+            title={automation ? 'Esta automação ainda não tem monitoramento autorizado.' : version ? 'Esta versão ainda não tem autorizações.' : 'Nenhuma autorização de execução local neste ambiente de trabalho.'}
           />
         ) : (
           <div className="pw-prod__scroll" role="region" aria-label="Autorizações de execução local" tabIndex={0}>
             <Table columns={columns} data={items} rowKey="authorizationId" size="sm" caption="Autorizações de execução local." />
           </div>
         ))}
-
-      {version && (
-        <StepUpDialog
-          open={creating}
-          title={`Autorizar a execução local da versão ${version.versionNumber ?? ''}?`}
-          guard={{ operation: 'local-run.authorize', target: `${version.automationVersionId}|${workerId}` }}
-          confirmLabel="Autorizar execução local"
-          stepUp={orgStepUp(org)}
-          action={() => createLocalRunAuthorization(org, workspaceId, { workerId, automationVersionId: version.automationVersionId, validUntil: untilDate!.toISOString() })}
-          onDone={() => {
-            setCreating(false);
-            setNotice({
-              tone: 'success',
-              text: 'Execução local autorizada. Nada foi iniciado: o Agent recebe a autorização na próxima conexão, o pacote precisa estar na máquina e o início é confirmado pela pessoa no Agent. Acompanhe em Supervisão.',
-            });
-            void load();
-          }}
-          onClose={() => setCreating(false)}
-          refusalText={(e) =>
-            hasReason(e, 'conflict', EXISTS_REASON)
-              ? existsText
-              : accessRefusal(e, {
-                  conflict: 'A versão não está publicada com pacote, o Worker não está autorizado neste workspace, ou a automação/workspace não está ativo.',
-                })
-          }
-          uncertainText="Não foi possível confirmar a autorização. Feche e confira a lista de autorizações antes de repetir."
-          onUnauthenticated={expired}
-          onOutcome={(k) => {
-            if (k === 'uncertain') setNotice({ tone: 'warning', text: 'O resultado da última autorização não foi confirmado. Confira a lista.' });
-            onRefused(k);
-          }}
-        >
-          <Text>
-            Worker: {workerName(workerId)}. Vale até <DateTimeText iso={untilDate?.toISOString() ?? null} />. A autorização é para o pacote imutável desta versão.
-          </Text>
-        </StepUpDialog>
-      )}
-
-      {automation && (
-        <StepUpDialog
-          open={creating}
-          title={`Autorizar o monitoramento de ${automation.name ?? 'esta automação'}?`}
-          guard={{ operation: 'local-run.monitor', target: `${automation.automationId}|${workerId}` }}
-          confirmLabel="Autorizar monitoramento"
-          stepUp={orgStepUp(org)}
-          action={() => createMonitoringAuthorization(org, workspaceId, { workerId, automationId: automation.automationId, validUntil: untilDate!.toISOString() })}
-          onDone={() => {
-            setCreating(false);
-            setNotice({
-              tone: 'success',
-              text: 'Monitoramento autorizado. Nada foi iniciado: o Agent recebe a autorização na próxima conexão; na máquina, aprove o vínculo (vincular) e troque o programa da tarefa agendada pelo nekkora-lancar. Acompanhe em Supervisão.',
-            });
-            void load();
-          }}
-          onClose={() => setCreating(false)}
-          refusalText={(e) =>
-            hasReason(e, 'conflict', EXISTS_REASON)
-              ? existsText
-              : accessRefusal(e, { conflict: 'O Worker não está autorizado neste workspace, ou a automação/workspace não está ativo.' })
-          }
-          uncertainText="Não foi possível confirmar a autorização. Feche e confira a lista antes de repetir."
-          onUnauthenticated={expired}
-          onOutcome={onRefused}
-        >
-          <Text>
-            Worker: {workerName(workerId)}. Vale até <DateTimeText iso={untilDate?.toISOString() ?? null} />. Sem versão e sem impressão: o código fica na máquina.
-          </Text>
-        </StepUpDialog>
-      )}
 
       <RunRequestDialog
         open={!!executing}

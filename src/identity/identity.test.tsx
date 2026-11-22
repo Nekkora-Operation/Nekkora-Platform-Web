@@ -1,3 +1,4 @@
+import { copyrightLine, productLine } from '../app/product';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { csrfStore } from '../api/csrf';
@@ -13,7 +14,7 @@ import { RouteApi } from '../test/routeApi';
  */
 const ORG_A = '0a6e1f9c-3b2d-4c5e-8f71-2a9b3c4d5e6f';
 const TOKEN = 'A'.repeat(43);
-const PASSWORD = 'senha-muito-segura-123';
+const PASSWORD = 'Senha#Segura2026';
 
 let api: RouteApi;
 beforeEach(() => {
@@ -62,7 +63,8 @@ describe('cadastro', () => {
     expect(window.location.hash).toBe('');
     renderApp('/cadastro/confirmar');
     await screen.findByRole('heading', { name: 'Conclua seu cadastro' });
-    expect(api.calls.filter((c) => c.method === 'POST')).toEqual([]);
+    // 071: só a prévia (que não consome o token) sai na abertura; a confirmação, só ao concluir
+    expect(api.calls.filter((c) => c.method === 'POST' && c.path !== '/api/v1/signup/preview')).toEqual([]);
 
     await user().type(screen.getByLabelText(lbl('Nome')), 'Ana');
     await user().type(screen.getByLabelText(lbl('Senha')), PASSWORD);
@@ -76,6 +78,20 @@ describe('cadastro', () => {
     expect(await screen.findByText(/Pedido recebido/)).toBeInTheDocument();
   });
 
+  it('071: vindo do convite, o nome informado no convite já vem preenchido (só falta a senha)', async () => {
+    api.on('POST', '/api/v1/signup/preview', 'signupPreview', { status: 200, body: { email: 'carla@cliente.com', displayName: 'Carla Cliente' } });
+    api.on('POST', '/api/v1/signup/confirm', 'confirmSignup', { status: 204 });
+    openLink('/cadastro/confirmar', TOKEN);
+    renderApp('/cadastro/confirmar');
+    expect(await screen.findByText('Seu nome veio do convite. Só falta escolher a senha.')).toBeInTheDocument();
+    expect(screen.getByLabelText(lbl('Nome'))).toHaveValue('Carla Cliente');
+    await user().type(screen.getByLabelText(lbl('Senha')), PASSWORD);
+    await user().type(screen.getByLabelText(lbl('Confirmar senha')), PASSWORD);
+    await user().click(screen.getByRole('button', { name: 'Concluir cadastro' }));
+    await screen.findByRole('heading', { name: 'Cadastro concluído' });
+    expect(api.sent('POST', '/api/v1/signup/confirm')[0].body).toEqual({ token: TOKEN, password: PASSWORD, displayName: 'Carla Cliente' });
+  });
+
   it('senha fora da política não é enviada', async () => {
     openLink('/cadastro/confirmar', TOKEN);
     renderApp('/cadastro/confirmar');
@@ -83,7 +99,7 @@ describe('cadastro', () => {
     await user().type(screen.getByLabelText(lbl('Senha')), 'curta');
     await user().type(screen.getByLabelText(lbl('Confirmar senha')), 'curta');
     await user().click(screen.getByRole('button', { name: 'Concluir cadastro' }));
-    expect(await screen.findByText(/A senha precisa ter entre 12 e 128 caracteres/)).toBeInTheDocument();
+    expect(await screen.findByText(/A senha ainda não atende aos requisitos/)).toBeInTheDocument();
     expect(api.sent('POST', '/api/v1/signup/confirm')).toEqual([]);
   });
 });
@@ -155,7 +171,7 @@ describe('organizações', () => {
     joined = true;
     await user().click(screen.getByRole('button', { name: 'Atualizar lista' }));
     const card = (await screen.findByRole('heading', { name: 'Acme' })).closest('li')!;
-    expect(within(card).getByText('Aguardando ativação')).toBeInTheDocument();
+    expect(within(card).getByText('Execução: aguardando ativação')).toBeInTheDocument();
     expect(within(card).getByText(/nenhuma automação executa até a ativação/)).toBeInTheDocument();
     await user().click(within(card).getByRole('button', { name: 'Entrar em Acme (acme)' }));
     expect(await within(card).findByText(/Não foi possível entrar nesta organização/)).toBeInTheDocument();
@@ -218,6 +234,33 @@ describe('organizações', () => {
     await user().click(screen.getByRole('button', { name: 'Continuar' }));
     expect(await screen.findByText('Retire os espaços do começo e do fim.')).toBeInTheDocument();
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+});
+
+describe('rodapé do menu e "Vincular conta antiga" (PLATFORM-INICIO-001)', () => {
+  it('a tela de organizações não oferece vincular conta antiga, nem no menu nem na lista vazia; o rodapé traz só a versão do produto', async () => {
+    session();
+    api.on('GET', '/api/v1/me/organizations', 'identityOrganizations', { status: 200, body: { organizations: [], canCreateOrganization: true } });
+    renderApp('/organizacoes');
+    expect(await screen.findByRole('button', { name: 'Criar minha primeira organização' })).toBeInTheDocument();
+    const nav = screen.getByRole('navigation', { name: 'Navegação principal' });
+    expect(within(nav).getAllByRole('link').map((l) => l.textContent)).toEqual(['Organizações', 'Segurança da conta']);
+    expect(screen.queryByText(/conta antiga/i)).toBeNull();
+    expect(document.querySelector('a[href="/vincular-conta"]')).toBeNull();
+    const footer = screen.getByRole('complementary', { name: 'Menu' }).querySelector('.nk-shell__sidebar-footer')!;
+    expect(footer.textContent).toBe(`Versão${productLine()}${copyrightLine()}`);
+    expect(footer.textContent).not.toMatch(/Identidade Nekkora|Sessão de identidade|Web |API |branch|alterações locais/);
+  });
+
+  it('o diagnóstico técnico continua disponível em Segurança da conta ("Sobre esta versão")', async () => {
+    session();
+    renderApp('/conta');
+    expect(await screen.findByRole('heading', { name: 'Sobre esta versão' })).toBeInTheDocument();
+    expect(screen.getByText('Platform Web')).toBeInTheDocument();
+    expect(screen.getByText('Platform API')).toBeInTheDocument();
+    expect(screen.getByText('Nekkora-lib')).toBeInTheDocument();
+    // com a verificação em duas etapas ativa, o tema também se escolhe aqui (um seletor só) — inclusive para quem é só cliente
+    expect(screen.getAllByRole('group', { name: 'Tema' })).toHaveLength(1);
   });
 });
 
@@ -311,7 +354,8 @@ describe('sessão de organização nascida da identidade', () => {
     });
     renderApp(`/o/${ORG_A}`);
     expect(await screen.findByLabelText('Organização aberta: Acme (acme)')).toHaveTextContent('Acme');
-    expect(screen.getByText('Organização Acme')).toBeInTheDocument();
+    // o rodapé do menu não repete a organização (PLATFORM-INICIO-001): ela fica no topo
+    expect(screen.queryByText('Organização Acme')).not.toBeInTheDocument();
     expect(screen.queryByText('Outra')).not.toBeInTheDocument();
   });
 

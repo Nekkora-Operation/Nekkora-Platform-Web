@@ -82,24 +82,42 @@ afterEach(() => {
 
 const panel = () => screen.queryByRole('region', { name: 'Ações sem resultado confirmado' });
 const settle = () => act(() => new Promise<void>((r) => setTimeout(r, 80)));
-const FORBIDDEN = 'Você não tem permissão para ver os membros desta organização.';
+const FORBIDDEN = 'Você não tem permissão para ver as pessoas e os convites desta organização.';
 
-async function openWithUncertainty() {
+async function openWithUncertainty(name = 'Caio Mendes') {
   render(
     <MemoryRouter initialEntries={[members]}>
       <AppRoutes />
       <Probe />
     </MemoryRouter>,
   );
-  await screen.findByRole('button', { name: 'Suspender Caio Mendes' });
+  await findAcrossPages(`Suspender ${name}`);
   transport = (m, p) => (m === 'POST' && p.endsWith('/suspend') ? { kind: 'network-before' } : null);
-  fireEvent.click(screen.getByRole('button', { name: 'Suspender Caio Mendes' }));
+  fireEvent.click(screen.getByRole('button', { name: `Suspender ${name}` }));
   const dialog = await screen.findByRole('alertdialog');
   fireEvent.click(within(dialog).getByRole('button', { name: 'Suspender' }));
   await within(dialog).findByRole('alert');
   fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
   await waitFor(() => expect(panel()).not.toBeNull());
   transport = null;
+}
+
+
+/**
+ * PLATFORM-FLUXO-002: em "Pessoas e acessos" os membros vêm da entrada mais recente para a mais antiga (a equipe sintética,
+ * mais nova, ocupa a primeira página). Procura o botão e, se ele não estiver na tela, carrega a página seguinte.
+ */
+async function findAcrossPages(name: string) {
+  await screen.findByRole('region', { name: 'Lista de pessoas e convites' }, { timeout: 5000 });
+  for (let i = 0; i < 10; i++) {
+    const found = screen.queryByRole('button', { name });
+    if (found) return found;
+    const more = screen.queryByRole('button', { name: /Carregar mais/ });
+    if (!more) return screen.findByRole('button', { name });
+    if (!(more as HTMLButtonElement).disabled) fireEvent.click(more);
+    await new Promise((r) => setTimeout(r, 60));
+  }
+  return screen.findByRole('button', { name });
 }
 
 describe('R2.1: 403 da conferência sem leitura automática', () => {
@@ -122,8 +140,9 @@ describe('R2.1: 403 da conferência sem leitura automática', () => {
     expect(screen.getByText(FORBIDDEN)).toBeInTheDocument();
     expect(panel()).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Verificar novamente' }));
-    await screen.findByRole('region', { name: 'Lista de membros' });
-    const reads = requests.slice(after403).filter((r) => r.path.includes('/members?'));
+    await screen.findByRole('region', { name: 'Lista de pessoas e convites' });
+    // PLATFORM-FLUXO-002: a lista de "Pessoas e acessos" é lida em /people (a conferência continua em /members?limit=100)
+    const reads = requests.slice(after403).filter((r) => r.path.includes('/people?'));
     expect(reads).toHaveLength(1);
     expect(reads[0].path).not.toContain('cursor=');
     expect(panel()).toHaveTextContent('Suspensão de Caio Mendes: resultado não confirmado.');
@@ -136,7 +155,7 @@ describe('R2.1: 403 da conferência sem leitura automática', () => {
     fireEvent.click(within(panel()!).getByRole('button', { name: /^Conferir estado atual/ }));
     await screen.findByText(FORBIDDEN);
     fireEvent.click(screen.getByRole('button', { name: 'Verificar novamente' }));
-    await waitFor(() => expect(requests.filter((r) => r.path.includes('/members?') && !r.path.includes('limit=100')).length).toBeGreaterThan(1));
+    await waitFor(() => expect(requests.filter((r) => r.path.includes('/people?')).length).toBeGreaterThan(1));
     const mark = requests.length;
     await settle();
     expect(requests.slice(mark)).toEqual([]);
@@ -157,10 +176,10 @@ describe('R2.1b: 403 só na conferência, com a lista ainda autorizada', () => {
     await settle();
     expect(screen.getByText(FORBIDDEN)).toBeInTheDocument();
     expect(panel()).toBeNull();
-    expect(screen.queryByRole('region', { name: 'Lista de membros' })).toBeNull();
-    expect(requests.slice(beforeCheck).filter((r) => r.path.includes('/members?') && !r.path.includes('limit=100'))).toEqual([]);
+    expect(screen.queryByRole('region', { name: 'Lista de pessoas e convites' })).toBeNull();
+    expect(requests.slice(beforeCheck).filter((r) => r.path.includes('/people?'))).toEqual([]);
     fireEvent.click(screen.getByRole('button', { name: 'Verificar novamente' }));
-    await screen.findByRole('region', { name: 'Lista de membros' });
+    await screen.findByRole('region', { name: 'Lista de pessoas e convites' });
     expect(panel()).not.toBeNull();
   });
 });
@@ -168,23 +187,24 @@ describe('R2.1b: 403 só na conferência, com a lista ainda autorizada', () => {
 describe('R2.1c: leitura já em curso que conclui DEPOIS do 403 da conferência', () => {
   it('"Carregar mais" pendente que conclui com 200 depois do 403 não devolve a apresentação (não foi pedido no estado negado)', async () => {
     sessionFor('ana@nekkora.dev');
-    await openWithUncertainty();
+    // alvo na PRIMEIRA página (a mais recente): a página seguinte continua por carregar
+    await openWithUncertainty('Pessoa da Equipe 24');
     let release!: () => void;
     const until = new Promise<void>((r) => (release = r));
     transport = (m, p) => {
-      if (m === 'GET' && p.includes('/members?') && p.includes('cursor=') && !p.includes('limit=100')) return { kind: 'delay', until };
+      if (m === 'GET' && p.includes('/people?') && p.includes('cursor=')) return { kind: 'delay', until };
       if (m === 'GET' && p.includes('/members?') && p.includes('limit=100')) return { kind: 'status', status: 403, body: { error: 'forbidden' } };
       return null;
     };
     fireEvent.click(screen.getByRole('button', { name: 'Carregar mais' }));
-    await waitFor(() => expect(requests.some((r) => r.path.includes('/members?') && r.path.includes('cursor='))).toBe(true));
+    await waitFor(() => expect(requests.some((r) => r.path.includes('/people?') && r.path.includes('cursor='))).toBe(true));
     fireEvent.click(within(panel()!).getByRole('button', { name: /^Conferir estado atual/ }));
     expect(await screen.findByText(FORBIDDEN)).toBeInTheDocument();
     await act(async () => release());
     await settle();
     expect(screen.getByText(FORBIDDEN)).toBeInTheDocument();
     expect(panel()).toBeNull();
-    expect(screen.queryByRole('region', { name: 'Lista de membros' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Lista de pessoas e convites' })).toBeNull();
   });
 });
 
@@ -221,7 +241,7 @@ describe('R2.2: troca de sessão em OUTRA aba', () => {
     expect(await screen.findByText('Sua sessão foi encerrada ou alterada em outra aba. Entre novamente para continuar.')).toBeInTheDocument();
     expect(writeEntry(DEV_ORG, caio)).toBeUndefined();
     expect(csrfStore.session(DEV_ORG)).toBeUndefined();
-    expect(screen.queryByRole('region', { name: 'Lista de membros' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Lista de pessoas e convites' })).toBeNull();
     expect(panel()).toBeNull();
     await act(async () => release());
     await settle();
@@ -238,7 +258,7 @@ describe('R2.2: troca de sessão em OUTRA aba', () => {
         <Probe />
       </MemoryRouter>,
     );
-    await screen.findByRole('button', { name: 'Suspender Caio Mendes' });
+    await findAcrossPages('Suspender Caio Mendes');
     let release!: () => void;
     const until = new Promise<void>((r) => (release = r));
     transport = (m, p) => (m === 'POST' && p.endsWith('/suspend') ? { kind: 'delay', until } : null);
@@ -260,7 +280,7 @@ describe('R2.2: troca de sessão em OUTRA aba', () => {
     const otherTab = new BroadcastChannel('nekkora-sessao');
     otherTab.postMessage({ tipo: 'outra-coisa' });
     await settle();
-    expect(location).toBe(members);
+    expect(location).toBe(`/o/${DEV_ORG}/administracao/pessoas`); // o endereço antigo leva a "Pessoas e acessos"
     expect(panel()).not.toBeNull();
     otherTab.close();
   });

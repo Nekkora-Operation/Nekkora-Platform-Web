@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link as RouterLink, useLocation, useNavigate } from 'react-router';
-import { Alert, Badge, Button, Card, Link, SectionHeader, Stack, StateView, Text } from 'nekkora-lib';
+import { useLocation, useNavigate } from 'react-router';
+import { Alert, Badge, Button, Card, SectionHeader, Stack, StateView, Text } from 'nekkora-lib';
 import { ApiError, isApiError } from '../api/http';
 import { enterOrganization, myOrganizations, type IdentityOrganization, type IdentityOrganizationList } from '../api/identity';
 import { identityPath } from '../auth/flow';
@@ -8,6 +8,8 @@ import { commonMessage, UNAVAILABLE, type UserMessage } from '../auth/messages';
 import { orgPath } from '../auth/organization';
 import { ErrorAlert } from '../pages/ErrorAlert';
 import { pendingInvitation } from './AcceptInvitationPage';
+import { OrganizationCreationPanel } from './OrganizationCreationPanel';
+import { SharedWithYouSection } from '../client/ClientArea';
 import { useIdentityArea } from './IdentityArea';
 import { activationLabel, ROLE_LABEL } from './labels';
 import './identity.css';
@@ -39,7 +41,9 @@ export function OrganizationsPage() {
 
   const load = useCallback(async () => {
     const gen = ++generation.current;
-    setState({ kind: 'loading' });
+    // recarga com a lista já na tela (depois de desativar ou reativar): a lista fica onde está até a nova chegar, para a
+    // confirmação do ato não sumir junto com a página
+    setState((s) => (s.kind === 'ready' ? s : { kind: 'loading' }));
     try {
       const data = await myOrganizations();
       if (gen === generation.current) setState({ kind: 'ready', data });
@@ -125,7 +129,7 @@ export function OrganizationsPage() {
           title="Você ainda não participa de nenhuma organização."
           description={
             canCreateOrganization
-              ? 'Uma organização reúne as pessoas, os workspaces e as automações da sua empresa. Crie a sua para começar, ou peça a quem administra uma organização que envie um convite para o seu e-mail.'
+              ? 'Uma organização reúne as pessoas, os ambientes de trabalho e as automações da sua empresa. Crie a sua para começar, ou peça a quem administra uma organização que envie um convite para o seu e-mail.'
               : 'Peça a quem administra uma organização que envie um convite para o seu e-mail. O link do convite traz você de volta para cá.'
           }
           actions={
@@ -135,16 +139,13 @@ export function OrganizationsPage() {
                   Criar minha primeira organização
                 </Button>
               )}
-              <Link as={RouterLink} to={identityPath.linkAccount}>
-                Tenho uma conta antiga numa organização
-              </Link>
             </>
           }
         />
       ) : (
         <ul className="pw-identity__orgs" aria-label="Organizações">
           {organizations.map((o) => {
-            const activation = activationLabel(o.activationState);
+            const activation = activationLabel(o.activationState, o.licenseModel);
             const err = enterError?.org === o.organizationId ? enterError.message : null;
             return (
               <li key={o.organizationId}>
@@ -169,7 +170,7 @@ export function OrganizationsPage() {
                         </Badge>
                         {o.organizationId === created && <Badge tone="info">Criada agora</Badge>}
                       </div>
-                      {o.activationState === 'AGUARDANDO_ATIVACAO' && (
+                      {(o.licenseModel === 'licensed' || o.activationState === 'AGUARDANDO_ATIVACAO') && (
                         <Text variant="body-sm" color="secondary">
                           {activation.description}
                         </Text>
@@ -197,6 +198,12 @@ export function OrganizationsPage() {
           })}
         </ul>
       )}
+
+      {/* PLATFORM-FLUXO-002 (070): o que organizações compartilharam com a pessoa como cliente (some se não houver) */}
+      <SharedWithYouSection />
+
+      {/* PLATFORM-LICENCIAMENTO-001: por que a pessoa cria, solicita ou não cria; pedidos; desativar e reativar */}
+      <OrganizationCreationPanel organizations={organizations} onChanged={() => void load()} />
 
       <Text variant="body-sm" color="secondary">
         Entrar numa organização encerra a sessão aberta em outra organização neste navegador, inclusive em outras abas.

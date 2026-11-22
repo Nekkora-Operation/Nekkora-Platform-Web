@@ -476,6 +476,10 @@ export class ProductData {
     /^\/me\/permissions$/, /^\/me\/permissions\/workspaces$/, /^\/workspaces$/, /^\/workspaces\/[^/]+$/,
     /^\/workspaces\/[^/]+\/automations$/, /^\/automations\/[^/]+$/, /^\/automations\/[^/]+\/versions$/,
     /^\/executions$/, /^\/executions\/[^/]+$/, /^\/executions\/[^/]+\/events$/,
+    // PLATFORM-INICIO-001: resumo do período e automações da organização
+    /^\/execution-summary$/, /^\/automations$/,
+    // PLATFORM-FLUXO-002: acompanhamento unificado (no simulador só há execuções da Platform, sem máquina)
+    /^\/activity$/, /^\/activity\/machines$/,
   ];
 
   static isRoute(route: string): boolean {
@@ -573,6 +577,45 @@ export class ProductData {
       return this.page(rows, limit, (last) => this.cursors.encode(sc, [name48(last.name).join(''), last.automationId]), (a) => this.automationJson(a));
     }
 
+    // PLATFORM-INICIO-001: o simulador só tem execuções da Platform; as outras origens (Agent e execução remota) vêm zeradas
+    if (seg[0] === 'execution-summary') {
+      const from = parseInstant(q.get('from'));
+      const to = parseInstant(q.get('to'));
+      if (from === null || to === null || to <= from || to - from > MAX_PERIOD_MS) throw new BadRequest('periodo');
+      const mm = internal();
+      const platform = { succeeded: 0, failed: 0, inProgress: 0, cancelled: 0, notStarted: 0, unconfirmed: 0 };
+      for (const e of this.executions.values()) {
+        if (!this.canRead(mm, this.workspaces.get(e.workspaceId)!) || e.createdAt < from || e.createdAt >= to) continue;
+        platform[outcomeOf(e)]++;
+      }
+      const counts = (c: typeof platform) => ({ total: c.succeeded + c.failed + c.inProgress + c.cancelled + c.notStarted + c.unconfirmed, ...c });
+      const none = { succeeded: 0, failed: 0, inProgress: 0, cancelled: 0, notStarted: 0, unconfirmed: 0 };
+      return { from: iso(from), to: iso(to), ...counts(platform), sources: { platform: counts(platform), localAgent: counts(none), remote: counts(none) } };
+    }
+
+    if (seg[0] === 'automations' && seg.length === 1) {
+      const limit = parseLimit(q);
+      const status = parseStatus(q, RESOURCE_STATUS, 3);
+      const sc = scope('listOrganizationAutomations', null, canonical({ status }), 'name48.asc+id.asc');
+      const after = q.get('cursor') !== null ? this.cursors.decode(q.get('cursor')!, sc) : null;
+      const mm = internal();
+      const rows = [...this.automations.values()]
+        .filter((a) => this.canRead(mm, this.workspaces.get(a.workspaceId)!) && (!status || status.includes(a.status)))
+        .sort(byName48((a) => a.name, (a) => a.automationId))
+        .filter((a) => !after || afterName48(a.name, a.automationId, after));
+      return this.page(rows, limit, (last) => this.cursors.encode(sc, [name48(last.name).join(''), last.automationId]), (a) => {
+        const { createdAt: _c, updatedAt: _u, ...base } = this.automationJson(a);
+        const last = [...this.executions.values()]
+          .filter((e) => e.automationId === a.automationId)
+          .sort((x, y) => y.createdAt - x.createdAt || cmp(y.executionId, x.executionId))[0];
+        return {
+          automationId: base.automationId, workspaceId: base.workspaceId, workspaceName: this.workspaces.get(a.workspaceId)!.name, name: base.name,
+          description: base.description, status: base.status, latestPublishedVersion: base.latestPublishedVersion,
+          lastExecution: last ? { source: 'platform', id: last.executionId, outcome: outcomeOf(last), requestedAt: iso(last.createdAt) } : null,
+        };
+      });
+    }
+
     if (seg[0] === 'automations' && seg.length === 2) {
       const id = parseUuid(seg[1]);
       const mm = internal();
@@ -625,6 +668,62 @@ export class ProductData {
       return this.page(rows, limit, (last) => this.cursors.encode(sc, [last.createdAt, last.executionId]), (e) => this.executionJson(e));
     }
 
+    // PLATFORM-FLUXO-002: as mesmas regras da API (ActivityReads), sobre as execuções da Platform do simulador
+    if (seg[0] === 'activity' && seg.length === 2 && seg[1] === 'machines') {
+      internal();
+      return { items: [] };
+    }
+    if (seg[0] === 'activity' && seg.length === 1) {
+      const tab = q.get('tab') ?? 'in_progress';
+      if (tab !== 'in_progress' && tab !== 'history') throw new BadRequest('aba');
+      const workspaceId = q.get('workspaceId') !== null ? parseUuid(q.get('workspaceId')!).toLowerCase() : null;
+      const automationId = q.get('automationId') !== null ? parseUuid(q.get('automationId')!).toLowerCase() : null;
+      const workerId = q.get('workerId') !== null ? parseUuid(q.get('workerId')!).toLowerCase() : null;
+      const limit = parseLimit(q);
+      const from = tab === 'history' ? parseInstant(q.get('from')) : null;
+      const to = tab === 'history' ? parseInstant(q.get('to')) : null;
+      if (from !== null && to !== null && (to < from || to - from > MAX_PERIOD_MS)) throw new BadRequest('periodo');
+      const sc = scope('listActivity', null, canonical({ tab, workspaceId, automationId, workerId, from, to }), 'requestedAt.desc+id.desc');
+      const after = q.get('cursor') !== null ? this.cursors.decode(q.get('cursor')!, sc) : null;
+      const mm = internal();
+      if (workspaceId) this.requireWorkspace(mm, workspaceId);
+      if (automationId) this.requireAutomation(mm, automationId);
+      const outcome = (e: ExecutionRow) =>
+        ['pending', 'starting', 'running'].includes(e.status)
+          ? 'in_progress'
+          : e.status === 'succeeded'
+            ? 'succeeded'
+            : e.status === 'failed'
+              ? e.statusReason === 'process_failed' ? 'failed' : 'not_started'
+              : e.statusReason === 'queue_deadline_exceeded' ? 'not_started' : 'cancelled';
+      const rows = [...this.executions.values()]
+        .filter((e) => {
+          const ws = this.workspaces.get(e.workspaceId)!;
+          const inProgress = outcome(e) === 'in_progress';
+          return (
+            this.canRead(mm, ws) &&
+            !workerId && // as execuções do simulador não têm máquina
+            (tab === 'in_progress' ? inProgress : !inProgress) &&
+            (!workspaceId || e.workspaceId === workspaceId) &&
+            (!automationId || e.automationId === automationId) &&
+            (from === null || e.createdAt >= from) &&
+            (to === null || e.createdAt < to)
+          );
+        })
+        .sort((x, y) => y.createdAt - x.createdAt || cmp(y.executionId, x.executionId))
+        .filter((e) => !after || e.createdAt < (after[0] as number) || (e.createdAt === after[0] && e.executionId < (after[1] as string)));
+      return this.page(rows, limit, (last) => this.cursors.encode(sc, [last.createdAt, last.executionId]), (e) => {
+        const a = this.automations.get(e.automationId)!;
+        const w = this.workspaces.get(e.workspaceId)!;
+        return {
+          kind: 'platform', id: e.executionId,
+          workspace: { id: w.workspaceId, name: w.name }, automation: { id: a.automationId, name: a.name },
+          machine: null, outcome: outcome(e), attention: false,
+          requestedAt: iso(e.createdAt), startedAt: iso(e.startedAt), endedAt: iso(e.finishedAt),
+        };
+      });
+    }
+
     if (seg[0] === 'executions' && seg.length === 2) {
       const id = parseUuid(seg[1]);
       const mm = internal();
@@ -633,6 +732,7 @@ export class ProductData {
       return {
         ...this.executionJson(e),
         retryOfExecutionId: e.retryOf,
+        machine: null, // PLATFORM-FLUXO-002: as execuções do simulador não têm máquina registrada
         requestedBy: by ? { membershipId: by.membershipId, displayName: by.displayName } : null,
       };
     }
@@ -677,12 +777,20 @@ export function parseLimit(q: URLSearchParams): number {
   return n;
 }
 
-export function parseStatus<T extends string>(q: URLSearchParams, allowed: T[], max: number): T[] | null {
-  if (!q.has('status')) return null;
-  const values = q.getAll('status');
-  if (values.length === 0 || values.length > max || new Set(values).size !== values.length) throw new BadRequest('status');
-  for (const v of values) if (!allowed.includes(v as T)) throw new BadRequest('status');
+export function parseStatus<T extends string>(q: URLSearchParams, allowed: T[], max: number, name = 'status'): T[] | null {
+  if (!q.has(name)) return null;
+  const values = q.getAll(name);
+  if (values.length === 0 || values.length > max || new Set(values).size !== values.length) throw new BadRequest(name);
+  for (const v of values) if (!allowed.includes(v as T)) throw new BadRequest(name);
   return values as T[];
+}
+
+/** Situação de uma execução da Platform na contagem do Início (mesma regra da API: ExecutionSummaryReads). */
+function outcomeOf(e: { status: ExecutionStatus; statusReason: StatusReason }): 'succeeded' | 'failed' | 'inProgress' | 'cancelled' | 'notStarted' {
+  if (e.status === 'pending' || e.status === 'starting' || e.status === 'running') return 'inProgress';
+  if (e.status === 'succeeded') return 'succeeded';
+  if (e.status === 'failed') return e.statusReason === 'process_failed' ? 'failed' : 'notStarted';
+  return e.statusReason === 'queue_deadline_exceeded' ? 'notStarted' : 'cancelled';
 }
 
 function parseInstant(v: string | null): number | null {

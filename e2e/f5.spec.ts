@@ -4,7 +4,7 @@ import { devices, expect, test, type Page } from '@playwright/test';
 import { DEV_ORG, OTHER_ORG } from '../mock/contract';
 import { stableUuid } from '../mock/product';
 import { Authenticator } from '../mock/totp';
-import { path, signIn, SESSION_EXPIRED } from './support/app';
+import { leaveMenu, path, signIn, SESSION_EXPIRED } from './support/app';
 
 /**
  * F5 no navegador, contra a API SIMULADA (mock/): detalhe e eventos da execução, workspaces, automações e versões. Cada
@@ -76,13 +76,14 @@ test('lista → detalhe pelo teclado → eventos → voltar com os filtros; reca
   const acc = await account({ orgRoles: ['ORG_ADMIN'] });
   await enter(page, acc);
   await nav(page).getByRole('link', { name: 'Execuções' }).click();
+  await leaveMenu(page);
   await expect(page.getByRole('table').locator('tbody tr').first()).toBeVisible();
+  await page.getByRole('tab', { name: 'Histórico' }).click();
+  await expect(page).toHaveURL(/aba=historico/);
   await page.getByLabel('Período').selectOption('7d');
-  await page.getByLabel('Concluída').check();
-  await expect(page).toHaveURL(/estado=succeeded/);
   await expect(page).toHaveURL(/periodo=7d&desde=/);
   const listUrl = page.url();
-  const from = () => new URL(urls.filter((u) => u.includes('/executions?')).at(-1)!, BASE).searchParams.get('from');
+  const from = () => new URL(urls.filter((u) => u.includes('/activity?')).at(-1)!, BASE).searchParams.get('from');
   await expect(page.getByRole('table').locator('tbody tr').first()).toBeVisible();
   const from1 = from();
 
@@ -91,10 +92,10 @@ test('lista → detalhe pelo teclado → eventos → voltar com os filtros; reca
     await expect(page.getByRole('table').locator('tbody tr').first()).toBeVisible();
     expect(page.url()).toBe(listUrl);
     expect(from()).toBe(from1);
-    await expect(page.getByLabel('Concluída')).toBeChecked();
+    await expect(page.getByRole('tab', { name: 'Histórico' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  const link = page.getByRole('link', { name: /^Execução de .*, criada em / }).first();
+  const link = page.getByRole('link', { name: /^Execução de .*, pedida em / }).first();
   const href = (await link.getAttribute('href'))!;
   expect(href).toMatch(new RegExp(`^${org('/execucoes/')}[0-9a-f-]{36}$`));
 
@@ -121,35 +122,36 @@ test('lista → detalhe pelo teclado → eventos → voltar com os filtros; reca
     await expect(page.getByRole('table').locator('tbody tr').first()).toBeVisible();
     expect(page.url()).toBe(listUrl);
     expect(from()).toBe(from1);
-    await expect(page.getByLabel('Concluída')).toBeChecked();
+    await expect(page.getByRole('tab', { name: 'Histórico' })).toHaveAttribute('aria-selected', 'true');
   });
 });
 
-test('workspace → automações → automação → versões → execuções da automação; axe nas telas', async ({ page }) => {
+test('ambiente de trabalho → automações → automação → versões → execuções da automação; axe nas telas', async ({ page }) => {
   const urls = recordRequests(page);
   const acc = await account({ orgRoles: ['ORG_ADMIN'] });
   await enter(page, acc);
-  await nav(page).getByRole('link', { name: 'Workspaces' }).click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Workspaces' })).toBeVisible();
-  await expect(regionRows(page, 'Lista de workspaces')).toHaveCount(9);
+  await nav(page).getByRole('link', { name: 'Ambientes de trabalho' }).click();
+  await leaveMenu(page);
+  await expect(page.getByRole('heading', { level: 1, name: 'Ambientes de trabalho' })).toBeVisible();
+  await expect(regionRows(page, 'Lista de ambientes de trabalho')).toHaveCount(9);
   await expect(page.getByRole('main')).toBeFocused();
   await audit(page, 'workspaces');
 
   await page.getByRole('link', { name: 'Operações' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Operações' })).toBeVisible();
-  await expect(regionRows(page, 'Automações do workspace')).toHaveCount(3);
+  await expect(regionRows(page, 'Automações do ambiente de trabalho')).toHaveCount(3);
   await audit(page, 'workspace-detalhe');
 
   await page.getByRole('link', { name: 'Backup dos arquivos de operação' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Backup dos arquivos de operação' })).toBeVisible();
   await expect(regionRows(page, 'Versões da automação')).toHaveCount(3);
   await expect(regionRows(page, 'Versões da automação').first()).toContainText('versão 3');
-  await expect(nav(page).getByRole('link', { name: 'Workspaces' })).toHaveAttribute('aria-current', 'page');
+  await expect(nav(page).getByRole('link', { name: 'Ambientes de trabalho' })).toHaveAttribute('aria-current', 'page');
   await audit(page, 'automacao-detalhe');
 
   await page.getByRole('link', { name: 'Ver execuções desta automação' }).click();
   await expect(page.getByText('Somente a automação Backup dos arquivos de operação.')).toBeVisible();
-  await expect.poll(() => urls.some((u) => u.includes('/executions?') && u.includes(`automationId=${auto('backup')}`))).toBe(true);
+  await expect.poll(() => urls.some((u) => u.includes('/activity?') && u.includes(`automationId=${auto('backup')}`))).toBe(true);
   await expect(page.getByRole('table').locator('tbody tr').first()).toBeVisible();
   for (const t of await page.getByRole('table').locator('tbody tr').allInnerTexts()) expect(t).toContain('Backup dos arquivos de operação');
 
@@ -168,7 +170,7 @@ test('acesso direto: inexistente, de outra organização, malformado e sem acess
     await expect(notFound(page, 'Execução não encontrada.')).toBeVisible();
   }
   await page.goto(org(`/workspaces/${ws('financeiro')}`));
-  await expect(notFound(page, 'Workspace não encontrado.')).toBeVisible();
+  await expect(notFound(page, 'Ambiente de trabalho não encontrado.')).toBeVisible();
   await expect(page.getByText('Financeiro — Conciliação')).toHaveCount(0);
   await page.goto(org(`/automacoes/${auto('conciliacao')}`));
   await expect(notFound(page, 'Automação não encontrada.')).toBeVisible();
@@ -199,7 +201,7 @@ test('revogação + Atualizar: não encontrado sem os dados anteriores; sessão 
   await expect(page.getByRole('heading', { level: 1, name: 'Financeiro — Conciliação' })).toBeVisible();
   await control('product/revoke-workspace-role', { userId: acc.userId, workspace: 'financeiro' });
   await page.getByRole('button', { name: 'Atualizar' }).click();
-  await expect(notFound(page, 'Workspace não encontrado.')).toBeVisible();
+  await expect(notFound(page, 'Ambiente de trabalho não encontrado.')).toBeVisible();
   await expect(page.getByText(/Conciliação bancária/)).toHaveCount(0);
 
   await page.goto(org(`/execucoes/${SCHEDULED}`));
@@ -270,14 +272,14 @@ const { defaultBrowserType: _browser, ...pixel7 } = devices['Pixel 7'];
 test.describe('celular', () => {
   test.use(pixel7);
 
-  test('menu → Workspaces → automação e detalhe da execução: foco no conteúdo, sem rolagem horizontal; axe e capturas', async ({ page }) => {
+  test('menu → Ambientes de trabalho → automação e detalhe da execução: foco no conteúdo, sem rolagem horizontal; axe e capturas', async ({ page }) => {
     const acc = await account({ orgRoles: ['ORG_ADMIN'] });
     await enter(page, acc);
     await page.getByRole('button', { name: 'Abrir menu' }).click();
     const dialog = page.getByRole('dialog', { name: 'Menu' });
-    await dialog.getByRole('link', { name: 'Workspaces' }).click();
+    await dialog.getByRole('link', { name: 'Ambientes de trabalho' }).click();
     await expect(dialog).toHaveCount(0);
-    await expect(page.getByRole('heading', { level: 1, name: 'Workspaces' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Ambientes de trabalho' })).toBeVisible();
     await expect(page.getByRole('main')).toBeFocused();
     const noHorizontalScroll = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
     expect(await noHorizontalScroll()).toBe(true);

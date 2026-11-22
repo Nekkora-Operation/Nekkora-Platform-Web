@@ -4,7 +4,7 @@
  */
 import { readJson } from './validate';
 import { queryString } from './query';
-import type { Automation, AutomationVersion, Execution, ExecutionDetail, ExecutionEvent, Page, Query, Workspace } from './v1';
+import type { Automation, AutomationVersion, Execution, ExecutionDetail, ExecutionEvent, ExecutionSummary, OrganizationAutomation, Page, Query, Workspace } from './v1';
 
 const base = (org: string) => `/api/v1/o/${encodeURIComponent(org)}`;
 const id = (v: string) => encodeURIComponent(v);
@@ -13,6 +13,21 @@ export type WorkspaceQuery = Query<'listWorkspaces'>;
 export type AutomationQuery = Query<'listAutomations'>;
 export type ExecutionQuery = Query<'listExecutions'>;
 export type PageQuery = { cursor?: string; limit?: number };
+export type ExecutionSummaryQuery = Query<'getExecutionSummary'>;
+export type OrganizationAutomationQuery = Query<'listOrganizationAutomations'>;
+
+/**
+ * Início (PLATFORM-INICIO-001): contagem das execuções pedidas em [from, to), nos workspaces visíveis, agregada pela API
+ * sobre todas as origens (nunca a soma de uma página de lista). Quem não vê nenhum workspace recebe zeros.
+ */
+export async function getExecutionSummary(org: string, q: ExecutionSummaryQuery): Promise<ExecutionSummary> {
+  return readJson<ExecutionSummary>('getExecutionSummary', `${base(org)}/execution-summary${queryString(q)}`);
+}
+
+/** Início: automações dos workspaces visíveis da organização, por nome, com o workspace e a última execução. */
+export async function listOrganizationAutomations(org: string, q: OrganizationAutomationQuery = {}): Promise<Page<OrganizationAutomation>> {
+  return readJson<Page<OrganizationAutomation>>('listOrganizationAutomations', `${base(org)}/automations${queryString(q)}`);
+}
 
 export async function listWorkspaces(org: string, q: WorkspaceQuery = {}): Promise<Page<Workspace>> {
   return readJson<Page<Workspace>>('listWorkspaces', `${base(org)}/workspaces${queryString(q)}`);

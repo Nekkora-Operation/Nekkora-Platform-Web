@@ -2,9 +2,11 @@ import { Link as RouterLink, useLocation } from 'react-router';
 import { Alert, Badge, Button, Card, Container, DescriptionList, Heading, Link, Logo, Stack, Text } from 'nekkora-lib';
 import { readNavState } from '../app/notices';
 import { identityPath } from '../auth/flow';
-import { orgPath, shortOrganizationId } from '../auth/organization';
+import { shortOrganizationId } from '../auth/organization';
 import { VersionDetails } from '../components/VersionInfo';
+import { AppearanceSection } from '../components/AppearanceSection';
 import { ActivationNotice, NextStep } from './HomeNextStep';
+import { Dashboard } from './home/Dashboard';
 import { useInternalArea } from '../area/InternalShell';
 import { useSession } from '../area/session';
 import './HomePage.css';
@@ -81,12 +83,12 @@ export function InternalHome() {
     workspaces.status === 'loading'
       ? 'Carregando…'
       : workspaces.status === 'error'
-        ? 'Não foi possível carregar a lista de workspaces.'
+        ? 'Não foi possível carregar a lista de ambientes de trabalho.'
         : workspaces.items.length === 0
-          ? 'Nenhum workspace visível para você.'
+          ? 'Nenhum ambiente de trabalho visível para você.'
           : workspaces.complete
-            ? `${workspaces.items.length} ${workspaces.items.length === 1 ? 'workspace visível' : 'workspaces visíveis'}`
-            : `Pelo menos ${workspaces.items.length} workspaces visíveis (lista parcial)`;
+            ? `${workspaces.items.length} ${workspaces.items.length === 1 ? 'ambiente de trabalho visível' : 'ambientes de trabalho visíveis'}`
+            : `Pelo menos ${workspaces.items.length} ambientes de trabalho visíveis (lista parcial)`;
 
   const access =
     permissions.status === 'loading'
@@ -94,22 +96,34 @@ export function InternalHome() {
       : permissions.status === 'error'
         ? 'Não foi possível carregar.'
         : permissions.data.organization.roles.includes('ORG_ADMIN')
-          ? 'Administração da organização (todos os workspaces)'
+          ? 'Administração da organização (todos os ambientes de trabalho)'
           : permissions.data.hasWorkspaceAssignments
-            ? 'Por atribuição em workspaces'
+            ? 'Por atribuição em ambientes de trabalho'
             : 'Sem atribuições de acesso';
 
   return (
     <Stack gap={6}>
       <RecoveryCodeNotice />
-      <div className="pw-start__head">
-        <Text variant="overline" color="secondary" className="pw-start__org">
-          {organizationName === undefined ? 'Organização' : organizationName === null ? 'Organização (nome indisponível)' : organizationName}
-        </Text>
-        <Heading level={1}>Olá, {me.displayName}</Heading>
-      </div>
-      <ActivationNotice />
-      <NextStep />
+      {/* trocar de organização remonta o painel: nenhum dado da organização anterior fica na tela */}
+      <Dashboard
+        key={org}
+        header={(period) => (
+          <Stack gap={4}>
+            <div className="pw-dash__head">
+              <div className="pw-dash__titles">
+                <Text variant="overline" color="secondary" className="pw-dash__org">
+                  {organizationName === undefined ? 'Organização' : organizationName === null ? 'Organização (nome indisponível)' : organizationName}
+                </Text>
+                <Heading level={1}>Olá, {me.displayName}</Heading>
+                <Text color="secondary">Visão geral das execuções e das automações desta organização.</Text>
+              </div>
+              {period}
+            </div>
+            <ActivationNotice />
+            <NextStep />
+          </Stack>
+        )}
+      />
       <Card variant="surface" padding="lg">
         <Stack gap={4}>
           <Text as="h2" variant="h4">
@@ -118,14 +132,11 @@ export function InternalHome() {
           <DescriptionList
             items={[
               { key: 'acesso', term: 'Acesso', description: access },
-              { key: 'workspaces', term: 'Workspaces', description: visible },
+              { key: 'workspaces', term: 'Ambientes de trabalho', description: visible },
             ]}
           />
         </Stack>
       </Card>
-      <Link as={RouterLink} to={orgPath.executions(org)} arrow>
-        Ver execuções
-      </Link>
     </Stack>
   );
 }
@@ -159,6 +170,7 @@ export function OrgAccountPage() {
           </Link>
         </Stack>
       </Card>
+      <AppearanceSection />
       <Card variant="surface" padding="lg">
         <Stack gap={4}>
           <Text as="h2" variant="h4">

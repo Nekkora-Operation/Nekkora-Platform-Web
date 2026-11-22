@@ -86,9 +86,10 @@ function signIn() {
 }
 
 const SCREENS = [
-  { name: 'Membros', path: `${base}/administracao/membros`, region: 'Lista de membros', route: '/members?', area: 'os membros desta organização', filters: 'Filtros de membros' },
-  { name: 'Clientes', path: `${base}/administracao/clientes`, region: 'Lista de clientes', route: '/clients?', area: 'os clientes desta organização', filters: 'Filtros de clientes' },
-  { name: 'Concessões', path: `${base}/administracao/concessoes`, region: 'Lista de concessões', route: '/client-grants?', area: 'as concessões desta organização', filters: 'Filtros de concessões' },
+  // PLATFORM-FLUXO-002: "Pessoas e acessos" (o endereço antigo de Membros redireciona)
+  { name: 'Pessoas e acessos', path: `${base}/administracao/membros`, region: 'Lista de pessoas e convites', route: '/people?', area: 'as pessoas e os convites desta organização', filters: 'Busca e filtros de pessoas' },
+  { name: 'Clientes', path: `${base}/administracao/pessoas/clientes`, region: 'Lista de clientes', route: '/clients?', area: 'os clientes desta organização', filters: 'Filtros de clientes' },
+  { name: 'Concessões', path: `${base}/administracao/pessoas/acessos/ambientes`, region: 'Lista de concessões', route: '/client-grants?', area: 'as concessões desta organização', filters: 'Filtros de concessões' },
 ] as const;
 
 /** Leituras da LISTA da tela (exclui o seletor de clientes das concessões, que pede limit=100). */

@@ -3,6 +3,7 @@
  * uso único, respostas genéricas). Substitui `fetch` nos testes de integração da interface.
  */
 import { vi } from 'vitest';
+import { meetsPasswordPolicy } from '../auth/passwordPolicy';
 
 export const ORG = '3f2a1c9e-5b7d-4e21-9c61-2e4d8f7a91c0';
 export const TOTP_OK = '654321';
@@ -151,8 +152,9 @@ export class FakeApi {
         return new Response(null, { status: 202 }); // idêntico exista ou não a conta
       case 'POST /auth/password-reset/confirm': {
         if (!preOk()) return this.error(403, 'forbidden');
-        const len = Array.from(String(body?.newPassword ?? '')).length;
-        if (!this.resetTokens.delete(body?.token) || len < 12 || len > 128) return this.error(400, 'invalid_request');
+        // mesma política da API (PLATFORM-SENHA-001): a recusa não consome o token
+        if (!meetsPasswordPolicy(String(body?.newPassword ?? ''))) return this.error(400, 'invalid_request');
+        if (!this.resetTokens.delete(body?.token)) return this.error(400, 'invalid_request');
         return new Response(null, { status: 204 });
       }
       case 'POST /auth/email-verification/confirm':

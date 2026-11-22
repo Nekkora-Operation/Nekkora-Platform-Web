@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
-import { AuthContextBadge, AuthLayout, Text, type IconName } from 'nekkora-lib';
+import { AuthContextBadge, AuthLayout, Logo, Text, type IconName } from 'nekkora-lib';
 import { organizationName, shortOrganizationId } from '../auth/organization';
+import { ThemeCycleButton } from '../components/AppearanceSection';
 import './AuthScreen.css';
 
 export interface AuthScreenProps {
@@ -77,6 +78,13 @@ export function AuthScreen({ org, title, description, icon, actions, stepKey, fo
       focusTitle={focusTitle}
       context={org ? <OrganizationContext org={org} /> : undefined}
       aside={<BrandPanel />}
+      brand={
+        // a marca da Nekkora e, no canto direito da mesma linha, o ícone de tema (antes de entrar na conta)
+        <div className="pw-auth-brand">
+          <Logo variant="full" size={28} />
+          <ThemeCycleButton />
+        </div>
+      }
       footer={<span>Acesso protegido · Nekkora Platform</span>}
     >
       {children}

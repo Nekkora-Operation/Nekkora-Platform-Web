@@ -6,7 +6,10 @@ import { Authenticator } from '../../mock/totp';
 
 export const LAB = process.env.FRONT_LAB_ID ?? 'frontlab-001';
 /** Senha sintética das contas de ensaio (só existe no laboratório descartável). */
-export const PASSWORD = 'Ensaio-Front-V1-001-senha';
+// PLATFORM-SENHA-001: cadastros novos seguem a política (12 a 20, maiúscula, minúscula, número e símbolo). As pessoas já
+// gravadas no laboratório guardam a própria senha (antiga, fora da regra) e continuam entrando com ela.
+export const PASSWORD = 'Ensaio#Front-2026';
+export const LEGACY_PASSWORD = 'Ensaio-Front-V1-001-senha';
 
 /** E-mail sintético único por execução (domínio .test, nunca entregue: a caixa é de homologação). */
 export const syntheticEmail = (journey: string) =>
@@ -50,6 +53,22 @@ export async function readRecoveryCodes(page: Page): Promise<string[]> {
   return codes;
 }
 
+/**
+ * Sair pelo caminho atual da interface. Na área da organização o "Sair" fica dentro do menu da conta (o círculo com as
+ * iniciais, no topo): o menu é aberto antes. Na área da identidade (organizações, segurança da conta) o botão está direto
+ * no topo. Espera um dos dois aparecer antes de decidir, porque a tela pode ainda estar carregando.
+ */
+export async function signOut(page: Page) {
+  const menu = page.getByRole('button', { name: /^Menu da conta: / });
+  const direct = page.getByRole('button', { name: 'Sair', exact: true });
+  await expect(menu.or(direct).first()).toBeVisible();
+  if (await menu.isVisible()) {
+    await menu.click();
+    await expect(menu).toHaveAttribute('aria-expanded', 'true');
+  }
+  await direct.click();
+}
+
 export async function identitySignIn(page: Page, email: string, password = PASSWORD) {
   await expect(page.getByRole('heading', { name: 'Entrar na Nekkora' })).toBeVisible();
   await page.getByRole('textbox', { name: /E-mail/ }).fill(email);
@@ -79,8 +98,9 @@ export async function signUpAndEnroll(page: Page, journey: string, email = synth
   await identitySignIn(page, email);
   // API ate a 028: o primeiro login exige o cadastro do autenticador. API 029+ (segundo fator opcional): o login ja entra
   // e o autenticador e ATIVADO pela pessoa em Seguranca da conta, com a senha reconfirmada
-  await page.waitForURL(/\/(entrar\/configurar-autenticador|organizacoes)$/);
-  if (/\/organizacoes$/.test(page.url())) {
+  // Web atual: a primeira entrada depois do cadastro para na oferta "Proteja sua conta" (/conta/proteger)
+  await page.waitForURL(/\/(entrar\/configurar-autenticador|organizacoes|conta\/proteger)$/);
+  if (/\/(organizacoes|conta\/proteger)$/.test(page.url())) {
     const { auth, recoveryCodes } = await activateMfa(page, PASSWORD);
     return { email, password: PASSWORD, name, auth, recoveryCodes };
   }
@@ -122,6 +142,9 @@ export async function signUpWithoutMfa(page: Page, journey: string, email = synt
   await expect(page.getByRole('heading', { name: 'Cadastro concluído' })).toBeVisible();
   await page.getByRole('button', { name: 'Entrar' }).click();
   await identitySignIn(page, email);
+  // Web atual: a primeira entrada para na oferta "Proteja sua conta"; esta pessoa segue sem ativar
+  await page.waitForURL(/\/(organizacoes|conta\/proteger)$/);
+  if (/\/conta\/proteger$/.test(page.url())) await page.getByRole('button', { name: 'Seguir sem a verificação em duas etapas' }).click();
   await expect(page).toHaveURL(/\/organizacoes$/);
   return { email, password: PASSWORD, name };
 }
@@ -205,11 +228,11 @@ export async function confirmStepUp(page: Page, person: Person, confirmLabel: st
  */
 export async function createWorker(page: Page, org: string, workerName: string) {
   await page.goto(`/o/${org}/workers`);
-  await page.getByRole('heading', { name: 'Workers', level: 1 }).waitFor();
-  await page.getByRole('button', { name: 'Criar Worker' }).click();
+  await page.getByRole('heading', { name: 'Máquinas', level: 1 }).waitFor();
+  await page.getByRole('button', { name: 'Cadastrar máquina' }).click();
   const dialog = page.getByRole('alertdialog');
-  await dialog.getByLabel(/^Nome do Worker/).fill(workerName);
-  await dialog.getByRole('button', { name: 'Criar Worker' }).click();
+  await dialog.getByLabel(/^Nome da máquina/).fill(workerName);
+  await dialog.getByRole('button', { name: 'Cadastrar máquina' }).click();
 }
 
 /** T07: "Vincular Agent" na linha do Worker (código para ESSE Worker, com step-up); devolve o código de uso único. */
@@ -223,14 +246,97 @@ export async function linkAgent(page: Page, person: Person, workerName: string, 
 /** T07: Workers → Criar Worker → Vincular Agent. Devolve o código de pareamento (aparece só na tela). */
 export async function pairNewWorker(page: Page, org: string, person: Person, workerName: string, machineName: string): Promise<string> {
   await createWorker(page, org, workerName);
-  await expect(page.getByText(`Worker ${workerName} criado, sem Agent.`, { exact: false })).toBeVisible();
+  await expect(page.getByText(`Máquina ${workerName} cadastrada, sem computador vinculado.`, { exact: false })).toBeVisible();
   return linkAgent(page, person, workerName, machineName);
 }
 
 /** T07: texto da lista de Workers (máquina vinculada e comunicação aparecem na linha do Worker). */
 export async function workersText(page: Page, org: string): Promise<string> {
   await page.goto(`/o/${org}/workers`);
-  const region = page.getByRole('region', { name: 'Lista de Workers' });
+  const region = page.getByRole('region', { name: 'Lista de máquinas' });
   await region.waitFor({ timeout: 15_000 });
   return region.innerText().catch(() => '');
 }
+
+/**
+ * PLATFORM-FLUXO-002 — "Ativar automação" pela TELA (Administração › Licenças e automações): ambiente de trabalho →
+ * automação → Workers (só os informados; nenhum vem marcado) → conferência → "Ativar execução e monitoramento". Espera o
+ * resumo do resultado. {@code validUntil} (AAAA-MM-DD): só no modelo anterior, quando há Worker.
+ */
+export async function activateAutomation(
+  page: Page,
+  person: Person,
+  org: string,
+  opts: { workspace: string; automation: string; workers?: string[]; validUntil?: string },
+) {
+  await page.waitForTimeout(3_000);
+  await page.goto(`/o/${org}/administracao/licencas`);
+  // falha transitória da leitura (ex.: Platform recém-recriada): espera e usa o próprio "Tentar novamente", como a pessoa
+  const ativar = page.getByRole('button', { name: 'Ativar automação' });
+  for (let vez = 0; vez < 4; vez++) {
+    const retry = page.getByRole('button', { name: 'Tentar novamente' }).first();
+    await Promise.race([ativar.waitFor({ timeout: 30_000 }), retry.waitFor({ timeout: 30_000 })]).catch(() => undefined);
+    if (await ativar.isVisible()) break;
+    await page.waitForTimeout(20_000);
+    if (await retry.isVisible()) await retry.click();
+    else await page.reload();
+  }
+  const d = page.getByRole('alertdialog');
+  const ambiente = d.getByLabel('1. Ambiente de trabalho');
+  const confirmar = d.getByRole('button', { name: 'Ativar execução e monitoramento' });
+  // leituras recusadas pelo limite de frequência (nenhum limite é zerado): como a pessoa faria, fecha-se o diálogo, espera-se,
+  // usa-se o "Tentar novamente" do aviso de permissões (sem elas o diálogo não sabe quem age e não prepara a proteção contra
+  // repetição) e abre-se de novo
+  const permissoes = page.getByRole('alert').or(page.getByRole('status')).filter({ hasText: 'Não foi possível carregar suas permissões.' });
+  for (let vez = 0; ; vez++) {
+    if (vez >= 5) throw new Error('o diálogo "Ativar automação" não ficou pronto (leituras recusadas)');
+    if (await permissoes.isVisible()) {
+      await page.waitForTimeout(20_000);
+      await permissoes.getByRole('button', { name: 'Tentar novamente' }).click();
+      await expect(permissoes).toHaveCount(0, { timeout: 30_000 }).catch(() => undefined);
+      continue;
+    }
+    await ativar.click();
+    const falhou = d.getByText('Não foi possível carregar os ambientes de trabalho. Feche e tente de novo.');
+    await Promise.race([ambiente.waitFor({ timeout: 30_000 }), falhou.waitFor({ timeout: 30_000 })]).catch(() => undefined);
+    if (await ambiente.isVisible()) {
+      await ambiente.selectOption({ label: opts.workspace });
+      const select = d.getByLabel('2. Automação');
+      await expect(select.locator('option', { hasText: opts.automation })).toHaveCount(1);
+      const value = await select.locator('option', { hasText: opts.automation }).getAttribute('value');
+      await select.selectOption(value!);
+      for (const w of opts.workers ?? []) await d.getByRole('checkbox', { name: w }).check();
+      if (opts.validUntil) await d.getByLabel('Validade das autorizações').fill(opts.validUntil);
+      if (await expect(confirmar).toBeEnabled({ timeout: 30_000 }).then(() => true, () => false)) break;
+    }
+    await d.getByRole('button', { name: 'Cancelar' }).click();
+    await page.waitForTimeout(20_000);
+  }
+  await confirmStepUp(page, person, 'Ativar execução e monitoramento');
+  // o resumo é um aviso de sucesso (status) ou, com algo pendente, de atenção (alert)
+  await expect(page.getByRole('alert').or(page.getByRole('status')).filter({ hasText: `${opts.automation}:` }).first()).toBeVisible({ timeout: 30_000 });
+}
+
+/**
+ * PLATFORM-FLUXO-002 — a antiga lista de Supervisão ficou em Execuções (acompanhamento unificado). As linhas da lista, as
+ * do Agent anterior (origem "Agent anterior") e o texto da lista inteira, em "Histórico" com todo o período (o que já tem
+ * desfecho e as pendências) ou em "Em andamento" (o que ainda não terminou; a aba se atualiza sozinha a cada 30 s).
+ */
+export const executionRows = (page: Page) => page.getByRole('region', { name: 'Lista de execuções' }).locator('tbody tr');
+export const localRunLinks = (page: Page) => executionRows(page).filter({ hasText: 'Agent anterior' }).getByRole('link', { name: /^Execução de / });
+export async function openExecutions(page: Page, org: string, tab: 'andamento' | 'historico') {
+  await page.goto(tab === 'historico' ? `/o/${org}/execucoes?aba=historico&periodo=all` : `/o/${org}/execucoes`);
+  await expect(page.getByRole('tab', { name: tab === 'historico' ? 'Histórico' : 'Em andamento' })).toHaveAttribute('aria-selected', 'true');
+}
+export async function executionsText(page: Page, org: string): Promise<string> {
+  await openExecutions(page, org, 'historico');
+  const region = page.getByRole('region', { name: 'Lista de execuções' });
+  await region.waitFor({ timeout: 20_000 }).catch(() => undefined);
+  return region.innerText().catch(() => '');
+}
+
+/** AAAA-MM-DD daqui a {@code days} dias (validade das autorizações no modelo anterior). */
+export const dayFromNow = (days: number) => {
+  const d = new Date(Date.now() + days * 86_400_000);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};

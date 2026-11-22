@@ -12,7 +12,9 @@ import { nekkoraMockApi } from './mock/plugin.ts';
 // (cadeia e nome localhost); sem ele, mantém o comportamento anterior dos ensaios (certificado não conferido).
 const api = process.env.NEKKORA_API_URL;
 const ca = process.env.NEKKORA_API_CA ? readFileSync(process.env.NEKKORA_API_CA, 'utf8') : undefined;
-const proxy = api ? { '/api': ca ? { target: api, secure: true, ca } : { target: api, secure: false } } : undefined;
+// PLATFORM-FLUXO-002 (070): a área do cliente lê o Portal (/portal), atrás do mesmo nginx da API
+const upstream = api ? (ca ? { target: api, secure: true, ca } : { target: api, secure: false }) : undefined;
+const proxy = upstream ? { '/api': upstream, '/portal': upstream } : undefined;
 
 // Versão em execução (PLATFORM-LOCAL-002): commit e branch do Web lidos do git no início do Vite/build, a Nekkora-lib
 // fixada (lib.lock.json) e o commit da API informado pelo runner local (NEKKORA_API_COMMIT). Só identificação para a

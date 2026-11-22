@@ -112,7 +112,7 @@ const tick = async (ms: number) => {
 
 async function openWorkers() {
   renderApp(`/o/${ORG}/workers`);
-  await screen.findByRole('heading', { name: 'Workers', level: 1 });
+  await screen.findByRole('heading', { name: 'Máquinas', level: 1 });
   await waitFor(() => rowOf('ESTACAO-01'));
 }
 
@@ -226,12 +226,12 @@ describe('T11: vínculo e comunicação separados', () => {
 
 /**
  * PLATFORM-AGENT-V2-004, T13 — "Desvincular esta máquina" no Agent passa a encerrar o vínculo na Platform. A tela reflete a
- * conclusão na próxima releitura (até 30 s com a página visível), sem recarregar: o Worker fica "Sem máquina vinculada",
+ * conclusão na próxima releitura (até 30 s com a página visível), sem recarregar: o Worker fica "Sem computador vinculado",
  * com "Vincular Agent" para quem pode parear, e continua administrativamente ativo. Antes da conclusão (pedido esperando na
  * máquina), continua vinculada e offline, com "Revogar vínculo".
  */
 describe('T13: desvínculo pela máquina', () => {
-  it('Workers: pedido esperando na máquina = vinculada e offline (com Revogar vínculo); confirmado = Sem máquina vinculada + Vincular Agent, sem recarregar', async () => {
+  it('Workers: pedido esperando na máquina = vinculada e offline (com Revogar vínculo); confirmado = Sem computador vinculado + Vincular Agent, sem recarregar', async () => {
     workersReply = { status: 200, body: { items: [worker({ connectivity: 'DISCONNECTED', lastHeartbeatAt: '2026-11-10T11:50:00Z' })] } };
     await openWorkers();
     const row = rowOf('Worker financeiro');
@@ -245,7 +245,7 @@ describe('T13: desvínculo pela máquina', () => {
       body: { items: [worker({ agentId: null, agentName: null, agentStatus: null, agentVersion: null, installationId: null, lastHeartbeatAt: null, connectivity: null, credentialExpiresAt: null })] },
     };
     await tick(REFRESH_MS);
-    await waitFor(() => expect(within(rowOf('Worker financeiro')).getByText('Sem máquina vinculada')).toBeInTheDocument());
+    await waitFor(() => expect(within(rowOf('Worker financeiro')).getByText('Sem computador vinculado')).toBeInTheDocument());
     const free = rowOf('Worker financeiro');
     expect(within(free).getByText('Ativo')).toBeInTheDocument();
     expect(within(free).getByRole('button', { name: 'Vincular Agent a Worker financeiro' })).toBeInTheDocument();
@@ -260,7 +260,7 @@ describe('T13: desvínculo pela máquina', () => {
     const row = rowOf('Worker financeiro');
     await waitFor(() => expect(within(row).getByText('Não confirmada')).toBeInTheDocument());
     expect(within(row).getByText('Vinculada')).toBeInTheDocument();
-    expect(within(row).queryByText('Sem máquina vinculada')).toBeNull();
+    expect(within(row).queryByText('Sem computador vinculado')).toBeNull();
   });
 
   it('Máquinas vinculadas: encerrado pela máquina aparece "Desvinculada pela máquina" (nunca online); revogado pela administração continua "Vínculo revogado"', async () => {

@@ -60,7 +60,7 @@ beforeEach(() => {
     status: 200,
     body: {
       items: [
-        { workerId: ID(1), name: 'Estação sem workspace', status: 'ACTIVE', agentId: null, workspaceIds: [] },
+        { workerId: ID(1), name: 'Estação sem ambiente de trabalho', status: 'ACTIVE', agentId: null, workspaceIds: [] },
         { workerId: ID(2), name: 'Estação fiscal', status: 'ACTIVE', agentId: null, workspaceIds: [ID(11)] },
         { workerId: ID(3), name: 'Estação central', status: 'ACTIVE', agentId: ID(50), workspaceIds: [ID(11), ID(12), ID(13)] },
       ],
@@ -68,9 +68,9 @@ beforeEach(() => {
   });
 });
 
-const table = async () => within(await screen.findByRole('region', { name: 'Lista de Workers' })).getByRole('table');
+const table = async () => within(await screen.findByRole('region', { name: 'Lista de máquinas' })).getByRole('table');
 
-describe('tabela de Workers (T08)', () => {
+describe('tabela de máquinas (T08)', () => {
   it('texto de abertura, cabeçalhos e células centralizados só nesta tabela', async () => {
     renderApp(`/o/${ORG}/workers`);
     expect(await screen.findByText(WORKERS_INTRO)).toBeInTheDocument();
@@ -80,18 +80,18 @@ describe('tabela de Workers (T08)', () => {
     for (const td of within(t).getAllByRole('cell')) expect(td.className).toMatch(/nk-table__cell--center/);
   });
 
-  it('sem workspace, com um e com vários: um par nome + "Retirar" por item, com o destino no nome acessível', async () => {
+  it('sem ambiente de trabalho, com um e com vários: um par nome + "Retirar" por item, com o destino no nome acessível', async () => {
     renderApp(`/o/${ORG}/workers`);
     await table();
-    const none = screen.getByRole('row', { name: /Estação sem workspace/ });
+    const none = screen.getByRole('row', { name: /Estação sem ambiente de trabalho/ });
     expect(within(none).getByText('Nenhum')).toBeInTheDocument();
     expect(within(none).queryByRole('button', { name: /^Retirar/ })).toBeNull();
 
-    const one = screen.getByRole('list', { name: 'Workspaces autorizados de Estação fiscal' });
+    const one = screen.getByRole('list', { name: 'Ambientes de trabalho autorizados de Estação fiscal' });
     expect(within(one).getAllByRole('listitem')).toHaveLength(1);
     expect(within(one).getByRole('button', { name: removeLabel('Financeiro', 'Estação fiscal') })).toHaveTextContent('Retirar');
 
-    const many = screen.getByRole('list', { name: 'Workspaces autorizados de Estação central' });
+    const many = screen.getByRole('list', { name: 'Ambientes de trabalho autorizados de Estação central' });
     const items = within(many).getAllByRole('listitem');
     expect(items).toHaveLength(3);
     for (const [i, name] of ['Financeiro', 'Compras', LONG].entries()) {
@@ -129,7 +129,7 @@ describe('tabela de Workers (T08)', () => {
  * R1 — cartões no modo estreito. O jsdom não mede: a largura da região e a de que a tabela precisa são simuladas, e o
  * ResizeObserver é um dublê que avisa quando a "janela" muda.
  */
-describe('Workers em cartões quando a tabela não cabe (T08 R1)', () => {
+describe('Máquinas em cartões quando a tabela não cabe (T08 R1)', () => {
   let width = 600;
   let NEEDED = 1100;
   let observers: (() => void)[] = [];
@@ -170,17 +170,17 @@ describe('Workers em cartões quando a tabela não cabe (T08 R1)', () => {
     width = w;
     for (const o of [...observers]) o();
   };
-  const region = () => screen.findByRole('region', { name: 'Lista de Workers' });
+  const region = () => screen.findByRole('region', { name: 'Lista de máquinas' });
 
-  it('estreito: um cartão por Worker, sem tabela no DOM; cada workspace com o seu "Retirar"; uma consulta só', async () => {
+  it('estreito: um cartão por máquina, sem tabela no DOM; cada ambiente de trabalho com o seu "Retirar"; uma consulta só', async () => {
     renderApp(`/o/${ORG}/workers`);
     const r = await region();
     await vi.waitFor(() => expect(r).toHaveAttribute('data-format', 'cartoes'));
     expect(within(r).queryByRole('table')).toBeNull();
     const cards = within(r).getAllByRole('article');
-    expect(cards.map((c) => within(c).getByRole('heading').textContent)).toEqual(['Estação sem workspace', 'Estação fiscal', 'Estação central']);
+    expect(cards.map((c) => within(c).getByRole('heading').textContent)).toEqual(['Estação sem ambiente de trabalho', 'Estação fiscal', 'Estação central']);
     const central = cards[2];
-    expect(within(central).getByText('Workspaces autorizados')).toBeInTheDocument();
+    expect(within(central).getByText('Ambientes de trabalho autorizados')).toBeInTheDocument();
     const itens = within(central).getAllByRole('listitem');
     expect(itens.map((li) => li.textContent)).toEqual(['FinanceiroRetirar', 'ComprasRetirar', `${LONG}Retirar`]);
     for (const [li, nome] of itens.map((li, i) => [li, ['Financeiro', 'Compras', LONG][i]] as const))
@@ -188,7 +188,7 @@ describe('Workers em cartões quando a tabela não cabe (T08 R1)', () => {
     // nenhum controle duplicado/escondido: um "Retirar" por workspace na página inteira
     expect(screen.getAllByRole('button', { name: /^Retirar autorização de/ })).toHaveLength(4);
     expect(within(cards[0]).getByText('Nenhum')).toBeInTheDocument();
-    expect(within(cards[0]).getByRole('button', { name: 'Autorizar Estação sem workspace num workspace' })).toBeInTheDocument();
+    expect(within(cards[0]).getByRole('button', { name: 'Autorizar Estação sem ambiente de trabalho num ambiente de trabalho' })).toBeInTheDocument();
     // a região só recebe foco quando é a tabela rolável
     expect(r).not.toHaveAttribute('tabindex');
     // trocar de formato não pede nada à API: a mesma lista (carga inicial, com a montagem dupla do modo estrito)

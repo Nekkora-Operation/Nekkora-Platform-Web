@@ -57,41 +57,49 @@ async function audit(page: Page, name: string) {
 
 const nav = (page: Page) => page.getByRole('navigation', { name: 'Navegação principal' });
 const rows = (page: Page, name: string) => page.getByRole('region', { name }).locator('tbody tr');
-const adminCalls = (urls: { url: string; status?: number }[]) => urls.filter((u) => /\/(members|clients|client-grants)(\?|$)/.test(u.url));
+const adminCalls = (urls: { url: string; status?: number }[]) => urls.filter((u) => /\/(people|members|clients|client-grants|access-grants)(\?|$)/.test(u.url));
 
 test('ORG_ADMIN: menu Administração → Membros (paginação e filtro na URL, recarga mantém) → Clientes → Concessões do cliente; axe', async ({ page }) => {
   const urls = recordRequests(page);
   const acc = await account({ orgRoles: ['ORG_ADMIN'] });
   await enter(page, acc);
 
-  await nav(page).getByRole('link', { name: 'Membros' }).click();
-  await expect(page).toHaveURL(org('/administracao/membros'));
-  await expect(page.getByRole('heading', { level: 1, name: 'Membros' })).toBeVisible();
-  await expect(rows(page, 'Lista de membros')).toHaveCount(25);
+  // PLATFORM-FLUXO-002: Membros e Convites viraram "Pessoas e acessos"
+  await nav(page).getByRole('link', { name: 'Pessoas e acessos' }).click();
+  await expect(page).toHaveURL(org('/administracao/pessoas'));
+  await expect(page.getByRole('heading', { level: 1, name: 'Pessoas e acessos' })).toBeVisible();
+  await expect(rows(page, 'Lista de pessoas e convites')).toHaveCount(25);
   await audit(page, 'f6a1-membros');
   // outros testes da mesma execução também criam contas nesta organização: carrega até o fim, página por página
   for (let i = 0; i < 20 && (await page.getByRole('button', { name: 'Carregar mais' }).count()) > 0; i++) {
-    const before = await rows(page, 'Lista de membros').count();
+    const before = await rows(page, 'Lista de pessoas e convites').count();
     await page.getByRole('button', { name: 'Carregar mais' }).click();
-    await expect.poll(() => rows(page, 'Lista de membros').count()).toBeGreaterThan(before);
+    await expect.poll(() => rows(page, 'Lista de pessoas e convites').count()).toBeGreaterThan(before);
   }
   await expect(page.getByText('Fim da lista')).toBeVisible();
-  expect(await rows(page, 'Lista de membros').count()).toBeGreaterThan(25);
+  expect(await rows(page, 'Lista de pessoas e convites').count()).toBeGreaterThan(25);
 
-  await page.getByRole('checkbox', { name: 'Revogado' }).check();
-  await expect(page).toHaveURL(org('/administracao/membros?estado=revoked'));
-  await expect(rows(page, 'Lista de membros')).toHaveCount(1);
-  await expect(rows(page, 'Lista de membros').first()).toContainText('Gil Desligado');
+  await page.getByRole('checkbox', { name: 'Retirado da organização' }).check();
+  await expect(page).toHaveURL(org('/administracao/pessoas?estado=member_revoked'));
+  await expect(rows(page, 'Lista de pessoas e convites')).toHaveCount(1);
+  await expect(rows(page, 'Lista de pessoas e convites').first()).toContainText('Gil Desligado');
   await page.reload();
-  await expect(rows(page, 'Lista de membros')).toHaveCount(1);
-  await expect(page.getByRole('checkbox', { name: 'Revogado' })).toBeChecked();
+  await expect(rows(page, 'Lista de pessoas e convites')).toHaveCount(1);
+  await expect(page.getByRole('checkbox', { name: 'Retirado da organização' })).toBeChecked();
 
-  await nav(page).getByRole('link', { name: 'Clientes' }).click();
+  // PLATFORM-FLUXO-002 (070): Clientes e Concessões ficam dentro de "Pessoas e acessos"
+  await page.getByRole('link', { name: 'Gerenciar clientes' }).click();
   await expect(rows(page, 'Lista de clientes')).toHaveCount(4);
   await audit(page, 'f6a1-clientes');
-  await page.getByRole('link', { name: 'Ver concessões de Banco Exemplo S.A.' }).click();
-  await expect(page).toHaveURL(org(`/administracao/concessoes?cliente=${stableUuid('dev:client:banco')}`));
-  await expect(rows(page, 'Lista de concessões')).toHaveCount(3);
+  await page.getByRole('button', { name: 'Ver detalhes de Banco Exemplo S.A.' }).click();
+  await page.getByRole('link', { name: /Ver concessões e histórico deste cliente/ }).click();
+  // a ordem dos parâmetros é a dos filtros normalizados: confere caminho e valores
+  await expect.poll(() => {
+    const u = new URL(page.url());
+    return [u.pathname, u.searchParams.get('aba'), u.searchParams.get('cliente')];
+  }).toEqual([org('/administracao/pessoas'), 'compartilhamentos', stableUuid('dev:client:banco')]);
+  await expect(page.getByRole('tab', { name: 'Compartilhamentos' })).toHaveAttribute('aria-selected', 'true');
+  await expect(rows(page, 'Lista de concessões de clientes')).toHaveCount(3);
   await expect(page.getByRole('combobox', { name: 'Cliente' })).toHaveValue(stableUuid('dev:client:banco'));
   await audit(page, 'f6a1-concessoes');
 
@@ -103,10 +111,10 @@ test('papel só de workspace: sem o grupo Administração; endereço direto → 
   const urls = recordRequests(page);
   const acc = await account({ workspaceRoles: [['financeiro', ['WORKSPACE_ADMIN']]] });
   await enter(page, acc);
-  await expect(nav(page).getByRole('link', { name: 'Workspaces' })).toBeVisible();
+  await expect(nav(page).getByRole('link', { name: 'Ambientes de trabalho' })).toBeVisible();
   await expect(nav(page).getByText('Administração')).toHaveCount(0);
   for (const [path, area] of [
-    ['/administracao/membros', 'os membros desta organização'],
+    ['/administracao/membros', 'as pessoas e os convites desta organização'],
     ['/administracao/clientes', 'os clientes desta organização'],
     ['/administracao/concessoes', 'as concessões desta organização'],
   ]) {
@@ -128,7 +136,7 @@ test('conta externa: encaminhamento próprio, nenhuma rota administrativa chamad
   await expect(page.getByRole('heading', { name: 'Olá, Pessoa E2E' })).toBeVisible();
   await page.waitForTimeout(300);
   expect(adminCalls(urls)).toEqual([]);
-  await expect(page.getByRole('region', { name: 'Lista de membros' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Lista de pessoas e convites' })).toHaveCount(0);
 });
 
 test('R1: perda de permissão entre páginas → "Carregar mais" → 403: acesso negado sem a lista anterior; volta só por nova leitura autorizada', async ({ page }) => {
@@ -136,17 +144,17 @@ test('R1: perda de permissão entre páginas → "Carregar mais" → 403: acesso
   const acc = await account({ orgRoles: ['ORG_ADMIN'] });
   await enter(page, acc);
   await page.goto(org('/administracao/membros'));
-  await expect(rows(page, 'Lista de membros')).toHaveCount(25);
+  await expect(rows(page, 'Lista de pessoas e convites')).toHaveCount(25);
   await control('product/revoke-organization-roles', { userId: acc.userId });
   await page.getByRole('button', { name: 'Carregar mais' }).click();
-  await expect(page.getByText('Você não tem permissão para ver os membros desta organização.')).toBeVisible();
+  await expect(page.getByText('Você não tem permissão para ver as pessoas e os convites desta organização.')).toBeVisible();
   await expect(page.getByRole('table')).toHaveCount(0);
-  await expect(page.getByRole('form', { name: 'Filtros de membros' })).toHaveCount(0);
+  await expect(page.getByRole('form', { name: 'Busca e filtros de pessoas' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Carregar mais' })).toHaveCount(0);
   await expect(page.getByText(/A lista exibida continua válida/)).toHaveCount(0);
-  expect(urls.filter((u) => u.url.includes('/members?') && u.url.includes('cursor=')).map((u) => u.status)).toEqual([403]);
+  expect(urls.filter((u) => u.url.includes('/people?') && u.url.includes('cursor=')).map((u) => u.status)).toEqual([403]);
   await page.getByRole('button', { name: 'Verificar novamente' }).click();
-  await expect(page.getByText('Você não tem permissão para ver os membros desta organização.')).toBeVisible();
+  await expect(page.getByText('Você não tem permissão para ver as pessoas e os convites desta organização.')).toBeVisible();
   await expect(page.getByRole('table')).toHaveCount(0);
   await audit(page, 'f6a1-r1-acesso-perdido');
 });
@@ -155,13 +163,13 @@ test('cursor recusado depois da rotação da chave: lista mantida e recomeço po
   const acc = await account({ orgRoles: ['ORG_ADMIN'] });
   await enter(page, acc);
   await page.goto(org('/administracao/membros'));
-  await expect(rows(page, 'Lista de membros')).toHaveCount(25);
+  await expect(rows(page, 'Lista de pessoas e convites')).toHaveCount(25);
   await control('cursor-key/rotate', {});
   await page.getByRole('button', { name: 'Carregar mais' }).click();
   await expect(page.getByText(/A lista mudou desde a última página/)).toBeVisible();
-  await expect(rows(page, 'Lista de membros')).toHaveCount(25);
+  await expect(rows(page, 'Lista de pessoas e convites')).toHaveCount(25);
   await page.getByRole('button', { name: 'Recomeçar a lista' }).click();
-  await expect(rows(page, 'Lista de membros')).toHaveCount(25);
+  await expect(rows(page, 'Lista de pessoas e convites')).toHaveCount(25);
   await expect(page.getByRole('button', { name: 'Carregar mais' })).toBeVisible();
 
   await control('revoke-sessions', { userId: acc.userId });

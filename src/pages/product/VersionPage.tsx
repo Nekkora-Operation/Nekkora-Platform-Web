@@ -13,6 +13,7 @@ import {
   type UploadHandle,
 } from '../../api/lifecycle';
 import { getAutomation } from '../../api/product';
+import { useInternalArea } from '../../area/InternalShell';
 import { useSession } from '../../area/session';
 import { useWorkspacePermissions } from '../../area/useWorkspacePermissions';
 import { PermissionsUnverified } from '../../area/PermissionsUnverified';
@@ -21,6 +22,8 @@ import { StepUpDialog } from '../../components/StepUpDialog';
 import { useResource } from '../../hooks/useResource';
 import { orgStepUp } from '../access/shared';
 import { LocalRunAuthorizations } from '../agents/LocalRunAuthorizations';
+import { RemoteExecutions } from '../agents/RemoteExecutions';
+import { RemoteUnavailableNotice, useRemoteExecutionAvailable } from '../../components/RemoteUnavailable';
 import { DateTimeText, LoadErrorState, NotFoundState, PageHeader, isMissing } from './shared';
 import { compareTechnical, PublishSummary, type Reviewed } from './PublishSummary';
 import { DownloadPackage } from './DownloadPackage';
@@ -51,11 +54,13 @@ function Hash({ value }: { value: string | null | undefined }) {
  */
 export function VersionPage() {
   const { org, expired } = useSession();
+  const remoteAvailable = useRemoteExecutionAvailable();
   const { versionId = '' } = useParams();
   const version = useResource(() => getAutomationVersion(org, versionId), [org, versionId]);
   const v = version.status === 'ready' ? version.data : undefined;
   const automation = useResource(() => (v ? getAutomation(org, v.automationId!) : new Promise<never>(() => {})), [org, v?.automationId]);
   const perms = useWorkspacePermissions(v?.workspaceId);
+  const area = useInternalArea();
   const can = (p: 'automation.manage' | 'automation.publish') => perms.status === 'ready' && perms.has(p);
 
   const [file, setFile] = useState<File | null>(null);
@@ -96,7 +101,7 @@ export function VersionPage() {
       expired();
       return null;
     }
-    if (isMissing(version.error)) return <NotFoundState title="Versão não encontrada." back={{ to: orgPath.workspaces(org), label: 'Voltar para workspaces' }} />;
+    if (isMissing(version.error)) return <NotFoundState title="Versão não encontrada." back={{ to: orgPath.workspaces(org), label: 'Voltar para ambientes de trabalho' }} />;
     return <LoadErrorState error={version.error} onRetry={version.refresh} page />;
   }
 
@@ -217,7 +222,7 @@ export function VersionPage() {
     <Stack gap={6}>
       <PageHeader title={`${name} — versão ${data.versionNumber ?? ''}`} subtitle="Versão da automação" back={back} onRefresh={version.refresh} refreshing={version.refreshing} />
       {perms.status === 'unknown' && (
-        <PermissionsUnverified actions={draft ? 'Enviar o pacote, Publicar versão e a execução local' : 'As ações de execução local'} onRetry={perms.retry} />
+        <PermissionsUnverified actions={draft ? 'Enviar o pacote, Publicar versão e a execução local' : 'As ações de execução local e de execução remota'} onRetry={perms.retry} />
       )}
 
       <Card variant="surface" padding="lg">
@@ -253,9 +258,9 @@ export function VersionPage() {
       {!draft && (
         <Alert tone="info" title="Versão publicada: não muda mais.">
           Para alterar comando ou pacote, crie uma nova versão na automação. Publicar não executa nada nem autoriza
-          execução: a execução local depende de uma autorização para um Worker, no workspace (
+          execução: a execução local depende de uma autorização para uma máquina, no ambiente de trabalho (
           <Link as={RouterLink} to={orgPath.workspace(org, data.workspaceId!)}>
-            abrir o workspace
+            abrir o ambiente de trabalho
           </Link>
           ), e do início confirmado pela pessoa no Agent.
         </Alert>
@@ -476,6 +481,23 @@ export function VersionPage() {
           workspaceId={data.workspaceId!}
           version={{ automationVersionId: data.automationVersionId!, versionNumber: data.versionNumber, fingerprint: data.agentPackage?.fingerprint ?? art?.fingerprint }}
           canExecute={perms.status === 'ready' && perms.has('automation.execute')}
+        />
+      )}
+
+      {/* EXECUCAO-REMOTA-001 (T02): solicitar a execução desta versão numa máquina habilitada */}
+      {!draft && data.automationId && !remoteAvailable && (
+        <RemoteUnavailableNotice detail="Esta versão não pode ser solicitada a uma máquina pela Platform." />
+      )}
+      {!draft && data.automationId && remoteAvailable && (
+        <RemoteExecutions
+          workspaceId={data.workspaceId!}
+          automationId={data.automationId}
+          version={{ automationVersionId: data.automationVersionId!, versionNumber: data.versionNumber }}
+          canExecute={perms.status === 'ready' && perms.has('automation.execute')}
+          canManage={perms.status === 'ready' && perms.has('automation.manage')}
+          canReadLogs={perms.status === 'ready' && perms.has('logs.read')}
+          canReconcile={area.permissions.status === 'ready' && area.permissions.data.organization.roles.includes('ORG_ADMIN')}
+          externalPackage={data.artifact?.packageKind === 'EXTERNAL_PYTHON'}
         />
       )}
 

@@ -98,21 +98,21 @@ const workersGets = () => api.sent('GET', `/api/v1/o/${ORG}/workers`).length;
 const agentsGets = () => api.sent('GET', `/api/v1/o/${ORG}/agents`).length;
 const cardOf = (region: HTMLElement, title: string) => within(region).getAllByRole('article').find((a) => within(a).getByRole('heading').textContent === title)!;
 
-describe('Workers em cartões, por perfil (T07 + T08 R1)', () => {
+describe('Máquinas em cartões, por perfil (T07 + T08 R1)', () => {
   it('ORG_ADMIN: cartões com máquina, comunicação e todas as ações; sem tabela; trocar de formato não consulta a API', async () => {
     renderApp(`/o/${ORG}/workers`);
-    const r = await screen.findByRole('region', { name: 'Lista de Workers' });
+    const r = await screen.findByRole('region', { name: 'Lista de máquinas' });
     await waitFor(() => expect(r).toHaveAttribute('data-format', 'cartoes'));
     expect(within(r).queryByRole('table')).toBeNull();
     const linked = cardOf(r, 'Worker financeiro');
-    expect(linked).toHaveTextContent('Máquina vinculada');
+    expect(linked).toHaveTextContent('Nome da máquina');
     expect(linked).toHaveTextContent('ESTACAO-01');
     expect(linked).toHaveTextContent('Online');
-    expect(within(linked).getByRole('button', { name: 'Retirar autorização de Financeiro do Worker Worker financeiro' })).toBeInTheDocument();
+    expect(within(linked).getByRole('button', { name: 'Retirar autorização de Financeiro da máquina Worker financeiro' })).toBeInTheDocument();
     expect(within(linked).getByRole('button', { name: 'Renovar credencial de ESTACAO-01' })).toBeInTheDocument();
     expect(within(linked).getByRole('button', { name: 'Revogar vínculo de ESTACAO-01 com Worker financeiro' })).toBeInTheDocument();
     const livre = cardOf(r, 'Worker livre');
-    expect(livre).toHaveTextContent('Sem máquina vinculada');
+    expect(livre).toHaveTextContent('Sem computador vinculado');
     expect(within(livre).getByRole('button', { name: 'Vincular Agent a Worker livre' })).toBeInTheDocument();
     const gets = workersGets();
     size.resize(1300);
@@ -129,7 +129,7 @@ describe('Workers em cartões, por perfil (T07 + T08 R1)', () => {
       body: { enrollmentId: ENR, code: CODE, expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(), workerId: W1, agentId: AG },
     });
     renderApp(`/o/${ORG}/workers`);
-    const r = await screen.findByRole('region', { name: 'Lista de Workers' });
+    const r = await screen.findByRole('region', { name: 'Lista de máquinas' });
     await waitFor(() => expect(r).toHaveAttribute('data-format', 'cartoes'));
     const b = within(cardOf(r, 'Worker financeiro')).getByRole('button', { name: 'Renovar credencial de ESTACAO-01' });
     b.focus();
@@ -146,16 +146,16 @@ describe('Workers em cartões, por perfil (T07 + T08 R1)', () => {
   it('worker.manage sem permissões de Agent: cartões sem Vincular, Renovar nem Revogar; Autorizar e Retirar continuam', async () => {
     permissions(['worker.manage', 'worker_workspace.authorize']);
     renderApp(`/o/${ORG}/workers`);
-    const r = await screen.findByRole('region', { name: 'Lista de Workers' });
+    const r = await screen.findByRole('region', { name: 'Lista de máquinas' });
     await waitFor(() => expect(r).toHaveAttribute('data-format', 'cartoes'));
     expect(within(r).queryByRole('button', { name: /Vincular Agent|Renovar credencial|Revogar vínculo/ })).toBeNull();
-    expect(within(cardOf(r, 'Worker livre')).getByRole('button', { name: 'Autorizar Worker livre num workspace' })).toBeInTheDocument();
+    expect(within(cardOf(r, 'Worker livre')).getByRole('button', { name: 'Autorizar Worker livre num ambiente de trabalho' })).toBeInTheDocument();
     expect(within(cardOf(r, 'Worker financeiro')).getByRole('button', { name: /Retirar autorização de Financeiro/ })).toBeInTheDocument();
   });
 
-  it('acessibilidade (axe) dos cartões de Workers', async () => {
+  it('acessibilidade (axe) dos cartões de máquinas', async () => {
     renderApp(`/o/${ORG}/workers`);
-    const r = await screen.findByRole('region', { name: 'Lista de Workers' });
+    const r = await screen.findByRole('region', { name: 'Lista de máquinas' });
     await waitFor(() => expect(r).toHaveAttribute('data-format', 'cartoes'));
     const result = await axe.run(r, { rules: { 'color-contrast': { enabled: false } } });
     expect(result.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
@@ -175,14 +175,14 @@ describe('Máquinas vinculadas em cartões (agent.manage sem worker.manage, R1)'
     expect(within(r).queryByRole('table')).toBeNull();
     const ativa = cardOf(r, 'ESTACAO-01');
     expect(ativa).toHaveTextContent('Vinculada');
-    expect(ativa).toHaveTextContent('Worker 11111111…');
+    expect(ativa).toHaveTextContent('Máquina 11111111…');
     expect(ativa).toHaveTextContent('Online');
     expect(within(ativa).getByRole('button', { name: 'Renovar credencial de ESTACAO-01' })).toBeInTheDocument();
-    const revogar = within(ativa).getByRole('button', { name: 'Revogar vínculo de ESTACAO-01 com Worker 11111111…' });
+    const revogar = within(ativa).getByRole('button', { name: 'Revogar vínculo de ESTACAO-01 com Máquina 11111111…' });
     revogar.focus();
     expect(revogar).toHaveFocus();
     expect(within(cardOf(r, 'ESTACAO-ANTIGA')).queryByRole('button')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Criar Worker' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cadastrar máquina' })).toBeNull();
     expect(workersGets()).toBe(0);
     const gets = agentsGets();
     size.resize(1400);
