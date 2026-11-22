@@ -21,7 +21,7 @@ import {
   dependencyCheckText,
   endedUnknownText,
   environmentCode, ACCEPT_VERSION, WAITING_SLOT_LABEL, WAITING_SLOT_TEXT } from './RemoteExecutions';
-import { logsExpiredText, storedText, writtenText } from './RemoteLogs';
+import { availabilityText, logsExpiredText, storedText, writtenText } from './RemoteLogs';
 import { resultsExpiredText } from './RemoteResults';
 import { permissionsAutoRetry } from '../../area/useWorkspacePermissions';
 
@@ -887,6 +887,8 @@ describe('Versão: execução remota (T02)', () => {
     let closure: Row | null = null;
     let retentionLoss: Row | null = null;
     let resultsExpiration: Row | null = null;
+    // a máquina ainda não fechou o envio: se nada mais chegar, vence no teto sem progresso
+    let resultsAvailability: Row = { state: 'INCOMPLETE_DELIVERY', days: 30, startsAt: '2026-11-23T15:00:00Z', deliveryEnd: 'NO_PROGRESS', availableUntil: '2026-12-23T15:00:00Z' };
     api.on('GET', RES, 'listRemoteAttemptResults', () => ({
       status: 200,
       body: {
@@ -898,6 +900,7 @@ describe('Versão: execução remota (T02)', () => {
         closure,
         retentionLoss,
         expiration: resultsExpiration,
+        availability: resultsAvailability,
       },
     }));
     api.on('GET', `${RES}/1/content`, 'downloadRemoteAttemptResult', { status: 409, body: { error: 'conflict', reason: 'remote_result_unavailable' } });
@@ -913,16 +916,21 @@ describe('Versão: execução remota (T02)', () => {
     expect(within(list).queryByRole('button', { name: 'Baixar antigo.txt' })).toBeNull();
     // envio ainda não fechado: a tela não afirma que a lista está completa
     expect(within(s).getByText(/ainda não informou que terminou de enviar os resultados/)).toBeInTheDocument();
+    // LICENCIAMENTO-002: até quando ficam disponíveis - a entrega não se concluiu, então a data é a do teto sem progresso
+    expect(within(s).getByText(/A máquina ainda não concluiu o envio\. Se nada mais chegar, os arquivos de resultado ficam disponíveis até \d{2}\/\d{2}\/\d{4}.*\(30 dias sem progresso desde .*\); um novo envio adia essa data\./)).toBeInTheDocument();
     // o arquivo não está mais guardado: nada é baixado, e a tela diz
     fireEvent.click(within(list).getByRole('button', { name: 'Baixar dados/relatório final.csv' }));
     expect(await within(s).findByText('O arquivo não está mais guardado na Platform. Nada foi baixado.')).toBeInTheDocument();
     // a máquina fechou o envio dizendo que 2 arquivos ficaram de fora por limite
     closure = { sent: 2, skippedByLimit: 2, closedAt: T };
+    resultsAvailability = { state: 'SCHEDULED', days: 30, startsAt: '2026-11-23T15:00:00Z', deliveryEnd: 'CLOSED', availableUntil: '2026-12-23T15:00:00Z' };
     fireEvent.click(within(s).getByRole('button', { name: 'Atualizar os resultados da tentativa 1' }));
     expect(await within(s).findByText(/2 arquivos não foram enviados/)).toBeInTheDocument();
     expect(within(s).getByText(/Isso não muda o resultado da execução/)).toBeInTheDocument();
     expect(within(s).queryByText(/ainda não informou que terminou/)).toBeNull();
     expect(within(s).queryByText(/removeu a pasta de saída/)).toBeNull();
+    // envio concluído: o prazo de 30 dias corre desde o fechamento, e a tela diz até quando
+    expect(within(s).getByText(/^Disponível até \d{2}\/\d{2}\/\d{4}.*: a Platform guarda os arquivos de resultado por 30 dias contados do fim da entrega \(a máquina concluiu o envio em .*\)\. Depois disso, o conteúdo é removido\.$/)).toBeInTheDocument();
     // a máquina avisa que removeu, pelo prazo de guarda dela, a pasta de saída sem confirmação: a lacuna aparece, com o que havia lá
     // e o que a Platform tem - e nada disso vira "entregue"
     retentionLoss = { localCount: 4, reportedAt: '2026-11-23T15:00:00Z' };
@@ -937,10 +945,21 @@ describe('Versão: execução remota (T02)', () => {
     // retenção do servidor: a tela diz que os arquivos expiraram, o prazo, de onde ele contou e o que ficou
     expect(within(s).queryByText(/arquivos de resultado expiraram/)).toBeNull();
     resultsExpiration = { ...EXPIRED, items: 2, deliveryEnd: 'LOSS_NOTICE' };
+    resultsAvailability = { state: 'EXPIRED', days: 30, startsAt: '2026-11-23T15:00:00Z', deliveryEnd: 'LOSS_NOTICE', availableUntil: '2026-12-23T15:00:00Z' };
     fireEvent.click(within(s).getByRole('button', { name: 'Atualizar os resultados da tentativa 1' }));
     const expired = await within(s).findByText(/2 arquivos de resultado expiraram em 23\/12\/2026 e foram removidos da Platform\./);
     expect(expired.textContent).toMatch(/por 30 dias depois do fim da entrega \(a máquina avisou que não tinha mais o que enviar em 23\/11\/2026\)/);
     expect(expired.textContent).toMatch(/Ficam o nome, o tamanho e o SHA-256 de cada arquivo\. O histórico e o resultado da execução não mudam\./);
+    // vencido, quem fala é o texto do vencimento: nada de "disponível até"
+    expect(within(s).queryByText(/Disponível até/)).toBeNull();
+    // os demais estados, em texto
+    expect(availabilityText({ state: 'UNCERTAIN', days: 30, startsAt: null, deliveryEnd: null, availableUntil: null }, 'Os arquivos de resultado')).toBe(
+      'O resultado desta execução não foi confirmado. Enquanto não for reconciliado, os arquivos de resultado não expiram.',
+    );
+    expect(availabilityText({ state: 'NO_RETENTION', days: 30, startsAt: null, deliveryEnd: null, availableUntil: null }, 'Os arquivos de resultado')).toBe(
+      'Neste ambiente a Platform não remove os arquivos de resultado automaticamente.',
+    );
+    expect(availabilityText({ state: 'EXPIRED', days: 30, startsAt: '2026-11-23T15:00:00Z', deliveryEnd: 'CLOSED', availableUntil: '2026-12-23T15:00:00Z' }, 'Os registros')).toBeNull();
     expect(resultsExpiredText({ ...EXPIRED, items: 1, confirmedAt: null })).toMatch(/^1 arquivo de resultado expirou em 23\/12\/2026; a remoção está em andamento\./);
   });
 
@@ -973,12 +992,12 @@ describe('Versão: execução remota (T02)', () => {
         total: 6, automationLines: 5, systemLines: 1,
         nextAfter: 4,
         closure: null,
-        retentionLoss: null, expiration: null,
+        retentionLoss: null, expiration: null, availability: { state: 'WAITING_DELIVERY', days: 30, startsAt: null, deliveryEnd: null, availableUntil: null },
       },
-      { attemptId: ATT, items: [line(5, 'EXECUTOR', 'Limite de registros desta execução atingido'), line(6, 'STDOUT', 'fim')], total: 6, automationLines: 5, systemLines: 1, nextAfter: null, closure: null, retentionLoss: null, expiration: null },
-      { attemptId: ATT, items: [], total: 6, automationLines: 5, systemLines: 1, nextAfter: null, closure: { lines: 6, droppedLines: 73000, closedAt: T }, retentionLoss: null, expiration: null },
-      { attemptId: ATT, items: [], total: 6, automationLines: 5, systemLines: 1, nextAfter: null, closure: null, retentionLoss: { localCount: 1500, reportedAt: '2026-11-23T15:00:00Z' }, expiration: null },
-      { attemptId: ATT, items: [], total: 6, automationLines: 5, systemLines: 1, nextAfter: null, closure: { lines: 6, droppedLines: 0, closedAt: T }, retentionLoss: null, expiration: EXPIRED },
+      { attemptId: ATT, items: [line(5, 'EXECUTOR', 'Limite de registros desta execução atingido'), line(6, 'STDOUT', 'fim')], total: 6, automationLines: 5, systemLines: 1, nextAfter: null, closure: null, retentionLoss: null, expiration: null, availability: { state: 'WAITING_DELIVERY', days: 30, startsAt: null, deliveryEnd: null, availableUntil: null } },
+      { attemptId: ATT, items: [], total: 6, automationLines: 5, systemLines: 1, nextAfter: null, closure: { lines: 6, droppedLines: 73000, closedAt: T }, retentionLoss: null, expiration: null, availability: { state: 'WAITING_DELIVERY', days: 30, startsAt: null, deliveryEnd: null, availableUntil: null } },
+      { attemptId: ATT, items: [], total: 6, automationLines: 5, systemLines: 1, nextAfter: null, closure: null, retentionLoss: { localCount: 1500, reportedAt: '2026-11-23T15:00:00Z' }, expiration: null, availability: { state: 'WAITING_DELIVERY', days: 30, startsAt: null, deliveryEnd: null, availableUntil: null } },
+      { attemptId: ATT, items: [], total: 6, automationLines: 5, systemLines: 1, nextAfter: null, closure: { lines: 6, droppedLines: 0, closedAt: T }, retentionLoss: null, expiration: EXPIRED, availability: { state: 'EXPIRED', days: 30, startsAt: '2026-11-23T15:00:00Z', deliveryEnd: 'CLOSED', availableUntil: '2026-12-23T15:00:00Z' } },
     ];
     api.on('GET', LOGS, 'listRemoteAttemptLogs', (_call, n) => ({ status: 200, body: pages[Math.min(n, pages.length - 1)] }));
     await open();
@@ -998,6 +1017,8 @@ describe('Versão: execução remota (T02)', () => {
     expect(within(list).getByText(/O texto desta linha expirou e foi removido da Platform/)).toBeInTheDocument();
     expect(within(s).getByText(/Mostrando 4 de 6 linhas na Platform/)).toBeInTheDocument();
     expect(within(s).getByText(/ainda não informou que terminou de enviar os registros/)).toBeInTheDocument();
+    // LICENCIAMENTO-002: em andamento, o prazo ainda não começou
+    expect(within(s).getByText('Os registros ficam disponíveis na Platform por 30 dias depois do fim da entrega. A contagem ainda não começou: a execução não terminou.')).toBeInTheDocument();
     // página seguinte, pela sequência
     fireEvent.click(within(s).getByRole('button', { name: 'Carregar mais registros da tentativa 1' }));
     expect(await within(list).findByText('fim')).toBeInTheDocument();

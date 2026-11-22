@@ -121,6 +121,7 @@ describe('Detalhe da execução remota', () => {
         closure: null,
         retentionLoss: null,
         expiration: null,
+        availability: { state: 'WAITING_DELIVERY', days: 30, startsAt: null, deliveryEnd: null, availableUntil: null },
       },
     });
     renderApp(`/o/${ORG}/execucoes-remotas/${X1}`);
