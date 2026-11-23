@@ -12,6 +12,7 @@ import { OperationScopeProvider, type OperationScopeValue } from '../components/
 import { setPersistentScope } from '../admin/writeStore';
 import { orgPath, shortOrganizationId } from '../auth/organization';
 import { ProductFooter, ProductFooterCompact } from '../components/VersionInfo';
+import { OrganizationHeldNotice } from '../components/OrganizationHeld';
 import { useSession } from './session';
 import { useVisibleWorkspaces, type VisibleWorkspaces } from './useVisibleWorkspaces';
 import './InternalShell.css';
@@ -310,6 +311,7 @@ export function InternalShell() {
             A navegação segue disponível; o acesso a cada tela continua sendo decidido pela API.
           </Alert>
         )}
+        <OrganizationHeldNotice className="pw-shell__alert" />
         <Outlet />
       </AppShell>
       </OperationScopeProvider>

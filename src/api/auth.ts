@@ -22,6 +22,8 @@ export interface Me {
   organizationLicenseModel?: 'legacy' | 'licensed';
   /** RELEASE-2.2: se esta Platform aceita execução remota; ausente (API anterior ao campo) = indisponível. */
   remoteExecutionAvailable?: boolean;
+  /** LICENCIAMENTO-002 (075): organização bloqueada pela Nekkora; ausente (API anterior ao campo) = não bloqueada. */
+  organizationHeldByNekkora?: boolean;
 }
 
 // ------------------------------------------------------------------ CSRF de pré-autenticação

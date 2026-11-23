@@ -3,6 +3,7 @@ import { stepUp } from '../../api/auth';
 import { ApiError, isApiError } from '../../api/http';
 import type { Invitation, RoleCode } from '../../api/access';
 import { ROLE_LABEL } from '../../identity/labels';
+import { isOrganizationHeld, ORGANIZATION_HELD_REFUSAL } from '../../components/OrganizationHeld';
 
 export { ROLE_LABEL };
 
@@ -48,6 +49,8 @@ export const REVOKE_REASON_LABEL: Record<NonNullable<Invitation['revokeReason']>
 export function accessRefusal(e: unknown, specific: { conflict?: string; forbidden?: string; notFound?: string } = {}): string {
   const nothing = 'Nada foi alterado.';
   if (isApiError(e, 'conflict')) return `${specific.conflict ?? 'O estado atual não permite este ato. Atualize a página e confira.'} ${nothing}`;
+  // LICENCIAMENTO-002 (075): a recusa pelo bloqueio da Nekkora nunca se confunde com falta de permissão
+  if (isOrganizationHeld(e)) return ORGANIZATION_HELD_REFUSAL;
   if (isApiError(e, 'forbidden'))
     return `${specific.forbidden ?? 'O ato não foi permitido. Suas permissões podem não cobrir este caso ou a confirmação pode ter vencido.'} ${nothing}`;
   if (isApiError(e, 'not_found') || (e instanceof ApiError && e.status === 404))
