@@ -326,10 +326,24 @@ describe('Licenças e automações', () => {
     const dialog = await screen.findByRole('alertdialog');
     fireEvent.change(await within(dialog).findByLabelText('1. Ambiente de trabalho'), { target: { value: WS } });
     fireEvent.change(await within(dialog).findByLabelText('2. Automação'), { target: { value: AUT } });
-    expect(await within(dialog).findByText(/Estação 1.*\(já autorizada nesta automação: só monitoramento\)/)).toBeInTheDocument();
+    // parcial: continua escolhível, para completar; o texto diz o que ela já tem, sem dizer de onde veio
+    const w1 = await within(dialog).findByRole('checkbox', { name: /^Estação 1/ });
+    expect(w1).not.toBeChecked();
+    expect(within(dialog).getByText(/já autorizada nesta automação: só monitoramento\. Escolher emite só o que falta/)).toBeInTheDocument();
     expect(within(dialog).queryByText(/faz parte da ativação/)).toBeNull();
-    expect(within(dialog).queryByRole('checkbox', { name: /Estação 1/ })).toBeNull();
     expect(within(dialog).getByRole('checkbox', { name: 'Estação 2' })).not.toBeChecked();
+    fireEvent.click(w1);
+    expect(within(dialog).getByRole('region', { name: 'Conferência da ativação' })).toHaveTextContent('Máquinas: Estação 1 (nome da máquina: NOTE-FISCAL-01)');
+  });
+
+  it('máquina com execução e monitoramento vigentes: não é oferecida de novo, e o texto diz o estado', async () => {
+    renderApp(`/o/${ORG}/administracao/licencas`);
+    fireEvent.click(await screen.findByRole('button', { name: 'Ativar automação' }));
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.change(await within(dialog).findByLabelText('1. Ambiente de trabalho'), { target: { value: WS } });
+    fireEvent.change(await within(dialog).findByLabelText('2. Automação'), { target: { value: AUT } });
+    expect(await within(dialog).findByText(/Estação 1.*\(já autorizada nesta automação: execução e monitoramento\)/)).toBeInTheDocument();
+    expect(within(dialog).queryByRole('checkbox', { name: /^Estação 1/ })).toBeNull();
   });
 
   it('a releitura depois do ato recebe "muitas tentativas": o resumo continua, nada some, e a tela oferece atualizar', async () => {

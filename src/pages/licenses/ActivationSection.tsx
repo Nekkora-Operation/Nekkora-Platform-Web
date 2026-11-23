@@ -146,6 +146,9 @@ export function alreadyAuthorizedText(m: ActivationMachine | undefined): string 
   return 'a autorização desta máquina nesta automação não está mais vigente';
 }
 
+/** Máquina com execução E monitoramento vigentes: não há o que emitir. Parcial ou vencida: pode ser escolhida para completar. */
+const fullyAuthorized = (m: ActivationMachine | undefined) => !m || (m.execution?.status === 'active' && m.monitoring?.status === 'active');
+
 function WorkerChoice({ workers, chosen, onToggle, legend, already }: { workers: MachineOption[]; chosen: Set<string>; onToggle: (id: string) => void; legend: string; already?: Map<string, ActivationMachine | undefined> }) {
   if (workers.length === 0)
     return <Alert tone="info">Nenhuma máquina autorizada neste ambiente de trabalho. A ativação pode ser feita agora e as máquinas escolhidas depois.</Alert>;
@@ -158,10 +161,18 @@ function WorkerChoice({ workers, chosen, onToggle, legend, already }: { workers:
       </legend>
       {workers.map((w) => (
         <div key={w.workerId} className="pw-lic__machine">
-          {already?.has(w.workerId) ? (
+          {already?.has(w.workerId) && fullyAuthorized(already.get(w.workerId)) ? (
             <Text variant="body-sm" color="secondary">
               {machineName(w.name, w.computerName)} ({alreadyAuthorizedText(already.get(w.workerId))})
             </Text>
+          ) : already?.has(w.workerId) ? (
+            // parcial (ex.: só a execução, autorizada antes pela rota anterior) ou vencida: escolher emite só o que falta
+            <Checkbox
+              label={machineName(w.name, w.computerName)}
+              hint={`${alreadyAuthorizedText(already.get(w.workerId))}. Escolher emite só o que falta; o que está vigente é mantido.`}
+              checked={chosen.has(w.workerId)}
+              onChange={() => onToggle(w.workerId)}
+            />
           ) : (
             <Checkbox label={machineName(w.name, w.computerName)} checked={chosen.has(w.workerId)} onChange={() => onToggle(w.workerId)} />
           )}
