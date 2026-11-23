@@ -141,3 +141,24 @@ describe('FLUXO-002: sem criação manual de autorizações', () => {
     expect(screen.queryByRole('button', { name: 'Autorizar monitoramento' })).toBeNull();
   });
 });
+
+describe('A1: máquinas e Agents só são lidos quando a seção os usa', () => {
+  it('sem autorização na lista: nenhuma leitura de máquinas nem de Agents', async () => {
+    authorizations = [];
+    await openAutomation();
+    expect(await screen.findByText('Esta automação ainda não tem monitoramento autorizado.')).toBeInTheDocument();
+    expect(api.sent('GET', LIST).length).toBeGreaterThan(0);
+    expect(api.sent('GET', /\/workers$/)).toHaveLength(0);
+    expect(api.sent('GET', /\/agents$/)).toHaveLength(0);
+  });
+
+  it('com autorização: os nomes das máquinas são lidos e aparecem na tabela', async () => {
+    authorizations = [monitor()];
+    await openAutomation();
+    const list = await screen.findByRole('region', { name: 'Autorizações de execução local' });
+    expect(await within(list).findByText('Estação fiscal')).toBeInTheDocument();
+    expect(api.sent('GET', /\/workers$/).length).toBeGreaterThan(0);
+    // monitoramento não tem "Executar": os Agents continuam sem leitura
+    expect(api.sent('GET', /\/agents$/)).toHaveLength(0);
+  });
+});

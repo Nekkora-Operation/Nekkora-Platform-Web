@@ -156,6 +156,23 @@ describe('página inicial da organização: próximo passo', () => {
     expect(await screen.findByRole('heading', { name: 'Nova automação' })).toBeInTheDocument();
   });
 
+  it('A1: o próximo passo faz UMA leitura (lista da organização, um item), nunca uma por ambiente de trabalho', async () => {
+    const many = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333'].map((id, i) => ({
+      ...workspace(),
+      workspaceId: id,
+      name: `Ambiente ${i + 1}`,
+    }));
+    area({ perms: ['workspace.lifecycle', 'automation.manage', 'automation.read'], workspaces: many });
+    renderApp(`/o/${ORG}`);
+    expect(await screen.findByRole('heading', { name: 'Criar primeira automação' })).toBeInTheDocument();
+    expect(api.sent('GET', /\/workspaces\/[^/]+\/automations$/)).toHaveLength(0);
+    const org = api.sent('GET', `/api/v1/o/${ORG}/automations`);
+    // a do painel (ativas e suspensas, 12) e a do próximo passo (qualquer situação, 1); o StrictMode do teste pode montar
+    // o painel duas vezes (só em desenvolvimento; o build de produção monta uma)
+    expect([...new Set(org.map((c) => new URL(c.url, 'http://x').search))].sort()).toEqual(['?limit=1', '?status=active&status=suspended&limit=12']);
+    expect(org.filter((c) => c.url.endsWith('?limit=1'))).toHaveLength(1);
+  });
+
   it('automações que falharam ao carregar: diz que não carregou (não oferece criar a "primeira")', async () => {
     area({ perms: ['automation.manage'], workspaces: [workspace()] });
     api.on('GET', `/api/v1/o/${ORG}/workspaces/${WS}/automations`, 'listAutomations', { status: 503, body: { error: 'service_unavailable' } });
@@ -188,7 +205,12 @@ describe('página inicial da organização: próximo passo', () => {
 
 describe('Início da organização como painel (PLATFORM-INICIO-001)', () => {
   const ready = () => area({ perms: ['automation.read'], workspaces: [workspace()] });
-  const withAutomations = () => api.on('GET', `/api/v1/o/${ORG}/workspaces/${WS}/automations`, 'listAutomations', { status: 200, body: { items: [automation], nextCursor: null } });
+  // A1: o próximo passo lê a lista da organização com um item (qualquer situação); o painel, a sua página de 12
+  const withAutomations = () =>
+    api.on('GET', `/api/v1/o/${ORG}/automations`, 'listOrganizationAutomations', (c) => ({
+      status: 200,
+      body: { items: new URL(c.url, 'http://x').searchParams.get('limit') === '1' ? [card()] : [], nextCursor: null },
+    }));
   const metric = (label: string) => screen.getByRole('heading', { level: 3, name: label }).parentElement!.querySelector('.pw-dash__metric-value')!.textContent;
 
   it('cabeçalho: organização, título e período (padrão: últimos 30 dias), com o intervalo consultado e o fuso', async () => {

@@ -81,21 +81,10 @@ export function LocalRunAuthorizations({
 
   useEffect(() => {
     void load();
-    // nomes dos Workers só com worker.manage; sem ela, a autorização aceita o identificador informado
-    listWorkers(org).then(
-      (w) => setWorkers(w.items),
-      () => setWorkers(null),
-    );
-    // máquinas para o "Executar" (agent.read); sem a permissão, o botão fica sem opção de máquina
-    listAgents(org).then(
-      (a) => setAgents(a.items),
-      // sem a permissão não há máquinas a oferecer; qualquer outra falha é "não foi possível ler", não "nenhuma máquina"
-      (e) => setAgents(isApiError(e, 'forbidden') ? [] : null),
-    );
     return () => {
       generation.current++;
     };
-  }, [load, org]);
+  }, [load]);
 
   const items =
     list.status === 'ready'
@@ -105,6 +94,35 @@ export function LocalRunAuthorizations({
             : !version || a.automationVersionId === version.automationVersionId,
         )
       : [];
+  // A1 (LICENCIAMENTO-002): máquinas e Agents só são lidos quando a seção os usa. Sem autorização na lista (o caso comum
+  // no modelo por licença), a tela do ambiente, da automação e da versão não lê nenhum dos dois.
+  const needsWorkers = items.length > 0;
+  const needsAgents = canExecute && items.some((a) => a.sourceKind !== 'EXTERNAL_MONITORED' && stateOf(a).label === 'Vigente');
+  useEffect(() => {
+    if (!needsWorkers) return;
+    let alive = true;
+    // nomes dos Workers só com worker.manage; sem ela, a autorização aceita o identificador informado
+    listWorkers(org).then(
+      (w) => alive && setWorkers(w.items),
+      () => alive && setWorkers(null),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [org, needsWorkers]);
+  useEffect(() => {
+    if (!needsAgents) return;
+    let alive = true;
+    // máquinas para o "Executar" (agent.read); sem a permissão, o botão fica sem opção de máquina
+    listAgents(org).then(
+      (a) => alive && setAgents(a.items),
+      // sem a permissão não há máquinas a oferecer; qualquer outra falha é "não foi possível ler", não "nenhuma máquina"
+      (e) => alive && setAgents(isApiError(e, 'forbidden') ? [] : null),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [org, needsAgents]);
   const workerName = (id?: string) => workers?.find((w) => w.workerId === id)?.name ?? short(id);
   // PLATFORM-FLUXO-002: a criação manual saiu desta tela; a ativação (Licenças e automações) emite as autorizações
   const { permissions } = useInternalArea();
