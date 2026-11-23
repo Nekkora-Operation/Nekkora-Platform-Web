@@ -223,6 +223,68 @@ describe('publicação compreensível (T05)', () => {
     expect(screen.getByText('Rascunho')).toBeInTheDocument();
   });
 
+  it('A1, 429: diz quando tentar de novo (Retry-After), mantém a conferência, segura o botão e não reenvia sozinho', async () => {
+    let current = version();
+    let limited = true;
+    api.on('GET', `/api/v1/o/${ORG}/automation-versions/${VERSION}`, 'getAutomationVersion', () => ({ status: 200, body: current }));
+    api.on('POST', `/api/v1/o/${ORG}/auth/mfa/step-up`, 'mfaStepUp', { status: 204 });
+    api.on('POST', `/api/v1/o/${ORG}/automation-versions/${VERSION}/publish`, 'publishAutomationVersion', () => {
+      if (!stepUpDone()) return needsStepUp;
+      if (limited) {
+        limited = false;
+        return { status: 429, body: { error: 'rate_limited' }, headers: { 'Retry-After': '2' } };
+      }
+      current = version({ status: 'PUBLISHED' });
+      return { status: 200, body: current };
+    });
+    const dialog = await openDialog();
+    await confirmPublish(dialog);
+    expect(await within(dialog).findByText(/Muitas tentativas em pouco tempo\. Nada foi feito\. Você poderá tentar de novo em 2 segundos/)).toBeInTheDocument();
+    expect(dialog).toHaveTextContent('Formato Studio · 2.0 KiB · 10 arquivos'); // a conferência continua
+    expect(within(dialog).getByRole('button', { name: /^Tentar de novo em \d s$/ })).toBeDisabled();
+    const before = publishes().length;
+    const back = await within(dialog).findByRole('button', { name: 'Publicar' }, { timeout: 5_000 });
+    expect(publishes()).toHaveLength(before); // nada reenviado sozinho
+    await waitFor(() => expect(back).toBeEnabled());
+    fireEvent.click(back);
+    expect(await screen.findByText('Versão publicada: não muda mais.')).toBeInTheDocument();
+    expect(publishes()).toHaveLength(before + 1);
+  });
+
+  it('A1, resultado incerto: lê a versão antes de oferecer nova tentativa; publicada com o pacote conferido = concluída', async () => {
+    let current = version();
+    api.on('GET', `/api/v1/o/${ORG}/automation-versions/${VERSION}`, 'getAutomationVersion', () => ({ status: 200, body: current }));
+    api.on('POST', `/api/v1/o/${ORG}/auth/mfa/step-up`, 'mfaStepUp', { status: 204 });
+    api.on('POST', `/api/v1/o/${ORG}/automation-versions/${VERSION}/publish`, 'publishAutomationVersion', () => {
+      if (!stepUpDone()) return needsStepUp;
+      current = version({ status: 'PUBLISHED' }); // a Platform publicou; a resposta se perdeu
+      return 'network';
+    });
+    const dialog = await openDialog();
+    await confirmPublish(dialog);
+    // a conferência achou a versão publicada com o pacote conferido: o diálogo fecha e a página mostra a versão publicada
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(await screen.findByText('Versão publicada: não muda mais.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Publicar versão' })).toBeNull();
+    expect(publishes().filter((p) => p.body).length).toBeLessThanOrEqual(2); // a recusa step_up_required e o envio incerto
+  });
+
+  it('A1, resultado incerto com OUTRO pacote publicado: não dá como concluída; informa e a pessoa decide', async () => {
+    let current = version();
+    api.on('GET', `/api/v1/o/${ORG}/automation-versions/${VERSION}`, 'getAutomationVersion', () => ({ status: 200, body: current }));
+    api.on('POST', `/api/v1/o/${ORG}/auth/mfa/step-up`, 'mfaStepUp', { status: 204 });
+    api.on('POST', `/api/v1/o/${ORG}/automation-versions/${VERSION}/publish`, 'publishAutomationVersion', () => {
+      if (!stepUpDone()) return needsStepUp;
+      current = version({ status: 'PUBLISHED', sha: 'f'.repeat(64) });
+      return { gateway: 502 };
+    });
+    const dialog = await openDialog();
+    await confirmPublish(dialog);
+    expect(await within(dialog).findByText(/Conferido agora: a Platform não mostra este ato em vigor/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Publicar' })).toBeDisabled();
+    expect(screen.queryByText(/Conferido na Platform: a versão está publicada/)).toBeNull();
+  });
+
   it('cancelar não envia nada e mantém o rascunho', async () => {
     api.on('GET', `/api/v1/o/${ORG}/automation-versions/${VERSION}`, 'getAutomationVersion', { status: 200, body: version() });
     const dialog = await openDialog();

@@ -291,7 +291,12 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
     setBusy(true);
     try {
       try {
-        if (stepUp && needsCode) await stepUp(typed);
+        if (stepUp && needsCode) {
+          await stepUp(typed);
+          // A1: na organização a confirmação aceita vale por uma hora; se o ato for recusado sem efeito (ex.: 429), a nova
+          // tentativa vai sem pedir outro código, que só volta a ser pedido se a API disser que falta (step_up_required)
+          if (onDemand && alive.current) setAsking(false);
+        }
       } catch (e) {
         finish('not-sent');
         if (!alive.current) return;
