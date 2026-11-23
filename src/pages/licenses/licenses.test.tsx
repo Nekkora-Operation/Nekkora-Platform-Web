@@ -8,7 +8,7 @@ import { fakeLocks } from '../../test/fakeLocks';
 import { renderApp } from '../../test/render';
 import { RouteApi } from '../../test/routeApi';
 import { CAPACITY_TEXT, MODEL_TEXT } from './LicensesPage';
-import { STATE_TEXT } from './ActivationSection';
+import { STATE_TEXT, alreadyAuthorizedText } from './ActivationSection';
 import { RESPONSIBLE_TEXT } from './OrganizationRequestsPage';
 import { CAPACITY_PENDING_TEXT, licenseRefusalText, reducedValidityText } from './texts';
 
@@ -301,6 +301,37 @@ describe('Licenças e automações', () => {
     expect(screen.getByText('Uma licença foi vinculada a esta automação.')).toBeInTheDocument();
   });
 
+  it('máquina já autorizada pela rota anterior: o texto diz o estado das autorizações, sem dizer que veio da ativação', async () => {
+    // Estação 1: só o monitoramento avulso vigente (rota anterior), sem execução — a Platform a lista com a automação
+    api.on('GET', `${base}/automation-activations`, 'listAutomationActivations', {
+      status: 200,
+      body: activations([
+        activation({
+          workers: [
+            {
+              workerId: WK1,
+              name: 'Estação 1',
+              computerName: 'NOTE-FISCAL-01',
+              lastContactAt: T,
+              machineState: 'CONNECTED',
+              execution: null,
+              monitoring: { authorizationId: L2, automationVersionId: null, validUntil: END, status: 'active' },
+            },
+          ],
+        }),
+      ]),
+    });
+    renderApp(`/o/${ORG}/administracao/licencas`);
+    fireEvent.click(await screen.findByRole('button', { name: 'Ativar automação' }));
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.change(await within(dialog).findByLabelText('1. Ambiente de trabalho'), { target: { value: WS } });
+    fireEvent.change(await within(dialog).findByLabelText('2. Automação'), { target: { value: AUT } });
+    expect(await within(dialog).findByText(/Estação 1.*\(já autorizada nesta automação: só monitoramento\)/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/faz parte da ativação/)).toBeNull();
+    expect(within(dialog).queryByRole('checkbox', { name: /Estação 1/ })).toBeNull();
+    expect(within(dialog).getByRole('checkbox', { name: 'Estação 2' })).not.toBeChecked();
+  });
+
   it('a releitura depois do ato recebe "muitas tentativas": o resumo continua, nada some, e a tela oferece atualizar', async () => {
     api.on('POST', `${base}/automation-activations`, 'activateAutomation', {
       status: 200,
@@ -488,6 +519,22 @@ describe('textos de licença, capacidade e validade', () => {
     expect(reducedValidityText(requested, requested)).toBeNull();
     expect(reducedValidityText(requested, '2027-06-30T23:59:30.000Z')).toBeNull();
     expect(reducedValidityText(requested, null)).toBeNull();
+  });
+
+  it('máquina já autorizada: o texto vem do estado (execução, monitoramento, vigência), nunca da origem', () => {
+    const m = (execution: string | null, monitoring: string | null) =>
+      ({
+        workerId: WK1,
+        name: 'Estação 1',
+        machineState: 'CONNECTED',
+        execution: execution ? { authorizationId: L1, automationVersionId: V1, validUntil: END, status: execution } : null,
+        monitoring: monitoring ? { authorizationId: L2, automationVersionId: null, validUntil: END, status: monitoring } : null,
+      }) as Parameters<typeof alreadyAuthorizedText>[0];
+    expect(alreadyAuthorizedText(m('active', 'active'))).toBe('já autorizada nesta automação: execução e monitoramento');
+    expect(alreadyAuthorizedText(m('active', null))).toBe('já autorizada nesta automação: só execução');
+    expect(alreadyAuthorizedText(m(null, 'active'))).toBe('já autorizada nesta automação: só monitoramento');
+    expect(alreadyAuthorizedText(m('expired', 'expired'))).toBe('a autorização desta máquina nesta automação não está mais vigente');
+    expect(alreadyAuthorizedText(undefined)).toBe('já tem autorização registrada nesta automação');
   });
 
   it('licença e capacidade têm textos diferentes; motivo desconhecido não é tratado como licença', () => {
