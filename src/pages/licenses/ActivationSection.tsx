@@ -129,8 +129,27 @@ const validLegacyDate = (d: string) => {
 
 /** As máquinas (Workers) como caixas de marcar: nenhuma vem marcada. */
 type MachineOption = AutomationActivationOptions['workers'][number];
+type ActivationMachine = AutomationActivation['workers'][number];
 
-function WorkerChoice({ workers, chosen, onToggle, legend, already }: { workers: MachineOption[]; chosen: Set<string>; onToggle: (id: string) => void; legend: string; already?: Set<string> }) {
+/**
+ * O que uma máquina que não é oferecida de novo JÁ TEM nesta automação, pelo estado das autorizações, nunca pela origem:
+ * a autorização pode ter sido emitida pela ativação ou pela rota anterior (autorização avulsa), e a Platform trata as duas
+ * do mesmo jeito. Sem o detalhe (lista ainda não lida), diz só o que se sabe.
+ */
+export function alreadyAuthorizedText(m: ActivationMachine | undefined): string {
+  if (!m) return 'já tem autorização registrada nesta automação';
+  const execution = m.execution?.status === 'active';
+  const monitoring = m.monitoring?.status === 'active';
+  if (execution && monitoring) return 'já autorizada nesta automação: execução e monitoramento';
+  if (execution) return 'já autorizada nesta automação: só execução';
+  if (monitoring) return 'já autorizada nesta automação: só monitoramento';
+  return 'a autorização desta máquina nesta automação não está mais vigente';
+}
+
+/** Máquina com execução E monitoramento vigentes: não há o que emitir. Parcial ou vencida: pode ser escolhida para completar. */
+const fullyAuthorized = (m: ActivationMachine | undefined) => !m || (m.execution?.status === 'active' && m.monitoring?.status === 'active');
+
+function WorkerChoice({ workers, chosen, onToggle, legend, already }: { workers: MachineOption[]; chosen: Set<string>; onToggle: (id: string) => void; legend: string; already?: Map<string, ActivationMachine | undefined> }) {
   if (workers.length === 0)
     return <Alert tone="info">Nenhuma máquina autorizada neste ambiente de trabalho. A ativação pode ser feita agora e as máquinas escolhidas depois.</Alert>;
   return (
@@ -142,10 +161,18 @@ function WorkerChoice({ workers, chosen, onToggle, legend, already }: { workers:
       </legend>
       {workers.map((w) => (
         <div key={w.workerId} className="pw-lic__machine">
-          {already?.has(w.workerId) ? (
+          {already?.has(w.workerId) && fullyAuthorized(already.get(w.workerId)) ? (
             <Text variant="body-sm" color="secondary">
-              {machineName(w.name, w.computerName)} (já faz parte da ativação)
+              {machineName(w.name, w.computerName)} ({alreadyAuthorizedText(already.get(w.workerId))})
             </Text>
+          ) : already?.has(w.workerId) ? (
+            // parcial (ex.: só a execução, autorizada antes pela rota anterior) ou vencida: escolher emite só o que falta
+            <Checkbox
+              label={machineName(w.name, w.computerName)}
+              hint={`${alreadyAuthorizedText(already.get(w.workerId))}. Escolher emite só o que falta; o que está vigente é mantido.`}
+              checked={chosen.has(w.workerId)}
+              onChange={() => onToggle(w.workerId)}
+            />
           ) : (
             <Checkbox label={machineName(w.name, w.computerName)} checked={chosen.has(w.workerId)} onChange={() => onToggle(w.workerId)} />
           )}
@@ -160,7 +187,7 @@ function WorkerChoice({ workers, chosen, onToggle, legend, already }: { workers:
 }
 
 /** "Ativar automação": ambiente de trabalho → automação → Workers → conferência → "Ativar execução e monitoramento". */
-function ActivateDialog({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: (o: AutomationActivationOutcome, names: Map<string, string>) => void }) {
+function ActivateDialog({ open, onClose, onDone, activations }: { open: boolean; onClose: () => void; onDone: (o: AutomationActivationOutcome, names: Map<string, string>) => void; activations?: AutomationActivation[] }) {
   const { org, expired } = useSession();
   const [workspaces, setWorkspaces] = useState<Load<Workspace[]>>({ status: 'loading' });
   const [workspaceId, setWorkspaceId] = useState('');
@@ -195,7 +222,8 @@ function ActivateDialog({ open, onClose, onDone }: { open: boolean; onClose: () 
 
   const opt = options?.status === 'ready' ? options.data : null;
   const automation = opt?.automations.find((a) => a.automationId === automationId);
-  const already = new Set(automation?.workerIds ?? []);
+  const existing = activations?.find((a) => a.automationId === automationId);
+  const already = new Map((automation?.workerIds ?? []).map((id) => [id, existing?.workers.find((w) => w.workerId === id)] as const));
   const names = useMemo(() => new Map((opt?.workers ?? []).map((w) => [w.workerId, machineName(w.name, w.computerName)])), [opt]);
   const legacy = opt?.model === 'legacy';
   const needsLicense = !!automation && !automation.licensed;
@@ -339,7 +367,7 @@ function ManageDialog({ activation, act, onClose, onDone }: { activation: Automa
   const opt = options.status === 'ready' ? options.data : null;
   const legacy = opt?.model === 'legacy';
   const names = useMemo(() => new Map([...(opt?.workers ?? []), ...activation.workers].map((w) => [w.workerId, machineName(w.name, w.computerName)])), [opt, activation.workers]);
-  const inActivation = new Set(activation.workers.map((w) => w.workerId));
+  const inActivation = new Map(activation.workers.map((w) => [w.workerId, w] as const));
   const toggle = (id: string) =>
     setChosen((s) => {
       const n = new Set(s);
@@ -570,7 +598,7 @@ export function ActivationSection({ data, onChanged, canActivate }: { data: Auto
           </div>
         )}
       </Stack>
-      <ActivateDialog open={activating} onClose={() => setActivating(false)} onDone={done} />
+      <ActivateDialog open={activating} onClose={() => setActivating(false)} onDone={done} activations={data?.items} />
       {managing && <ManageDialog activation={managing.a} act={managing.act} onClose={() => setManaging(null)} onDone={done} />}
     </section>
   );
