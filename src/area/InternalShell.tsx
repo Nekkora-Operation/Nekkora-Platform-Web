@@ -43,6 +43,31 @@ export function useInternalArea(): InternalArea {
 
 const MAIN_ID = 'conteudo';
 
+/**
+ * A2 (LICENCIAMENTO-002): o cabeçalho da área é fixo (sticky) e cobre o topo do conteúdo quando a página rola até um
+ * elemento — o foco no conteúdo ao navegar, um link "pular para o conteúdo", um alerta trazido à vista. A altura real do
+ * cabeçalho (64 px no desktop; maior no celular e com zoom, quando ele quebra linha) vira o `scroll-padding-top` do
+ * documento (InternalShell.css), medida de novo a cada mudança de tamanho. Assim o título do aviso de bloqueio, o
+ * primeiro item do conteúdo, nunca fica atrás do cabeçalho.
+ */
+function useStickyHeaderOffset() {
+  useEffect(() => {
+    const bar = document.querySelector<HTMLElement>('.nk-shell__topbar');
+    if (!bar) return;
+    const root = document.documentElement;
+    const apply = () => root.style.setProperty('--pw-topbar-height', `${Math.ceil(bar.getBoundingClientRect().height)}px`);
+    apply();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(apply);
+    observer?.observe(bar);
+    window.addEventListener('resize', apply);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', apply);
+      root.style.removeProperty('--pw-topbar-height');
+    };
+  }, []);
+}
+
 /** Seção da área interna a que o endereço pertence (menu ativo e título do topo). */
 function sectionOf(pathname: string, org: string): 'inicio' | 'conta' | 'execucoes' | 'workspaces' | 'pessoas' | 'workers' | 'operador' | 'licencas' | 'pedidos' | null {
   if (pathname === orgPath.home(org)) return 'inicio';
@@ -158,8 +183,12 @@ export function InternalShell() {
       firstPath.current = false;
       return;
     }
-    document.getElementById(MAIN_ID)?.focus({ preventScroll: false });
+    // A2: a nova página abre do topo, logo abaixo do cabeçalho fixo (o aviso do bloqueio, quando houver, é o primeiro
+    // item); o foco não rola de novo, para não alinhar o conteúdo ao topo da janela, por trás do cabeçalho
+    window.scrollTo(0, 0);
+    document.getElementById(MAIN_ID)?.focus({ preventScroll: true });
   }, [pathname]);
+  useStickyHeaderOffset();
 
   const loadPermissions = useCallback(async () => {
     const gen = ++generation.current;

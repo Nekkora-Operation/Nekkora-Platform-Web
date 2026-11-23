@@ -16,3 +16,9 @@
 @media (max-width: 640px) {
   .pw-shell__org { max-width: 9rem; }
 }
+
+/*
+ * A2 (LICENCIAMENTO-002): rolar até um elemento (foco no conteúdo ao navegar, âncora, alerta trazido à vista) para abaixo
+ * do cabeçalho fixo, com a altura medida em InternalShell (useStickyHeaderOffset); sem a medida, 0.
+ */
+:root { scroll-padding-top: calc(var(--pw-topbar-height, 0px) + var(--nk-space-2)); }

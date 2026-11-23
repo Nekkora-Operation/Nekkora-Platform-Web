@@ -21,3 +21,7 @@ beforeEach(() => {
   setOperationRegistryForTest(createOperationRegistry({ ...browserDeps, locks: () => locks }));
   setPersistentSubjectForTest('m:teste-do-registro');
 });
+
+// jsdom não implementa a rolagem da janela (só avisa "Not implemented"); a área volta ao topo ao trocar de página (A2), e a
+// posição real é conferida no navegador (e2e/bloqueio-aviso.spec.ts)
+if (typeof window !== 'undefined') window.scrollTo = () => {};
