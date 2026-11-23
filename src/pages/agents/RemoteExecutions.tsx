@@ -206,6 +206,8 @@ const REFUSAL: Record<string, string> = {
   // PLATFORM-LICENCIAMENTO-001: a licença é conferida de novo antes de entregar e antes de iniciar
   LICENSE_REQUIRED: 'a automação estava sem licença no momento do início',
   LICENSE_EXPIRED: 'a licença da automação venceu antes do início',
+  // LICENCIAMENTO-002 (075): o bloqueio da Nekkora também é conferido antes de entregar e antes de iniciar
+  ORGANIZATION_HELD: 'a organização foi bloqueada pela Nekkora antes do início',
 };
 export const refusalText = (r: string | null | undefined) => (r ? (REFUSAL[r] ?? r) : '');
 

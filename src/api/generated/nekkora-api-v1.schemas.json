@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "709b2f01d50774734043056f8a4f8576f8ab43d3b8dbae7f9d6bb2af3c479a00",
+  "openapiSha256": "448e914639cde22a0481ff43db4ebf5716276f405e10275392482629488e32e5",
   "schemas": {
     "Error": {
       "type": "object",
@@ -105,7 +105,8 @@
             "client_invitation_other_client",
             "client_grant_exists",
             "client_scope_unavailable",
-            "client_grant_widening_requires_request"
+            "client_grant_widening_requires_request",
+            "organization_held"
           ]
         }
       }
@@ -6618,6 +6619,9 @@
         "stepUpMethod": {
           "$ref": "#/components/schemas/StepUpMethod"
         },
+        "organizationHeldByNekkora": {
+          "type": "boolean"
+        },
         "remoteExecutionAvailable": {
           "type": "boolean"
         }
@@ -7555,6 +7559,7 @@
                   "COMMUNICATION_LOST",
                   "LICENSE_REQUIRED",
                   "LICENSE_EXPIRED",
+                  "ORGANIZATION_HELD",
                   null
                 ]
               },
