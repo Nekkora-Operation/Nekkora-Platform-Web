@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { configure } from '@testing-library/react';
 import { beforeEach } from 'vitest';
 import { setPersistentSubjectForTest } from '../admin/writeStore';
+import { forgetOrganizationsForTest } from '../api/identity';
 import { browserDeps, createOperationRegistry, setOperationRegistryForTest } from '../api/pendingOps';
 import { fakeLocks } from './fakeLocks';
 
@@ -20,4 +21,6 @@ beforeEach(() => {
   const locks = fakeLocks();
   setOperationRegistryForTest(createOperationRegistry({ ...browserDeps, locks: () => locks }));
   setPersistentSubjectForTest('m:teste-do-registro');
+  // A1: a lista de organizações reaproveitada pelo cabeçalho não passa de um teste para outro
+  forgetOrganizationsForTest();
 });

@@ -163,6 +163,7 @@ export async function identityLogout(): Promise<void> {
     await send('identityLogout', '/api/v1/auth/logout', { method: 'POST', csrf });
   } finally {
     csrfStore.end(); // fim de sessão: também zera o método de confirmação, convite e token de link (onSessionEnd)
+    lastOrganizations = null; // A1: a lista reaproveitada para o cabeçalho é da sessão que terminou
   }
 }
 
@@ -240,9 +241,31 @@ export async function confirmIdentityPasswordReset(token: string, newPassword: s
 
 // ------------------------------------------------------------------ organizações da identidade
 
-/** Organizações em que a identidade pode entrar. Lista vazia é legítima. Sessão restrita: 403. */
+/** Organizações em que a identidade pode entrar. Lista vazia é legítima. Sessão restrita: 403. Sempre lê na hora. */
 export async function myOrganizations(): Promise<IdentityOrganizationList> {
-  return send<IdentityOrganizationList>('identityOrganizations', '/api/v1/me/organizations');
+  const data = await send<IdentityOrganizationList>('identityOrganizations', '/api/v1/me/organizations');
+  lastOrganizations = { at: Date.now(), data };
+  return data;
+}
+
+let lastOrganizations: { at: number; data: IdentityOrganizationList } | null = null;
+/** Quanto tempo a lista lida há pouco serve para o NOME no cabeçalho da organização (A1). */
+export const ORGANIZATION_NAMES_REUSE_MS = 10_000;
+
+/**
+ * A1 (LICENCIAMENTO-002): só o nome e o identificador legível da organização aberta, para o cabeçalho. Ao trocar de
+ * organização, a tela "Organizações" acabou de ler a lista: ela é reaproveitada por até {@link ORGANIZATION_NAMES_REUSE_MS}
+ * em vez de lida de novo. Não decide nada: permissões, licenças e bloqueio continuam lidos a cada entrada na organização.
+ */
+export async function recentOrganizations(): Promise<IdentityOrganizationList> {
+  const last = lastOrganizations;
+  if (last && Date.now() - last.at < ORGANIZATION_NAMES_REUSE_MS) return last.data;
+  return myOrganizations();
+}
+
+/** Só para os testes: esquece a última lista. */
+export function forgetOrganizationsForTest() {
+  lastOrganizations = null;
 }
 
 /** Cria a organização com a identidade como ORG_ADMIN (step-up de até 5 min). Nasce AGUARDANDO_ATIVACAO. */
