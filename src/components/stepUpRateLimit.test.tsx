@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { useState } from 'react';
 import { Input } from 'nekkora-lib';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError } from '../api/http';
+import { ApiError, apiErrorFrom } from '../api/http';
 import { createOperationRegistry, setOperationRegistryForTest } from '../api/pendingOps';
 import { stepUpMethods } from '../api/stepUpMethod';
 import { fakeLocks } from '../test/fakeLocks';
@@ -205,6 +205,37 @@ describe('resultado incerto com consulta do estado (A1)', () => {
       fireEvent.click(within(dialog()).getByRole('button', { name: 'Conferir de novo' }));
     });
     await waitFor(() => expect(onVerified).toHaveBeenCalledTimes(1));
+    expect(action).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('"Nada foi feito" só com recusa comprovada (A1)', () => {
+  it.each([
+    ['rede interrompida', () => new ApiError('network', 0)],
+    ['502 do proxy, sem corpo', () => apiErrorFrom(502, undefined, null)],
+    ['504 do proxy, sem corpo', () => apiErrorFrom(504, undefined, null)],
+    ['500 da API', () => apiErrorFrom(500, { error: 'internal_error' }, null)],
+  ])('%s: resultado incerto, nunca "Nada foi feito", e nada é reenviado', async (_nome, erro) => {
+    const action = vi.fn(async () => {
+      throw erro();
+    });
+    render(<Harness action={action} />);
+    await fillAndConfirm();
+    expect(await within(dialog()).findByText('Resultado desconhecido.')).toBeInTheDocument();
+    expect(within(dialog()).queryByText(/Nada foi feito/)).toBeNull();
+    expect(within(dialog()).queryByText(/Muitas tentativas/)).toBeNull();
+    expect(action).toHaveBeenCalledTimes(1);
+  });
+
+  it('429 da API (JSON) e do gateway (HTML, sem Retry-After): recusa antes de executar, "Nada foi feito"', async () => {
+    expect(apiErrorFrom(429, { error: 'rate_limited' }, '3').code).toBe('rate_limited');
+    expect(apiErrorFrom(429, '<html>429</html>', null).code).toBe('rate_limited');
+    const action = vi.fn(async () => {
+      throw apiErrorFrom(429, '<html>429</html>', null);
+    });
+    render(<Harness action={action} />);
+    await fillAndConfirm();
+    expect(await within(dialog()).findByText(/Nada foi feito\. Aguarde alguns segundos/)).toBeInTheDocument();
     expect(action).toHaveBeenCalledTimes(1);
   });
 });

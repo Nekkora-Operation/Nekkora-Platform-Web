@@ -97,4 +97,44 @@ describe('useResource com 429', () => {
     });
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
+  it('troca de organização durante a espera: a releitura da anterior é descartada e nada dela aparece', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const reads: string[] = [];
+    let aCalls = 0;
+    const fetchFor = (org: string) => async () => {
+      reads.push(org);
+      if (org === 'A') {
+        aCalls++;
+        if (aCalls === 2) throw limited(1);
+        return 'dado de A';
+      }
+      return 'dado de B';
+    };
+    const { result, rerender } = renderHook(({ org }) => useResource(fetchFor(org), [org]), { initialProps: { org: 'A' } });
+    await waitFor(() => expect(result.current.status === 'ready' && result.current.data).toBe('dado de A'));
+    act(() => result.current.refresh());
+    await waitFor(() => expect(reads).toEqual(['A', 'A']));
+    // releitura de A agendada (429); a pessoa troca para B antes do tempo
+    rerender({ org: 'B' });
+    expect(result.current.status).toBe('loading'); // nada de A na tela
+    await waitFor(() => expect(result.current.status === 'ready' && result.current.data).toBe('dado de B'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(reads).toEqual(['A', 'A', 'B']); // a releitura agendada de A nunca saiu
+    expect(result.current.status === 'ready' && result.current.data).toBe('dado de B');
+  });
+
+  it('troca de organização com a leitura anterior ainda pendente: a resposta atrasada é ignorada', async () => {
+    let resolveA: (v: string) => void = () => {};
+    const fetchFor = (org: string) => () =>
+      org === 'A' ? new Promise<string>((r) => (resolveA = r)) : Promise.resolve('dado de B');
+    const { result, rerender } = renderHook(({ org }) => useResource(fetchFor(org), [org]), { initialProps: { org: 'A' } });
+    rerender({ org: 'B' });
+    await waitFor(() => expect(result.current.status === 'ready' && result.current.data).toBe('dado de B'));
+    await act(async () => {
+      resolveA('dado de A');
+    });
+    expect(result.current.status === 'ready' && result.current.data).toBe('dado de B');
+  });
 });
