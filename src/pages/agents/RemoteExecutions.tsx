@@ -850,6 +850,17 @@ export function RemoteExecutions({
         onClose={() => setChoosing(null)}
         refusalText={remoteRefusal}
         uncertainText="Não foi possível confirmar a escolha. Atualize a lista antes de repetir."
+        // A1: resultado incerto -> lê as máquinas candidatas: a escolha está em vigor se a máquina mostra este ambiente
+        verify={async () => {
+          if (!choosing) return false;
+          const c = await listRemoteExecutionCandidates(org, workspaceId, version.automationVersionId);
+          return c.items.some((m) => m.agentId === choosing.agentId && m.python?.environmentId === environment);
+        }}
+        onVerified={() => {
+          setNotice({ tone: 'success', text: `Conferido na Platform: o Python escolhido está em vigor para esta automação em ${choosing?.agentName ?? 'a máquina'}.` });
+          setChoosing(null);
+          poll.refresh();
+        }}
         onUnauthenticated={expired}
       >
         <Stack gap={3}>

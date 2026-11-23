@@ -30,6 +30,18 @@ export const IDENTITY_SCOPE_TEXT =
 const STEP_UP_STILL_NEEDED_TEXT = 'A Platform ainda pede a confirmação para este ato. Nada foi feito. Confirme de novo.';
 
 /**
+ * A1 (LICENCIAMENTO-002): limite de pedidos (429) na confirmação ou no ato. É recusa documentada: nada foi feito. O diálogo
+ * continua aberto com os campos do ato, diz quando dá para tentar de novo pelo Retry-After da API e só libera o botão
+ * depois desse tempo. Nada é repetido automaticamente.
+ */
+export function rateLimitedText(e: unknown): string {
+  const s = e instanceof ApiError ? e.retryAfterSeconds : undefined;
+  return s
+    ? `Muitas tentativas em pouco tempo. Nada foi feito. Você poderá tentar de novo em ${s} ${s === 1 ? 'segundo' : 'segundos'}; os dados preenchidos continuam aqui.`
+    : 'Muitas tentativas em pouco tempo. Nada foi feito. Aguarde alguns segundos antes de tentar de novo; os dados preenchidos continuam aqui.';
+}
+
+/**
  * Classifica a falha do ATO (o step-up já foi aceito). Recusa documentada (4xx, 429, 503 de dependência fora) = nada
  * aconteceu. Sem resposta, 5xx ou resposta 2xx fora do contrato = resultado DESCONHECIDO: o ato pode ter acontecido.
  */
@@ -72,7 +84,18 @@ export interface StepUpDialogProps<T> {
    * conferir e liberar de forma explícita.
    */
   guard?: { operation: string; target?: string };
+  /**
+   * A1: consulta do ESTADO ATUAL quando o resultado ficou incerto (agora ou numa tentativa anterior registrada). Só leitura;
+   * nunca reenvia. `true` = o ato está em vigor na Platform; `false` = a leitura não mostra o ato. Só para atos idempotentes
+   * (repetir com os mesmos valores devolve o mesmo resultado): um envio atrasado ainda pode chegar depois da leitura.
+   */
+  verify?: () => Promise<boolean>;
+  /** A consulta mostrou o ato em vigor: a tela atualiza e fecha o diálogo como concluído. */
+  onVerified?: () => void;
 }
+
+/** Conferência do estado depois de um resultado incerto. */
+type Check = 'idle' | 'checking' | 'absent' | 'failed';
 
 /** Registro da operação, como o diálogo o vê. */
 type OpRecord =
@@ -98,13 +121,34 @@ const timeOf = (at: number) => new Date(at).toLocaleString('pt-BR', { dateStyle:
  * ao usar e ao fechar.
  */
 export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
-  const { open, title, confirmLabel, tone, children, ready = true, stepUp, action, onDone, onClose, refusalText, uncertainText, onUnauthenticated, onOutcome, guard } =
-    props;
+  const {
+    open,
+    title,
+    confirmLabel,
+    tone,
+    children,
+    ready = true,
+    stepUp,
+    action,
+    onDone,
+    onClose,
+    refusalText,
+    uncertainText,
+    onUnauthenticated,
+    onOutcome,
+    guard,
+    verify,
+    onVerified,
+  } = props;
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<{ kind: StepUpOutcome; text: string } | null>(null);
   const [record, setRecord] = useState<OpRecord>({ status: 'idle' });
   const [notice, setNotice] = useState<string | null>(null);
+  // 429: instante a partir do qual o botão volta a valer (Retry-After); o relógio só anda enquanto há espera
+  const [retryAt, setRetryAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const [check, setCheck] = useState<Check>('idle');
   const alive = useRef(true);
   const scope = useOperationScope();
   const operation = guard?.operation;
@@ -115,7 +159,26 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
     setCode('');
     setOutcome(null);
     setNotice(null);
+    setRetryAt(null);
+    setCheck('idle');
   }, [open]);
+
+  useEffect(() => {
+    if (retryAt === null) return;
+    setNow(Date.now());
+    const t = window.setInterval(() => {
+      const n = Date.now();
+      setNow(n);
+      if (n >= retryAt) window.clearInterval(t);
+    }, 1000);
+    return () => window.clearInterval(t);
+  }, [retryAt]);
+  const waitSeconds = retryAt === null ? 0 : Math.max(0, Math.ceil((retryAt - now) / 1000));
+  const rateLimited = (e: unknown) => {
+    const s = e instanceof ApiError ? e.retryAfterSeconds : undefined;
+    setRetryAt(s ? Date.now() + s * 1000 : null);
+    return rateLimitedText(e);
+  };
 
   // registro da operação: lido ao abrir e acompanhado (outra aba, conclusão de um envio que continuou fora da tela)
   useEffect(() => {
@@ -166,12 +229,49 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
   const secretReady = !needsCode || (byPassword ? code.length > 0 : code.length === TOTP_DIGITS);
   const recorded = record.status === 'ready' ? record.view : null;
   const blockedByRecord = !!guard && (record.status !== 'ready' || recorded?.state === 'unknown' || recorded?.state === 'pending');
+  const recordKey = record.status === 'ready' ? record.key : null;
+
+  // A1: resultado incerto -> o estado atual é consultado (só leitura) antes de oferecer nova tentativa
+  const verifyRef = useRef(verify);
+  verifyRef.current = verify;
+  const runCheck = async () => {
+    const read = verifyRef.current;
+    if (!read) return;
+    setCheck('checking');
+    try {
+      const done = await read();
+      if (!alive.current) return;
+      if (done) {
+        // a Platform mostra o ato em vigor: não há nova tentativa a proteger; o registro da incerteza é encerrado
+        if (recordKey) operations().acknowledge(recordKey);
+        setCheck('idle');
+        setOutcome(null);
+        onVerified?.();
+      } else setCheck('absent');
+    } catch (e) {
+      if (!alive.current) return;
+      if (isApiError(e, 'unauthenticated')) return onUnauthenticated();
+      setCheck('failed');
+    }
+  };
+  const uncertainNow = outcome?.kind === 'uncertain' || recorded?.state === 'unknown';
+  useEffect(() => {
+    if (open && verify && uncertainNow && check === 'idle') void runCheck();
+    // a conferência roda uma vez por incerteza; "Conferir de novo" chama de novo
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, uncertainNow, !!verify]);
+  const release = () => {
+    if (recordKey) operations().acknowledge(recordKey);
+    setOutcome(null);
+    setCheck('idle');
+  };
   const confirm = async () => {
-    if (!secretReady || !ready || outcome?.kind === 'uncertain' || blockedByRecord) return;
+    if (!secretReady || !ready || outcome?.kind === 'uncertain' || blockedByRecord || waitSeconds > 0) return;
     const typed = code;
     setCode(''); // código (ou senha) sai da tela assim que é usado
     setOutcome(null);
     setNotice(null);
+    setRetryAt(null);
     // registro ANTES de qualquer envio: trava esta e as outras abas e sobrevive a uma interrupção no meio
     let finish: (state: 'confirmed' | 'refused' | 'unknown' | 'not-sent') => void = () => {};
     if (guard && record.status === 'ready') {
@@ -200,7 +300,7 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
         setOutcome({
           kind: 'refused-identity',
           text: isApiError(e, 'rate_limited')
-            ? 'Muitas tentativas em pouco tempo. Aguarde um pouco antes de tentar de novo. Nada foi feito.'
+            ? rateLimited(e)
             : byPassword
               ? 'Não foi possível confirmar sua identidade com esta senha. Confira a senha e tente de novo. Nada foi feito.'
               : 'Não foi possível confirmar sua identidade com este código. Confira o código atual do aplicativo. Nada foi feito.',
@@ -226,7 +326,7 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
         if (!alive.current) return;
         if (kind === 'unauthenticated') return onUnauthenticated();
         onOutcome?.(kind);
-        setOutcome({ kind, text: kind === 'uncertain' ? uncertainText : refusalText(e) });
+        setOutcome({ kind, text: kind === 'uncertain' ? uncertainText : isApiError(e, 'rate_limited') ? rateLimited(e) : refusalText(e) });
         return;
       }
       finish('confirmed');
@@ -240,10 +340,10 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
     <ConfirmDialog
       open={open}
       title={title}
-      confirmLabel={confirmLabel}
+      confirmLabel={waitSeconds > 0 ? `Tentar de novo em ${waitSeconds} s` : confirmLabel}
       tone={tone}
       busy={busy}
-      confirmDisabled={!ready || !secretReady || outcome?.kind === 'uncertain' || blockedByRecord}
+      confirmDisabled={!ready || !secretReady || outcome?.kind === 'uncertain' || blockedByRecord || waitSeconds > 0}
       error={outcome?.text ?? notice ?? undefined}
       onConfirm={confirm}
       onCancel={() => {
@@ -259,15 +359,24 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
             record={record}
             identityArea={!scope.org}
             uncertainText={uncertainText}
+            check={verify ? check : null}
+            onCheck={() => void runCheck()}
             onAcknowledge={() => {
               if (record.status === 'ready') operations().acknowledge(record.key);
+              setCheck('idle');
             }}
           />
         )}
         {outcome?.kind === 'uncertain' ? (
           <Alert tone="warning" live="off" title="Resultado não confirmado">
-            Nada será repetido automaticamente. Feche e confira o estado atual antes de decidir.
-            {guard && !scope.org && <> {IDENTITY_SESSION_ONLY}</>}
+            <Stack gap={2}>
+              <span>
+                Nada será repetido automaticamente.{' '}
+                {verify ? 'O estado atual é conferido antes de qualquer nova tentativa.' : 'Feche e confira o estado atual antes de decidir.'}
+                {guard && !scope.org && <> {IDENTITY_SESSION_ONLY}</>}
+              </span>
+              {verify && <CheckStatus check={check} onCheck={() => void runCheck()} onRelease={release} />}
+            </Stack>
           </Alert>
         ) : (
           needsCode &&
@@ -308,16 +417,62 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
   );
 }
 
+/**
+ * A1: resultado da consulta do estado atual depois de um resultado incerto. Mesmo quando a leitura não mostra o ato, a nova
+ * tentativa continua sendo decisão da pessoa (o registro só some por liberação explícita).
+ */
+function CheckStatus({ check, onCheck, onRelease }: { check: Check; onCheck: () => void; onRelease?: () => void }) {
+  if (check === 'checking' || check === 'idle')
+    return (
+      <Text variant="body-sm" role="status">
+        Conferindo o estado atual na Platform…
+      </Text>
+    );
+  if (check === 'failed')
+    return (
+      <Stack gap={2}>
+        <Text variant="body-sm" role="status">
+          Não foi possível conferir o estado atual agora. Nada será liberado sem essa conferência ou a sua decisão.
+        </Text>
+        <span>
+          <Button variant="secondary" size="sm" onClick={onCheck}>
+            Conferir de novo
+          </Button>
+        </span>
+      </Stack>
+    );
+  return (
+    <Stack gap={2}>
+      <Text variant="body-sm" role="status">
+        Conferido agora: a Platform não mostra este ato em vigor. Uma tentativa atrasada ainda pode chegar; repetir com os mesmos valores devolve o mesmo
+        resultado.
+      </Text>
+      {onRelease && (
+        <span>
+          <Button variant="secondary" size="sm" onClick={onRelease}>
+            Liberar nova tentativa
+          </Button>
+        </span>
+      )}
+    </Stack>
+  );
+}
+
 /** O que o registro diz sobre esta operação antes de confirmar. */
 function RecordNotice({
   record,
   identityArea,
   uncertainText,
+  check,
+  onCheck,
   onAcknowledge,
 }: {
   record: OpRecord;
   identityArea: boolean;
   uncertainText: string;
+  /** Com consulta de estado (A1): o resultado dela; sem consulta, `null`. */
+  check: Check | null;
+  onCheck: () => void;
   onAcknowledge: () => void;
 }) {
   if (record.status === 'idle') return null;
@@ -351,14 +506,17 @@ function RecordNotice({
           </span>
           {view.old && <span>Este registro tem mais de 72 horas e continua sem confirmação: o tempo não resolve a dúvida.</span>}
           {identityArea && <span>{IDENTITY_SESSION_ONLY}</span>}
+          {check !== null && <CheckStatus check={check} onCheck={onCheck} />}
           <span>
             Liberar permite enviar de novo. Não confirma o resultado da tentativa anterior nem garante que não haverá duplicidade.
           </span>
-          <span>
-            <Button variant="secondary" size="sm" onClick={onAcknowledge}>
-              Já conferi o estado atual; liberar nova tentativa
-            </Button>
-          </span>
+          {(check === null || check === 'absent' || check === 'failed') && (
+            <span>
+              <Button variant="secondary" size="sm" onClick={onAcknowledge}>
+                Já conferi o estado atual; liberar nova tentativa
+              </Button>
+            </span>
+          )}
         </Stack>
       </Alert>
     );
