@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Alert, Badge, Button, Card, Stack, StateView, Text } from 'nekkora-lib';
 import { isApiError } from '../api/http';
-import { listAutomations } from '../api/product';
-import type { Automation, Workspace } from '../api/v1';
+import { listOrganizationAutomations } from '../api/product';
+import type { Workspace } from '../api/v1';
 import { useInternalArea } from '../area/InternalShell';
 import { useSession } from '../area/session';
 import { useWorkspacePermissions } from '../area/useWorkspacePermissions';
@@ -11,34 +11,36 @@ import { orgPath } from '../auth/organization';
 import { activationLabel } from '../identity/labels';
 import { RouteLink } from './product/shared';
 
-/** Quantos workspaces a página inicial consulta para saber se já há automações (os primeiros da lista visível). */
+/** Até quantos workspaces ativos a página inicial considera para o próximo passo (o primeiro recebe a ação). */
 export const HOME_WORKSPACES = 5;
-const HOME_ITEMS = 5;
 
-type Load<T> = { status: 'loading' } | { status: 'ready'; items: T[] } | { status: 'error' };
+type Load = { status: 'loading' } | { status: 'ready'; any: boolean } | { status: 'error' };
 
 /**
- * Há automações nos primeiros workspaces ATIVOS visíveis (até {@link HOME_WORKSPACES})? Só para decidir o próximo passo
- * ("criar a primeira automação"); a lista de automações da página é a do painel. Falha marca `error`, nunca zero.
+ * Já há alguma automação nos ambientes de trabalho visíveis? Só para decidir o próximo passo ("criar a primeira
+ * automação"); a lista de automações da página é a do painel. Falha marca `error`, nunca zero.
+ *
+ * A1 (LICENCIAMENTO-002): UMA leitura (a lista da organização, um item, qualquer situação) no lugar de uma por workspace
+ * (até cinco). A lista da organização cobre todos os ambientes com automation.read, não só os cinco primeiros ativos: uma
+ * automação em outro ambiente visível também conta como "já há automações". A leitura é refeita quando a lista de
+ * workspaces muda (inclusive ao trocar de organização, que remonta a área).
  */
 function useActivity(workspaces: Workspace[] | null) {
   const { org, expired } = useSession();
-  const [automations, setAutomations] = useState<Load<Automation>>({ status: 'loading' });
+  const [automations, setAutomations] = useState<Load>({ status: 'loading' });
   const key = workspaces?.map((w) => w.workspaceId).join(',') ?? null;
 
   useEffect(() => {
     if (key === null) return;
     let alive = true;
-    const ids = key ? key.split(',') : [];
     setAutomations({ status: 'loading' });
-    const fail = (e: unknown, set: (v: Load<never>) => void) => {
-      if (!alive) return;
-      if (isApiError(e, 'unauthenticated')) return expired();
-      set({ status: 'error' });
-    };
-    Promise.all(ids.map((id) => listAutomations(org, id, { limit: HOME_ITEMS })))
-      .then((pages) => alive && setAutomations({ status: 'ready', items: pages.flatMap((p) => p.items) }))
-      .catch((e) => fail(e, setAutomations));
+    listOrganizationAutomations(org, { limit: 1 })
+      .then((page) => alive && setAutomations({ status: 'ready', any: page.items.length > 0 }))
+      .catch((e: unknown) => {
+        if (!alive) return;
+        if (isApiError(e, 'unauthenticated')) return expired();
+        setAutomations({ status: 'error' });
+      });
     return () => {
       alive = false;
     };
@@ -210,7 +212,7 @@ export function NextStep() {
   // carregando ou com falha: quem informa é a seção de automações do painel (uma mensagem só, não duas)
   const { automations } = activity;
   if (automations.status !== 'ready') return null;
-  if (automations.items.length === 0) return <FirstAutomationStep workspace={active[0]} />;
+  if (!automations.any) return <FirstAutomationStep workspace={active[0]} />;
   // já há automações: o painel (métricas e cards) é o conteúdo da página
   return null;
 }

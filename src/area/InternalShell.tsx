@@ -5,7 +5,7 @@ import { Alert, AppShell, Button, Link, Logo, Text, UserMenu, type AppNavGroup }
 import { ThemeCycleButton } from '../components/AppearanceSection';
 import { isApiError } from '../api/http';
 import { getMyPermissions } from '../api/permissions';
-import { myOrganizations } from '../api/identity';
+import { recentOrganizations } from '../api/identity';
 import type { MyPermissions, PermissionCode } from '../api/v1';
 import { identityPath } from '../auth/flow';
 import { OperationScopeProvider, type OperationScopeValue } from '../components/operationScope';
@@ -108,7 +108,7 @@ export function InternalShell() {
     let alive = true;
     setOrgName(undefined);
     setOrgHandle(null);
-    myOrganizations()
+    recentOrganizations()
       .then((list) => {
         const found = list.organizations.find((o) => o.organizationId === org);
         if (alive) {

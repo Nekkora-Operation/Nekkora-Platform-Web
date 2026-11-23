@@ -251,6 +251,13 @@ describe('Máquinas: atividade e foco numa máquina', () => {
     expect(within(other).getByText('Nenhuma execução visível para você.')).toBeInTheDocument();
   });
 
+  it('A1: a atividade das máquinas é lida uma vez, com a lista de máquinas pronta (não antes e de novo depois)', async () => {
+    renderApp(`/o/${ORG}/workers`);
+    const row = await screen.findByRole('row', { name: /Estação fiscal/ });
+    await waitFor(() => expect(within(row).getByText('1 requer atenção')).toBeInTheDocument());
+    expect(api.sent('GET', `/api/v1/o/${ORG}/activity/machines`)).toHaveLength(1);
+  });
+
   it('"Ver atividade" leva o nome: o filtro identifica a máquina mesmo sem nenhuma linha dela na aba', async () => {
     renderApp(`/o/${ORG}/workers`);
     const row = await screen.findByRole('row', { name: /Estação dois/ });

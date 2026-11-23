@@ -525,6 +525,16 @@ export function VersionPage() {
             : 'A publicação não foi concluída. Nada foi publicado.';
         }}
         uncertainText="Não foi possível confirmar a publicação. Feche e atualize a versão: repetir com os mesmos valores é seguro (a API devolve a versão já publicada), mas confira antes."
+        // A1: resultado incerto -> lê a versão: publicada com o pacote conferido = concluída
+        verify={async () => {
+          const fresh = await getAutomationVersion(org, versionId);
+          return fresh.status !== 'DRAFT' && !!fresh.publishedAt && !!reviewed && fresh.artifact?.sha256 === reviewed.sha256;
+        }}
+        onVerified={() => {
+          setPublishing(false);
+          setPublishMsg({ tone: 'success', text: 'Conferido na Platform: a versão está publicada com o pacote conferido. Ela não muda mais.' });
+          version.refresh();
+        }}
         onUnauthenticated={expired}
         onOutcome={(k) => k === 'uncertain' && setPublishMsg({ tone: 'warning', text: 'O resultado da publicação não foi confirmado. Atualize a versão e confira.' })}
       >

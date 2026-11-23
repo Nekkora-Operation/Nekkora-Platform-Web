@@ -803,6 +803,65 @@ describe('Versão: execução remota (T02)', () => {
     await waitFor(() => expect(within(section()).getByText('Pode solicitar')).toBeInTheDocument());
   });
 
+  describe('A1: escolher o Python com limite de pedidos e com resultado incerto', () => {
+    const PY = `/api/v1/o/${ORG}/workspaces/${WS}/remote-machines/${AG1}/python-environments`;
+    const PUT = `/api/v1/o/${ORG}/automations/${AUT}/remote-machines/${AG1}/python-selection`;
+    async function choose() {
+      candidates = [candidate({ requestable: false, missing: ['PYTHON_NOT_SELECTED'], python: null })];
+      api.on('GET', PY, 'listRemoteMachinePythonEnvironments', {
+        status: 200,
+        body: { items: [{ environmentId: ENV_B, pythonVersion: '3.12.10', kind: 'VIRTUAL_ENVIRONMENT', observedAt: T, reportedAt: T }] },
+      });
+      await open();
+      const s = await waitFor(section);
+      fireEvent.click(within(s).getByRole('button', { name: 'Escolher o Python de ESTACAO-01' }));
+      const select = (await within(dialog()).findByLabelText('Python da máquina')) as HTMLSelectElement;
+      fireEvent.change(select, { target: { value: ENV_B } });
+      await confirmIn('Escolher este Python');
+      return select;
+    }
+
+    it('429: diz quando tentar de novo (Retry-After), mantém o Python escolhido, segura o botão e não reenvia sozinho', async () => {
+      api.on('PUT', PUT, 'selectRemoteMachinePython', (_c, n) => {
+        if (n === 0) return { status: 429, body: { error: 'rate_limited' }, headers: { 'Retry-After': '2' } };
+        candidates = [candidate()];
+        return { status: 200, body: { environmentId: ENV_B, pythonVersion: '3.12.10', inInventory: true, selectedAt: T } };
+      });
+      const select = await choose();
+      expect(await within(dialog()).findByText(/Muitas tentativas em pouco tempo\. Nada foi feito\. Você poderá tentar de novo em 2 segundos/)).toBeInTheDocument();
+      expect(select.value).toBe(ENV_B);
+      expect(within(dialog()).getByRole('button', { name: /^Tentar de novo em \d s$/ })).toBeDisabled();
+      expect(api.sent('PUT', PUT)).toHaveLength(1);
+      // o botão volta sozinho depois do tempo; o envio é da pessoa
+      const back = await within(dialog()).findByRole('button', { name: 'Escolher este Python' }, { timeout: 5_000 });
+      expect(api.sent('PUT', PUT)).toHaveLength(1);
+      await waitFor(() => expect(back).toBeEnabled());
+      fireEvent.click(back);
+      expect(await screen.findByText('Python 3.12.10 escolhido para esta automação em ESTACAO-01.')).toBeInTheDocument();
+      expect(api.sent('PUT', PUT)).toHaveLength(2);
+    });
+
+    it('resultado incerto: confere as máquinas candidatas antes de oferecer nova tentativa; a escolha em vigor fecha como concluída', async () => {
+      api.on('PUT', PUT, 'selectRemoteMachinePython', () => {
+        // a Platform gravou, mas a resposta se perdeu
+        candidates = [candidate({ python: { environmentId: ENV_B, pythonVersion: '3.12.10', inInventory: true, selectedAt: T } })];
+        return 'network';
+      });
+      await choose();
+      expect(await screen.findByText('Conferido na Platform: o Python escolhido está em vigor para esta automação em ESTACAO-01.')).toBeInTheDocument();
+      expect(api.sent('PUT', PUT)).toHaveLength(1);
+    });
+
+    it('resultado incerto e a escolha não aparece: informa e só a pessoa libera a nova tentativa', async () => {
+      api.on('PUT', PUT, 'selectRemoteMachinePython', () => 'network');
+      await choose();
+      expect(await within(dialog()).findByText(/Conferido agora: a Platform não mostra este ato em vigor/)).toBeInTheDocument();
+      expect(within(dialog()).getByRole('button', { name: 'Escolher este Python' })).toBeDisabled();
+      expect(within(dialog()).getByRole('button', { name: 'Liberar nova tentativa' })).toBeInTheDocument();
+      expect(api.sent('PUT', PUT)).toHaveLength(1);
+    });
+  });
+
   it('verificação de dependências sob demanda: pede à máquina, mostra o que ela respondeu e nunca diz incompatível sem resposta', async () => {
     const id = (n: number) => `${String(n).repeat(8)}-${String(n).repeat(4)}-4${String(n).repeat(3)}-8${String(n).repeat(3)}-${String(n).repeat(12)}`;
     candidates = [

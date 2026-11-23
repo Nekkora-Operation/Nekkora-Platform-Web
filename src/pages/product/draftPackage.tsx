@@ -45,7 +45,13 @@ export function draftRefusal(e: unknown, kept: 'previous' | 'empty' | 'nothing')
     return `O armazenamento de pacotes não está disponível neste ambiente (ou está temporariamente fora). Nada foi gravado. ${stays} Tente mais tarde ou procure a operação.`;
   if (isApiError(e, 'conflict')) return `A automação ou o ambiente de trabalho não está ativo, ou o rascunho já foi publicado. Nada foi gravado. ${stays}`;
   if (isApiError(e, 'forbidden', 'not_found')) return 'Você não tem permissão para enviar pacotes nesta automação. Nada foi gravado.';
-  if (isApiError(e, 'rate_limited')) return 'Muitas tentativas em pouco tempo. Aguarde antes de enviar de novo.';
+  if (isApiError(e, 'rate_limited')) {
+    // A1: o tempo informado pela API (Retry-After), quando houver; 429 é recusa: nada foi gravado
+    const s = e instanceof ApiError ? e.retryAfterSeconds : undefined;
+    return s
+      ? `Muitas tentativas em pouco tempo. Nada foi gravado. ${stays} Você poderá enviar de novo em ${s} ${s === 1 ? 'segundo' : 'segundos'}.`
+      : 'Muitas tentativas em pouco tempo. Aguarde antes de enviar de novo.';
+  }
   return `O envio não foi aceito. ${stays}`;
 }
 

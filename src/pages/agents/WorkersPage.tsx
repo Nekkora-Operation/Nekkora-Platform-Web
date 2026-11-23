@@ -69,6 +69,9 @@ function WorkersManagement() {
   // execuções (automation.read), a coluna diz que não há atividade visível, sem esconder a máquina
   const [activity, setActivity] = useState<Map<string, MachineActivity> | null>(null);
   useEffect(() => {
+    // A1 (LICENCIAMENTO-002): só com a lista de máquinas pronta (antes, lia uma vez com a lista carregando e outra quando
+    // ela chegava); acompanha cada releitura da lista (30 s)
+    if (list.status !== 'ready') return;
     let alive = true;
     listMachineActivity(org).then(
       (r) => alive && setActivity(new Map(r.items.map((x) => [x.workerId, x]))),
