@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "98bb90011c1c55b00cec1f3ee7a986ca536fee064eddd307e5d5d4a5cdac3519",
+  "openapiSha256": "74c5678bbb256a5ce26a5572e6b19100c1fc605418e3bc18074e613444fef5d5",
   "schemas": {
     "Error": {
       "type": "object",
@@ -21,7 +21,8 @@
             "rate_limited",
             "internal_error",
             "service_unavailable",
-            "unsupported_contract"
+            "unsupported_contract",
+            "gone"
           ]
         },
         "reason": {
@@ -106,6 +107,7 @@
             "client_grant_exists",
             "client_scope_unavailable",
             "client_grant_widening_requires_request",
+            "organization_held",
             "managed_environment_unavailable",
             "managed_environment_machine_incompatible",
             "managed_environment_base_not_installation",
@@ -6627,6 +6629,9 @@
         "stepUpMethod": {
           "$ref": "#/components/schemas/StepUpMethod"
         },
+        "organizationHeldByNekkora": {
+          "type": "boolean"
+        },
         "remoteExecutionAvailable": {
           "type": "boolean"
         },
@@ -8122,6 +8127,7 @@
                   "COMMUNICATION_LOST",
                   "LICENSE_REQUIRED",
                   "LICENSE_EXPIRED",
+                  "ORGANIZATION_HELD",
                   "ENVIRONMENT_SETUP_FAILED",
                   "DEPENDENCY_INSTALL_FAILED",
                   "ENVIRONMENT_SETUP_INTERRUPTED",
