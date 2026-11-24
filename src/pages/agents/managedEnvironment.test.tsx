@@ -65,6 +65,7 @@ const resolution = (over: Row = {}): Row => ({
   outcome: 'RESOLVED',
   requestedAt: T,
   answerValidUntil: '2026-11-10T10:30:00Z',
+  waitingForExecution: false,
   answeredAt: '2026-11-10T10:00:40Z',
   pythonVersion: '3.12.10',
   pipVersion: '24.3.1',
@@ -253,6 +254,13 @@ async function confirmIn(label: string) {
   await waitFor(() => expect(button).toBeEnabled(), SLOW);
   fireEvent.click(button);
 }
+/** Marca o consentimento quando a caixa já está habilitada (as permissões chegam por outra leitura) e confere que ficou marcada. */
+async function consentir(d: HTMLElement) {
+  const box = within(d).getByRole('checkbox', { name: /Autorizo instalar estes 3 pacotes/ });
+  await waitFor(() => expect(box).toBeEnabled(), SLOW);
+  fireEvent.click(box);
+  await waitFor(() => expect(box).toBeChecked(), SLOW);
+}
 const openManaged = async (s: HTMLElement, agent = 'ESTACAO-01') => {
   fireEvent.click(await within(s).findByRole('button', { name: `Ambiente por execução em ${agent}` }, SLOW));
   return dialog();
@@ -350,7 +358,12 @@ describe('AMBIENTE-PYTHON-001: página da versão', () => {
     const s = await open();
     const d = await openManaged(s);
     expect(await within(d).findByText(MANAGED.PENDING)).toBeInTheDocument();
+    expect(within(d).getByText(/Prazo da resposta:/)).toBeInTheDocument();
+    expect(within(d).queryByText(MANAGED.WAITING_EXECUTION)).not.toBeInTheDocument();
     expect(within(d).getByRole('button', { name: MANAGED.GENERATE })).toBeDisabled();
+    // a máquina está com uma execução em andamento: a tela diz que a lista espera ela terminar
+    env = managedEnv({ resolution: resolution({ state: 'PENDING', outcome: null, answeredAt: null, lock: null, lockSha256: null, waitingForExecution: true }) });
+    expect(await within(d).findByText(MANAGED.WAITING_EXECUTION, {}, { timeout: 5_000 })).toBeInTheDocument();
     env = managedEnv({ resolution: resolution({ state: 'UNANSWERED', outcome: null, answeredAt: null, lock: null, lockSha256: null }) });
     expect(await within(d).findByText(MANAGED.UNANSWERED, {}, { timeout: 5_000 })).toBeInTheDocument();
     expect(within(d).getByRole('button', { name: MANAGED.GENERATE })).toBeEnabled();
@@ -410,7 +423,7 @@ describe('AMBIENTE-PYTHON-001: página da versão', () => {
     await within(d).findByRole('table', { name: /Lista completa/ }, SLOW);
     expect(within(d).getByText(/nunca instala navegadores nem componentes do sistema/)).toBeInTheDocument();
     expect(within(d).getByText(/mesma versão do Playwright desta lista/)).toBeInTheDocument();
-    fireEvent.click(within(d).getByRole('checkbox', { name: /Autorizo instalar estes 3 pacotes/ }));
+    await consentir(d);
     // consentimento sem navegador: ainda não
     expect(within(d).getByText(MANAGED.BROWSERS_REQUIRED)).toBeInTheDocument();
     expect(within(d).getByRole('button', { name: MANAGED.CONFIRM })).toBeDisabled();
@@ -431,7 +444,7 @@ describe('AMBIENTE-PYTHON-001: página da versão', () => {
     const d = await openManaged(s);
     await within(d).findByRole('table', { name: /Lista completa/ }, SLOW);
     expect(within(d).getByRole('button', { name: MANAGED.CONFIRM })).toBeDisabled();
-    fireEvent.click(within(d).getByRole('checkbox', { name: /Autorizo instalar estes 3 pacotes/ }));
+    await consentir(d);
     await confirmIn(MANAGED.CONFIRM);
     expect(await within(dialog()).findByText(new RegExp(MANAGED_REQUEST_REFUSAL.managed_environment_lock_changed.slice(0, 40)))).toBeInTheDocument();
   });

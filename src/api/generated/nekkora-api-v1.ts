@@ -5742,6 +5742,8 @@ export interface components {
                 lockSha256?: string | null;
                 failure?: components["schemas"]["ManagedEnvironmentFailure"] | null;
                 current: boolean;
+                /** @description Só em PENDING: a máquina está com uma execução remota em andamento; a lista completa só é gerada depois que ela terminar (se ainda estiver no prazo). */
+                waitingForExecution?: boolean;
             } | null;
             externalPrerequisites: {
                 code: string;

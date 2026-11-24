@@ -53,7 +53,9 @@ export const MANAGED = {
   GENERATE: 'Gerar a lista completa nesta máquina',
   GENERATE_HINT:
     'A máquina calcula a lista completa (com as dependências indiretas) para o Python e o sistema dela, sem instalar nada. Gerar a lista não autoriza nada.',
-  PENDING: 'Pedido enviado: aguardando a máquina responder (o prazo é de até 30 minutos). Esta tela se atualiza sozinha.',
+  PENDING: 'Pedido enviado: aguardando a máquina responder. Esta tela se atualiza sozinha.',
+  WAITING_EXECUTION:
+    'A máquina está com uma execução em andamento e só gera a lista quando ela terminar. Se não terminar dentro do prazo, o pedido vence sem decidir nada e você pode gerar a lista de novo.',
   UNANSWERED: 'A máquina não respondeu dentro do prazo; nada foi decidido. Você pode gerar a lista de novo.',
   ENVIRONMENT_GONE: 'A máquina não encontrou mais o Python escolhido. Escolha outro Python; nada foi decidido.',
   NOT_CURRENT: 'Esta lista é de antes da última mudança (do Python escolhido, das dependências ou da versão). Gere a lista de novo para poder aceitar.',
@@ -96,7 +98,8 @@ export const RESOLUTION_PHASE: Record<string, (python: string) => string> = {
 export const PREPARE_PHASE: Record<string, (python: string) => string> = {
   VENV: () => 'não foi possível criar o ambiente temporário a partir do Python escolhido',
   DOWNLOAD: () => 'o download do PyPI público falhou',
-  HASH_MISMATCH: () => 'o arquivo baixado não confere com o hash aceito',
+  HASH_MISMATCH: () =>
+    'o arquivo baixado não confere com o hash aceito (download incompleto ou arquivo diferente na origem); solicite de novo e, se continuar, gere a lista completa de novo antes de aceitar',
   NO_COMPATIBLE_WHEEL: (py) => `não há pacote compilado (wheel) compatível com Python ${py} nesta máquina`,
   INSTALL: () => 'a instalação no ambiente temporário falhou',
   VERIFY: () => 'as versões instaladas não conferem com a lista aceita',
@@ -372,7 +375,17 @@ export function ManagedEnvironmentDialog({
               )}
               {notice && <Alert tone={notice.tone}>{notice.text}</Alert>}
               <div role="status" aria-live="polite">
-                {r?.state === 'PENDING' && <Text variant="body-sm">{MANAGED.PENDING}</Text>}
+                {r?.state === 'PENDING' && (
+                  <Stack gap={1}>
+                    <Text variant="body-sm">{MANAGED.PENDING}</Text>
+                    {r.answerValidUntil && (
+                      <Text variant="body-sm" color="secondary">
+                        Prazo da resposta: <DateTimeText iso={r.answerValidUntil} />
+                      </Text>
+                    )}
+                    {r.waitingForExecution && <Alert tone="info">{MANAGED.WAITING_EXECUTION}</Alert>}
+                  </Stack>
+                )}
                 {r?.state === 'UNANSWERED' && <Alert tone="warning">{MANAGED.UNANSWERED}</Alert>}
               </div>
               {r?.state === 'ANSWERED' && r.outcome === 'ENVIRONMENT_GONE' && <Alert tone="warning">{MANAGED.ENVIRONMENT_GONE}</Alert>}

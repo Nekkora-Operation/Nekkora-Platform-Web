@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "74c5678bbb256a5ce26a5572e6b19100c1fc605418e3bc18074e613444fef5d5",
+  "openapiSha256": "3b75fd5b7d503ce20aa3900a3af215a413b4fb1d64e4e5f48dc0edca9d37386b",
   "schemas": {
     "Error": {
       "type": "object",
@@ -7228,6 +7228,9 @@
               ]
             },
             "current": {
+              "type": "boolean"
+            },
+            "waitingForExecution": {
               "type": "boolean"
             }
           }
