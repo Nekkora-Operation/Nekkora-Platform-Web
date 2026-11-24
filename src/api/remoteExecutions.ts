@@ -42,7 +42,8 @@ export function requestRemoteExecution(
   org: string,
   workspaceId: string,
   // authorizeVersion (S2): aceite EXPLÍCITO desta versão nesta máquina, no mesmo passo. Nunca vale para versões futuras.
-  body: { automationVersionId: string; agentId: string; requestKey: string; authorizeVersion?: boolean; authorizationValidUntil?: string },
+  // environmentMode (AMBIENTE-PYTHON-001): ausente vale PREPARED; MANAGED só com aceite vigente do ambiente por execução
+  body: { automationVersionId: string; agentId: string; requestKey: string; authorizeVersion?: boolean; authorizationValidUntil?: string; environmentMode?: 'PREPARED' | 'MANAGED' },
 ): Promise<RemoteExecution> {
   return send(org, 'requestRemoteExecution', `/workspaces/${id(workspaceId)}/remote-executions`, { method: 'POST', body });
 }

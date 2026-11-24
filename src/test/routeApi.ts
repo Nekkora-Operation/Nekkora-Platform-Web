@@ -17,6 +17,8 @@ export interface Call {
 
 export type Reply =
   | { status: number; body?: unknown; headers?: Record<string, string> }
+  /** Corpo de TEXTO (ex.: text/plain), também conferido contra o contrato da operação. */
+  | { status: number; text: string; contentType: string; headers?: Record<string, string> }
   | 'network'
   /** Resposta do PROXY (429 do limite do nginx, ou 502/503/504, sem o corpo da API): é transporte, não a API, e por isso não passa pelo contrato. */
   | { gateway: 429 | 502 | 503 | 504 }
@@ -69,9 +71,10 @@ export class RouteApi {
     if (reply === 'network') throw new TypeError('Failed to fetch');
     if ('hold' in reply) reply = await reply.hold;
     if ('gateway' in reply) return new Response(`<html>${reply.gateway}</html>`, { status: reply.gateway, headers: { 'Content-Type': 'text/html' } });
-    const { status, body } = reply;
-    const json = body === undefined ? null : JSON.stringify(body);
-    const contentType = json === null ? null : 'application/json';
+    const { status } = reply;
+    const body = 'text' in reply ? reply.text : 'body' in reply ? reply.body : undefined;
+    const json = 'text' in reply ? reply.text : body === undefined ? null : JSON.stringify(body);
+    const contentType = 'text' in reply ? reply.contentType : json === null ? null : 'application/json';
     const list = responseViolations(route.operationId, { status, contentType, body }, { strict: true });
     if (list.length) throw new Error(`fixture fora do contrato (${route.operationId} ${status}): ${JSON.stringify(list)}`);
     return new Response(json, {

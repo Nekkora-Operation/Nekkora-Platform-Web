@@ -3308,6 +3308,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/o/{org}/automations/{automation}/remote-machines/{agent}/managed-environment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * AMBIENTE-PYTHON-001: o ambiente por execucao de uma versao numa maquina (base, lista efetiva, resolucao, catalogo e aceite)
+         * @description Exige automation.read no ambiente. Com a chave NEKKORA_AMBIENTE_GERENCIADO desligada: 404 + managed_environment_unavailable. resolution e authorization sao nulos quando nao existem. current diz se a resolucao ainda corresponde ao Python escolhido, a revisao vigente e a versao. diff so em STALE. externalPrerequisites vem do catalogo da Platform aplicado ao lock (ou, sem lock, a lista efetiva). As dependencias sao as da versao indicada (A1).
+         */
+        get: operations["getManagedEnvironment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/automations/{automation}/remote-machines/{agent}/managed-environment/resolutions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pede a maquina a lista completa (lock) das dependencias da versao, so com wheels do PyPI publico
+         * @description Exige automation.manage; sem confirmacao reforcada (nao autoriza nada). Recusas 409: managed_environment_machine_incompatible, managed_environment_base_not_installation (D6), remote_python_not_selected, remote_python_not_in_inventory, remote_requirements_not_declared, remote_requirements_conflict, managed_environment_resolution_pending.
+         */
+        post: operations["requestManagedEnvironmentResolution"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/automations/{automation}/remote-machines/{agent}/managed-environment/authorizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Aceita o lock resolvido: cada execucao desta versao nesta maquina instala exatamente ele num ambiente temporario (step-up)
+         * @description Exige automation.manage e confirmacao reforcada. Exige uma resolucao RESOLVED corrente com o mesmo lockSha256; com playwright no lock, ao menos uma verificacao PLAYWRIGHT_*. Revoga o aceite anterior de (versao, maquina) e grava ACT_MANAGED_ENV_AUTHORIZED. Recusas: 409 managed_environment_resolution_not_current, 409 managed_environment_lock_changed, 400 sem acknowledge.
+         */
+        post: operations["authorizeManagedEnvironment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/automations/{automation}/remote-machines/{agent}/managed-environment/authorizations/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoga o aceite: a maquina volta ao Python preparado (step-up)
+         * @description Confirmacao reforcada. Grava ACT_MANAGED_ENV_REVOKED.
+         */
+        delete: operations["revokeManagedEnvironmentAuthorization"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/o/{org}/workspaces/{workspace}/remote-executions/candidates": {
         parameters: {
             query?: never;
@@ -3404,6 +3484,26 @@ export interface paths {
          * @description Exige logs.read no ambiente da solicitacao (fora do alcance: 404). Sao as linhas que o processo da automacao escreveu na saida padrao (STDOUT) e na saida de erro (STDERR), e avisos do aplicativo da maquina (EXECUTOR), na ordem em que a maquina as capturou - que nao e uma ordem global entre os dois canais. STDERR e um canal, nao um nivel: level e sempre UNKNOWN nesta versao e nada e classificado pelo texto. Paginacao pela sequencia: after (exclusivo, padrao 0) e limit (1 a 500, padrao 500); nextAfter null = esta pagina chegou ao fim do que ha agora. total: quantas linhas a Platform tem. closure null: a maquina ainda nao fechou o envio (a execucao pode estar em andamento, ou ha linha a caminho, ou ela nao voltou). closure.droppedLines: quantas linhas a maquina descartou por limite (8 KiB por linha - a linha cortada vem com truncated; 50.000 linhas e 20 MiB por tentativa). Linha que falta, cortada ou descartada NAO muda o estado da tentativa. textRemoved true: o texto foi apagado pela retencao; o registro de que a linha existiu fica. So existem linhas de tentativa remota: a saida de uma execucao iniciada no proprio computador nunca chega a Platform.
          */
         get: operations["listRemoteAttemptLogs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/o/{org}/remote-executions/{execution}/attempts/{attempt}/environment-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * AMBIENTE-PYTHON-001: o registro do preparo do ambiente por execucao de uma tentativa (texto, sem segredos)
+         * @description Exige automation.read. 410 + managed_environment_log_expired depois de 30 dias contados do relatorio (D7); o resumo estruturado da falha continua na tentativa.
+         */
+        get: operations["getRemoteAttemptEnvironmentLog"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3587,7 +3687,7 @@ export interface components {
              * @description PLATFORM-V2-001: motivo opcional de um codigo conhecido (conflict: workspace_name_taken, worker_limit_reached, draft_exists, draft_changed, local_run_authorization_exists, organization_name_taken; forbidden: step_up_required). Cliente que nao o conhece trata o codigo como sempre
              * @enum {string}
              */
-            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "license_already_assigned" | "automation_already_licensed" | "license_not_valid" | "license_automation_archived" | "license_ended" | "license_period_overlaps" | "license_period_already_ended" | "license_model_unchanged" | "license_preview_changed" | "license_required" | "license_expired" | "run_not_covered" | "capacity_pending_limit_reached" | "license_not_assigned" | "license_transfer_same_automation" | "license_transfer_work_in_progress" | "organization_responsible_not_found" | "organization_responsible_is_client" | "previous_agent_session_has_outcome" | "previous_agent_session_already_reconciled" | "license_transfer_requester_not_admin" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_machine_unconfirmed" | "remote_machine_finishing" | "remote_previous_processes_pending" | "remote_previous_result_unconfirmed" | "remote_attempt_not_unconfirmed" | "remote_attempt_already_reconciled" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_package_not_supported" | "remote_package_not_registered" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_dependency_check_too_soon" | "remote_dependency_check_closed" | "remote_result_unavailable" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken" | "organization_creation_client_profile" | "organization_creation_requires_request" | "empty_organization_limit_reached" | "organization_request_not_available" | "organization_request_not_pending" | "organization_request_own" | "organization_request_approver_without_identity" | "organization_request_responsible_not_eligible" | "organization_not_responsible" | "organization_work_in_progress" | "organization_blocked_by_nekkora" | "organization_state_conflict" | "license_unavailable" | "activation_worker_not_in_workspace" | "activation_automation_inactive" | "activation_without_workers" | "activation_renewal_not_applicable" | "client_invitation_internal_member" | "client_invitation_legacy_account" | "client_invitation_other_client" | "client_grant_exists" | "client_scope_unavailable" | "client_grant_widening_requires_request";
+            reason?: "workspace_name_taken" | "step_up_required" | "worker_limit_reached" | "license_already_assigned" | "automation_already_licensed" | "license_not_valid" | "license_automation_archived" | "license_ended" | "license_period_overlaps" | "license_period_already_ended" | "license_model_unchanged" | "license_preview_changed" | "license_required" | "license_expired" | "run_not_covered" | "capacity_pending_limit_reached" | "license_not_assigned" | "license_transfer_same_automation" | "license_transfer_work_in_progress" | "organization_responsible_not_found" | "organization_responsible_is_client" | "previous_agent_session_has_outcome" | "previous_agent_session_already_reconciled" | "license_transfer_requester_not_admin" | "remote_execution_unavailable" | "runtime_requirements_unresolved" | "runtime_requirements_changed" | "remote_authorization_missing" | "remote_authorization_revoked" | "remote_authorization_expired" | "remote_machine_not_enabled" | "remote_machine_paused" | "remote_machine_incompatible" | "remote_machine_busy" | "remote_machine_unconfirmed" | "remote_machine_finishing" | "remote_previous_processes_pending" | "remote_previous_result_unconfirmed" | "remote_attempt_not_unconfirmed" | "remote_attempt_already_reconciled" | "remote_requirements_not_declared" | "remote_requirements_conflict" | "remote_package_not_supported" | "remote_package_not_registered" | "remote_python_not_selected" | "remote_python_not_in_inventory" | "remote_dependency_check_too_soon" | "remote_dependency_check_closed" | "remote_result_unavailable" | "remote_attempt_not_finished" | "remote_attempt_already_finished" | "remote_execution_cancel_requested" | "draft_exists" | "draft_changed" | "local_run_authorization_exists" | "organization_name_taken" | "organization_creation_client_profile" | "organization_creation_requires_request" | "empty_organization_limit_reached" | "organization_request_not_available" | "organization_request_not_pending" | "organization_request_own" | "organization_request_approver_without_identity" | "organization_request_responsible_not_eligible" | "organization_not_responsible" | "organization_work_in_progress" | "organization_blocked_by_nekkora" | "organization_state_conflict" | "license_unavailable" | "activation_worker_not_in_workspace" | "activation_automation_inactive" | "activation_without_workers" | "activation_renewal_not_applicable" | "client_invitation_internal_member" | "client_invitation_legacy_account" | "client_invitation_other_client" | "client_grant_exists" | "client_scope_unavailable" | "client_grant_widening_requires_request" | "managed_environment_unavailable" | "managed_environment_machine_incompatible" | "managed_environment_base_not_installation" | "managed_environment_resolution_pending" | "managed_environment_resolution_not_current" | "managed_environment_lock_changed" | "managed_environment_not_authorized" | "managed_environment_changed" | "managed_environment_log_expired";
         };
         /**
          * @description Permissoes de workspace (14): podem aparecer em allWorkspaces e em atribuicoes de workspace. client_share.request (071): pedir compartilhamento com pessoa externa (WORKSPACE_ADMIN).
@@ -5476,6 +5576,8 @@ export interface components {
             stepUpMethod: components["schemas"]["StepUpMethod"];
             /** @description RELEASE-2.2: se esta Platform aceita execucao remota (chave nekkora.remote-execution.enabled; padrao false). So indicacao para a tela; cada rota continua recusando com 409 remote_execution_unavailable. Ausente (API anterior): tratar como indisponivel. */
             remoteExecutionAvailable?: boolean;
+            /** @description AMBIENTE-PYTHON-001: a chave NEKKORA_AMBIENTE_GERENCIADO ligada e a execucao remota disponivel. Ausente: indisponivel. */
+            managedEnvironmentAvailable?: boolean;
         };
         /**
          * @description PLATFORM-LICENCIAMENTO-001. licensed: a organizacao esta no modelo por licenca - a capacidade e tecnica (limites iguais para todas) e NAO depende da ativacao pela operacao; o que habilita uma automacao e a licenca. legacy: modelo anterior, em que a ativacao libera a capacidade. A tela usa para nao dizer "aguardando ativacao: nenhum Worker pode ser registrado" a quem ja pode registrar.
@@ -5555,6 +5657,11 @@ export interface components {
              * @description So com authorizeVersion. Obrigatorio na organizacao do modelo anterior; no modelo por licenca e opcional e limitado ao fim da cobertura da licenca.
              */
             authorizationValidUntil?: string;
+            /**
+             * @description AMBIENTE-PYTHON-001: ausente vale PREPARED. MANAGED exige a chave, a capacidade MANAGED_ENV_1_0 e o aceite vigente e ainda correspondente de (versao, maquina): senao 409 managed_environment_not_authorized ou managed_environment_changed.
+             * @enum {string}
+             */
+            environmentMode?: "PREPARED" | "MANAGED";
         };
         RemoteExecutionCandidateList: {
             items: {
@@ -5576,7 +5683,132 @@ export interface components {
                 } | null;
                 python: components["schemas"]["RemotePythonChoice"] | null;
                 dependencyCheck: components["schemas"]["RemoteDependencyCheck"] | null;
+                /** @description AMBIENTE-PYTHON-001 (so com a chave ligada): a maquina declara MANAGED_ENV_1_0, e o aceite do ambiente por execucao desta versao nela */
+                managedEnvironment?: {
+                    compatible: boolean;
+                    /** @enum {string} */
+                    authorized: "NONE" | "CURRENT" | "STALE";
+                };
             }[];
+        };
+        ManagedEnvironmentLockItem: {
+            name: string;
+            version: string;
+            sha256: string;
+            fileName: string;
+        };
+        /** @description Qual dependencia falhou, em que fase e o resumo (ate 500 caracteres, sem segredos) */
+        ManagedEnvironmentFailure: {
+            requirement?: string | null;
+            /** @description Resolucao: NO_COMPATIBLE_WHEEL, RESOLUTION_CONFLICT, NOT_FOUND, INDEX_UNREACHABLE, PIP_UNAVAILABLE, TIMEOUT, OTHER. Preparo: VENV, DOWNLOAD, HASH_MISMATCH, NO_COMPATIBLE_WHEEL, INSTALL, VERIFY, PREREQUISITE, NO_SPACE, TIMEOUT, OTHER */
+            phase: string;
+            summary?: string | null;
+        };
+        /** @description AMBIENTE-PYTHON-001 (2.1): o ambiente por execucao de uma versao numa maquina */
+        ManagedEnvironment: {
+            available: boolean;
+            /** @description A maquina declara MANAGED_ENV_1_0 */
+            machineCompatible: boolean;
+            /** @description O Python escolhido e uma instalacao (D6): um venv nao serve de base */
+            baseEligible: boolean;
+            basePython: {
+                environmentId: string;
+                pythonVersion: string;
+                /** @description INSTALLATION ou VIRTUAL_ENVIRONMENT */
+                kind: string;
+            } | null;
+            requirements: {
+                revision: number | null;
+                dependencies: string[];
+            } | null;
+            resolution: {
+                /** Format: uuid */
+                resolutionId: string;
+                /** @enum {string} */
+                state: "PENDING" | "ANSWERED" | "UNANSWERED";
+                /** @enum {string|null} */
+                outcome?: "RESOLVED" | "INCOMPATIBLE" | "ENVIRONMENT_GONE" | "NOT_RESOLVED" | null;
+                /** Format: date-time */
+                requestedAt: string;
+                /** Format: date-time */
+                answerValidUntil?: string | null;
+                /** Format: date-time */
+                answeredAt?: string | null;
+                pythonVersion?: string | null;
+                pipVersion?: string | null;
+                lock?: components["schemas"]["ManagedEnvironmentLockItem"][] | null;
+                lockSha256?: string | null;
+                failure?: components["schemas"]["ManagedEnvironmentFailure"] | null;
+                current: boolean;
+            } | null;
+            externalPrerequisites: {
+                code: string;
+                package: string;
+                checks: string[];
+            }[];
+            authorization: {
+                /** Format: uuid */
+                authorizationId: string;
+                /** @enum {string} */
+                status: "CURRENT" | "STALE";
+                staleReasons?: string[];
+                lockSha256?: string | null;
+                packages?: number | null;
+                checks?: string[];
+                /** Format: date-time */
+                grantedAt?: string | null;
+                requirementsRevision?: number | null;
+                diff?: {
+                    added?: string[];
+                    removed?: string[];
+                    changed?: {
+                        name: string;
+                        from: string;
+                        to: string;
+                    }[];
+                } | null;
+            } | null;
+        };
+        ManagedEnvironmentAuthorizationRequest: {
+            /** Format: uuid */
+            versionId: string;
+            /** Format: uuid */
+            resolutionId: string;
+            lockSha256: string;
+            checks: string[];
+            /** @enum {boolean} */
+            acknowledge: true;
+        };
+        /** @description AMBIENTE-PYTHON-001: o retrato do ambiente por execucao da tentativa (nulo no modo PREPARED) */
+        RemoteAttemptEnvironment: {
+            lockSha256: string;
+            packages: number;
+            checks: string[];
+            stages: {
+                /** @enum {string} */
+                stage: "ENV_CREATING" | "DEPS_INSTALLING";
+                /** Format: date-time */
+                at: string;
+            }[];
+            report: {
+                /** @enum {string} */
+                outcome: "READY" | "FAILED" | "INTERRUPTED";
+                pythonVersion?: string | null;
+                pipVersion?: string | null;
+                installed?: {
+                    name: string;
+                    version: string;
+                    sha256?: string;
+                }[];
+                failure?: components["schemas"]["ManagedEnvironmentFailure"] | null;
+                createMs?: number | null;
+                installMs?: number | null;
+                logAvailable?: boolean;
+                /** Format: date-time */
+                logExpiredAt?: string | null;
+                /** Format: date-time */
+                reportedAt: string;
+            } | null;
         };
         /** @description A verificacao sob demanda mais recente das dependencias de uma automacao no Python escolhido de uma maquina. E informacao: a conferencia que vale para executar e a da maquina, antes de iniciar. */
         RemoteDependencyCheck: {
@@ -5766,6 +5998,11 @@ export interface components {
             automationName?: string;
             /** @description PLATFORM-LICENCIAMENTO-001: a tentativa esta na fila e, neste instante, a organizacao (modelo por licenca) esta no limite tecnico de execucoes simultaneas: espera uma vaga. Capacidade, nao licenca. */
             waitingForSlot?: boolean;
+            /**
+             * @description AMBIENTE-PYTHON-001: PREPARED (padrao) usa o Python preparado da maquina; MANAGED cria um ambiente temporario por execucao com o lock aceito. Ausente (API anterior): PREPARED.
+             * @enum {string}
+             */
+            environmentMode?: "PREPARED" | "MANAGED";
             attempts: {
                 /** Format: uuid */
                 attemptId: string;
@@ -5778,7 +6015,7 @@ export interface components {
                 workerName: string;
                 state: components["schemas"]["RemoteAttemptState"];
                 /** @enum {string|null} */
-                refusalReason: "BUSY" | "PAUSED" | "PACKAGE_INVALID" | "ENVIRONMENT_GONE" | "ENVIRONMENT_INCOMPATIBLE" | "DEPENDENCIES_MISSING" | "DISK_PRESSURE" | "CLIENT_INCOMPATIBLE" | "SESSION_UNAVAILABLE" | "AUTHORIZATION_MISSING" | "AUTHORIZATION_REVOKED" | "AUTHORIZATION_EXPIRED" | "WORKER_NOT_AUTHORIZED" | "MACHINE_NOT_LINKED" | "MACHINE_NOT_ENABLED" | "MACHINE_INCOMPATIBLE" | "COMMUNICATION_LOST" | "LICENSE_REQUIRED" | "LICENSE_EXPIRED" | null;
+                refusalReason: "BUSY" | "PAUSED" | "PACKAGE_INVALID" | "ENVIRONMENT_GONE" | "ENVIRONMENT_INCOMPATIBLE" | "DEPENDENCIES_MISSING" | "DISK_PRESSURE" | "CLIENT_INCOMPATIBLE" | "SESSION_UNAVAILABLE" | "AUTHORIZATION_MISSING" | "AUTHORIZATION_REVOKED" | "AUTHORIZATION_EXPIRED" | "WORKER_NOT_AUTHORIZED" | "MACHINE_NOT_LINKED" | "MACHINE_NOT_ENABLED" | "MACHINE_INCOMPATIBLE" | "COMMUNICATION_LOST" | "LICENSE_REQUIRED" | "LICENSE_EXPIRED" | "ENVIRONMENT_SETUP_FAILED" | "DEPENDENCY_INSTALL_FAILED" | "ENVIRONMENT_SETUP_INTERRUPTED" | "EXTERNAL_PREREQUISITE_MISSING" | null;
                 /**
                  * @description LOST: o prazo da maquina venceu. Vencido ha mais que a espera configurada (padrao 120 min), a tentativa recebida e encerrada pelo servidor (closureCause COMMUNICATION_LOST)
                  * @enum {string}
@@ -5834,6 +6071,7 @@ export interface components {
                 processes: "ACTIVE" | "UNCERTAIN" | null;
                 /** Format: date-time */
                 processesAt: string | null;
+                environment?: components["schemas"]["RemoteAttemptEnvironment"] | null;
             }[];
         };
         /** @enum {string} */
@@ -12919,6 +13157,149 @@ export interface operations {
             503: components["responses"]["ServiceUnavailable"];
         };
     };
+    getManagedEnvironment: {
+        parameters: {
+            query: {
+                versionId: string;
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                automation: string;
+                /** @description malformado -> 400 */
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Situacao do ambiente por execucao */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagedEnvironment"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    requestManagedEnvironmentResolution: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                automation: string;
+                /** @description malformado -> 400 */
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    versionId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Pedido criado, aguardando a maquina */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagedEnvironment"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    authorizeManagedEnvironment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                automation: string;
+                /** @description malformado -> 400 */
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManagedEnvironmentAuthorizationRequest"];
+            };
+        };
+        responses: {
+            /** @description Aceite gravado */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagedEnvironment"];
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    revokeManagedEnvironmentAuthorization: {
+        parameters: {
+            query: {
+                versionId: string;
+            };
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                automation: string;
+                /** @description malformado -> 400 */
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
     listRemoteExecutionCandidates: {
         parameters: {
             query: {
@@ -13132,6 +13513,48 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getRemoteAttemptEnvironmentLog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description malformado -> 401 (nenhuma sessao e resolvida) */
+                org: components["parameters"]["Org"];
+                /** @description malformado -> 400 */
+                execution: string;
+                /** @description malformado -> 400 */
+                attempt: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Registro do preparo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            400: components["responses"]["InvalidRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Registro removido pela retencao (30 dias) */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };
