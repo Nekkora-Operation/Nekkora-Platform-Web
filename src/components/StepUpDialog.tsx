@@ -72,6 +72,8 @@ export interface StepUpDialogProps<T> {
    * conferir e liberar de forma explícita.
    */
   guard?: { operation: string; target?: string };
+  /** Largura do diálogo (padrão md); lg para conteúdo com tabela. */
+  size?: 'md' | 'lg';
 }
 
 /** Registro da operação, como o diálogo o vê. */
@@ -98,7 +100,7 @@ const timeOf = (at: number) => new Date(at).toLocaleString('pt-BR', { dateStyle:
  * ao usar e ao fechar.
  */
 export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
-  const { open, title, confirmLabel, tone, children, ready = true, stepUp, action, onDone, onClose, refusalText, uncertainText, onUnauthenticated, onOutcome, guard } =
+  const { open, title, confirmLabel, tone, children, ready = true, stepUp, action, onDone, onClose, refusalText, uncertainText, onUnauthenticated, onOutcome, guard, size = 'md' } =
     props;
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -250,7 +252,7 @@ export function StepUpDialog<T>(props: StepUpDialogProps<T>) {
         setCode('');
         onClose();
       }}
-      size="md"
+      size={size}
     >
       <Stack gap={3}>
         {children}

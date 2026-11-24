@@ -13,6 +13,7 @@ import { hasReason, isApiError } from '../../api/http';
 import { useSession } from '../../area/session';
 import { DateTimeText, LoadErrorState } from './shared';
 import '../agents/agents.css';
+import { useManagedEnvironmentAvailable } from '../agents/ManagedEnvironment';
 
 /**
  * PLATFORM-CLIENT-EXECUCAO-REMOTA-001, T01c — dependências de execução de uma automação, declaradas na Platform. A leitura
@@ -47,6 +48,9 @@ export const LINE_KIND: Record<RequirementLine['kind'], string> = {
 };
 
 export const UNRESOLVED_TEXT = 'Há linhas que não podem ser usadas. Ajuste o texto e confira de novo. Nada foi gravado.';
+/** AMBIENTE-PYTHON-001: o aceite do ambiente por execução é de uma lista; declarar de novo pede um aceite novo. */
+export const MANAGED_REDECLARE_TEXT =
+  'Ambiente por execução: uma nova declaração muda a lista desta automação. As máquinas que usam o ambiente por execução passam a precisar de um novo aceite (a lista completa é gerada de novo na máquina); até lá, elas só podem executar com o Python preparado.';
 export const CHANGED_TEXT = 'Outra pessoa declarou as dependências desta automação enquanto você editava. A tela foi atualizada; confira e declare de novo se ainda for o caso. Nada foi gravado.';
 
 type Load = { status: 'loading' } | { status: 'ready'; view: View } | { status: 'absent' } | { status: 'error'; error: unknown };
@@ -61,6 +65,7 @@ export function RuntimeRequirements({ automationId, canManage }: { automationId:
   const [busy, setBusy] = useState<'idle' | 'analyzing' | 'declaring'>('idle');
   const [notice, setNotice] = useState<{ tone: 'success' | 'warning' | 'danger'; text: string } | null>(null);
   const generation = useRef(0);
+  const managedOn = useManagedEnvironmentAvailable();
 
   const reload = useCallback(async () => {
     const gen = ++generation.current;
@@ -287,6 +292,7 @@ export function RuntimeRequirements({ automationId, canManage }: { automationId:
                     {!checked.resolved && <Alert tone="warning">{UNRESOLVED_TEXT}</Alert>}
                   </>
                 )}
+                {managedOn && <Alert tone="info">{MANAGED_REDECLARE_TEXT}</Alert>}
                 <div className="pw-form__row">
                   {withText && (
                     <Button variant="secondary" loading={busy === 'analyzing'} disabled={busy !== 'idle' || tooLong} onClick={() => void analyze()}>

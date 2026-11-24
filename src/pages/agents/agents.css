@@ -47,3 +47,32 @@
 .pw-remote__head > :first-child { margin: 0; min-width: 0; }
 .pw-remote__state { display: inline-flex; align-items: center; gap: var(--nk-space-2); flex-wrap: wrap; }
 .pw-remote__state > * { margin: 0; }
+
+/* AMBIENTE-PYTHON-001: etapas da tentativa no ambiente por execução e escolhas do aceite */
+.pw-managed__steps {
+  display: grid;
+  gap: var(--nk-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pw-managed__step {
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-2);
+  flex-wrap: wrap;
+}
+
+.pw-managed__file {
+  overflow-wrap: anywhere;
+}
+
+.pw-managed__browsers {
+  display: grid;
+  gap: var(--nk-space-2);
+  margin: var(--nk-space-2) 0 0;
+  padding: var(--nk-space-2) var(--nk-space-3);
+  border: 1px solid var(--nk-color-border-strong);
+  border-radius: var(--nk-radius-md);
+}
