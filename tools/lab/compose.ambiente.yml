@@ -1,0 +1,11 @@
+# AMBIENTE-PYTHON-001 — complemento do laboratório DESCARTÁVEL: a chave do ambiente Python por execução (desligada por padrão,
+# como no produto). No laboratório, liga com LAB_AMBIENTE_GERENCIADO=true em segredos.env (o mesmo valor vai para a Platform e para
+# o gateway; só vale com LAB_EXECUCAO_REMOTA=true). Só para ensaio-*.
+services:
+  platform:
+    environment:
+      NEKKORA_AMBIENTE_GERENCIADO: ${LAB_AMBIENTE_GERENCIADO:-false}
+      NEKKORA_AMBIENTE_GERENCIADO_RESOLUCAO_SEGUNDOS: ${LAB_RESOLUCAO_SEGUNDOS:-600}
+  agent-gateway:
+    environment:
+      NEKKORA_AMBIENTE_GERENCIADO: ${LAB_AMBIENTE_GERENCIADO:-false}

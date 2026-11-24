@@ -11,6 +11,7 @@ import { ATTEMPT_STATE, WAITING_SLOT_LABEL, WAITING_SLOT_TEXT, endedUnknownText,
 import { RemoteLogs } from './RemoteLogs';
 import { RemoteResults } from './RemoteResults';
 import { durationText } from './supervision';
+import { AttemptEnvironmentDetail, ENVIRONMENT_MODE_TEXT, useManagedEnvironmentAvailable } from './ManagedEnvironment';
 import './agents.css';
 
 /**
@@ -69,6 +70,7 @@ export function RemoteExecutionPage() {
   const x = poll.data;
   const perms = useWorkspacePermissions(x?.workspaceId);
   const canReadLogs = perms.status === 'ready' && perms.has('logs.read');
+  const managedOn = useManagedEnvironmentAvailable();
   const back = { to: orgPath.executions(org), label: 'Execuções' };
   if (!x) {
     if (poll.error && (isApiError(poll.error, 'not_found') || isApiError(poll.error, 'forbidden') || isApiError(poll.error, 'invalid_request'))) {
@@ -82,6 +84,8 @@ export function RemoteExecutionPage() {
   }
   const waiting = x.state === 'QUEUED' && !!x.waitingForSlot;
   const current = waiting ? { label: WAITING_SLOT_LABEL, tone: 'warning' as const } : ATTEMPT_STATE[x.state];
+  // AMBIENTE-PYTHON-001: o ambiente e a lista efetiva congelada na solicitação (A1); só com a chave ligada ou numa solicitação MANAGED
+  const showEnvironment = managedOn || x.environmentMode === 'MANAGED';
   return (
     <Stack gap={5}>
       <PageHeader
@@ -114,6 +118,26 @@ export function RemoteExecutionPage() {
               { key: 'solicitada', term: 'Solicitada em', description: <DateTimeText iso={x.requestedAt} /> },
               { key: 'cancelamento', term: 'Cancelamento pedido', description: x.cancelRequestedAt ? <DateTimeText iso={x.cancelRequestedAt} /> : 'não' },
               { key: 'tentativas', term: 'Tentativas', description: x.attempts.length },
+              ...(showEnvironment
+                ? [
+                    { key: 'ambiente', term: 'Ambiente', description: ENVIRONMENT_MODE_TEXT[x.environmentMode ?? 'PREPARED'] },
+                    {
+                      key: 'dependencias',
+                      term: `Dependências (revisão ${x.requirementsRevision})`,
+                      description: x.dependencies.length ? (
+                        <ul className="pw-plain-list" aria-label="Dependências da solicitação">
+                          {x.dependencies.map((d) => (
+                            <li key={d}>
+                              <code>{d}</code>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        'nenhuma além das do pacote'
+                      ),
+                    },
+                  ]
+                : []),
             ]}
           />
         </Stack>
@@ -127,6 +151,7 @@ export function RemoteExecutionPage() {
             </div>
             {a.state === 'REFUSED' && a.refusalReason && <Text color="secondary">{`Motivo informado pela máquina: ${refusalText(a.refusalReason)}.`}</Text>}
             {a.state === 'ENDED_UNKNOWN' && <Text color="secondary">{endedUnknownText(a.closureCause)}</Text>}
+            {a.environment && <AttemptEnvironmentDetail org={org} executionId={x.remoteExecutionId} attempt={a} canReadLogs={canReadLogs} />}
             <DescriptionList
               items={[
                 { key: 'maquina', term: 'Nome da máquina', description: a.agentName },

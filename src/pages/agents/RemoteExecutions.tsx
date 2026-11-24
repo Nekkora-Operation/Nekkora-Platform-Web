@@ -30,6 +30,18 @@ import { RemoteLogs } from './RemoteLogs';
 import { RemoteResults } from './RemoteResults';
 import './agents.css';
 import { CAPACITY_PENDING_TEXT, LICENSE_EXPIRED_TEXT, LICENSE_REQUIRED_TEXT, reducedValidityText } from '../licenses/texts';
+import {
+  AttemptEnvironment,
+  EnvironmentModeChoice,
+  MANAGED,
+  MANAGED_REFUSAL,
+  MANAGED_REQUEST_REFUSAL,
+  ManagedEnvironmentDialog,
+  RevokeManagedDialog,
+  managedIndication,
+  useManagedEnvironmentAvailable,
+} from './ManagedEnvironment';
+import type { EnvironmentMode } from '../../api/managedEnvironment';
 
 /**
  * PLATFORM-CLIENT-EXECUCAO-REMOTA-001, T02 — execução remota de uma versão publicada. A tela mostra, por máquina, o que
@@ -206,6 +218,8 @@ const REFUSAL: Record<string, string> = {
   // PLATFORM-LICENCIAMENTO-001: a licença é conferida de novo antes de entregar e antes de iniciar
   LICENSE_REQUIRED: 'a automação estava sem licença no momento do início',
   LICENSE_EXPIRED: 'a licença da automação venceu antes do início',
+  // AMBIENTE-PYTHON-001: o preparo do ambiente por execução falhou (ou foi interrompido) antes de a automação iniciar
+  ...MANAGED_REFUSAL,
 };
 export const refusalText = (r: string | null | undefined) => (r ? (REFUSAL[r] ?? r) : '');
 
@@ -291,6 +305,7 @@ export const REQUEST_REFUSAL: Record<string, string> = {
   remote_attempt_not_finished: 'A tentativa anterior ainda não terminou. Só depois do término é possível executar em outra máquina.',
   remote_attempt_already_finished: 'A tentativa já terminou: não há o que cancelar.',
   remote_execution_cancel_requested: 'O cancelamento desta solicitação já foi pedido.',
+  ...MANAGED_REQUEST_REFUSAL,
 };
 export function remoteRefusal(e: unknown): string {
   const reason = e instanceof ApiError && e.code === 'conflict' ? e.reason : undefined;
@@ -346,6 +361,11 @@ export function RemoteExecutions({
   const [environment, setEnvironment] = useState('');
   // verificação sob demanda das dependências (plano 5.9): a máquina em que o pedido está sendo enviado agora
   const [checking, setChecking] = useState('');
+  // AMBIENTE-PYTHON-001: só com a chave ligada; o Python preparado continua o padrão de toda solicitação
+  const managedOn = useManagedEnvironmentAvailable();
+  const [managing, setManaging] = useState<RemoteCandidate | null>(null);
+  const [revoking, setRevoking] = useState<RemoteCandidate | null>(null);
+  const [mode, setMode] = useState<EnvironmentMode>('PREPARED');
   const checkDependencies = async (c: RemoteCandidate) => {
     setChecking(c.agentId);
     try {
@@ -405,6 +425,8 @@ export function RemoteExecutions({
   const acceptUntilDate = acceptUntil ? new Date(`${acceptUntil}T23:59:59`) : null;
   const acceptUntilOk = !!acceptUntilDate && acceptUntilDate.getTime() > Date.now() && acceptUntilDate.getTime() <= Date.now() + 366 * 86_400_000;
   const versionLabel = `versão ${version.versionNumber ?? ''}`.trim();
+  /** A escolha do ambiente só aparece com a chave ligada e um aceite VIGENTE nesta máquina; sem ela, o pedido sai como hoje. */
+  const offersManaged = (c: RemoteCandidate) => managedOn && c.managedEnvironment?.compatible === true && c.managedEnvironment.authorized === 'CURRENT';
 
   /** A ação que resolve o que falta — oferecida só a quem pode fazê-la. */
   const action = (m: RemoteMissing, c: RemoteCandidate) => {
@@ -491,6 +513,40 @@ export function RemoteExecutions({
         </Stack>
       ),
     },
+    ...(managedOn
+      ? [
+          {
+            key: 'ambiente',
+            header: MANAGED.COLUMN,
+            render: (c: RemoteCandidate) => {
+              const ind = managedIndication(c);
+              if (!ind) return '—';
+              const m = c.managedEnvironment;
+              return (
+                <Stack gap={1}>
+                  <span>
+                    <Badge tone={ind.tone}>{ind.label}</Badge>
+                  </span>
+                  {canManage && m?.compatible && (
+                    <span>
+                      <Button size="sm" variant="ghost" onClick={() => setManaging(c)} aria-label={`Ambiente por execução em ${c.agentName}`}>
+                        {MANAGED.OPEN}
+                      </Button>
+                    </span>
+                  )}
+                  {canManage && m && m.authorized !== 'NONE' && (
+                    <span>
+                      <Button size="sm" variant="ghost" onClick={() => setRevoking(c)} aria-label={`${MANAGED.BACK} em ${c.agentName}`}>
+                        {MANAGED.BACK}
+                      </Button>
+                    </span>
+                  )}
+                </Stack>
+              );
+            },
+          } satisfies TableColumn<RemoteCandidate>,
+        ]
+      : []),
     {
       key: 'situacao',
       header: 'Para solicitar',
@@ -520,7 +576,14 @@ export function RemoteExecutions({
       header: 'Ação',
       render: (c) =>
         canExecute && c.requestable && externalPackage ? (
-          <Button size="sm" onClick={() => setRequesting(c)} aria-label={`Solicitar execução em ${c.agentName}`}>
+          <Button
+            size="sm"
+            onClick={() => {
+              setMode('PREPARED');
+              setRequesting(c);
+            }}
+            aria-label={`Solicitar execução em ${c.agentName}`}
+          >
             Solicitar execução
           </Button>
         ) : canExecute && externalPackage && onlyAuthorizationMissing(c.missing) ? (
@@ -530,6 +593,7 @@ export function RemoteExecutions({
             onClick={() => {
               setAcceptAck(false);
               setAcceptUntil('');
+              setMode('PREPARED');
               setAccepting(c);
             }}
             aria-label={`Solicitar execução em ${c.agentName}`}
@@ -601,6 +665,8 @@ export function RemoteExecutions({
           resultado não confirmado (ou como não iniciada, se ainda não tinha começado).
         </Text>
       )}
+      {/* AMBIENTE-PYTHON-001: etapas e relatório do preparo, só nas tentativas do ambiente por execução */}
+      {a.environment && <AttemptEnvironment org={org} executionId={executionOf(a.attemptId)} attempt={a} />}
       {/* registros: de tentativa que iniciou (em andamento ou terminada), só para quem pode ver registros */}
       {canReadLogs && a.startedAt && <RemoteLogs org={org} executionId={executionOf(a.attemptId)} attemptId={a.attemptId} attemptNumber={a.attemptNumber} />}
       {/* resultados: só de tentativa que iniciou e terminou, e só para quem pode ver registros */}
@@ -717,7 +783,16 @@ export function RemoteExecutions({
         guard={{ operation: 'remote-execution.request', target: requestKey }}
         confirmLabel="Solicitar execução"
         stepUp={orgStepUp(org)}
-        action={() => (requesting ? requestRemoteExecution(org, workspaceId, { automationVersionId: version.automationVersionId, agentId: requesting.agentId, requestKey }) : Promise.reject())}
+        action={() =>
+          requesting
+            ? requestRemoteExecution(org, workspaceId, {
+                automationVersionId: version.automationVersionId,
+                agentId: requesting.agentId,
+                requestKey,
+                ...(offersManaged(requesting) ? { environmentMode: mode } : {}),
+              })
+            : Promise.reject()
+        }
         onDone={() => {
           setRequesting(null);
           setNotice({ tone: 'success', text: 'Solicitação registrada. A máquina recebe na próxima consulta; o início aparece quando ela informar.' });
@@ -728,10 +803,13 @@ export function RemoteExecutions({
         uncertainText="Não foi possível confirmar a solicitação. Atualize a lista antes de repetir (repetir pelo mesmo diálogo devolve a mesma solicitação)."
         onUnauthenticated={expired}
       >
-        <Text>
-          A máquina recebe a solicitação na próxima consulta. Antes de iniciar, a Platform confere de novo a autorização desta versão para a máquina dela: se
-          tiver sido revogada ou vencido, a execução não inicia e o motivo aparece aqui.
-        </Text>
+        <Stack gap={3}>
+          <Text>
+            A máquina recebe a solicitação na próxima consulta. Antes de iniciar, a Platform confere de novo a autorização desta versão para a máquina dela: se
+            tiver sido revogada ou vencido, a execução não inicia e o motivo aparece aqui.
+          </Text>
+          {requesting && offersManaged(requesting) && <EnvironmentModeChoice value={mode} onChange={setMode} />}
+        </Stack>
       </StepUpDialog>
 
       <StepUpDialog<RemoteExecution>
@@ -749,6 +827,7 @@ export function RemoteExecutions({
                 requestKey,
                 authorizeVersion: true,
                 ...(!licensed && acceptUntilDate ? { authorizationValidUntil: acceptUntilDate.toISOString() } : {}),
+                ...(offersManaged(accepting) ? { environmentMode: mode } : {}),
               })
             : Promise.reject()
         }
@@ -803,6 +882,7 @@ export function RemoteExecutions({
             checked={acceptAck}
             onChange={(e) => setAcceptAck(e.target.checked)}
           />
+          {accepting && offersManaged(accepting) && <EnvironmentModeChoice value={mode} onChange={setMode} />}
         </Stack>
       </StepUpDialog>
 
@@ -975,6 +1055,40 @@ export function RemoteExecutions({
           <Checkbox label={RECONCILE.ACK} checked={reconcileAck} onChange={(e) => setReconcileAck(e.target.checked)} />
         </Stack>
       </StepUpDialog>
+      {managedOn && managing && (
+        <ManagedEnvironmentDialog
+          org={org}
+          automationId={automationId}
+          versionId={version.automationVersionId}
+          versionLabel={versionLabel}
+          candidate={managing}
+          canManage={canManage}
+          onClose={() => setManaging(null)}
+          onDone={(text) => {
+            setManaging(null);
+            setNotice({ tone: 'success', text });
+            poll.refresh();
+          }}
+          onUnauthenticated={expired}
+          refusalText={remoteRefusal}
+        />
+      )}
+      {managedOn && (
+        <RevokeManagedDialog
+          org={org}
+          automationId={automationId}
+          versionId={version.automationVersionId}
+          candidate={revoking}
+          onClose={() => setRevoking(null)}
+          onDone={(text) => {
+            setRevoking(null);
+            setNotice({ tone: 'success', text });
+            poll.refresh();
+          }}
+          onUnauthenticated={expired}
+          refusalText={remoteRefusal}
+        />
+      )}
     </section>
   );
 }

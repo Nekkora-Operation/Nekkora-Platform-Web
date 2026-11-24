@@ -22,6 +22,8 @@ export interface Me {
   organizationLicenseModel?: 'legacy' | 'licensed';
   /** RELEASE-2.2: se esta Platform aceita execução remota; ausente (API anterior ao campo) = indisponível. */
   remoteExecutionAvailable?: boolean;
+  /** AMBIENTE-PYTHON-001: o ambiente por execução está disponível (chave ligada e execução remota disponível); ausente = indisponível. */
+  managedEnvironmentAvailable?: boolean;
 }
 
 // ------------------------------------------------------------------ CSRF de pré-autenticação

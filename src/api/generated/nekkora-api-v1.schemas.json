@@ -1,5 +1,5 @@
 {
-  "openapiSha256": "709b2f01d50774734043056f8a4f8576f8ab43d3b8dbae7f9d6bb2af3c479a00",
+  "openapiSha256": "3b75fd5b7d503ce20aa3900a3af215a413b4fb1d64e4e5f48dc0edca9d37386b",
   "schemas": {
     "Error": {
       "type": "object",
@@ -21,7 +21,8 @@
             "rate_limited",
             "internal_error",
             "service_unavailable",
-            "unsupported_contract"
+            "unsupported_contract",
+            "gone"
           ]
         },
         "reason": {
@@ -105,7 +106,17 @@
             "client_invitation_other_client",
             "client_grant_exists",
             "client_scope_unavailable",
-            "client_grant_widening_requires_request"
+            "client_grant_widening_requires_request",
+            "organization_held",
+            "managed_environment_unavailable",
+            "managed_environment_machine_incompatible",
+            "managed_environment_base_not_installation",
+            "managed_environment_resolution_pending",
+            "managed_environment_resolution_not_current",
+            "managed_environment_lock_changed",
+            "managed_environment_not_authorized",
+            "managed_environment_changed",
+            "managed_environment_log_expired"
           ]
         }
       }
@@ -6618,7 +6629,13 @@
         "stepUpMethod": {
           "$ref": "#/components/schemas/StepUpMethod"
         },
+        "organizationHeldByNekkora": {
+          "type": "boolean"
+        },
         "remoteExecutionAvailable": {
+          "type": "boolean"
+        },
+        "managedEnvironmentAvailable": {
           "type": "boolean"
         }
       }
@@ -6851,6 +6868,13 @@
         "authorizationValidUntil": {
           "type": "string",
           "format": "date-time"
+        },
+        "environmentMode": {
+          "type": "string",
+          "enum": [
+            "PREPARED",
+            "MANAGED"
+          ]
         }
       }
     },
@@ -6967,7 +6991,551 @@
                     "type": "null"
                   }
                 ]
+              },
+              "managedEnvironment": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "compatible",
+                  "authorized"
+                ],
+                "properties": {
+                  "compatible": {
+                    "type": "boolean"
+                  },
+                  "authorized": {
+                    "type": "string",
+                    "enum": [
+                      "NONE",
+                      "CURRENT",
+                      "STALE"
+                    ]
+                  }
+                }
               }
+            }
+          }
+        }
+      }
+    },
+    "ManagedEnvironmentLockItem": {
+      "type": "object",
+      "required": [
+        "name",
+        "version",
+        "sha256",
+        "fileName"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "fileName": {
+          "type": "string",
+          "maxLength": 200
+        }
+      }
+    },
+    "ManagedEnvironmentFailure": {
+      "type": "object",
+      "required": [
+        "phase"
+      ],
+      "properties": {
+        "requirement": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "phase": {
+          "type": "string"
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 500
+        }
+      }
+    },
+    "ManagedEnvironment": {
+      "type": "object",
+      "required": [
+        "available",
+        "machineCompatible",
+        "baseEligible",
+        "basePython",
+        "requirements",
+        "resolution",
+        "externalPrerequisites",
+        "authorization"
+      ],
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "machineCompatible": {
+          "type": "boolean"
+        },
+        "baseEligible": {
+          "type": "boolean"
+        },
+        "basePython": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "environmentId",
+            "pythonVersion",
+            "kind"
+          ],
+          "properties": {
+            "environmentId": {
+              "type": "string"
+            },
+            "pythonVersion": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            }
+          }
+        },
+        "requirements": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "revision",
+            "dependencies"
+          ],
+          "properties": {
+            "revision": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "dependencies": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "resolution": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "resolutionId",
+            "state",
+            "requestedAt",
+            "current"
+          ],
+          "properties": {
+            "resolutionId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "ANSWERED",
+                "UNANSWERED"
+              ]
+            },
+            "outcome": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "RESOLVED",
+                "INCOMPATIBLE",
+                "ENVIRONMENT_GONE",
+                "NOT_RESOLVED",
+                null
+              ]
+            },
+            "requestedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "answerValidUntil": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            },
+            "answeredAt": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            },
+            "pythonVersion": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pipVersion": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lock": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "$ref": "#/components/schemas/ManagedEnvironmentLockItem"
+              }
+            },
+            "lockSha256": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "failure": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ManagedEnvironmentFailure"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "current": {
+              "type": "boolean"
+            },
+            "waitingForExecution": {
+              "type": "boolean"
+            }
+          }
+        },
+        "externalPrerequisites": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "code",
+              "package",
+              "checks"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "package": {
+                "type": "string"
+              },
+              "checks": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "authorization": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "authorizationId",
+            "status"
+          ],
+          "properties": {
+            "authorizationId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "CURRENT",
+                "STALE"
+              ]
+            },
+            "staleReasons": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "lockSha256": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "packages": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "checks": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "grantedAt": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            },
+            "requirementsRevision": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "diff": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "added": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "removed": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "changed": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "name",
+                      "from",
+                      "to"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "from": {
+                        "type": "string"
+                      },
+                      "to": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "ManagedEnvironmentAuthorizationRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "versionId",
+        "resolutionId",
+        "lockSha256",
+        "checks",
+        "acknowledge"
+      ],
+      "properties": {
+        "versionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "resolutionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "lockSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "acknowledge": {
+          "type": "boolean",
+          "enum": [
+            true
+          ]
+        }
+      }
+    },
+    "RemoteAttemptEnvironment": {
+      "type": "object",
+      "required": [
+        "lockSha256",
+        "packages",
+        "checks",
+        "stages",
+        "report"
+      ],
+      "properties": {
+        "lockSha256": {
+          "type": "string"
+        },
+        "packages": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "stages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "stage",
+              "at"
+            ],
+            "properties": {
+              "stage": {
+                "type": "string",
+                "enum": [
+                  "ENV_CREATING",
+                  "DEPS_INSTALLING"
+                ]
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        },
+        "report": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "outcome",
+            "reportedAt"
+          ],
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "READY",
+                "FAILED",
+                "INTERRUPTED"
+              ]
+            },
+            "pythonVersion": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pipVersion": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "installed": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "version"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "failure": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ManagedEnvironmentFailure"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "createMs": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "installMs": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "logAvailable": {
+              "type": "boolean"
+            },
+            "logExpiredAt": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            },
+            "reportedAt": {
+              "type": "string",
+              "format": "date-time"
             }
           }
         }
@@ -7477,6 +8045,13 @@
         "waitingForSlot": {
           "type": "boolean"
         },
+        "environmentMode": {
+          "type": "string",
+          "enum": [
+            "PREPARED",
+            "MANAGED"
+          ]
+        },
         "attempts": {
           "type": "array",
           "items": {
@@ -7555,6 +8130,11 @@
                   "COMMUNICATION_LOST",
                   "LICENSE_REQUIRED",
                   "LICENSE_EXPIRED",
+                  "ORGANIZATION_HELD",
+                  "ENVIRONMENT_SETUP_FAILED",
+                  "DEPENDENCY_INSTALL_FAILED",
+                  "ENVIRONMENT_SETUP_INTERRUPTED",
+                  "EXTERNAL_PREREQUISITE_MISSING",
                   null
                 ]
               },
@@ -7729,6 +8309,16 @@
                   "null"
                 ],
                 "format": "date-time"
+              },
+              "environment": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/RemoteAttemptEnvironment"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             }
           }
@@ -18168,6 +18758,220 @@
         }
       }
     },
+    "getManagedEnvironment": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/automations/{automation}/remote-machines/{agent}/managed-environment",
+      "responses": {
+        "200": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ManagedEnvironment"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "requestManagedEnvironmentResolution": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/automations/{automation}/remote-machines/{agent}/managed-environment/resolutions",
+      "responses": {
+        "201": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ManagedEnvironment"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "authorizeManagedEnvironment": {
+      "method": "POST",
+      "path": "/api/v1/o/{org}/automations/{automation}/remote-machines/{agent}/managed-environment/authorizations",
+      "responses": {
+        "201": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/ManagedEnvironment"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "revokeManagedEnvironmentAuthorization": {
+      "method": "DELETE",
+      "path": "/api/v1/o/{org}/automations/{automation}/remote-machines/{agent}/managed-environment/authorizations/current",
+      "responses": {
+        "204": {
+          "contentType": null,
+          "schema": null
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "409": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
     "listRemoteExecutionCandidates": {
       "method": "GET",
       "path": "/api/v1/o/{org}/workspaces/{workspace}/remote-executions/candidates",
@@ -18471,6 +19275,60 @@
           }
         },
         "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "429": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "503": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "getRemoteAttemptEnvironmentLog": {
+      "method": "GET",
+      "path": "/api/v1/o/{org}/remote-executions/{execution}/attempts/{attempt}/environment-log",
+      "responses": {
+        "200": {
+          "contentType": "text/plain",
+          "schema": {
+            "type": "string"
+          }
+        },
+        "400": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "401": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "403": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "404": {
+          "contentType": "application/json",
+          "schema": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "410": {
           "contentType": "application/json",
           "schema": {
             "$ref": "#/components/schemas/Error"
