@@ -5,7 +5,7 @@ import { expect, test, type Browser, type Locator, type Page } from '@playwright
 // @ts-expect-error módulo .mjs da ferramenta do laboratório (sem tipos)
 import { compose } from '../tools/lab/lab.mjs';
 import { Authenticator } from '../mock/totp';
-import { confirmStepUp, LAB, newVersionWithPackage, signInWithTotp, type Person } from './support/lab';
+import { activateAutomation, confirmStepUp, LAB, newVersionWithPackage, signInWithTotp, type Person } from './support/lab';
 import { abrirExe, acessos, comando, controle, derrubarExe, EVID, EXTRAS, fecharExe, GUARDADO, LABDIR, log, pidAtual, sql, vivo } from './support/ambiente';
 
 /**
@@ -692,6 +692,106 @@ test.describe.serial('AMBIENTE-PYTHON-001: ponta a ponta', () => {
     log(ARQ, '12: sem a configuração do índice', { ok, resolucao: linhaRes, pedidosAoIndiceLocal: pedidos.length, tela: texto.slice(0, 700) });
     expect(ok, 'amblab-alfa só existe no índice local: pelo PyPI a lista não sai').toBe(false);
     expect(pedidos, 'nenhum pedido chegou ao índice local').toEqual([]);
+  });
+
+  test('13. caminho normal: pacote público do PyPI com dependência indireta, versões fixadas; o cache do pip é usado na segunda', async () => {
+    // rodar com a cópia apontada por "cfg-lab.py sem-indice exe-dados2" e AMB_SEGUNDA=1. O robô: versão nova do "Robô inexistente"
+    // com python-dateutil==2.9.0.post0 (pede six). Nenhuma configuração de índice: o aplicativo usa o pypi.org (HTTPS)
+    test.skip(!quando('pypi'));
+    test.setTimeout(3_600_000);
+    const nome = 'pypi';
+    if (!G.automacoes[nome]) {
+      const a = G.automacoes['Robô inexistente'].automation;
+      await go(page, `/o/${G.oficina}/automacoes/${a}`);
+      const url = await newVersionWithPackage(page, join(LABDIR, 'robos', 'pypi.zip'));
+      await page.getByRole('button', { name: 'Publicar versão' }).click();
+      await confirmar(page, 'Publicar');
+      await settle(page);
+      const v = /versoes\/([0-9a-f-]{36})/.exec(url)![1];
+      await expect.poll(() => sql(`SELECT status FROM automation_versions WHERE automation_version_id = '${v}'`), { timeout: 60_000 }).toBe('2');
+      G.automacoes[nome] = { automation: a, version: v };
+      writeFileSync(GUARDADO, JSON.stringify({ ...JSON.parse(readFileSync(GUARDADO, 'utf8')), automacoes: G.automacoes }));
+    }
+    const worker = SEGUNDA ? 'Estação gerenciada 2' : 'Estação gerenciada';
+    const ativa = sql(`SELECT count(*) FROM local_run_authorizations l JOIN workers w USING (worker_id) WHERE l.automation_id = '${G.automacoes[nome].automation}' AND w.name = '${worker}' AND l.revoked_at IS NULL`);
+    if (ativa === '0') {
+      await page.waitForTimeout(31_000);
+      await activateAutomation(page, ana, G.oficina, { workspace: 'Fiscal', automation: 'Robô inexistente', workers: [worker] });
+      await settle(page);
+    }
+    const cacheDir = join(LABDIR, SEGUNDA ? 'exe-dados2' : 'exe-dados', 'remota', 'cache-pip');
+    const cache = () => {
+      const arquivos: string[] = [];
+      const andar = (p: string) => {
+        try {
+          for (const e of readdirSync(p, { withFileTypes: true })) (e.isDirectory() ? andar(join(p, e.name)) : arquivos.push(join(p, e.name)));
+        } catch {
+          /* ainda não existe */
+        }
+      };
+      andar(cacheDir);
+      return arquivos.length;
+    };
+    const antesIndice = acessos().length;
+    const versao13 = G.automacoes[nome].version;
+    const lockAtual = () => sql(`SELECT coalesce(lock::text, '') FROM managed_environment_resolutions WHERE automation_version_id = '${versao13}' ORDER BY requested_at DESC LIMIT 1`);
+    const aceita = sql(`SELECT count(*) FROM managed_environment_authorizations WHERE automation_version_id = '${versao13}' AND agent_id = '${G.agente}' AND revoked_at IS NULL`);
+    if (aceita === '0') {
+      const cache0 = cache();
+      const { d, texto, ok } = await gerarLista(nome, '13-pypi');
+      expect(ok, texto).toBe(true);
+      const linhas = (await d.getByRole('region', { name: 'Lista completa dos pacotes' }).getByRole('row').allInnerTexts()).join('\n');
+      log(ARQ, '13: lista do PyPI', { linhas, lock: lockAtual(), cache_antes: cache0, cache_depois_da_resolucao: cache() });
+      expect(linhas).toMatch(/python-dateutil[\s\S]*2\.9\.0\.post0[\s\S]*Declarada/);
+      expect(linhas).toMatch(/six[\s\S]*Indireta/);
+      await aceitar(d, '13-pypi');
+    }
+    // o lock aceito tem os SHA-256 que o próprio PyPI publica para esses arquivos (API JSON pública do pypi.org)
+    const lock = JSON.parse(lockAtual()) as { name: string; version: string; sha256: string; fileName: string }[];
+    expect(lock.map((l) => l.name).sort()).toEqual(['python-dateutil', 'six']);
+    const publicados: Record<string, string> = {};
+    for (const l of lock) {
+      const j = (await (await fetch(`https://pypi.org/pypi/${l.name}/${l.version}/json`)).json()) as { urls: { filename: string; digests: { sha256: string } }[] };
+      publicados[l.fileName] = j.urls.find((u) => u.filename === l.fileName)?.digests.sha256 ?? '';
+      expect(l.sha256, `${l.fileName}: SHA-256 do lock = o publicado no PyPI`).toBe(publicados[l.fileName]);
+    }
+    log(ARQ, '13: lock conferido com o PyPI', { lock, publicados });
+    // A: com o cache já preenchido (a resolução baixou do PyPI por HTTPS); B: depois do "Limpar cache" do aplicativo
+    const logs: Record<string, string> = {};
+    let six = '';
+    for (const vez of ['A-com-cache', 'B-sem-cache']) {
+      if (vez === 'B-sem-cache') {
+        const limpo = await comando('limpar-cache');
+        log(ARQ, '13: Limpar cache', { habilitado: limpo.botaoEstavaHabilitado, uso: limpo.usoDoCache, tela: limpo.resultado, arquivos_no_cache: cache() });
+        expect(limpo.botaoEstavaHabilitado).toBe(true);
+        expect(cache(), 'o cache ficou vazio').toBe(0);
+      }
+      const antes = cache();
+      const x = await solicitar(nome, 'MANAGED');
+      const { t, depois } = await acompanhar(x, `13-execucao-${vez}`);
+      expect(t.state).toBe('SUCCEEDED');
+      expect(depois.ambientesNasTentativas, 'o ambiente temporário foi apagado no fim').toBe('');
+      const r = resultado(t.attempt);
+      const preparo = sql(`SELECT coalesce(preparation_log, '') FROM remote_attempt_environment_reports WHERE attempt_id = '${t.attempt}'`);
+      const relevantes = preparo.split(/\r?\n/).filter((l) => /Looking in indexes|Downloading|Using cached|Collecting|Successfully installed/i.test(l));
+      logs[vez] = relevantes.join('\n');
+      log(ARQ, `13-execucao-${vez}: o que a automação viu e o preparo`, { resultado: r, cache_antes: antes, cache_depois: cache(), preparo: relevantes });
+      // sem "Looking in indexes": o pip só escreve essa linha quando o índice não é o padrão (pypi.org)
+      expect(logs[vez]).not.toMatch(/Looking in indexes|127\.0\.0\.1/);
+      expect(r?.modulos?.['python-dateutil']).toBe('2.9.0.post0');
+      six ||= r?.modulos?.six;
+      expect(r?.modulos?.six).toBe(six);
+      expect(String(r?.arquivos?.dateutil)).toContain(t.attempt);
+      expect(String(r?.arquivos?.six)).toContain(t.attempt);
+      expect(cache(), 'o cache do pip tem arquivos (respostas HTTPS do PyPI)').toBeGreaterThan(0);
+      log(ARQ, `13-execucao-${vez}: cartão na Web`, await cartao(`13-execucao-${vez}-web`));
+    }
+    expect(logs['A-com-cache'], 'com o cache, nada é baixado').toMatch(/Using cached python_dateutil-2\.9\.0\.post0[\s\S]*Using cached six-/);
+    expect(logs['A-com-cache']).not.toMatch(/Downloading/);
+    expect(logs['B-sem-cache'], 'sem o cache, baixa do PyPI').toMatch(/Downloading python_dateutil-2\.9\.0\.post0[\s\S]*Downloading six-1\.17\.0/);
+    // o pip 25 só mostra a URL do download quando o índice não é o padrão; a origem é provada pelo lock = SHA-256 publicado no PyPI,
+    // pela ausência de configuração de índice e por 0 pedidos ao índice local
+    expect(acessos().slice(antesIndice), 'nenhum pedido ao índice local').toEqual([]);
   });
 
   test('11. registro do preparo: removido depois de 30 dias; o resumo da falha fica', async () => {
